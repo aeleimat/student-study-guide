@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 6, Lesson 3: The ER and the Golgi Apparatus — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 6 (A Tour of the Cell), lesson 3: the ER and the Golgi apparatus. A liver backdrop and the cell map
+// with the ER and Golgi lit; the six parts of the endomembrane system and the ER joined to the nuclear envelope; the
+// ER's cisternae, lumen, smooth and rough regions and transitional ER; smooth ER's four jobs in a liver cell; rough ER
+// (bound ribosomes, glycoproteins, secretion, membrane factory, vesicles); the two compared; the Golgi's cis and trans
+// faces and its three jobs; one glycoprotein followed through a pancreas cell; summary; practice.
+// Plan, errata and storyboard: books/biology/chapters/chapter-06/lesson-03.md.
+const CHAPTER = { number: 603, label: '6, lesson 3', title: 'The ER and the Golgi Apparatus', minutes: 7, language: 'en', lead: false, next: '../lesson-04/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const ramp = (t, a, b) => mClamp((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+const showL = (e, t0, dur = .4) => { show(e, t0, dur); return e; };
+const BADGE = '#3b8fd9', GLOW = '#c8fff4', TOX = '#e5533d', TOX_PALE = '#d9d2c4', SUGAR_RING = '#f3c95c';
+// Piecewise-linear keyframes on the beat clock: keyf(t, [[t0, v0], [t1, v1], …]) with an io ease inside each segment.
+function keyf(t, ks) {
+  if (t <= ks[0][0]) return ks[0][1];
+  for (let i = 1; i < ks.length; i++) if (t <= ks[i][0]) { const [a, va] = ks[i - 1], [b, vb] = ks[i]; return lerp(va, vb, io(ramp(t, a, b))); }
+  return ks[ks.length - 1][1];
+}
+
+// A numbered step badge; .t is its text.
+function badge(p, str, x, y, { o = 0, r = 24 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: BADGE, stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t });
+}
+
+// A carbohydrate tag (pink branches, as on the kit's Golgi cargo), its stem at the origin pointing up-right.
+function sugarTag(p, { x = 0, y = 0, s = 1, o = 1, r = 0 } = {}) {
+  const g = G(p, { x, y, s, o, r });
+  path(g, 'M0 0L12 -12M12 -12L22 -10M12 -12L11 -23', { stroke: CC.tag, 'stroke-width': 4 });
+  mk('circle', { cx: 22, cy: -10, r: 5, fill: CC.tag }, g); mk('circle', { cx: 11, cy: -23, r: 5, fill: CC.tag }, g);
+  return g;
+}
+
+// A spiky poison blob, centred on its origin; .tint(k) turns it from red to pale and pulls its spikes in.
+function toxinBlob(p, { x = 0, y = 0, s = 1, o = 1, R = 26 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const spikes = G(g), core = mk('circle', { r: R * .78, fill: TOX, stroke: '#8f2a1c', 'stroke-width': 3 }, g);
+  let d = ''; for (let i = 0; i < 10; i++) { const a = i / 10 * 2 * Math.PI, b = a + Math.PI / 10; d += `M${cF(R * .7 * Math.cos(a - .2))} ${cF(R * .7 * Math.sin(a - .2))}L${cF(R * 1.35 * Math.cos(a))} ${cF(R * 1.35 * Math.sin(a))}L${cF(R * .7 * Math.cos(a + .2))} ${cF(R * .7 * Math.sin(a + .2))}Z`; void b; }
+  const sp = path(spikes, d, { fill: TOX, stroke: '#8f2a1c', 'stroke-width': 2 });
+  const face = path(g, `M${-R * .3} ${-R * .12}l${R * .16} ${R * .1}M${R * .3} ${-R * .12}l${-R * .16} ${R * .1}M${-R * .26} ${R * .32}q${R * .26} ${-R * .18} ${R * .52} 0`, { stroke: '#3b0f0a', 'stroke-width': 3 });
+  const b = Object.assign(g, {
+    tint(k) {
+      const q = Math.round(mClamp(k) * 20) / 20, c = mix(TOX, TOX_PALE, q);
+      cAttr(core, 'fill', c); cAttr(sp, 'fill', c); cSet(spikes, { s: 1 - .75 * q }); mO(face, 1 - q);
+      return b;
+    },
+  });
+  return b;
+}
+
+// A short sugar chain (hexagon rings joined); .rings
+function sugarChain(p, { x = 0, y = 0, s = 1, o = 1, n = 4, R = 15, sp = 36 } = {}) {
+  const g = G(p, { x, y, s, o }), rings = [];
+  const hex = `M${R} 0L${R / 2} ${cF(R * .866)}L${-R / 2} ${cF(R * .866)}L${-R} 0L${-R / 2} ${cF(-R * .866)}L${R / 2} ${cF(-R * .866)}Z`;
+  for (let i = 0; i < n; i++) {
+    const rg = G(g, { x: (i - (n - 1) / 2) * sp });
+    if (i) path(rg, `M${-sp + R} 0H${-R}`, { stroke: SUGAR_RING, 'stroke-width': 4 });
+    path(rg, hex, { fill: '#3d3416', stroke: SUGAR_RING, 'stroke-width': 4 });
+    rings.push(rg);
+  }
+  return Object.assign(g, { rings });
+}
+
+/* ---------- backdrops and scenes ---------- */
+// The liver backdrop: an organ outline, and a lens on its hexagonal cells. Returns { g, body, lens, hub } (hub: the
+// centre of the cell the camera dives into).
+function liverScene(p) {
+  const g = G(p);
+  const body = G(g, { x: 400, y: 410 });
+  path(body, 'M-270 -40C-250 -170 -10 -210 210 -170C300 -152 310 -80 250 -30C150 50 0 130 -130 160C-230 185 -290 100 -270 -40Z', { fill: '#8e3f37', stroke: '#c2665a', 'stroke-width': 5 });
+  path(body, 'M-10 -188C-30 -100 -20 0 20 80', { stroke: '#6e2e28', 'stroke-width': 5 });
+  path(body, 'M-150 -110C-90 -130 -40 -120 -20 -110M60 -150C120 -140 170 -120 200 -95', { stroke: '#b45a4f', 'stroke-width': 3, 'stroke-opacity': .7 });
+  const HX = 640, HY = 650, RL = 150, R = 30, lens = G(g, { o: 0 });
+  path(lens, `M${400 + 120} ${410 + 40}L${HX - 100} ${HY - 110}`, { stroke: COL.dim, 'stroke-width': 2.5, 'stroke-dasharray': '8 6' });
+  mk('circle', { cx: HX, cy: HY, r: RL, fill: '#3a1a17' }, lens);
+  let hd = '', nd = '';
+  const hexAt = (cx, cy) => { let d = ''; for (let k = 0; k < 6; k++) { const a = (k * 60 + 30) * Math.PI / 180; d += (k ? 'L' : 'M') + cF(cx + (R - 2) * Math.cos(a)) + ' ' + cF(cy + (R - 2) * Math.sin(a)); } return d + 'Z'; };
+  for (let j = -5; j <= 5; j++) for (let i = -5; i <= 5; i++) {
+    const cx = HX + (i + (j & 1 ? .5 : 0)) * Math.sqrt(3) * R, cy = HY + j * 1.5 * R;
+    if (Math.hypot(cx - HX, cy - HY) > RL - R * .9 || (i === 0 && j === 0)) continue;
+    hd += hexAt(cx, cy); nd += cCircle(6, cx + 4, cy - 3);
+  }
+  path(lens, hd, { fill: '#b5574a', stroke: '#f0b0a0', 'stroke-width': 3 });
+  path(lens, nd, { fill: '#5b2a26' });
+  const hub = G(lens, { x: HX, y: HY });
+  path(hub, hexAt(0, 0), { fill: '#d0705f', stroke: '#ffd8cc', 'stroke-width': 3 });
+  mk('circle', { cx: 4, cy: -3, r: 6, fill: '#5b2a26' }, hub);
+  mk('circle', { cx: HX, cy: HY, r: RL, fill: 'none', stroke: COL.chalk, 'stroke-width': 5 }, lens);
+  return { g, body, lens, hub, HX, HY };
+}
+
+// The ER pulled out of the nucleus (regions, q1): a nucleus on the left, rough sheets joined to its envelope, smooth
+// tubes lower right joined to the last sheet. Drawn in scene coordinates inside G(p, {x, y, s}).
+function erScene(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o }), NX = 80, NY = 470, NR = 300;
+  const conns = G(g);
+  const nu = nucleus(g, { x: NX, y: NY, R: NR, pores: 12, lamina: false, ribos: false });
+  const rer = roughER(g, { x: 650, y: 470, w: 440, n: 4, gap: 70, tube: 32 });
+  const ser = smoothER(g, { x: 1180, y: 640, w: 400, tube: 32 });
+  // the joins: each sheet's left end to the envelope; the last sheet's right end to the smooth tubes
+  let d = '';
+  rer.lines.forEach(pts => {
+    const [lx, ly] = cOut(rer, pts[0]), ex = NX + Math.sqrt(NR * NR - (ly - NY) ** 2) - 8;
+    d += `M${cF(ex)} ${cF(ly)}C${cF(ex + 30)} ${cF(ly)} ${cF(lx - 30)} ${cF(ly)} ${cF(lx + 4)} ${cF(ly)}`;
+  });
+  const last = rer.lines[rer.lines.length - 1], [rx, ry] = cOut(rer, last[last.length - 1]), [sx, sy] = cOut(ser, [-200, 24]);
+  d += `M${cF(rx - 4)} ${cF(ry)}C${cF(rx + 50)} ${cF(ry)} ${cF(sx - 50)} ${cF(sy)} ${cF(sx + 4)} ${cF(sy)}`;
+  const tubes = cTube(conns, d, { w: 28, edge: CC.er, lumen: CC.erLumen });
+  return { g, nu, rer, ser, tubes, NX, NY, NR };
+}
+
+// The pancreas cell of the worked example (and q3): nucleus top left joined to the rough ER, Golgi placed so its
+// incoming vesicle starts where the ER's bud ends. Returns the pieces and the key points.
+function pancreasScene(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, cBlob(690, 380, { seed: 5, cx: 790, cy: 460 }), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 7 });
+  const conns = G(g);
+  const nu = nucleus(g, { x: 300, y: 290, R: 150, pores: 8, lamina: false, ribos: true });
+  const rer = roughER(g, { x: 540, y: 600, w: 400, n: 3, gap: 64, tube: 30 });
+  let d = '';
+  rer.lines.slice(0, 2).forEach(pts => { const [lx, ly] = cOut(rer, pts[0]); d += `M${cF(300 + 60)} ${cF(290 + 136)}C${cF(370)} ${cF(ly - 40)} ${cF(lx - 40)} ${cF(ly)} ${cF(lx + 4)} ${cF(ly)}`; });
+  cTube(conns, d, { w: 26, edge: CC.er, lumen: CC.erLumen });
+  rer.bud(1); const B = rer.pt('bud'); rer.bud(0);
+  const GS = .9, gx = B[0] + GS * 334, gy = B[1] - GS * 70;
+  const gol = golgi(g, { x: gx, y: gy, s: GS, n: 5 });
+  const L = rer.threadPath, len = L.getTotalLength(), tp = L.getPointAtLength(len), TE = cOut(rer, [tp.x, tp.y]);
+  const cis = gol.pt('cis'), trans = gol.pt('trans');
+  const S0 = cOut(gol, [gol.cisX(0) - 200, 70]), E0 = cOut(gol, [gol.cisX(0) - 22, 0]);
+  gol.flow(1); const T1 = gol.pt('cargo'); gol.flow(0);
+  return { g, nu, rer, gol, B, TE, cis, trans, S0, E0, T1, RIB: rer.pt('thread') };
+}
+
+// A bound ribosome drawn larger over the kit's own thread start: large lobe on the membrane, exit into the lumen.
+function boundRibo(p, rer, s, o = 0) {
+  const [rx, ry] = rer.pt('thread'), rb = ribosome(p, { x: rx, y: ry - 88 * s - 4, s, o });
+  put(rb, { r: 180 }); return rb;
+}
+
+// Points on the kit's rough-ER thread path, in the parent of the ER.
+function threadPt(rer, f) { const L = rer.threadPath, q = L.getPointAtLength(L.getTotalLength() * f); return cOut(rer, [q.x, q.y]); }
+
+// One Golgi cisterna's centre line, as the kit draws it, in the Golgi's own coordinates (for glows).
+function cisternaD(i, { n = 5, h = 300, gap = 44, bow = 46 } = {}) {
+  const xs = (i - (n - 1) / 2) * gap, half = (n - 1) / 2 || 1, L = h * (1 - .16 * Math.abs(i - (n - 1) / 2) / half), pts = [];
+  for (let j = 0; j <= 12; j++) { const v = (j / 12 - .5) * L; pts.push([xs - bow * (1 - (2 * v / L) ** 2), v]); }
+  return cSmooth(pts);
+}
+
+// A rounded tag with a colour dot (the six endomembrane parts).
+function partChip(p, str, x, y, color, { size = 26, o = 0 } = {}) {
+  const w = uiW(str, size) + 58, g = G(p, { x, y, o });
+  const box = mk('rect', { x: -w / 2, y: -26, width: w, height: 52, rx: 26, fill: '#14294a', stroke: color, 'stroke-width': 3 }, g);
+  mk('circle', { cx: -w / 2 + 24, cy: 0, r: 9, fill: color }, g);
+  wLabel(g, str, { x: 14, y: size * .36, size, weight: 600, o: 1 });
+  return Object.assign(g, { w, box });
+}
+
+// A job card in the smooth-ER beat.
+function jobCard(p, x, y, num, title, sub, color) {
+  const g = G(p, { o: 0 });
+  mk('rect', { x, y, width: 360, height: 112, rx: 18, fill: '#14294a', stroke: color, 'stroke-width': 3 }, g);
+  const b = badge(g, String(num), x + 36, y + 56, { o: 1, r: 20 }); b.firstChild.setAttribute('fill', mix(color, '#0f1e33', .35));
+  wLabel(g, title, { x: x + 70, y: y + 50, size: 30, anchor: 'start', weight: 700, o: 1 });
+  wLabel(g, sub, { x: x + 70, y: y + 86, size: 22, anchor: 'start', fill: COL.dim, weight: 500, o: 1 });
+  return g;
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'The ER and the Golgi', (m, D) => {
+  const p = panel(0), tL = m('liver'), tC = m('cell'), tLi = m('lit'), tA = m('ask');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const lv = liverScene(W);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 6 · LESSON 3', { x: 1190, y: 220, size: 26, fill: COL.dim, o: 1 });
+  ['The ER and the', 'Golgi apparatus'].forEach((s, i) => wLabel(ttl, s, { x: 1190, y: 320 + i * 80, size: 66, o: 1 }));
+  wLabel(ttl, 'A tour of the cell', { x: 1190, y: 500, size: 30, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .4, .5);
+  // liver: the organ, then a lens on its cells
+  const lt = say(W, 'liver', 250, 205, .5, { size: 36, fill: '#f0b0a0', weight: 700 });
+  pulse(lv.body, tL + .1, 1.05);
+  show(lv.lens, tL + .6, .6);
+  const l1 = say(W, 'liver cells', 470, 640, tL + 1.2, { size: 32, anchor: 'end' });
+  const l2 = say(W, 'break down poisons,', 470, 682, tL + 3.9, { size: 24, anchor: 'end', fill: COL.dim, weight: 500 });
+  const l3 = say(W, 'build fats and blood proteins', 470, 714, tL + 5.2, { size: 24, anchor: 'end', fill: COL.dim, weight: 500 });
+  [lt, l1, l2, l3].forEach(e => hide(e, tC - .4, .3));
+  pulse(lv.hub, tC - 1, 1.12);
+  // cell: dive into one liver cell; the cell map takes over
+  cam.to({ x: lv.HX, y: lv.HY, z: 9 }, tC - .3, 1.7, io);
+  hide(cam.el, tC + 1.1, .5);
+  const cm = cellMap(p, { x: 800, y: 460, s: .72, o: 0 }); show(cm, tC + .9, .7);
+  say(p, 'the cell map', 800, 70, tC + 1.2, { size: 30, fill: COL.dim, weight: 500 });
+  // lit: the ER and the Golgi glow, the rest dims
+  prog(q => cm.focus(['ER', 'golgi'], q), tLi + .1, 1);
+  const rp = cm.pt('roughER'), sp = cm.pt('smoothER'), gp = cm.pt('golgi');
+  const el = G(p, { o: 0 }); show(el, tLi + 1.7, .5);
+  wLabel(el, 'ER', { x: 300, y: 520, size: 48, fill: CC.er, weight: 800, anchor: 'end', o: 1 });
+  wLabel(el, 'endoplasmic reticulum', { x: 300, y: 556, size: 24, fill: COL.dim, weight: 500, anchor: 'end', o: 1 });
+  path(el, `M312 498L${sp[0] - 40} ${sp[1] + 10}M312 520L${rp[0] - 40} ${rp[1] + 10}`, { stroke: CC.er, 'stroke-width': 2.5 });
+  const gl = G(p, { o: 0 }); show(gl, tLi + 3.4, .5);
+  wLabel(gl, 'Golgi', { x: 1290, y: 640, size: 44, fill: CC.golgi, weight: 800, anchor: 'start', o: 1 });
+  wLabel(gl, 'apparatus', { x: 1290, y: 676, size: 26, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+  path(gl, `M1280 625L${gp[0] + 60} ${gp[1] + 10}`, { stroke: CC.golgi, 'stroke-width': 2.5 });
+  // ask: raw materials in, finished products out?
+  const a0 = [rp[0] + 70, rp[1] - 10], a1 = [gp[0] - 70, gp[1] - 6];
+  show(mArrow(p, a0, a1, { color: MC.hi, w: 6, o: 0 }), tA - .1);
+  const qm = say(p, '?', (a0[0] + a1[0]) / 2, (a0[1] + a1[1]) / 2 - 34, tA + .2, { size: 60, fill: MC.hi, weight: 800 }); pulse(qm, tA + .5, 1.3);
+  say(p, 'raw materials in, finished products out?', 800, 860, tA + .6, { size: 30 });
+}],
+
+/* ---------- system ---------- */
+['system', 'The endomembrane system', (m, D) => {
+  const p = panel(0), tS = m('six'), tLk = m('link'), tE = m('er'), tN = m('env');
+  const cam = camera(p, D, { x: 800, y: 460, z: 1 }), W = cam.world;
+  const cm = cellMap(W, { x: 800, y: 460, s: .72 }); cm.focus(['ER', 'golgi'], 1);
+  const MX = 800, MY = 460, MS = .72, mw = ([lx, ly]) => [MX + MS * lx, MY + MS * ly];
+  // six: six chips, each lighting its part in the map
+  const NAMES = [['nuclear envelope', CC.env, 'envelope'], ['ER', CC.er, 'ER'], ['Golgi apparatus', CC.golgi, 'golgi'], ['lysosomes', CC.lyso, 'lysosomes'], ['vacuoles', CC.vac, null], ['plasma membrane', CC.membrane, 'membrane']];
+  const TCH = [5.45, 6.75, 7.65, 9.0, 9.9, 10.9];
+  const ws = NAMES.map(([s]) => uiW(s, 24) + 58), gapC = 14, tot = ws.reduce((a, b) => a + b, 0) + gapC * 5;
+  let cx = 800 - tot / 2;
+  const hd = say(p, 'the endomembrane system: six components', 800, 52, tS + .2, { size: 30, fill: COL.dim, weight: 600 });
+  const chips = NAMES.map(([s, c], i) => { const e = partChip(p, s, cx + ws[i] / 2, 104, c, { size: 24 }); cx += ws[i] + gapC; return e; });
+  chips.forEach((e, i) => { put(e, { s: 0 }); pop(e, TCH[i]); });
+  // next lesson: lysosomes and vacuoles dim
+  const tNext = tLk + 5.8;
+  [3, 4].forEach(i => tw(chips[i], { o: .35 }, tNext, .5));
+  const nx = (st(chips[3]).x + st(chips[4]).x) / 2;
+  hide(say(p, 'next lesson', nx, 160, tNext + .2, { size: 22, fill: COL.dim, weight: 600 }), tN, .4);
+  // link: continuous at the envelope–ER join; a vesicle carries material ER → Golgi
+  const J = mw([-100 + 173 * Math.cos(-43 * Math.PI / 180), -35 + 173 * Math.sin(-43 * Math.PI / 180)]);
+  const ring = mk('circle', { cx: J[0], cy: J[1], r: 22, fill: 'none', stroke: MC.hi, 'stroke-width': 4 }, W); put(ring, { o: 0 });
+  show(ring, tLk + .6, .3); hide(ring, tE, .4);
+  const lc = say(W, 'continuous', J[0] + 34, J[1] - 30, tLk + .8, { size: 22, fill: MC.hi, anchor: 'start' }); hide(lc, tE, .4);
+  const gcis = cOut(cm, cm.golgi.pt('cis')), vs = mw([-100 + 300 * Math.cos(20 * Math.PI / 180), -35 + 300 * Math.sin(20 * Math.PI / 180)]);
+  const v = vesicle(W, { r: 14, n: 2, o: 0 });
+  const tV0 = tLk + 2.4, tV1 = tLk + 5.2;
+  clockRun(t => {
+    const k = io(ramp(t, tV0, tV1)), mid = [(vs[0] + gcis[0]) / 2, Math.max(vs[1], gcis[1]) + 40];
+    const a = lerp(lerp(vs[0], mid[0], k), lerp(mid[0], gcis[0], k), k), b = lerp(lerp(vs[1], mid[1], k), lerp(mid[1], gcis[1], k), k);
+    v.pose(a, b); mO(v, ramp(t, tV0 - .3, tV0) * (1 - ramp(t, tV1 - .1, tV1 + .3)));
+    // focus: one part per chip, then the linked parts, then the ER alone, then envelope and ER
+    let list = ['ER', 'golgi'];
+    if (t >= TCH[0] && t < tLk) list = NAMES.filter((n, i) => n[2] && t >= TCH[i]).map(n => n[2]);
+    else if (t >= tLk && t < tE) list = ['envelope', 'ER', 'golgi', 'vesicles'];
+    else if (t >= tE && t < tN) list = ['ER'];
+    else if (t >= tN) list = ['envelope', 'ER'];
+    cm.focus(list, 1);
+  }, D);
+  const lv = say(W, 'vesicles carry material', gcis[0] - 10, gcis[1] + 120, tLk + 3, { size: 22, fill: CC.vesicle }); hide(lv, tE, .4);
+  cam.to({ x: 800, y: 500, z: 1.3 }, tLk, 1.6);
+  // er: more than half of all the membrane
+  const bar = G(p, { o: 0 }); show(bar, tE + 1.5, .4);
+  mk('rect', { x: 430, y: 742, width: 740, height: 120, rx: 18, fill: COL.board, 'fill-opacity': .92, stroke: COL.faint, 'stroke-width': 2 }, bar);
+  wLabel(bar, 'share of all the membrane in the cell', { x: 800, y: 778, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  mk('rect', { x: 470, y: 798, width: 660, height: 34, rx: 8, fill: '#14294a', stroke: COL.faint, 'stroke-width': 2 }, bar);
+  const fill = mk('rect', { x: 472, y: 800, width: 0, height: 30, rx: 7, fill: CC.er }, bar);
+  path(bar, 'M800 790V840', { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '6 4' });
+  const half = wLabel(bar, 'half', { x: 800, y: 858, size: 20, fill: COL.chalk, weight: 600, o: 1 }); void half;
+  const ft = say(p, 'ER: more than half', 675, 822, tE + 3.4, { size: 24, weight: 700, fill: '#0f1e33' });
+  prog(q => cAttr(fill, 'width', cF(656 * .62 * q)), tE + 1.9, 1.6);
+  hide(bar, tN, .4); hide(ft, tN, .4);
+  // env: push to the join; the ER lumen runs into the space inside the envelope
+  cam.to({ x: 790, y: 492, z: 2.8 }, tN, 2);
+  const gw = G(W, { x: MX, y: MY, s: MS, o: 0 });
+  let rd = '';
+  { const pts = []; for (let j = 0; j <= 18; j++) { const a = (-55 + 135 * j / 18) * Math.PI / 180, wv = 192 + 7 * Math.sin(j * 1.3); pts.push([-100 + wv * Math.cos(a), -35 + wv * Math.sin(a)]); } rd = cSmooth(pts); }
+  const ca = -43 * Math.PI / 180;
+  rd += `M${cF(-100 + 154 * Math.cos(ca))} ${cF(-35 + 154 * Math.sin(ca))}L${cF(-100 + 192 * Math.cos(ca))} ${cF(-35 + 192 * Math.sin(ca))}`;
+  path(gw, rd, { stroke: GLOW, 'stroke-width': 8, 'stroke-linecap': 'round' });
+  path(gw, cCircle(144, -100, -35), { stroke: GLOW, 'stroke-width': 6 });
+  show(gw, tN + 1.8, .6);
+  tw(gw, { o: .55 }, tN + 3, .6); tw(gw, { o: 1 }, tN + 3.6, .6);
+  const tL2 = tN + 2.1, sc = (wx, wy) => cam.screen(wx, wy, tL2);
+  const pEnv = sc(...mw([-100 + 144 * Math.cos(-.5), -35 + 144 * Math.sin(-.5)])), pLum = sc(...mw([-100 + 194 * Math.cos(60 * Math.PI / 180), -35 + 194 * Math.sin(60 * Math.PI / 180)]));
+  { const lw = G(p, { o: 0 }), tw0 = uiW('space inside the nuclear envelope', 30);
+    mk('rect', { x: 1000, y: 126, width: tw0 + 20, height: 48, rx: 10, fill: '#0f2340', opacity: .92 }, lw);
+    cLabel(lw, pEnv, [1010, 150], 'space inside the nuclear envelope', { size: 30, color: GLOW, o: 1 }); showL(lw, tL2 + .3); }
+  showL(cLabel(p, pLum, [420, 800], 'ER lumen', { size: 30, color: GLOW }), tL2 + 1);
+  say(p, 'one continuous space', 400, 868, tL2 + 2, { size: 34, weight: 700, fill: GLOW });
+  hide(hd, tN, .4); chips.forEach(e => hide(e, tN, .4));
+}],
+
+/* ---------- regions ---------- */
+['regions', 'ER regions', (m, D) => {
+  const p = panel(0), tLu = m('lumen'), tSm = m('smooth'), tR = m('rough'), tTr = m('trans');
+  const sc = erScene(p, { o: 0 }); show(sc.g, .2, .6);
+  const { rer, ser } = sc;
+  put(rer.ribos, { o: 0 });
+  // lumen: one sac is a cisterna; the space inside is the lumen
+  const s0 = cOut(rer, rer.lines[0][5]);
+  showL(cLabel(p, [s0[0], s0[1] - 17], [470, 160], 'cisterna', { size: 34 }), tLu + .2);
+  say(p, 'one flattened sac (plural: cisternae)', 470, 200, tLu + 1.6, { size: 22, fill: COL.dim, weight: 500 });
+  const LUM = '#3f9aa3';
+  [rer.sheets.inner, ser.sheets.inner, sc.tubes.inner].forEach(e => { tw(e, { c_stroke: LUM }, tLu + 4.2, .6); tw(e, { c_stroke: CC.erLumen }, tSm - .3, .6); });
+  const s3 = cOut(rer, rer.lines[3][9]);
+  showL(cLabel(p, s3, [560, 760], 'ER lumen: the space inside', { size: 30, color: GLOW }), tLu + 4.3);
+  // smooth: tubes, no ribosomes
+  pulse(ser.g || ser, tSm + 1.9, 1.06);
+  const lsm = G(p, { o: 0 }); show(lsm, tSm + 1.9, .4);
+  wLabel(lsm, 'smooth ER', { x: 1180, y: 812, size: 36, fill: CC.er, weight: 800, o: 1 });
+  wLabel(lsm, 'no ribosomes', { x: 1180, y: 850, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  // rough: ribosome dots on the outside of the sheets
+  show(rer.ribos, tR + .3, .8);
+  const rd = cOut(rer, rer.lines[0][9]);
+  const lro = G(p, { o: 0 }); show(lro, tR + .5, .4);
+  wLabel(lro, 'rough ER', { x: 840, y: 160, size: 36, fill: CC.er, weight: 800, o: 1 });
+  showL(cLabel(p, [rd[0], rd[1] - 23], [880, 236], 'bound ribosomes', { size: 26, color: CC.ribo }), tR + 4.3);
+  // trans: the end of the network buds a transport vesicle
+  prog(q => rer.bud(q), tTr + 1.5, 3.4, lin);
+  const E = rer.pt('end');
+  rer.bud(1); const Bv = rer.pt('bud'); rer.bud(0);
+  showL(cLabel(p, [Bv[0] + 18, Bv[1] - 14], [1110, 330], 'transport vesicle', { size: 26, color: CC.vesicle }), tTr + 4.6);
+  showL(cLabel(p, [E[0] - 6, E[1] + 16], [940, 470], 'transitional ER', { size: 28, color: CC.er }), tTr + 6.3);
+  notToScale(p, 1570, 40, .3);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0), K = .78, X0 = 270, Y0 = -96;
+  const sc = erScene(p, { x: X0, y: Y0, s: K });
+  const box = ([x, y, w, h]) => [X0 + K * x, Y0 + K * y, K * w, K * h];
+  notToScale(p, 1570, 40, .2);
+  S.q1 = [
+    { el: sc.rer, box: box([410, 335, 470, 275]), label: 'the stacked sheets with dots' },
+    { el: sc.ser, box: box([965, 530, 430, 225]), label: 'the tubes without dots' },
+    { el: sc.nu, box: box([-40, 190, 360, 560]), label: 'the round body on the left' },
+  ];
+}, { ask: done => quiz(BAND, [
+  { id: 'c-region', prompt: ['Click the smooth ER.'],
+    build: pickEls(S.q1, 1, 'Right. Smooth ER is the network of tubes with no ribosomes on it.',
+      i => i === 0 ? 'Those sheets are studded with ribosomes: that is rough ER. Smooth ER has none.' : 'That is the nucleus. Its envelope is joined to the ER, but it is not ER. Look for tubes with no dots.') },
+], done) }],
+
+/* ---------- smooth ---------- */
+['smooth', 'Smooth ER', (m, D) => {
+  const p = panel(0), tLp = m('lipid'), tCa = m('carb'), tPo = m('poison'), tCl = m('calcium'), tN = m('none');
+  // the liver cell, faint, and its smooth ER in the middle
+  path(p, 'M60 450L330 20H1270L1540 450L1270 880H330Z', { fill: 'none', stroke: CC.membrane, 'stroke-width': 5, 'stroke-opacity': .35 });
+  const hd = G(p, { o: 0 }); show(hd, .2, .5);
+  wLabel(hd, 'smooth ER', { x: 800, y: 84, size: 46, fill: CC.er, weight: 800, o: 1 });
+  wLabel(hd, 'in a liver cell', { x: 800, y: 122, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const SX = 800, SY = 460, SW2 = 280, SH2 = 168;
+  const ser = smoothER(p, { x: SX, y: SY, w: 560, tube: 40, o: 0 }); show(ser, .3, .6);
+  const at = (u, v) => [SX + u * SW2, SY + v * SH2];
+  // lipid: yellow lipid drops form in the tubes and leave
+  const C1 = jobCard(p, 110, 160, 1, 'makes lipids', 'fats, oils, membrane lipids', CC.lipid); show(C1, tLp + .2, .5);
+  const LP = [at(-.6, -.7), at(-.2, -.45), at(.2, -.6), at(-.5, -.1), at(.3, .05)], LD = [[488, 300], [516, 318], [470, 330], [500, 344], [530, 296]];
+  const lips = LP.map(() => { const e = mk('circle', { r: 10, fill: CC.lipid, stroke: '#a8862e', 'stroke-width': 2 }, p); put(e, { o: 0 }); return e; });
+  clockRun(t => lips.forEach((e, i) => {
+    const a = tLp + .8 + .35 * i, k = io(ramp(t, a + 1.2, a + 2.6));
+    mPose(e, lerp(LP[i][0], LD[i][0], k), lerp(LP[i][1], LD[i][1], k), ramp(t, a, a + .3));
+  }), D);
+  // carb: a sugar chain is broken down
+  const C2 = jobCard(p, 1130, 160, 2, 'carbohydrates', 'helps metabolize them', SUGAR_RING); show(C2, tCa + .2, .5);
+  const ch = sugarChain(p, { x: 1080, y: 320, o: 0, s: .9 }); show(ch, tCa + .3, .4);
+  tw(ch.rings[3], { x: st(ch.rings[3]).x + 34, y: 34, r: 30 }, tCa + 1.4, .8, out);
+  tw(ch.rings[2], { x: st(ch.rings[2]).x + 10, y: -28, r: -20 }, tCa + 1.8, .8, out);
+  // poison: a toxin enters a tube and leaves harmless
+  const C3 = jobCard(p, 110, 640, 3, 'detoxifies poisons', 'drugs, alcohol', TOX); show(C3, tPo + .2, .5);
+  const tx = toxinBlob(p, { R: 24, o: 0 });
+  const TP = [[300, 470], at(-1, .2), at(-.5, -.1), at(-.1, .15), at(-.2, .6), [560, 650]];
+  clockRun(t => {
+    const k = ramp(t, tPo + .5, tPo + 6.2), q = cAlong(TP, io(k));
+    mPose(tx, q[0], q[1], ramp(t, tPo + .2, tPo + .6));
+    tx.tint(ramp(t, tPo + 2.6, tPo + 5));
+  }, D);
+  const pl = say(p, 'less harmful', 560, 712, tPo + 6.2, { size: 22, fill: TOX_PALE });
+  // calcium: Ca²⁺ stored in the lumen
+  const C4 = jobCard(p, 1130, 640, 4, 'stores calcium', 'Ca²⁺ ions, released as a signal', '#d8f0ff'); show(C4, tCl + .2, .5);
+  const CA = [at(.6, -.35), at(.2, .8), at(.7, .55), at(-.6, -.7), at(1, -.5), at(.3, .05)];
+  CA.forEach(([x, y], i) => { const e = mk('circle', { cx: x, cy: y, r: 8, fill: '#d8f0ff', stroke: '#7fb6d6', 'stroke-width': 2 }, p); put(e, { o: 0, s: 0 }); pop(e, tCl + .5 + .25 * i); });
+  say(p, 'Ca²⁺', CA[0][0] + 46, CA[0][1] - 12, tCl + 1.3, { size: 22, fill: '#d8f0ff' });
+  say(p, 'Ca²⁺', CA[2][0] + 44, CA[2][1] + 30, tCl + 1.6, { size: 22, fill: '#d8f0ff' });
+  // none: no ribosomes in any of it
+  const nr = G(p, { o: 0 }); show(nr, tN + .2, .4);
+  const rb = ribosome(nr, { x: 640, y: 822, s: .32 });
+  path(nr, 'M612 780L668 844M668 780L612 844', { stroke: COL.bad, 'stroke-width': 7 }); void rb;
+  wLabel(nr, 'no ribosomes needed', { x: 700, y: 826, size: 34, weight: 700, anchor: 'start', o: 1 });
+  void pl;
+}],
+
+/* ---------- rough ---------- */
+['rough', 'Rough ER', (m, D) => {
+  const p = panel(0), tB = m('bound'), tSu = m('sugar'), tSe = m('secret'), tMe = m('membrane'), tV = m('vesicle');
+  const RS = 1.45, rer = roughER(p, { x: 640, y: 520, s: RS, w: 460, n: 3, tube: 32, o: 0 }); show(rer, .2, .6);
+  const hd = G(p, { o: 0 }); show(hd, .3, .5);
+  wLabel(hd, 'rough ER', { x: 640, y: 84, size: 46, fill: CC.er, weight: 800, o: 1 });
+  // the cell surface on the right
+  const MXs = 1440, VY = 690;
+  path(p, `M${MXs} 40V${VY - 150}M${MXs} ${VY + 150}V860`, { stroke: CC.membrane, 'stroke-width': 8 });
+  say(p, 'plasma membrane', MXs - 16, 40, .4, { size: 22, fill: CC.membrane, anchor: 'end', weight: 600 });
+  say(p, 'outside', 1525, 560, .4, { size: 24, fill: COL.dim, weight: 500 });
+  // bound: a bound ribosome threads its new chain into the lumen
+  const rb = boundRibo(p, rer, .5); show(rb, tB + .1, .4);
+  prog(q => rer.thread(q), tB + .5, 4.2, lin);
+  showL(cLabel(p, [st(rb).x - 30, st(rb).y - 10], [300, 236], 'bound ribosome', { size: 28, color: CC.ribo }), tB + .6);
+  const lch = say(p, 'new protein chain, into the lumen', 380, 690, tB + 2.6, { size: 24, fill: CC.cargo }); hide(lch, tSu + .2, .3);
+  // sugar: carbohydrate tags join the chain → glycoprotein
+  const tags = [.45, .7, .95].map((f, i) => { const [x, y] = threadPt(rer, f), e = sugarTag(p, { x, y: y - 2, o: 0, s: 0, r: i % 2 ? 60 : 0 }); pop(e, tSu + .5 + .5 * i); return e; });
+  const g1 = threadPt(rer, .7);
+  showL(cLabel(p, [g1[0] + 10, g1[1] - 24], [880, 236], 'glycoprotein', { size: 32, color: CC.tag }), tSu + 1.4);
+  say(p, '= protein + carbohydrate', 1010, 278, tSu + 2.4, { size: 24, fill: COL.dim, weight: 500 });
+  void tags;
+  // secret: a vesicle of glycoprotein crosses to the surface and empties outside
+  const v = vesicle(p, { r: 26, n: 3, membrane: true, mw: 300, o: 0 }); put(v, { r: 90 });
+  const VX0 = 1000, VX1 = MXs - 76;
+  clockRun(t => {
+    const k = io(ramp(t, tSe + .4, tSe + 2.4));
+    cSet(v, { x: lerp(VX0, VX1, k), y: VY, o: ramp(t, tSe + .1, tSe + .5) });
+    v.fuse(ramp(t, tSe + 2.4, tSe + 4.4));
+  }, D);
+  say(p, 'for secretion', 1240, VY - 70, tSe + 1.4, { size: 30, fill: CC.cargo, weight: 700 });
+  say(p, 'out of the cell', 1240, VY - 34, tSe + 2, { size: 24, fill: COL.dim, weight: 500 });
+  // membrane: new membrane grows from the bottom sheet
+  const last = rer.lines[2], e0 = cOut(rer, last[last.length - 1]);
+  const ext = `M${cF(e0[0] - 2)} ${cF(e0[1])}C${cF(e0[0] + 70)} ${cF(e0[1] + 6)} ${cF(e0[0] + 60)} ${cF(e0[1] + 90)} ${cF(e0[0] + 140)} ${cF(e0[1] + 120)}`;
+  const xo = path(p, ext, { stroke: '#8fe0d8', 'stroke-width': 32 * RS * .75, 'stroke-linecap': 'round' }, { d: 0 }), xi = path(p, ext, { stroke: CC.erLumen, 'stroke-width': 32 * RS * .75 - 14, 'stroke-linecap': 'round' }, { d: 0 });
+  draw(xo, tMe + .3, 2.2); draw(xi, tMe + .3, 2.2);
+  showL(cLabel(p, [e0[0] + 140, e0[1] + 140], [1000, 820], 'membrane factory: new membrane', { size: 28, color: '#8fe0d8' }), tMe + 2);
+  // vesicle: a transport vesicle buds off the top sheet
+  prog(q => rer.bud(q), tV + .5, 3.2, lin);
+  rer.bud(1); const Bv = rer.pt('bud'); rer.bud(0);
+  showL(cLabel(p, [Bv[0] + 10, Bv[1] - 30], [1160, 360], 'transport vesicle', { size: 28, color: CC.vesicle }), tV + 3);
+  notToScale(p, 1570, 880, .3);
+}],
+
+/* ---------- compare ---------- */
+['compare', 'Rough and smooth', (m, D) => {
+  const p = panel(0), tO = m('one'), RY = i => 250 + i * 190;
+  const tab = G(p);
+  const hd = G(tab, { o: 0 }); show(hd, .2, .5);
+  wLabel(hd, 'rough ER', { x: 640, y: 112, size: 46, weight: 800, fill: CC.er, o: 1 });
+  wLabel(hd, 'smooth ER', { x: 1200, y: 112, size: 46, weight: 800, fill: CC.er, o: 1 });
+  path(hd, 'M110 146H1510M920 76V760M370 146V760', { stroke: COL.faint, 'stroke-width': 2 });
+  const row = (i, name, t0, f) => {
+    const g = G(tab, { o: 0, x: -20 }); tw(g, { o: 1, x: 0 }, t0, .6);
+    wLabel(g, name, { x: 130, y: RY(i) + 10, size: 32, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i < 2) path(g, `M110 ${RY(i) + 95}H1510`, { stroke: COL.faint, 'stroke-width': 1.5 });
+    f(g, RY(i)); return g;
+  };
+  const txt = (g, s, x, y, o = {}) => wLabel(g, s, { x, y, size: 30, anchor: 'start', o: 1, ...o });
+  row(0, 'ribosomes', m('ribo'), (g, y) => {
+    const tube = (x0, dots) => { cTube(g, `M${x0} ${y}H${x0 + 200}`, { w: 30 }); if (dots) { let d = ''; for (let x = x0 + 12; x < x0 + 200; x += 24) d += `M${x} ${y - 22}h.01M${x + 12} ${y + 22}h.01`; path(g, d, { stroke: CC.ribo, 'stroke-width': 12 }); } };
+    tube(420, true); txt(g, 'bound to its surface', 650, y + 10, { size: 28 });
+    tube(970, false); txt(g, 'none', 1200, y + 10, { size: 28 });
+  });
+  row(1, 'shape', m('shape'), (g, y) => {
+    roughER(g, { x: 520, y, s: .38, w: 460, n: 4 }); txt(g, 'flat sheets', 650, y + 10);
+    smoothER(g, { x: 1070, y, s: .4, w: 460 }); txt(g, 'tubes', 1200, y + 10);
+  });
+  row(2, 'jobs', m('job'), (g, y) => {
+    txt(g, 'glycoproteins, many for secretion', 420, y - 8, { size: 27 }); txt(g, 'new membrane', 420, y + 34, { size: 27 });
+    txt(g, 'lipids · carbohydrates', 970, y - 8, { size: 27 }); txt(g, 'detox · calcium store', 970, y + 34, { size: 27 });
+  });
+  hide(tab, tO, .5);
+  // one: one network, one lumen
+  const one = G(p, { o: 0 }); show(one, tO + .3, .5);
+  const a = roughER(one, { x: 600, y: 420, s: .8, w: 460, n: 3 }), b = smoothER(one, { x: 1080, y: 470, s: .8, w: 460 });
+  const l2 = a.lines[2], ra = cOut(a, l2[l2.length - 1]), sb = cOut(b, [-230, 24 * 460 / 400 * .6]);
+  const j = cTube(one, `M${cF(ra[0] - 4)} ${cF(ra[1])}C${cF(ra[0] + 40)} ${cF(ra[1])} ${cF(sb[0] - 40)} ${cF(sb[1])} ${cF(sb[0] + 4)} ${cF(sb[1])}`, { w: 26 }); void j;
+  const route = [...a.lines[2].map(q => cOut(a, q)), ...[[-1, .2], [-.5, -.1], [-.1, .15], [.3, .05], [.7, .55], [1, .62]].map(([u, v]) => cOut(b, [u * 230, v * 138]))];
+  const gl = mk('circle', { r: 12, fill: GLOW }, one); put(gl, { o: 0 });
+  clockRun(t => { const k = ramp(t, tO + .9, tO + 3.4), q = cAlong(route, io(k)); mPose(gl, q[0], q[1], k > 0 && k < 1 ? 1 : 0); }, D);
+  say(p, 'one connected network, one lumen', 800, 720, tO + 1, { size: 34, weight: 700, fill: GLOW });
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  roughER(p, { x: 370, y: 250, s: .7, w: 460, n: 4 });
+  wLabel(p, 'rough ER', { x: 370, y: 120, size: 36, weight: 800, fill: CC.er, o: 1 });
+  smoothER(p, { x: 370, y: 610, s: .7, w: 460 });
+  wLabel(p, 'smooth ER', { x: 370, y: 800, size: 36, weight: 800, fill: CC.er, o: 1 });
+}, { ask: done => quiz({ x: 760, y: 60, w: 790, cls: 'side' }, [{
+  id: 'c-jobs', prompt: ['Smooth ER, rough ER, or both?'],
+  build: grid([
+    { parts: ['makes lipids'], ans: ['s'], why: 'Smooth ER synthesizes lipids.' },
+    { parts: ['has bound ribosomes'], ans: ['r'], why: 'Rough ER: its ribosomes are bound to the outside of its membrane.' },
+    { parts: ['detoxifies poisons'], ans: ['s'], why: 'Smooth ER, as in liver cells that break down drugs and alcohol.' },
+    { parts: ['makes glycoproteins for secretion'], ans: ['r'], why: 'Rough ER: bound ribosomes build the protein and sugars are added in its lumen.' },
+    { parts: ['stores calcium ions'], ans: ['s'], why: 'Smooth ER stores calcium ions.' },
+    { parts: ['is continuous with the nuclear envelope'], ans: ['b'], why: 'Both: they are one network, joined to the nuclear envelope.' },
+  ], [['s', 'smooth', null, 'S'], ['r', 'rough', null, 'R'], ['b', 'both', null, 'B']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- golgi ---------- */
+['golgi', 'The Golgi apparatus', (m, D) => {
+  const p = panel(0), tSt = m('stack'), tC = m('cis'), tT = m('trans'), tMv = m('move'), tMd = m('mod'), tMk = m('make'), tSo = m('sort');
+  const cam = camera(p, D, { x: 520, y: 450, z: 1.25 }), W = cam.world;
+  const er0 = roughER(W, { x: 340, y: 450, s: .9, w: 300, n: 3 });
+  wLabel(W, 'rough ER', { x: 340, y: 340, size: 30, fill: CC.er, weight: 700, o: 1 }); void er0;
+  const GX = 960, GY = 450, GS = 1.4, gol = golgi(W, { x: GX, y: GY, s: GS, n: 5, o: 0 });
+  const gl = (lx, ly) => [GX + GS * lx, GY + GS * ly];
+  const vA = mArrow(W, [505, 478], [655, 540], { color: '#a8e0ea', w: 6, head: 20, o: 0 }); show(vA, tC + .2, .5);
+  say(W, 'vesicles carry products', 575, 600, tC + .6, { size: 26, fill: '#a8e0ea', weight: 700 });
+  say(W, 'from the ER', 575, 634, tC + .6, { size: 26, fill: '#a8e0ea', weight: 700 });
+  // stack: the stack of cisternae
+  cam.to({ x: 900, y: 450, z: 1.12 }, tSt - 1.6, 2);
+  show(gol, tSt - .4, .8);
+  say(W, 'Golgi apparatus', GX, 120, tSt + .1, { size: 40, fill: CC.golgi, weight: 800 });
+  const c3 = gl(22, -100), c4 = gl(71, -100);
+  const lci = G(W, { o: 0 }); show(lci, tSt + 1.2, .4); hide(lci, tMv, .4);
+  wLabel(lci, 'cisternae', { x: 1230, y: 236, size: 32, anchor: 'start', weight: 700, o: 1 });
+  wLabel(lci, 'flattened membranous sacs', { x: 1230, y: 272, size: 22, anchor: 'start', fill: COL.dim, weight: 500, o: 1 });
+  path(lci, `M1222 226L${c3[0] + 8} ${c3[1]}M1222 226L${c4[0] + 8} ${c4[1]}`, { stroke: COL.dim, 'stroke-width': 2.5 });
+  // glows for the two faces
+  const gg = G(W, { x: GX, y: GY, s: GS });
+  const gCis = path(gg, cisternaD(0), { stroke: GLOW, 'stroke-width': 10, 'stroke-linecap': 'round' }, { o: 0 });
+  const gTr = path(gg, cisternaD(4), { stroke: GLOW, 'stroke-width': 10, 'stroke-linecap': 'round' }, { o: 0 });
+  show(gCis, tC + .2, .4); tw(gCis, { o: .25 }, tT, .5);
+  show(gTr, tT + .2, .4); tw(gTr, { o: .25 }, tMv, .5);
+  const lc = G(W, { o: 0 }); show(lc, tC + .4, .4);
+  wLabel(lc, 'cis face', { x: 720, y: 250, size: 34, anchor: 'end', weight: 800, fill: CC.golgi, o: 1 });
+  wLabel(lc, 'receiving side, near the ER', { x: 720, y: 286, size: 22, anchor: 'end', fill: COL.dim, weight: 500, o: 1 });
+  const lt = G(W, { o: 0 }); show(lt, tT + .4, .4);
+  wLabel(lt, 'trans face', { x: 1150, y: 730, size: 34, anchor: 'start', weight: 800, fill: CC.golgi, o: 1 });
+  wLabel(lt, 'shipping side', { x: 1150, y: 766, size: 22, anchor: 'start', fill: COL.dim, weight: 500, o: 1 });
+  // move: cis → trans
+  const ar = mArrow(W, [790, 200], [1090, 200], { color: MC.hi, w: 7, head: 22, o: 0 }); show(ar, tMv + .2, .4);
+  say(W, 'cis', 760, 210, tMv + .3, { size: 26, fill: MC.hi, anchor: 'end', weight: 700 });
+  say(W, 'trans', 1110, 210, tMv + .3, { size: 26, fill: MC.hi, anchor: 'start', weight: 700 });
+  // the cargo: arrives at cis, moves through, is modified, leaves in a vesicle at trans
+  const KS = [[tC + .4, 0], [tC + 3.4, .3], [tMv + .4, .3], [tMv + 3, .42], [tMd + .2, .42], [tMd + 2.6, .6], [tMk + 1, .6], [tSo - .2, .7], [tSo + .2, .7], [tSo + 3.6, 1]];
+  // make: a new macromolecule forms in a middle cisterna
+  const mm = G(W, { x: gl(-30, 70)[0], y: gl(-30, 70)[1], s: 0 });
+  path(mm, cBlob(16, 11, { seed: 3, wob: .12 }), { fill: '#bba8ee', stroke: '#8a74cf', 'stroke-width': 2 });
+  tw(mm, { s: 1 }, tMk + .4, 1.4, out);
+  // sort: two more vesicles leave the trans face for different places
+  const sv = [[gl(100, -120), [1330, 214]], [gl(100, 120), [1330, 700]]].map(([a]) => { const e = vesicle(W, { r: 20, n: 2, o: 0 }); e.cargo.forEach(d => d.setAttribute('fill', CC.cargoMod)); put(e, { x: a[0], y: a[1], s: .3 }); return e; });
+  const SV = [[gl(100, -120), [1330, 214]], [gl(100, 120), [1330, 700]]];
+  clockRun(t => {
+    gol.flow(keyf(t, KS));
+    sv.forEach((e, i) => { const [a, b] = SV[i], g0 = io(ramp(t, tSo + .5 + .4 * i, tSo + 1.2 + .4 * i)), k = io(ramp(t, tSo + 1.3 + .4 * i, tSo + 3.6 + .4 * i)); cSet(e, { x: lerp(a[0], b[0], k), y: lerp(a[1], b[1], k), s: .3 + .7 * g0, o: g0 > 0 ? 1 : 0 }); });
+  }, D);
+  const lmd = say(W, 'modifies ER products', 880, 748, tMd + .6, { size: 28, fill: CC.cargoMod, anchor: 'end' });
+  { const lg = G(W, { o: 0 }), bx = st(mm).x + 2, by = st(mm).y + 12;
+    path(lg, `M${bx} ${by}L${bx + 3} 792`, { stroke: COL.dim, 'stroke-width': 2.5 });
+    mk('circle', { cx: bx, cy: by, r: 4.5, fill: COL.dim }, lg);
+    wLabel(lg, 'makes certain macromolecules', { x: bx + 3, y: 826, size: 28, fill: '#bba8ee', weight: 600, o: 1 });
+    showL(lg, tMk + .8); }
+  say(W, 'sorts and packages', 1340, 470, tSo + 1.4, { size: 28, weight: 700 });
+  say(W, 'into transport vesicles', 1340, 504, tSo + 2, { size: 22, fill: COL.dim, weight: 500 });
+  void lmd;
+  cam.to({ x: 880, y: 450, z: 1 }, tSo, 1.8);
+  notToScale(p, 1570, 40, .3);
+}],
+
+/* ---------- example ---------- */
+['example', 'One glycoprotein', (m, D) => {
+  const p = panel(0), tR = m('ribo'), tL = m('lumen'), tB = m('bud'), tA = m('arrive'), tTh = m('through'), tSh = m('ship'), tLv = m('leave');
+  const sc = pancreasScene(p, { o: 0 }); show(sc.g, .2, .7);
+  const { rer, gol, B, TE, S0, E0, T1 } = sc;
+  say(p, 'a pancreas cell', 800, 48, .4, { size: 32, weight: 700 });
+  say(p, 'its digestive enzymes are glycoproteins', 800, 878, 3.2, { size: 26, fill: COL.dim, weight: 500 });
+  // ribo: a bound ribosome builds the chain into the lumen
+  const rb = boundRibo(p, rer, .4); show(rb, tR + .1, .4);
+  prog(q => rer.thread(q), tR + .4, 3.4, lin);
+  say(p, 'bound ribosome', st(rb).x + 62, st(rb).y - 68, tR + .8, { size: 24, fill: CC.ribo });
+  // lumen: a carbohydrate is attached → glycoprotein
+  const tg = sugarTag(p, { x: TE[0], y: TE[1] - 2, s: 0, o: 0 }); pop(tg, tL + 2.6);
+  say(p, 'glycoprotein', TE[0] + 40, TE[1] - 58, tL + 3.3, { size: 26, fill: CC.tag, weight: 700 });
+  hide(tg, tB + .6, .4);
+  // bud → arrive → through → ship → leave: the ER's bud becomes the Golgi's incoming vesicle
+  const KS = [[tA + .2, 0], [tA + 3.2, .3], [tTh + .3, .3], [tTh + 3.6, .62], [tSh + .2, .7], [tSh + 2.2, .82], [tLv + .2, .82], [tLv + 2.6, 1]];
+  const ring = mk('circle', { r: 36, fill: 'none', stroke: MC.hi, 'stroke-width': 4, 'stroke-dasharray': '9 6' }, p); put(ring, { o: 0 });
+  clockRun(t => {
+    rer.bud(ramp(t, tB + .4, tB + 3.4));
+    if (t >= tA + .2) cSet(rer.vesicle, { o: 0 });
+    const k = keyf(t, KS); gol.flow(k);
+    let q;
+    if (t < tB + .4) q = TE; else if (t < tA + .2) q = rer.pt('bud');
+    else if (k < .22) { const a = io(mRamp(k, 0, .22)); q = [lerp(S0[0], E0[0], a), lerp(S0[1], E0[1], a)]; }
+    else q = gol.pt('cargo');
+    mPose(ring, q[0], q[1], ramp(t, tL + 2.8, tL + 3.3) * (1 - ramp(t, tLv + 4, tLv + 4.5)));
+  }, D);
+  showL(cLabel(p, [B[0] - 105, B[1] - 4], [B[0] + 4, B[1] - 84], 'transitional ER', { size: 24, color: CC.er, line: CC.er }), tB + 2.2);
+  say(p, 'cis face', E0[0] - 10, E0[1] + 190, tA + 1.6, { size: 24, fill: CC.golgi, weight: 700 });
+  say(p, 'modified', st(gol).x - 10, st(gol).y - 165, tTh + 1.8, { size: 24, fill: CC.cargoMod, weight: 700 });
+  say(p, 'trans face: packaged', sc.trans[0] + 20, sc.trans[1] + 190, tSh + 1, { size: 24, fill: CC.golgi, weight: 700 });
+  // leave: toward the cell surface, or elsewhere; next lesson
+  const ah = mArrow(p, [T1[0] + 30, T1[1] - 10], [1455, T1[1] - 70], { color: MC.hi, w: 5, head: 16, o: 0 }); ah.firstChild?.setAttribute?.('stroke-dasharray', '12 8'); show(ah, tLv + 2.4);
+  say(p, 'toward the cell surface', 1430, T1[1] - 150, tLv + 2.8, { size: 24, anchor: 'end' });
+  say(p, 'next lesson →', 1340, 800, tLv + 5.6, { size: 28, fill: MC.hi, weight: 700 });
+  // the step badges along the route
+  [[sc.RIB[0] + 56, sc.RIB[1] - 46, tR], [TE[0] + 30, TE[1] + 30, tL + 2.6], [B[0] + 4, B[1] + 44, tB + 1.6], [st(gol).x, st(gol).y + 150, tTh + .4], [T1[0], T1[1] - 46, tSh + 1.6]]
+    .forEach(([x, y, t0], i) => { const b = badge(p, String(i + 1), x, y, { r: 18 }); put(b, { s: 0 }); pop(b, t0 + .2); });
+  notToScale(p, 1570, 40, .3);
+}],
+
+/* ---------- q3 ---------- */
+['q3', 'Quick check', (m, D) => {
+  const p = panel(0), K = .5, X0 = 0, Y0 = 130;
+  const g = G(p, { x: X0, y: Y0, s: K });
+  const sc = pancreasScene(g);
+  sc.rer.thread(1); const rb = boundRibo(g, sc.rer, .4, 1); void rb;
+  const to = ([x, y]) => [X0 + K * x, Y0 + K * y];
+  const pts = [[sc.RIB[0] + 56, sc.RIB[1] - 46], [sc.TE[0] + 30, sc.TE[1] + 30], [sc.B[0] + 4, sc.B[1] + 44], [st(sc.gol).x, st(sc.gol).y + 150], [sc.T1[0], sc.T1[1] - 46]].map(to);
+  sc.gol.flow(.9);
+  S.stepB = pts.map(([x, y]) => badge(p, '?', x, y, { o: 1, r: 20 }));
+  wLabel(p, 'a pancreas cell', { x: X0 + K * 800, y: 110, size: 28, fill: COL.dim, o: 1 });
+}, { ask: done => quiz({ x: 700, y: 50, w: 860, cls: 'side' }, [{
+  id: 'c-order', prompt: ['Put the journey of a secreted glycoprotein in order: which step is each, 1 to 5?'],
+  build: grid([
+    { parts: ['A vesicle buds from the transitional ER.'], ans: ['3'], why: 'Step 3: the glycoprotein leaves the ER in a transport vesicle.', fx: () => stepFx(2, '3') },
+    { parts: ['A bound ribosome builds the protein.'], ans: ['1'], why: 'Step 1: a ribosome on the rough ER builds the chain.', fx: () => stepFx(0, '1') },
+    { parts: ['A shipping vesicle leaves the trans face.'], ans: ['5'], why: 'Step 5: the trans face is the shipping side.', fx: () => stepFx(4, '5') },
+    { parts: ['Sugar is attached in the ER lumen.'], ans: ['2'], why: 'Step 2: the chain enters the lumen and a carbohydrate is attached.', fx: () => stepFx(1, '2') },
+    { parts: ['The product moves through the Golgi, cis to trans.'], ans: ['4'], why: 'Step 4: it enters at the cis face and is modified on its way through.', fx: () => stepFx(3, '4') },
+  ], ['1', '2', '3', '4', '5'].map(k => [k, k, null, k]), { multi: false, text: true }),
+}], done) }],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['The ER is continuous with the nuclear envelope,', 'and more than half the membrane in most cells.', g => {
+      mk('circle', { cx: 120, cy: 0, r: 52, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 5 }, g);
+      cTube(g, 'M168 -20C200 -20 210 -40 250 -40M170 20C200 20 214 30 250 30', { w: 18 });
+    }],
+    ['Smooth ER has no ribosomes: lipids, carbohydrates,', 'detoxifying poisons, storing calcium.', g => { smoothER(g, { x: 180, y: 0, s: .34, w: 460 }); }],
+    ['Rough ER has bound ribosomes: glycoproteins', 'for secretion, and new membrane.', g => { roughER(g, { x: 180, y: 0, s: .32, w: 460, n: 4 }); }],
+    ['The Golgi receives at its cis face, modifies,', 'sorts, and ships from its trans face.', g => { golgi(g, { x: 190, y: 0, s: .38, n: 4, h: 260 }); mArrow(g, [110, -70], [270, -70], { color: MC.hi, w: 4, head: 12 }); }],
+  ];
+  const icons = [];
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: -16, y: 180 + i * 170, o: 0 });
+    const ic = G(g); icon(ic); icons.push(ic);
+    T(g, a, { x: 330, y: -6, size: 34, weight: 600 }); T(g, b, { x: 330, y: 38, size: 30, fill: COL.dim });
+    tw(g, { o: 1, x: 0 }, i ? m('w' + (i + 1)) : .15, .6);
+  });
+  say(p, 'Now try the practice.', 800, 860, m('end'), { size: 32, fill: CC.golgi });
+  clockRun(t => icons.forEach((ic, i) => put(ic, { y: 4 * Math.sin(1.6 * t + 1.3 * i) })), D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('ribo', g => {
+    roughER(g, { x: 1270, y: 280, s: .7, w: 460, n: 4 }); smoothER(g, { x: 1270, y: 640, s: .7, w: 460 });
+    wLabel(g, 'rough ER', { x: 1270, y: 140, size: 30, fill: CC.er, weight: 700, o: 1 }); wLabel(g, 'smooth ER', { x: 1270, y: 810, size: 30, fill: CC.er, weight: 700, o: 1 });
+  });
+  at('drug', g => {
+    path(g, 'M1000 450L1110 230H1430L1540 450L1430 670H1110Z', { fill: '#16304f', stroke: CC.membrane, 'stroke-width': 4, 'stroke-opacity': .6 });
+    smoothER(g, { x: 1270, y: 470, s: .55, w: 460 });
+    const tb = toxinBlob(g, { x: 1180, y: 300, R: 26 }); void tb;
+    wLabel(g, 'a liver cell and a drug', { x: 1270, y: 740, size: 28, fill: COL.dim, o: 1 });
+  });
+  at('glyco', g => {
+    const pp = polypeptide(g, { n: 8, x: 1100, y: 470, dir: 0, sp: 46, r: 17 }); pp.set(8);
+    [1, 3, 6].forEach((j, i) => sugarTag(g, { x: 1100 + 46 * j, y: 452, s: 1.4, r: i % 2 ? -30 : 0 }));
+    wLabel(g, '?', { x: 1270, y: 650, size: 90, fill: MC.hi, weight: 800, o: 1 });
+  });
+  at('face', g => {
+    const GX = 1270, GY = 450, GS = 1.25;
+    golgi(g, { x: GX, y: GY, s: GS, n: 5 });
+    const b = ([x, y, w, h]) => [GX + GS * x, GY + GS * y, GS * w, GS * h];
+    S.faces = [
+      { el: g, box: b([-152, -142, 76, 284]), label: 'the left face' },
+      { el: g, box: b([-62, -150, 76, 300]), label: 'a middle cisterna' },
+      { el: g, box: b([26, -142, 78, 284]), label: 'the right face' },
+    ];
+    wLabel(g, 'ER is off to the left', { x: GX, y: 800, size: 26, fill: COL.dim, weight: 500, o: 1 });
+    mArrow(g, [GX - 240, 760], [GX - 320, 760], { color: COL.dim, w: 4, head: 12 });
+  });
+  at('dir', g => {
+    golgi(g, { x: 1270, y: 450, s: 1.1, n: 5 });
+    wLabel(g, 'cis', { x: 1100, y: 690, size: 30, fill: CC.golgi, weight: 700, o: 1 }); wLabel(g, 'trans', { x: 1400, y: 690, size: 30, fill: CC.golgi, weight: 700, o: 1 });
+    wLabel(g, '?', { x: 1270, y: 210, size: 80, fill: MC.hi, weight: 800, o: 1 });
+  });
+  at('system', g => {
+    const cm = cellMap(g, { x: 1270, y: 450, s: .5 }); cm.focus(['ER', 'golgi', 'envelope'], 1);
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('ribo');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-ribo', prompt: ['Which statement about ribosomes and the ER is right?'],
+    build: withPic('ribo', choice([['Smooth ER has ribosomes on its tubes.'], ['Rough ER has ribosomes on the outside of its membrane; smooth ER has none.'], ['Every ribosome in the cell is bound to the ER.'], ['Rough ER has no ribosomes; that is why it looks rough.']], 1,
+      'Right. Bound ribosomes stud the outside of the rough ER; smooth ER has none.',
+      ['Smooth ER is the region with no ribosomes at all.', null,
+       'Many ribosomes are free in the cytosol; only some are bound to the ER.',
+       'It is the other way round: the bound ribosomes are what make it look rough.'])) },
+  { id: 'p-drug', prompt: ['A liver cell breaks down a drug. Which part does most of this work?'],
+    build: withPic('drug', choice([['the rough ER'], ['the smooth ER'], ['the cis face of the Golgi'], ['a nuclear pore']], 1,
+      'Right. Smooth ER detoxifies poisons, which is why liver cells have so much of it.',
+      ['Rough ER makes glycoproteins and membrane; detox is a smooth ER job.', null,
+       'The cis face only receives vesicles from the ER.',
+       'A nuclear pore is a gate in the nuclear envelope; it does not break down drugs.'])) },
+  { id: 'p-glyco', prompt: ['What is a glycoprotein?'],
+    build: withPic('glyco', choice([['a lipid with a sugar attached'], ['a carbohydrate with no protein'], ['a protein covalently bonded to carbohydrate'], ['a protein with no carbohydrate']], 2,
+      'Right. Glyco- means sugar: a glycoprotein is a protein with carbohydrate bonded to it.',
+      ['A lipid is not a protein; a glycoprotein is built on a protein chain.',
+       'There must be a protein: the carbohydrate is attached to a protein chain.', null,
+       'Without the carbohydrate it is just a protein, not a glycoprotein.'])) },
+  { id: 'p-face', prompt: ['Click the shipping face of the Golgi.'],
+    build: withPic('face', (body, api) => pickEls(S.faces, 2, 'Right. The trans face, away from the ER, is the shipping side.',
+      i => i === 0 ? 'That is the cis face, near the ER: the receiving side.' : 'A middle cisterna is neither face. Material is shipped from the far side, away from the ER.')(body, api)) },
+  { id: 'p-dir', prompt: ['How does material move through the Golgi?'],
+    build: withPic('dir', choice([['from the trans face to the cis face'], ['from the cis face to the trans face'], ['it never enters the Golgi'], ['only by leaving the cell']], 1,
+      'Right. It arrives at the cis face, moves through the cisternae and leaves from the trans face.',
+      ['That is reversed: cis receives, trans ships.', null,
+       'ER products do enter the Golgi, at its cis face, to be modified and sorted.',
+       'Much of it does leave the cell later, but first it passes through the Golgi from cis to trans.'])) },
+  { id: 'p-system', prompt: ['True or false?'],
+    build: withPic('system', grid([
+      { parts: ['The ER is continuous with the nuclear envelope.'], ans: ['t'], why: 'True: the ER’s lumen runs into the space inside the envelope.' },
+      { parts: ['The ER is less than half of a cell’s membrane.'], ans: ['f'], why: 'False: in most eukaryotic cells it is more than half.' },
+      { parts: ['The Golgi sorts and packages materials into vesicles.'], ans: ['t'], why: 'True: at the trans face.' },
+      { parts: ['Smooth ER makes glycoproteins for secretion.'], ans: ['f'], why: 'False: that is rough ER, with its bound ribosomes.' },
+      { parts: ['Lysosomes are one of the six parts of the endomembrane system.'], ans: ['t'], why: 'True: with the nuclear envelope, ER, Golgi, vacuoles and plasma membrane.' },
+    ], TF, { multi: false, text: true })) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+function stepFx(i, str) { const b = S.stepB?.[i]; if (!b) return; fxp(q => { b.t.textContent = q > 0 ? str : '?'; }, 0, .2); pulseFx(b, 1.4); }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>

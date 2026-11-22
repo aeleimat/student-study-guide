@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 6, Lesson 2: The Nucleus and Ribosomes — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 6 (A Tour of the Cell), lesson 2: a leaf and a cheek, then the animal-cell map with the nucleus and
+// ribosomes lit; animal and plant maps compared; the nucleus (most DNA, double envelope, pores, lamina, rough ER);
+// inside it (chromatin, chromosomes, the nucleolus making rRNA and shipping subunits); ribosomes (rRNA + protein, two
+// subunits, read mRNA not DNA, free and bound); a worked case joining both stops; summary; practice.
+// Plan, errata and storyboard: books/biology/chapters/chapter-06/lesson-02.md.
+const CHAPTER = { number: 602, label: '6, lesson 2', title: 'The Nucleus and Ribosomes', minutes: 7, language: 'en', lead: false, next: '../lesson-03/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+const RNA = MC.U, PROT = '#8f9bb0', GREEN = '#8fdc8f', CORAL = '#f4a48c', LAMINA = '#9fb6e0';
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  if (ax !== null) { path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g); }
+  show(g, t0, .4);
+  return g;
+}
+// A ring that pops in round a point; returns it (o 0 before t0).
+function ring(p, [x, y], r, t0, { color = COL.chalk, w = 4, dash = null } = {}) {
+  const g = G(p, { x, y, o: 0 });
+  mk('circle', { r, fill: 'none', stroke: color, 'stroke-width': w, ...(dash ? { 'stroke-dasharray': dash } : {}) }, g);
+  if (t0 !== null) { show(g, t0, .3); pulse(g, t0 + .1, 1.12); }
+  return g;
+}
+// A flat schematic double helix along +x, centred on its origin.
+function helix(p, { x = 0, y = 0, len = 200, amp = 16, turns = 2, w = 5, o = 1 } = {}) {
+  const g = G(p, { x, y, o }); let a = '', b = '', r = '';
+  for (let i = 0; i <= 64; i++) {
+    const u = -len / 2 + len * i / 64, ph = i / 64 * turns * 2 * Math.PI, ya = amp * Math.sin(ph);
+    a += (i ? 'L' : 'M') + u.toFixed(1) + ' ' + ya.toFixed(1); b += (i ? 'L' : 'M') + u.toFixed(1) + ' ' + (-ya).toFixed(1);
+    if (i % 4 === 2) r += `M${u.toFixed(1)} ${ya.toFixed(1)}V${(-ya).toFixed(1)}`;
+  }
+  path(g, r, { stroke: '#8fd6b0', 'stroke-width': w * .7, 'stroke-opacity': .8 });
+  path(g, b, { stroke: mix(CC.dna, '#0f1e33', .5), 'stroke-width': w });
+  path(g, a, { stroke: CC.dna, 'stroke-width': w });
+  return g;
+}
+// A short rRNA squiggle (orange), centred on its origin.
+function rrnaSquiggle(p, { x = 0, y = 0, s = 1, o = 1, r = 0 } = {}) {
+  const g = G(p, { x, y, s, o, r });
+  path(g, 'M-30 0Q-22 -14 -14 0T2 0T18 0Q24 10 30 2', { stroke: RNA, 'stroke-width': 6 });
+  return g;
+}
+// A protein blob (grey), centred on its origin.
+function protBlob(p, { x = 0, y = 0, s = 1, o = 1, r = 13 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, cBlob(r, r * .82, { seed: x + y, wob: .12 }), { fill: PROT, stroke: '#5f6a80', 'stroke-width': 2 });
+  return g;
+}
+// Beads along a polyline (a polypeptide threading somewhere); .set(m) shows m beads from the start.
+function beadPath(p, pts, { n = 8, r = 8, color = CORAL, o = 1 } = {}) {
+  const g = G(p, { o }), dense = cResample(pts, 2), L = dense.length - 1;
+  const bond = path(g, '', { stroke: WC.stick, 'stroke-width': 4 });
+  const beads = Array.from({ length: n }, () => put(mk('circle', { r, fill: color, stroke: mix(color, '#000000', .3), 'stroke-width': 2 }, g), { o: 0 }));
+  const step = Math.min(L / n, r * 2.6 / 2);
+  const bp = Object.assign(g, {
+    m: -1,
+    set(m) {
+      m = Math.round(Math.max(0, Math.min(n, m)) * 1000) / 1000; if (m === bp.m) return bp; bp.m = m;
+      let d = '';
+      beads.forEach((e, j) => {
+        const along = Math.max(0, m - 1 - j) * step * 1, q = dense[Math.min(L, Math.round(along))], oo = mClamp(m - j);
+        mPose(e, q[0], q[1], oo); if (oo > 0) d += (d ? 'L' : 'M') + cP(q);
+      });
+      mD(bond, d);
+      return bp;
+    },
+  });
+  return bp.set(0);
+}
+
+/* ---------- backdrops ---------- */
+function leafArt(p, { x = 0, y = 0, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  path(g, 'M0 230V300', { stroke: WC.barkDk, 'stroke-width': 10 });
+  path(g, 'M0 -230C150 -170 175 90 0 230C-175 90 -150 -170 0 -230Z', { fill: WC.leaf, stroke: WC.leafDk, 'stroke-width': 5 });
+  let v = 'M0 -210V225';
+  for (let i = 0; i < 5; i++) { const y0 = -140 + i * 70; v += `M0 ${y0 + 40}Q${50 + 6 * i} ${y0 + 10} ${105 - 8 * i} ${y0 - 25}M0 ${y0 + 40}Q${-50 - 6 * i} ${y0 + 10} ${-105 + 8 * i} ${y0 - 25}`; }
+  path(g, v, { stroke: '#9fd0a8', 'stroke-width': 4, 'stroke-opacity': .7 });
+  return g;
+}
+// A flat side profile of a face, looking left, with its cheek (no features beyond the outline).
+function cheekArt(p, { x = 0, y = 0, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  path(g, 'M120 -230C10 -250 -80 -200 -100 -110C-108 -80 -110 -60 -112 -40L-150 30L-112 45C-116 62 -112 72 -118 84C-104 92 -110 104 -116 116C-104 150 -84 176 -40 186C0 196 40 196 70 220L110 300',
+    { stroke: '#f2d2b6', 'stroke-width': 7, 'stroke-linejoin': 'round' });
+  path(g, 'M120 -230C200 -210 230 -120 220 -20C215 60 170 150 110 200', { stroke: '#f2d2b6', 'stroke-width': 7, 'stroke-opacity': .5 });
+  mk('ellipse', { cx: -20, cy: 70, rx: 62, ry: 44, fill: '#f08aa0', 'fill-opacity': .45 }, g);
+  return g;
+}
+// Cells seen through a lens, drawn round (0, 0): cheek cells (flat, round, a nucleus dot each) or leaf cells (walled
+// bricks with green chloroplasts). The cheek lens leaves out its centre cell, which the page draws itself.
+function lensCells(p, kind, { x = 0, y = 0, R = 190, o = 1, s = 1 } = {}) {
+  const g = G(p, { x, y, o, s });
+  mk('circle', { r: R, fill: '#0b1828', stroke: COL.chalk, 'stroke-width': 6 }, g);
+  let d = '', nd = '';
+  if (kind === 'cheek') {
+    for (let row = -4; row <= 4; row++) for (let col = -4; col <= 4; col++) {
+      const cx = col * 66 + (row % 2 ? 33 : 0), cy = row * 58;
+      if (Math.hypot(cx, cy) > R - 34 || (!row && !col)) continue;
+      d += cBlob(30, 26, { seed: 3 + row * 5 + col, wob: .08, cx, cy });
+      nd += cCircle(7, cx + 4 * wHash(row, col) - 2, cy + 2);
+    }
+    path(g, d, { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 2.5 });
+    path(g, nd, { fill: CC.nucleo, stroke: CC.env, 'stroke-width': 2 });
+  } else {
+    for (let row = -4; row <= 4; row++) for (let col = -4; col <= 4; col++) {
+      const cx = col * 64 + (row % 2 ? 32 : 0), cy = row * 42;
+      if (Math.hypot(cx, cy) > R - 30) continue;
+      d += `M${cx - 26} ${cy - 16}h52v32h-52Z`;
+      for (let k = 0; k < 3; k++) nd += cCircle(4.5, cx - 14 + 14 * k, cy + (k % 2 ? 7 : -6));
+    }
+    path(g, d, { fill: CC.cyto, stroke: CC.wall, 'stroke-width': 5 });
+    path(g, nd, { fill: CC.chloro });
+  }
+  return g;
+}
+// The centre cheek cell, with its organelles (g.inner, o 0) drawn small, to be seen at a big zoom.
+function cheekCell(p, { x = 0, y = 0 } = {}) {
+  const g = G(p, { x, y });
+  path(g, cBlob(30, 26, { seed: 3, wob: .08 }), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 1.4 });
+  const dotN = mk('circle', { cx: 2, cy: 2, r: 7, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 1 }, g);
+  const inner = G(g, { o: 0 });
+  mk('circle', { cx: -6, cy: -2, r: 9, fill: CC.nucleo, stroke: CC.env, 'stroke-width': .9 }, inner);
+  mk('circle', { cx: -4, cy: -1, r: 2.6, fill: CC.nucleolus }, inner);
+  path(inner, 'M-6 -15A13 13 0 0 1 7 -5M-8 -18A16 16 0 0 1 10 -7', { stroke: CC.er, 'stroke-width': 1.3 });
+  path(inner, cStadium(10, 4.4), { fill: CC.mito, transform: 'translate(14 9) rotate(-20)' });
+  path(inner, cStadium(9, 4), { fill: CC.mito, transform: 'translate(-14 14) rotate(15)' });
+  path(inner, 'M10 -16q4 3 8 0M10 -13q4 3 8 0M11 -10q3 2 6 0', { stroke: CC.golgi, 'stroke-width': 1 });
+  mk('circle', { cx: 20, cy: 2, r: 2.4, fill: CC.lyso }, inner);
+  path(inner, cDots([[0, 12], [4, 16], [8, 11], [-18, 2], [-20, -6], [16, -2], [2, -20]]), { stroke: CC.ribo, 'stroke-width': 1.6 });
+  return Object.assign(g, { inner, dotN });
+}
+
+// A flagellum drawn in a cell map's own coordinates, from the membrane at local (x, y) out along angle a (degrees);
+// .wave(t) beats it.
+function flagellum(p, { x = 0, y = 0, a = 30, L = 260, o = 0 } = {}) {
+  const g = G(p, { x, y, r: a, o }), whip = path(g, '', { stroke: CC.flag, 'stroke-width': 7 });
+  mk('circle', { r: 9, fill: CC.mt }, g);
+  const f = Object.assign(g, {
+    wave(t) {
+      let d = '';
+      for (let i = 0; i <= 30; i++) { const u = i / 30 * L, w = 22 * (u / L) * Math.sin(u / 34 - 5 * t); d += (i ? 'L' : 'M') + u.toFixed(1) + ' ' + w.toFixed(1); }
+      mD(whip, d); return f;
+    },
+  });
+  return f.wave(0);
+}
+
+// A piece of nuclear envelope, flat, seen in section: the outer and inner bilayers (heads as dots, tails as short
+// strokes) bend into each other round a pore at x = px. Drawn in parent coordinates between x0 and x1.
+function envelopeSection(p, { x0 = 960, x1 = 1540, yo = 360, yi = 500, px = 1255, half = 55 } = {}) {
+  const g = G(p), pieces = [];
+  const arc = (cx, cy, r, a0, a1, n = 8) => Array.from({ length: n + 1 }, (_, i) => { const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; });
+  const rr = 24;
+  // left C: along the outer, down the pore wall, back along the inner
+  pieces.push([[x0, yo], [px - half - rr, yo], ...arc(px - half - rr, yo + rr, rr, -90, 0), [px - half, yi - rr], ...arc(px - half - rr, yi - rr, rr, 0, 90), [x0, yi]]);
+  pieces.push([[x1, yo], [px + half + rr, yo], ...arc(px + half + rr, yo + rr, rr, -90, -180), [px + half, yi - rr], ...arc(px + half + rr, yi - rr, rr, 180, 90), [x1, yi]]);
+  let band = '', heads = [], tails = '';
+  pieces.forEach(pts => {
+    band += 'M' + pts.map(cP).join('L');
+    const dense = cResample(pts, 17);
+    dense.forEach((q, j) => {
+      if (j === 0 || j === dense.length - 1) return;
+      const nn = cNormal(dense, j);
+      for (const sd of [1, -1]) {
+        heads.push([q[0] + nn[0] * sd * 18, q[1] + nn[1] * sd * 18]);
+        tails += `M${cP([q[0] + nn[0] * sd * 12, q[1] + nn[1] * sd * 12])}L${cP([q[0] + nn[0] * sd * 3, q[1] + nn[1] * sd * 3])}`;
+      }
+    });
+  });
+  path(g, band, { stroke: '#1a3150', 'stroke-width': 40, 'stroke-linejoin': 'round' });
+  path(g, tails, { stroke: '#e8d9a8', 'stroke-width': 2.5, 'stroke-opacity': .8 });
+  const headEl = path(g, cDots(heads), { stroke: CC.env, 'stroke-width': 13 });
+  return Object.assign(g, { headEl });
+}
+
+/* ---------- the two maps, side by side (maps and q1) ---------- */
+const SHARED = ['nucleus', 'ribosomes', 'roughER', 'smoothER', 'golgi', 'mitochondria', 'peroxisomes', 'cytoskeleton'];
+const PLANT_ONLY = ['wall', 'vacuole', 'chloroplasts', 'plasmodesmata'];
+const ANIMAL_ONLY = ['centrosome', 'lysosomes'];
+// The free ribosome dots of a map nearest a point (parent coordinates), for leaders.
+function nearRibos(cm, [x, y], k = 2) {
+  const all = []; for (let i = 0; i < 44; i++) { const q = cm.pt('ribosomes', i); all.push([Math.hypot(q[0] - x, q[1] - y), q]); }
+  return all.sort((a, b) => a[0] - b[0]).slice(0, k).map(a => a[1]);
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'The nucleus and ribosomes', (m, D) => {
+  const p = panel(0), tL = m('leaf'), tC = m('cells'), tM = m('map'), tLit = m('lit');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const lf = leafArt(W, { x: 330, y: 450, o: 0 }), ck = cheekArt(W, { x: 820, y: 440, o: 0 });
+  show(lf, .2, .6); show(ck, .5, .6);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 6 · LESSON 2', { x: 1330, y: 230, size: 26, fill: COL.dim, o: 1 });
+  ['The nucleus', 'and ribosomes'].forEach((s, i) => wLabel(ttl, s, { x: 1330, y: 320 + i * 78, size: 66, o: 1 }));
+  wLabel(ttl, 'A tour of the cell:', { x: 1330, y: 492, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(ttl, 'the head office and the workbenches', { x: 1330, y: 528, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .2, .5);
+  // leaf: a leaf and a cheek
+  pulse(lf, tL + .1, 1.05); pulse(ck, tL + 1.3, 1.05);
+  const l1 = say(p, 'a leaf', 330, 820, tL + .2, { size: 32 }), l2 = say(p, 'a cheek', 820, 820, tL + 1.3, { size: 32 });
+  // cells: lenses open on each; both are made of eukaryotic cells; push into one cheek cell
+  const lensL = lensCells(W, 'leaf', { x: 330, y: 450, s: .2, o: 0 }), lensC = lensCells(W, 'cheek', { x: 820, y: 450, s: .2, o: 0 });
+  const cc = cheekCell(lensC);
+  tw(lensL, { s: 1, o: 1 }, tC + .2, .9, out); tw(lensC, { s: 1, o: 1 }, tC + .5, .9, out);
+  tw(lf, { o: .25 }, tC + .2, .6); tw(ck, { o: .25 }, tC + .5, .6);
+  hide(l1, tC + .1, .3); hide(l2, tC + .1, .3);
+  const cap = G(p, { o: 0 }); show(cap, tC + 1.6, .5); hide(cap, tC + 3.5, .4);
+  wLabel(cap, 'leaf cells', { x: 330, y: 700, size: 30, o: 1 }); wLabel(cap, 'cheek cells', { x: 820, y: 700, size: 30, o: 1 });
+  wLabel(cap, 'both: eukaryotic cells', { x: 575, y: 790, size: 34, weight: 700, fill: CC.membrane, o: 1 });
+  cam.to({ x: 820, y: 450, z: 9 }, tC + 3.7, 3.2);
+  // drop what the push has left behind (off screen, or under the opaque lens), so Firefox stops painting it at 9x
+  hide(lf, tC + 5.5, .05); hide(lensL, tC + 5.5, .05); hide(ck, tC + 6.2, .05);
+  show(cc.inner, tC + 5.4, .9); hide(cc.dotN, tC + 5.4, .6);
+  const cap2 = G(p, { o: 0 }); show(cap2, tC + 6.3, .5); hide(cap2, tM, .4);
+  mk('rect', { x: 380, y: 730, width: 840, height: 130, rx: 22, fill: '#0a1626', 'fill-opacity': 1, stroke: COL.chalk, 'stroke-opacity': .55, 'stroke-width': 3 }, cap2);
+  wLabel(cap2, 'inside: compartments wrapped in membranes', { x: 800, y: 785, size: 36, o: 1 });
+  wLabel(cap2, 'the organelles', { x: 800, y: 837, size: 38, weight: 700, fill: CC.golgi, o: 1 });
+  // map: the animal cell map builds; lit: the nucleus and the ribosomes light
+  hide(cam.el, tM, .6);
+  const cm = cellMap(p, { kind: 'animal', x: 800, y: 470, s: .72 }); cm.build(0);
+  prog(k => cm.build(k), tM + .2, 2.2, lin);
+  hide(say(p, 'our map: an animal cell', 800, 100, tM + .5, { size: 34, fill: COL.dim, weight: 500 }), tLit, .3);
+  prog(k => cm.focus(['nucleus', 'ribosomes'], k), tLit + .1, .9, io);
+  const [nx, ny] = cm.pt('nucleus');
+  tag(p, 'nucleus', [520, 150], [nx - 40, ny - 95], tLit + .6, { size: 36, weight: 700 });
+  const rb = nearRibos(cm, [1120, 230], 2);
+  tag(p, 'ribosomes', [1160, 150], rb[0], tLit + 2.4, { size: 36, weight: 700, fill: CC.ribo });
+  leader(p, [1160, 160], rb[1], tLit + 2.6);
+  ring(p, [nx, ny], 122, tLit + .8, { color: COL.chalk, w: 3 });
+}],
+
+/* ---------- maps ---------- */
+['maps', 'Animal and plant cells', (m, D) => {
+  const p = panel(0), tS = m('same'), tP = m('plant'), tA = m('animal'), tG = m('go');
+  const AX = 400, PX = 1200, MY = 440, MS = .56;
+  const am = cellMap(p, { kind: 'animal', x: AX, y: MY, s: MS }), pm = cellMap(p, { kind: 'plant', x: PX, y: MY, s: MS, o: 0 });
+  // the points and labels are read at the maps' final places; then the animal map starts where the intro left it
+  const AP = { nucleus: am.pt('nucleus'), centrosome: am.pt('centrosome') }, A = n => AP[n], Pp = n => pm.pt(n), aLys = [am.pt('lysosomes', 0), am.pt('lysosomes', 1)];
+  const fl = flagellum(am, { x: 430, y: 200, a: 30, L: 250 });
+  const fTip = cOut(am, [430 + 250 * Math.cos(Math.PI / 6) * .7, 200 + 250 * Math.sin(Math.PI / 6) * .7]);
+  put(am, { x: 800, y: 470, s: .72 }); tw(am, { x: AX, y: MY, s: MS }, .1, 1.3, io);
+  tw(pm, { o: 1 }, .7, .9); put(pm, { x: PX + 80 }); tw(pm, { x: PX }, .7, 1, out);
+  say(p, 'animal cell', AX, 110, 1.1, { size: 38, weight: 700 });
+  say(p, 'plant cell', PX, 110, 1.3, { size: 38, weight: 700 });
+  // same: the shared set lights in both, named one by one in a row of chips
+  const NAMES = [['nucleus', 3], ['ribosomes', 3.8], ['rough and smooth ER', 4.8], ['Golgi', 7.4], ['mitochondria', 8.6], ['peroxisomes', 9.7], ['cytoskeleton', 10.9]];
+  const SETS = [['nucleus'], ['ribosomes'], ['roughER', 'smoothER'], ['golgi'], ['mitochondria'], ['peroxisomes'], ['cytoskeleton']];
+  const chips = G(p, { o: 1 }); let cx = 0;
+  const widths = NAMES.map(([s]) => uiW(s, 24) + 18), tot = widths.reduce((a, b) => a + b, 0) + 12 * (NAMES.length - 1);
+  cx = 800 - tot / 2;
+  say(chips, 'in both:', 800, 752, tS + .4, { size: 28, fill: COL.chalk, weight: 600 });
+  NAMES.forEach(([s, dt], i) => {
+    const c = mChip(chips, [[s, COL.chalk]], { x: cx + widths[i] / 2, y: 800, size: 24, edge: CC.membrane, o: 0 });
+    show(c, tS + dt, .3); pulse(c, tS + dt + .05, 1.15); cx += widths[i] + 12;
+  });
+  const until = t => { let n = 0; NAMES.forEach(([, dt], i) => { if (t >= tS + dt) n = i + 1; }); return SETS.slice(0, n).flat(); };
+  // plant: wall, central vacuole, chloroplasts, plasmodesmata; animal: centrosome, lysosomes, a flagellum on some cells
+  clockRun(t => {
+    let aL, pL, k;
+    if (t < tS + 2.8) { aL = []; pL = []; k = 0; }
+    else if (t < tP) { aL = pL = until(t); k = 1; }
+    else if (t < tA) { aL = SHARED; pL = PLANT_ONLY; k = 1; }
+    else if (t < tG) { aL = ANIMAL_ONLY; pL = SHARED; k = 1; }
+    else { aL = pL = ['nucleus']; k = 1; }
+    am.focus(aL, k); pm.focus(pL, k);
+    const fo = mRamp(t, tA + 5.1, tA + 5.6) * (1 - mRamp(t, tG, tG + .5));
+    mO(fl, fo); fl.wave(fo > 0 ? t : 0);   // the whip is redrawn only while it shows (wave(0) writes nothing new)
+  }, D);
+  tw(chips, { o: .8 }, tP - .2, .5);
+  // plant labels
+  const pc1 = Pp('chloroplasts'), pc2 = pm.pt('chloroplasts', 1);
+  const pw = [PX - 480 * MS, MY - 362 * MS], pd = [PX - 150 * MS, MY + 350 * MS];
+  const gp = { size: 28, fill: GREEN, line: GREEN };
+  const Lp = [tag(p, 'cell wall', [920, 180], pw, tP + .3, gp), tag(p, 'chloroplasts', [1230, 180], pc1, tP + 2.4, gp),
+    tag(p, 'plasmodesmata', [1060, 700], pd, tP + 4.6, { ...gp, sub: 'channels through the wall', subFill: '#bfe8c8' })];
+  Lp.push(G(p, { o: 0 })); leader(Lp[3], [1290, 190], pc2, tP + 2.6, GREEN);
+  const [vx, vy] = Pp('vacuole'); Lp.push(say(p, 'central vacuole', vx, vy + 10, tP + 1.4, { size: 28, fill: GREEN, weight: 700 }));
+  Lp.forEach(e => tw(e, { o: 0 }, tA - .2, .4));
+  // animal labels
+  const ga = { size: 28, fill: CORAL, line: CORAL };
+  const La = [tag(p, 'centrosome', [150, 700], A('centrosome'), tA + .6, ga), tag(p, 'lysosomes', [440, 700], aLys[0], tA + 2.2, ga)];
+  const extra = G(p, { o: 0 }); show(extra, tA + 2.4, .4); leader(extra, [470, 680], aLys[1], tA + 2.4, CORAL); La.push(extra);
+  La.push(tag(p, 'flagellum', [720, 680], fTip, tA + 5.4, { ...ga, sub: 'some cells, e.g. sperm', subFill: '#f6c6b6' }));
+  // where the flagellum's tip will be once the map has moved
+  La.forEach(e => tw(e, { o: 0 }, tG - .2, .4));
+  // go: both keep their DNA in a nucleus
+  ring(p, A('nucleus'), 98, tG + .4, { color: CC.dna, w: 4 }); ring(p, Pp('nucleus'), 80, tG + .6, { color: CC.dna, w: 4 });
+  say(p, 'both: DNA in a nucleus', 800, 700, tG + .9, { size: 34, weight: 700, fill: CC.dna });
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  cellMap(p, { kind: 'animal', x: 320, y: 250, s: .42 });
+  cellMap(p, { kind: 'plant', x: 320, y: 660, s: .42 });
+  wLabel(p, 'animal cell', { x: 320, y: 70, size: 30, weight: 700, o: 1 });
+  wLabel(p, 'plant cell', { x: 320, y: 458, size: 30, weight: 700, o: 1 });
+}, { ask: done => quiz({ x: 650, y: 60, w: 900, cls: 'side' }, [{
+  id: 'c-cells', prompt: ['Which cell has it, on these maps?'],
+  build: grid([
+    { parts: ['a cell wall'], ans: ['p'], why: 'Plant only: the wall sits outside the plasma membrane. The animal cell has no wall.' },
+    { parts: ['chloroplasts'], ans: ['p'], why: 'Plant only: chloroplasts carry out photosynthesis.' },
+    { parts: ['a centrosome'], ans: ['a'], why: 'Animal, on these maps: the plant map draws no centrosome.' },
+    { parts: ['a nucleus'], ans: ['b'], why: 'Both: animal and plant cells are eukaryotic, so both keep their DNA in a nucleus.' },
+    { parts: ['rough ER'], ans: ['b'], why: 'Both: rough and smooth ER are in the shared set.' },
+    { parts: ['a large central vacuole'], ans: ['p'], why: 'Plant only: the large central vacuole fills much of a plant cell.' },
+  ], [['a', 'animal', null, 'A'], ['p', 'plant', null, 'P'], ['b', 'both', null, 'B']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- nucleus ---------- */
+['nucleus', 'The nucleus', (m, D) => {
+  const p = panel(0), tB = m('big'), tE = m('env'), tP = m('pore'), tLa = m('lamina'), tR = m('er');
+  const NX = 560, NY = 470, R = 290;
+  // push from the map into its nucleus: the map's nucleus grows onto the close-up, which fades in over it
+  const cm = cellMap(p, { kind: 'animal', x: 800, y: 470, s: .72 }); cm.focus('nucleus', 1);
+  const S2 = R / 115;
+  tw(cm, { x: NX + 100 * S2, y: NY + 35 * S2, s: S2 }, .15, 1.9, io); hide(cm, 1.5, .6);
+  // the rough ER, continuous with the outer membrane (drawn on at "er")
+  const erG = G(p, { o: 0 });
+  {
+    let d = ''; const dots = [];
+    [R + 46, R + 88, R + 130].forEach((rr, i) => {
+      const pts = [];
+      for (let j = 0; j <= 16; j++) { const a = (104 + i * 4 + (172 - i * 6 - 104 - i * 4) * j / 16) * Math.PI / 180, wv = rr + 6 * Math.sin(j * 1.2 + i); pts.push([NX + wv * Math.cos(a), NY + wv * Math.sin(a)]); }
+      d += cSmooth(pts);
+      const dense = cResample(pts, 22);
+      dense.forEach((q, j) => { for (const sd of [1, -1]) { if ((j + i + (sd > 0 ? 0 : 1)) % 3 === 2) continue; const nn = cNormal(dense, j); dots.push([q[0] + nn[0] * sd * 20, q[1] + nn[1] * sd * 20]); } });
+    });
+    const ca = 135 * Math.PI / 180;
+    d += `M${cF(NX + (R + 2) * Math.cos(ca))} ${cF(NY + (R + 2) * Math.sin(ca))}L${cF(NX + (R + 46) * Math.cos(ca))} ${cF(NY + (R + 46) * Math.sin(ca))}`;
+    cTube(erG, d, { w: 26, edge: CC.er, lumen: CC.erLumen });
+    path(erG, cDots(dots), { stroke: CC.ribo, 'stroke-width': 10 });
+  }
+  const nu = nucleus(p, { x: NX, y: NY, R, pores: 10, o: 0 }); put(nu.lamina, { o: 0 });
+  show(nu, 1.3, .8);
+  // big: the largest organelle, most of the DNA
+  pulse(nu, tB + .2, 1.04);
+  const Lb = tag(p, 'nucleus', [1200, 170], [NX + R * .77, NY - R * .64], tB + .3, { size: 46, weight: 700, sub: 'usually the largest organelle' });
+  const Lb2 = say(p, 'most of the DNA, most of the genes', 1200, 300, tB + 3.2, { size: 30, fill: CC.dna });
+  const mi = mitochondrion(p, { x: 1060, y: 450, s: .42, o: 0 }), ch = chloroplast(p, { x: 1340, y: 450, s: .38, o: 0 });
+  show(mi, tB + 6.5, .5); show(ch, tB + 6.8, .5);
+  const Lm = G(p, { o: 0 }); show(Lm, tB + 7, .5);
+  wLabel(Lm, 'mitochondrion', { x: 1060, y: 530, size: 24, fill: COL.dim, o: 1 }); wLabel(Lm, 'chloroplast', { x: 1340, y: 530, size: 24, fill: COL.dim, o: 1 });
+  wLabel(Lm, 'each keeps a little DNA of its own', { x: 1200, y: 590, size: 28, fill: CC.dna, o: 1 });
+  const r1 = ring(p, mi.pt('dna'), 22, tB + 8.2, { color: CC.dna, w: 3 }), r2 = ring(p, ch.pt('dna'), 20, tB + 8.4, { color: CC.dna, w: 3 });
+  [Lb, Lb2, mi, ch, Lm, r1, r2].forEach(e => hide(e, tE - .4, .4));
+  // env: the envelope, a double membrane, opened in a close-up beside it
+  const glow = mk('circle', { cx: NX, cy: NY, r: R - 6, fill: 'none', stroke: COL.chalk, 'stroke-width': 22, 'stroke-opacity': .35 }, p);
+  put(glow, { o: 0 }); show(glow, tE + .1, .3); hide(glow, tE + 1.3, .5);
+  const [mx, my] = nu.pt('pore', 0);
+  const zoom = G(p, { o: 0 }); show(zoom, tE + .8, .5);
+  mk('circle', { cx: mx, cy: my, r: 34, fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, zoom);
+  path(zoom, `M${mx + 24} ${my - 24}L930 150M${mx + 24} ${my + 24}L930 710`, { stroke: COL.dim, 'stroke-width': 2, 'stroke-dasharray': '6 6' });
+  mk('rect', { x: 930, y: 150, width: 640, height: 560, rx: 18, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, zoom);
+  mk('rect', { x: 932, y: 524, width: 636, height: 184, rx: 16, fill: CC.nucleo }, zoom);
+  mk('rect', { x: 932, y: 152, width: 636, height: 186, rx: 16, fill: CC.cyto }, zoom);
+  const ES = envelopeSection(zoom, { x0: 950, x1: 1550, yo: 360, yi: 500, px: 1255, half: 52 });
+  const zt = wLabel(zoom, 'nuclear envelope', { x: 1250, y: 196, size: 32, weight: 700, o: 1 });
+  const lc = say(zoom, 'cytoplasm', 1110, 250, tE + 6.4, { size: 24, fill: COL.dim, weight: 500 });
+  say(zoom, 'inside the nucleus', 1250, 690, tE + 6.6, { size: 24, fill: COL.dim, weight: 500 });
+  say(zoom, 'outer membrane', 975, 410, tE + 1.6, { size: 24, anchor: 'start', fill: CC.membrane });
+  say(zoom, 'inner membrane', 975, 465, tE + 2.4, { size: 24, anchor: 'start', fill: CC.membrane });
+  pulse(ES, tE + 4.1, 1.02);
+  const lb = say(zoom, 'each membrane: a lipid bilayer', 1250, 300, tE + 4.2, { size: 26, fill: '#e8d9a8' });
+  hide(lb, tP, .3);
+  // pore: three pores light; the pore complex lines the gap; molecules pass; an mRNA leaves, as in chapter 5
+  [0, 9, 1].forEach((i, j) => ring(p, nu.pt('pore', i), 26, tP + .4 + .3 * j, { color: CC.vesicle, w: 4 }));
+  const pc = G(zoom, { o: 0 }); show(pc, tP + 2.9, .5);
+  [[1203, 1], [1307, -1]].forEach(([x, sd]) => {
+    mk('rect', { x: x - 9, y: 352, width: 18, height: 156, rx: 9, fill: CC.vesicle, 'fill-opacity': .85 }, pc);
+    path(pc, `M${x} 352Q${x + sd * 8} 320 ${x + sd * 22} 300M${x} 508Q${x + sd * 10} 540 ${x + sd * 30} 556`, { stroke: CC.vesicle, 'stroke-width': 5 });
+  });
+  const Lpc = tag(zoom, 'nuclear pore', [1410, 272], [1316, 340], tP + .6, { size: 26, fill: CC.vesicle, line: CC.vesicle });
+  const Lpc2 = say(zoom, 'lined by a pore complex', 1410, 232, tP + 3.2, { size: 22, fill: CC.vesicle, weight: 500 });
+  const mols = [0, 1, 2, 3, 4].map(i => put(mk('circle', { r: 7 + 3 * (i % 2), fill: i % 2 ? '#f3c95c' : '#c9a0dc' }, zoom), { o: 0 }));
+  const tM0 = tP + 3.6, tM1 = tP + 9.4;
+  // an unseen molecule is not moved (Firefox repaints the zoom group for every write)
+  clockRun(t => mols.forEach((e, i) => {
+    const ph = cFrac((t - tM0) * .42 + i / 5), up = i % 2 === 0, y = up ? 640 - 470 * ph : 210 + 470 * ph;
+    const o = t < tM0 ? 0 : mBump(ph, 0, 1) * (1 - mRamp(t, tM1 - .4, tM1));
+    if (o > 0) mPose(e, 1255 + 10 * Math.sin(i * 2 + t), y, o); else mPose(e, 1255, 640, 0);   // a fixed rest pose: written once
+  }), D);
+  const mrW = G(zoom, { x: 1255, y: 660, r: -90, o: 0 });
+  mRNA(mrW, { seq: 'AUGGCUA', s: .5, ends: false });
+  show(mrW, tP + 9.8, .3); tw(mrW, { y: 440 }, tP + 10, 3.2, io); hide(mrW, tLa - .1, .4);
+  hide(zt, tP + 11.6, .3); show(zt, tLa + .2, .4);
+  const Lmr = tag(zoom, 'mRNA', [1110, 232], [1242, 306], tP + 12, { size: 26, fill: RNA, line: RNA, sub: 'its gate, as in chapter 5', subFill: '#f6c79a' });
+  hide(lc, tP + 11.5, .3);
+  // lamina: the protein net under the inner membrane keeps the shape
+  const lam = G(zoom, { o: 0 });
+  { let d = ''; for (let i = 0; i <= 30; i++) { const x = 952 + i * 20; d += (i ? 'L' : 'M') + x + ' ' + (i % 2 ? 534 : 560); } d += 'M952 534H1550M952 560H1550'; path(lam, d, { stroke: LAMINA, 'stroke-width': 3 }); }
+  show(lam, tLa + .3, .6); show(nu.lamina, tLa + .4, .8);
+  const Llm = G(zoom, { o: 0 }); show(Llm, tLa + 1, .5);
+  wLabel(Llm, 'nuclear lamina', { x: 1250, y: 606, size: 30, weight: 700, fill: LAMINA, o: 1 });
+  wLabel(Llm, 'a protein net that keeps the shape', { x: 1250, y: 642, size: 24, fill: COL.chalk, o: 1 });
+  [Lpc, Lpc2, Lmr].forEach(e => hide(e, tLa, .4));
+  // er: the outer membrane runs into the rough ER, as drawn here
+  hide(Llm, tR - .1, .4); tw(zoom, { o: .3 }, tR, .6);
+  show(erG, tR + .3, 1.2);
+  tag(p, 'rough ER', [110, 560], [NX + (R + 110) * Math.cos(160 * Math.PI / 180), NY + (R + 110) * Math.sin(160 * Math.PI / 180)], tR + 1.2, { size: 30, fill: CC.er, line: CC.er });
+  say(p, 'the outer membrane runs into the rough ER (as drawn here)', 900, 860, tR + 2.2, { size: 26, fill: COL.chalk, weight: 500 });
+  ring(p, [NX + (R + 24) * Math.cos(135 * Math.PI / 180), NY + (R + 24) * Math.sin(135 * Math.PI / 180)], 30, tR + 2.6, { color: CC.er, w: 4 });
+  notToScale(p, 1570, 40, .3);
+}],
+
+/* ---------- inside ---------- */
+['inside', 'Inside the nucleus', (m, D) => {
+  const p = panel(0), tC = m('chrom'), tX = m('chromo'), tN = m('nucleolus'), tR = m('rrna'), tS = m('ship');
+  const NX = 700, NY = 460, R = 360;
+  const nu = nucleus(p, { x: NX, y: NY, R, pores: 10 });
+  put(nu, { x: 560, y: 470, s: 290 / R }); tw(nu, { x: NX, y: NY, s: 1 }, .05, 1.6, io);
+  // read the points at the final place
+  const at = (n, i) => { const { x, y, s } = st(nu); put(nu, { x: NX, y: NY, s: 1 }); const q = nu.pt(n, i); put(nu, { x, y, s }); return q; };
+  const pNo = at('nucleolus'), pCh = [NX + .3 * R + 20, NY - .4 * R];
+  // chrom: DNA plus protein
+  const inset = G(p, { o: 0 }); show(inset, tC + .3, .5); hide(inset, tX - .2, .4);
+  mk('circle', { cx: 1330, cy: 280, r: 150, fill: '#0b1828', stroke: COL.chalk, 'stroke-width': 4 }, inset);
+  path(inset, `M1240 ${280 + 160}L${pCh[0]} ${pCh[1]}`, { stroke: COL.dim, 'stroke-width': 2, 'stroke-dasharray': '6 6' });
+  {
+    let d = 'M1195 300'; const beads = [];
+    for (let i = 0; i < 4; i++) { const bx = 1230 + i * 66, by = 280 + (i % 2 ? -18 : 18); beads.push([bx, by]); d += `Q${bx - 22} ${by + (i % 2 ? 40 : -40)} ${bx} ${by + (i % 2 ? 26 : -26)}`; d += `A26 26 0 1 ${i % 2 ? 0 : 1} ${bx + 4} ${by + (i % 2 ? -26 : 26)}`; }
+    d += 'Q1490 260 1468 280';
+    beads.forEach(([bx, by]) => mk('circle', { cx: bx, cy: by, r: 20, fill: PROT, stroke: '#5f6a80', 'stroke-width': 2 }, inset));
+    path(inset, d, { stroke: CC.dna, 'stroke-width': 6 });
+  }
+  wLabel(inset, 'DNA', { x: 1250, y: 200, size: 26, fill: CC.dna, weight: 700, o: 1 });
+  wLabel(inset, 'protein', { x: 1345, y: 368, size: 26, fill: '#c3cbd9', weight: 700, o: 1 });
+  const Lc = G(p, { o: 0 }); show(Lc, tC + 2.4, .4); hide(Lc, tX - .2, .4);
+  wLabel(Lc, 'chromatin', { x: 1330, y: 490, size: 40, weight: 700, fill: CC.dna, o: 1 });
+  wLabel(Lc, 'DNA + protein', { x: 1330, y: 530, size: 28, o: 1 });
+  // chromo: about to divide, the chromatin condenses into chromosomes; then it relaxes
+  prog(k => nu.condense(k), tX + .5, 3, io);
+  prog(k => nu.condense(1 - k), tN - .3, 1.4, io);
+  const Lx = G(p, { o: 0 }); show(Lx, tX + .1, .4); hide(Lx, tN - .3, .4);
+  wLabel(Lx, 'when a cell is about to divide', { x: 1330, y: 240, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(Lx, 'chromosomes', { x: 1330, y: 320, size: 40, weight: 700, fill: CC.dna, o: 1 });
+  wLabel(Lx, 'chromatin, condensed', { x: 1330, y: 360, size: 26, o: 1 });
+  // nucleolus: the dark region; rrna: it makes rRNA, with proteins drifting in
+  const halo = mk('ellipse', { cx: pNo[0], cy: pNo[1], rx: R * .27, ry: R * .24, fill: 'none', stroke: COL.chalk, 'stroke-width': 4 }, p);
+  put(halo, { o: 0 }); show(halo, tN + .3, .3); hide(halo, tN + 2.4, .5);
+  // a short, level leader from the right edge of the nucleolus (no DNA strand in its way)
+  tag(p, 'nucleolus', [1215, pNo[1] + 12], [pNo[0] + R * .22, pNo[1]], tN + .4, { size: 40, weight: 700 });
+  const Lr = G(p, { o: 0 }); show(Lr, tR + .2, .4);
+  wLabel(Lr, 'makes rRNA', { x: 1215, y: pNo[1] + 64, size: 32, fill: RNA, weight: 700, o: 1 });
+  wLabel(Lr, 'ribosomal RNA', { x: 1215, y: pNo[1] + 100, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  const bits = [[-.5, .35, 'r'], [.42, .52, 'p'], [-.25, .62, 'p'], [.55, -.05, 'r'], [-.55, -.05, 'p'], [.1, .66, 'r']].map(([u, v, k], i) => {
+    const e = k === 'r' ? rrnaSquiggle(p, { s: .8, o: 0, r: 30 * i }) : protBlob(p, { r: 11, o: 0 });
+    return { e, from: [NX + u * R, NY + v * R], i };
+  });
+  clockRun(t => bits.forEach(({ e, from, i }) => {
+    const t0 = tR + .6 + .45 * i, k = io(mRamp(t, t0, t0 + 2));
+    mPose(e, mLerp(from[0], pNo[0], k), mLerp(from[1], pNo[1], k), mRamp(t, t0 - .3, t0) * (1 - mRamp(t, t0 + 1.7, t0 + 2.1)));
+  }), D);
+  // ship: subunits leave through the pores
+  // (through the upper-right pores, so the nucleolus label on the right stays clear; the label names the second, which stays)
+  clockRun(t => { if (t < tS + 3.6) nu.ship(mRamp(t, tS + .6, tS + 3.4), { i: 8 }); else nu.ship(mRamp(t, tS + 3.7, tS + 6.4), { i: 9 }); }, D);
+  const p9 = at('pore', 9), out9 = [NX + (p9[0] - NX) * (R + 90) / R, NY + (p9[1] - NY) * (R + 90) / R];
+  tag(p, 'ribosome subunits', [1350, out9[1] + 10], [out9[0] + 22, out9[1]], tS + 4.2, { size: 30, fill: CC.ribo, line: CC.ribo, sub: 'leave through the pores' });
+  notToScale(p, 1570, 40, .3);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0), NX = 800, NY = 330, R = 250;
+  const nu = nucleus(p, { x: NX, y: NY, R, pores: 10 });
+  const pNo = nu.pt('nucleolus'), pCh = [NX - .38 * R, NY - .3 * R], pPo = nu.pt('pore', 0), pLa = nu.pt('lamina');
+  const lab = (s, at, a) => tag(p, s, at, a, 0, { size: 28 });
+  lab('chromatin', [380, 190], pCh); lab('nuclear lamina', [380, 520], pLa);
+  lab('nuclear pore', [1250, 440], pPo); lab('nucleolus', [1250, 250], [pNo[0] + 50, pNo[1] - 20]);
+  const poreRing = put(ring(p, pPo, 22, null, { color: CC.vesicle, w: 3 }), { o: 1 });
+  S.q2 = [
+    { el: nu.nucleolus, box: [pNo[0] - 65, pNo[1] - 55, 130, 110], label: 'the nucleolus' },
+    { el: nu.chromatin, box: [pCh[0] - 42, pCh[1] - 42, 84, 84], label: 'chromatin' },
+    { el: poreRing, box: [pPo[0] - 32, pPo[1] - 32, 64, 64], label: 'a nuclear pore' },
+    { el: nu.lamina, box: [pLa[0] - 32, pLa[1] - 32, 64, 64], label: 'the nuclear lamina' },
+  ];
+  notToScale(p, 1570, 40, 0);
+}, { ask: done => quiz(BAND, [{
+  id: 'c-nucleolus', prompt: ['Click the part of the nucleus that makes rRNA.'],
+  build: pickEls(S.q2, 0, 'Right. The nucleolus makes rRNA, and joins it to proteins to build ribosome subunits.',
+    i => [null, 'Chromatin is DNA plus protein, the cell’s genes. rRNA is made in a dark region beside it.',
+      'The pore is only a gate: it controls what goes in and out. It makes nothing.',
+      'The lamina is a protein net that keeps the nucleus in shape. rRNA is made in the dark region in the middle.'][i]),
+}], done) }],
+
+/* ---------- ribo ---------- */
+['ribo', 'Ribosomes', (m, D) => {
+  const p = panel(0), tM = m('made'), tS = m('sub'), tR = m('read'), tN = m('nodna'), tF = m('free'), tB = m('bound'), tSa = m('same');
+  const RX = 800, RY = 420, RS = 2.2;
+  // the free and bound sets (behind, faded in later)
+  const back = G(p);
+  const fp = G(back, { o: 0 }); show(fp, tF + .6, .6);
+  mk('rect', { x: 60, y: 240, width: 680, height: 520, rx: 30, fill: CC.cyto, stroke: CC.membrane, 'stroke-opacity': .4, 'stroke-width': 3 }, fp);
+  const bp = G(back, { o: 0 }); show(bp, tB + .1, .6);
+  mk('rect', { x: 860, y: 240, width: 680, height: 520, rx: 30, fill: CC.cyto, stroke: CC.membrane, 'stroke-opacity': .4, 'stroke-width': 3 }, bp);
+  mk('rect', { x: 862, y: 242, width: 676, height: 70, rx: 28, fill: CC.nucleo }, bp);
+  path(bp, 'M862 318H1538M862 332H1538', { stroke: CC.env, 'stroke-width': 6 });
+  wLabel(bp, 'nuclear envelope', { x: 1520, y: 290, size: 22, anchor: 'end', fill: COL.dim, weight: 500, o: 1 });
+  const erB = roughER(bp, { x: 1200, y: 640, s: .9, w: 600, n: 2, gap: 90, tube: 34 }); put(erB.ribos, { o: 0 });
+  wLabel(bp, 'rough ER', { x: 1200, y: 745, size: 24, fill: CC.er, o: 1 });
+  const boundR = [];
+  [[960, 382, 0], [1120, 382, 0], [1300, 382, 0], [1460, 382, 0]].forEach(([x, y, r]) => boundR.push(ribosome(bp, { x, y, s: .4 })));
+  const top0 = cOut(erB, erB.lines[0][4]), top1 = cOut(erB, erB.lines[0][9]), top2 = cOut(erB, erB.lines[0][13]);
+  [top0, top1, top2].forEach(([x, y]) => { const r = ribosome(bp, { x, y: y - 17 - 2, s: .4 }); put(r, { r: 180 }); boundR.push(r); });
+  const freeR = [[180, 360], [300, 640], [560, 330], [610, 600], [170, 560]].map(([x, y]) => ribosome(fp, { x, y, s: .4 }));
+  // they drift only once their panel shows (before that, a rest pose that is written once)
+  clockRun(t => { const u = t < tF ? 0 : t; freeR.forEach((r, i) => r.pose([180, 300, 560, 610, 170][i] + 14 * Math.sin(.9 * u + i * 2), [360, 640, 330, 600, 560][i] + 10 * Math.sin(1.1 * u + i))); }, D);
+  // the big ribosome
+  const rb = ribosome(p, { x: RX, y: RY, s: RS, o: 0 }); show(rb, .2, .5);
+  const L0 = say(p, 'ribosome', RX, 110, .5, { size: 44, weight: 700 }); hide(L0, tM, .3);
+  hide(say(p, 'the workbench that builds proteins', RX, 160, 1, { size: 28, fill: COL.dim, weight: 500 }), tM, .3);
+  // made: rRNA and protein
+  tw(rb, { o: .22 }, tM + .3, .5); tw(rb, { o: 1 }, tM + 3.3, .6);
+  const parts = G(p, { o: 0 }); show(parts, tM + .5, .5); hide(parts, tM + 3.3, .5);
+  [[-90, -60, 20], [60, -40, -15], [-20, 60, 10], [110, 50, -25]].forEach(([x, y, r]) => rrnaSquiggle(parts, { x: RX + x, y: RY + y - 30, s: 1.4, r }));
+  [[-130, -10], [10, -90], [130, -100], [-40, 0], [70, 30], [-110, 70]].forEach(([x, y]) => protBlob(parts, { x: RX + x, y: RY + y - 30, r: 18 }));
+  const Lm = G(p, { o: 0 }); show(Lm, tM + .8, .4); hide(Lm, tS, .3);
+  wLabel(Lm, 'rRNA', { x: 470, y: 330, size: 36, weight: 700, fill: RNA, o: 1 });
+  wLabel(Lm, '+', { x: 800, y: 660, size: 48, weight: 700, o: 1 });
+  wLabel(Lm, 'protein', { x: 1140, y: 330, size: 36, weight: 700, fill: '#c3cbd9', o: 1 });
+  wLabel(Lm, 'a ribosome is made of rRNA and protein', { x: 800, y: 720, size: 30, o: 1 });
+  // sub: large and small subunits
+  prog(k => rb.split(k), tS + .3, 1, io); prog(k => rb.split(1 - k), tS + 3.4, .7, io);
+  const Ls = G(p, { o: 0 }); show(Ls, tS + .9, .4); hide(Ls, tS + 3.4, .3);
+  wLabel(Ls, 'large subunit', { x: 1000, y: 240, size: 32, anchor: 'start', weight: 700, o: 1 });
+  wLabel(Ls, 'small subunit', { x: 1000, y: 560, size: 32, anchor: 'start', weight: 700, fill: '#c9c0e2', o: 1 });
+  // read: mRNA threads through; a polypeptide grows from the top
+  const mr = mRNA(p, { seq: 'AUGGCUUACGGAUCC', x: 1640, y: RY + 4, s: .8, ends: false });
+  p.insertBefore(mr, rb);
+  tw(mr, { x: 560 }, tR + .2, 5.5, io);
+  const pp = polypeptide(p, { n: 7, x: RX, y: RY - 88 * RS, dir: -30, sp: 30, r: 13 }); pp.set(0);
+  prog(q => pp.set(7 * q), tR + 1.2, 4.6, lin);
+  const Lr = G(p, { o: 0 }); show(Lr, tR + 1.4, .4);
+  wLabel(Lr, 'mRNA', { x: 1240, y: 520, size: 30, fill: RNA, weight: 700, o: 1 });
+  wLabel(Lr, 'polypeptide', { x: 1030, y: 120, size: 30, fill: '#c9a0dc', weight: 700, anchor: 'start', o: 1 });
+  // nodna: it reads the copy, not the DNA
+  const nd = G(p, { o: 0 }); show(nd, tN + .2, .5);
+  helix(nd, { x: 230, y: 250, len: 220, amp: 18, turns: 2, w: 6 });
+  wLabel(nd, 'DNA', { x: 230, y: 200, size: 32, weight: 700, fill: CC.dna, o: 1 });
+  const xa = mArrow(nd, [360, 270], [600, 360], { color: COL.dim, w: 5 }); xa.firstChild.setAttribute('stroke-dasharray', '12 9');
+  const X = G(nd, { x: 480, y: 315, o: 0 }); path(X, 'M-26 -26L26 26M26 -26L-26 26', { stroke: COL.bad, 'stroke-width': 8 }); show(X, tN + 1.2, .3);
+  mArrow(nd, [230, 290], [480, RY - 10], { color: RNA, w: 5 });
+  wLabel(nd, 'its mRNA copy', { x: 230, y: 440, size: 28, fill: RNA, weight: 700, o: 1 });
+  // free / bound: pull back to the cytosol and to the membranes
+  [nd, Lr, pp].forEach(e => hide(e, tF - .1, .4)); hide(mr, tF - .1, .4);
+  // one pose from beat time alone: the pull back, then a drift that eases in (no tween on the same keys)
+  clockRun(t => {
+    if (t < tF) return;
+    const k = io(mRamp(t, tF, tF + 1.3)), w = mRamp(t, tF + 1, tF + 2);
+    const X1 = mR1(mLerp(RX, 400, k) + 12 * w * Math.sin(.8 * t)), Y1 = mR1(mLerp(RY, 470, k) + 9 * w * Math.sin(1.2 * t + 1)), S1 = Math.round(mLerp(RS, .4, k) * 1000) / 1000;
+    const s = st(rb); if (s.x !== X1 || s.y !== Y1 || s.s !== S1) put(rb, { x: X1, y: Y1, s: S1 });
+  }, D);
+  const Lf = G(p, { o: 0 }); show(Lf, tF + .7, .4);
+  wLabel(Lf, 'free ribosomes', { x: 400, y: 160, size: 38, weight: 700, o: 1 });
+  wLabel(Lf, 'in the cytosol', { x: 400, y: 202, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  const Lbd = G(p, { o: 0 }); show(Lbd, tB + .4, .4);
+  wLabel(Lbd, 'bound ribosomes', { x: 1200, y: 160, size: 38, weight: 700, o: 1 });
+  wLabel(Lbd, 'on the ER or the nuclear envelope', { x: 1200, y: 202, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  // same: alike in a micrograph, different place
+  const rf = ring(p, [400, 450], 46, tSa + .3, { color: CC.dna, w: 4 });
+  const [bx, by] = [top1[0], top1[1] - 19];
+  ring(p, [bx, by + 2], 46, tSa + .6, { color: CC.dna, w: 4 });
+  say(p, 'same ribosome, different place', 800, 840, tSa + 1.4, { size: 36, weight: 700, fill: CC.dna });
+  notToScale(p, 1570, 40, .3);
+}],
+
+/* ---------- example ---------- */
+['example', 'Both stops together', (m, D) => {
+  const p = panel(0), tD = m('dna'), tO = m('out'), tS = m('sub'), tJ = m('join'), tF = m('free'), tB = m('bound'), tN = m('note');
+  const cell = G(p, { o: 0 }); show(cell, .1, .5);
+  mk('rect', { x: 24, y: 24, width: 1552, height: 852, rx: 70, fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 6 }, cell);
+  const NX = 380, NY = 400, R = 250;
+  const nu = nucleus(p, { x: NX, y: NY, R, pores: 8, lamina: false, o: 0 }); show(nu, .2, .6); put(nu.chromatin, { o: .3 });
+  wLabel(p, 'nucleus', { x: NX, y: 690, size: 28, fill: COL.dim, o: 1 });
+  say(p, 'cytoplasm', 1300, 360, .6, { size: 28, fill: COL.dim, weight: 500 });
+  // dna: a gene is copied into mRNA
+  helix(p, { x: 330, y: 300, len: 240, amp: 16, turns: 2, w: 5 });
+  draw(path(p, 'M270 270V256H390V270', { stroke: MC.hi, 'stroke-width': 4 }, { d: 0 }), tD + .1, .5);
+  say(p, 'gene', 330, 240, tD + .3, { size: 28, fill: MC.hi, weight: 700 });
+  const [P0x, P0y] = nu.pt('pore', 0);
+  const mr = mRNA(p, { seq: 'AUGGCUUAC', x: 240, y: 350, s: .55, ends: false }); mr.reveal(0);
+  const ML = 8 * 46 * .55;
+  const mx = t => t < tO + .3 ? 240 : mLerp(240, 690, io(mRamp(t, tO + .9, tO + 2.6)));
+  const my = t => mLerp(350, P0y, io(mRamp(t, tO + .2, tO + .9)));
+  clockRun(t => { mr.reveal(mRamp(t, tD + .4, tD + 2.6)); mPose(mr, mx(t), my(t)); }, D);
+  const Lm = say(p, 'mRNA', 240 + ML + 60, 340, tD + 2.2, { size: 28, fill: RNA, weight: 700 }); hide(Lm, tO + .2, .3);
+  const Lp = tag(p, 'nuclear pore', [760, 560], [P0x + 4, P0y + 14], tO + .9, { size: 26 }); hide(Lp, tJ, .4);
+  // sub: subunits from the nucleolus leave by another pore
+  const pN = nu.pt('nucleolus');
+  const hal = ring(p, pN, 62, tS + 2, { color: CC.ribo, w: 3 }); hide(hal, tS + 4, .4);
+  const Ln = say(p, 'nucleolus', NX + 30, 520, tS + 2.1, { size: 24, fill: COL.dim, weight: 500 }); hide(Ln, tS + 5, .4);
+  prog(k => nu.ship(k, { i: 7 }), tS + 2.4, 3.6, lin);
+  const [sx, sy] = cOut(nu, [(R + 90) * Math.cos(324 * Math.PI / 180), (R + 90) * Math.sin(324 * Math.PI / 180)]);
+  const Lsu = say(p, 'ribosome subunits', sx + 30, sy - 40, tS + 4.6, { size: 28, fill: CC.ribo, weight: 700, anchor: 'start' }); hide(Lsu, tJ + .2, .4);
+  // join: the two subunits clamp onto the mRNA
+  const FX0 = 830, FY = P0y;
+  const rb = ribosome(p, { x: sx, y: sy, s: .55, o: 0 }); rb.split(1);
+  show(rb, tJ + .1, .3); prog(k => nu.ship(1 - k), tJ + .1, .3, lin);
+  clockRun(t => {
+    const k = io(mRamp(t, tJ + .3, tJ + 2.2));
+    rb.pose(mLerp(sx, FX0, k), mLerp(sy, FY, k)); rb.split(1 - io(mRamp(t, tJ + 2, tJ + 2.9)));
+  }, D);
+  // free: the protein is made in the cytosol and works there
+  const pp = polypeptide(p, { n: 8, x: FX0, y: FY - 88 * .55, dir: -60, sp: 22, r: 10 }); pp.set(0);
+  prog(q => pp.set(8 * q), tF + .3, 4, lin);
+  tag(p, 'free ribosome', [740, 620], [FX0 + 30, FY + 30], tF + .4, { size: 28, sub: 'protein made in the cytosol, works there' });
+  // bound: a ribosome on the rough ER threads its protein into it
+  const erX = roughER(p, { x: 1250, y: 700, s: .85, w: 640, n: 2, gap: 80, tube: 34, o: 0 }); show(erX, tB + .1, .6);
+  const tp = cOut(erX, erX.lines[0][6]), memY = tp[1] - 34 * .85 / 2;
+  const rb2 = ribosome(p, { x: tp[0], y: memY - 88 * .55 + 6, s: .55, o: 0 }); put(rb2, { r: 180 }); show(rb2, tB + .6, .4);
+  const mr2 = mRNA(p, { seq: 'AUGCCA', x: tp[0] - 110, y: memY - 88 * .55 + 4, s: .5, ends: false, o: 0 }); show(mr2, tB + .5, .4);
+  p.insertBefore(mr2, rb2);
+  const thr = beadPath(p, [[tp[0], memY - 4], [tp[0], tp[1] + 2], [tp[0] + 30, tp[1] + 4], [tp[0] + 220, tp[1] + 2]], { n: 10, r: 7, color: CORAL });
+  prog(q => thr.set(10 * q), tB + 1.2, 4.4, lin);
+  tag(p, 'bound ribosome', [1430, 490], [tp[0] + 40, memY - 50], tB + .8, { size: 28 });
+  say(p, 'protein into the ER: for a membrane, or export', 1250, 838, tB + 3, { size: 26, weight: 600, fill: CORAL });
+  say(p, 'lesson 3 follows this road', 1250, 866, tB + 8.4, { size: 22, fill: COL.dim, weight: 500 });
+  // note: same ribosome, different place
+  ring(p, [FX0, FY - 10], 52, tN + .1, { color: CC.dna, w: 4 }); ring(p, [tp[0], memY - 40], 52, tN + .3, { color: CC.dna, w: 4 });
+  say(p, 'same ribosome, different place', 1000, 100, tN + .4, { size: 34, weight: 700, fill: CC.dna });
+  notToScale(p, 1540, 70, .3);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['Plant and animal cells share almost every organelle;', 'plants add a wall, a central vacuole and chloroplasts.', g => { cellMap(g, { kind: 'animal', x: 110, y: 0, s: .13 }); cellMap(g, { kind: 'plant', x: 270, y: 0, s: .12 }); }],
+    ['The nucleus holds most of the DNA, inside a double', 'membrane with pores, and a lamina keeps its shape.', g => { nucleus(g, { x: 190, y: 0, R: 62, pores: 8 }); }],
+    ['DNA with protein is chromatin;', 'the nucleolus makes rRNA.', g => { nucleus(g, { x: 190, y: 0, R: 62, pores: 8, lamina: false, ribos: false }); rrnaSquiggle(g, { x: 270, y: -30, s: .7 }); }],
+    ['Ribosomes, rRNA and protein, build polypeptides,', 'free in the cytosol or bound to the ER.', g => { ribosome(g, { x: 190, y: 20, s: .5 }); polypeptide(g, { n: 5, x: 190, y: 20 - 44, dir: -40, sp: 18, r: 8 }); }],
+  ];
+  // the title is there from the first frame; the rows are centred as a block (icons 1.15x, text beside them)
+  const ttl = G(p, { o: 0 }); show(ttl, 0, .3);
+  wLabel(ttl, 'Summary', { x: 800, y: 86, size: 40, weight: 700, o: 1 });
+  wLabel(ttl, 'the nucleus and ribosomes', { x: 800, y: 124, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const X0 = 170;
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: X0 - 16, y: 200 + i * 170, o: 0 });
+    const ic = G(G(g, { x: -28.5, s: 1.15 }), { x: 190 }); icon(G(ic, { x: -190 }));
+    T(g, a, { x: 420, y: -6, size: 34, weight: 600 }); T(g, b, { x: 420, y: 38, size: 30, fill: COL.dim });
+    tw(g, { o: 1, x: X0 }, m('w' + (i + 1)), .6);
+    pulse(ic, m('w' + (i + 1)) + .5, 1.06);
+  });
+  say(p, 'Now try the chapter practice.', 800, 860, m('end'), { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const PCX = 1270;
+  at('job', g => {
+    const nu = nucleus(g, { x: PCX, y: 420, R: 230, pores: 10 });
+    const cols = [CC.vesicle, LAMINA, '#ffd27a'];
+    const pts = [nu.pt('pore', 0), nu.pt('lamina'), nu.pt('nucleolus')];
+    const names = ['nuclear pore', 'nuclear lamina', 'nucleolus'], lp = [[1450, 760], [1020, 760], [1450, 120]];
+    pts.forEach((q, i) => { put(ring(g, q, i === 2 ? 60 : 30, null, { color: cols[i], w: 4 }), { o: 1 }); tag(g, names[i], lp[i], q, 0, { size: 26, fill: cols[i], line: cols[i] }); });
+  });
+  at('made', g => {
+    const rb = ribosome(g, { x: PCX, y: 440, s: 1.9 }); rb.split(1);
+    wLabel(g, 'large subunit', { x: PCX, y: 190, size: 28, o: 1 }); wLabel(g, 'small subunit', { x: PCX, y: 700, size: 28, o: 1 });
+    wLabel(g, 'made of … ?', { x: PCX, y: 790, size: 34, fill: MC.hi, weight: 700, o: 1 });
+  });
+  at('where', g => {
+    mk('rect', { x: 990, y: 120, width: 560, height: 640, rx: 26, fill: CC.cyto, stroke: CC.membrane, 'stroke-opacity': .4, 'stroke-width': 3 }, g);
+    mk('rect', { x: 992, y: 122, width: 556, height: 60, rx: 24, fill: CC.nucleo }, g);
+    path(g, 'M992 188H1548M992 200H1548', { stroke: CC.env, 'stroke-width': 5 });
+    wLabel(g, 'nuclear envelope', { x: 1530, y: 166, size: 20, anchor: 'end', fill: COL.dim, o: 1 });
+    [1060, 1220, 1380].forEach(x => ribosome(g, { x, y: 240, s: .35 }));
+    [[1080, 400], [1260, 460], [1440, 380]].forEach(([x, y]) => ribosome(g, { x, y, s: .35 }));
+    wLabel(g, 'in the cytosol', { x: 1270, y: 330, size: 22, fill: COL.dim, o: 1 });
+    const e = roughER(g, { x: 1270, y: 640, s: .7, w: 640, n: 2, gap: 80, tube: 34 }); put(e.ribos, { o: 0 });
+    [3, 8, 13].forEach(j => { const q = cOut(e, e.lines[0][j]); const r = ribosome(g, { x: q[0], y: q[1] - 12 - 31, s: .35 }); put(r, { r: 180 }); });
+    wLabel(g, 'rough ER', { x: 1270, y: 740, size: 22, fill: CC.er, o: 1 });
+  });
+  at('dna', g => {
+    const nu = nucleus(g, { x: PCX, y: 320, R: 170, pores: 8, lamina: false });
+    wLabel(g, 'nucleus', { x: PCX, y: 530, size: 26, fill: COL.dim, o: 1 });
+    const mi = mitochondrion(g, { x: 1110, y: 660, s: .5 }), ch = chloroplast(g, { x: 1430, y: 660, s: .46 });
+    wLabel(g, 'mitochondrion', { x: 1110, y: 760, size: 24, fill: COL.dim, o: 1 }); wLabel(g, 'chloroplast', { x: 1430, y: 770, size: 24, fill: COL.dim, o: 1 });
+    [nu.pt('chromatin'), mi.pt('dna'), ch.pt('dna')].forEach((q, i) => { const r = ring(g, q, i ? 22 : 40, null, { color: CC.dna, w: 3 }); put(r, { o: 1 }); });
+  });
+  at('steps', g => {
+    mk('rect', { x: 980, y: 80, width: 580, height: 740, rx: 40, fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 4 }, g);
+    const nu = nucleus(g, { x: 1180, y: 330, R: 170, pores: 8, lamina: false }); put(nu.chromatin, { o: .4 }); nu.ship(.7, { i: 0 });
+    const pN = nu.pt('nucleolus'), pP = nu.pt('pore', 0);
+    mRNA(g, { seq: 'AUGGCU', x: 1300, y: 640, s: .5, ends: false });
+    const rb = ribosome(g, { x: 1360, y: 638, s: .55 });
+    S.stepB = [badge(g, '?', pN[0] - 70, pN[1] + 70, { o: 1 }), badge(g, '?', pP[0] + 30, pP[1] - 60, { o: 1 }), badge(g, '?', 1360, 740, { o: 1 })];
+    wLabel(g, 'nucleus', { x: 1180, y: 540, size: 24, fill: COL.dim, o: 1 }); wLabel(g, 'cytoplasm', { x: 1400, y: 790, size: 24, fill: COL.dim, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('job');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-job', prompt: ['Match each part of the nucleus to its job: a gate, keeping the shape, or making rRNA.'],
+    build: withPic('job', grid([
+      { parts: ['nuclear pore'], ans: ['g'], why: 'A gate: the pore, lined by its pore complex, controls what goes in and out.' },
+      { parts: ['nuclear lamina'], ans: ['s'], why: 'The lamina is a protein net under the inner membrane that keeps the nucleus in shape.' },
+      { parts: ['nucleolus'], ans: ['r'], why: 'The nucleolus makes rRNA and builds ribosome subunits.' },
+    ], [['g', 'gate', null, 'G'], ['s', 'shape', null, 'S'], ['r', 'rRNA', null, 'R']], { multi: false, text: true })) },
+  { id: 'p-made', prompt: ['What is a ribosome made of?'],
+    build: withPic('made', choice([['DNA and protein'], ['rRNA and protein'], ['a lipid bilayer'], ['protein only']], 1,
+      'Right. A ribosome is a particle of ribosomal RNA (rRNA) and protein, in a large and a small subunit.',
+      ['DNA and protein together is chromatin, in the nucleus. A ribosome holds RNA, not DNA.', null,
+       'A lipid bilayer is a membrane, like each layer of the nuclear envelope. Ribosomes have no membrane.',
+       'Protein is only half of it: the ribosome is built round ribosomal RNA, made in the nucleolus.'])) },
+  { id: 'p-where', prompt: ['Free ribosome, bound, or both?'],
+    build: withPic('where', grid([
+      { parts: ['in the cytosol'], ans: ['f'], why: 'Free: it sits in the cytosol, and so do the proteins it makes.' },
+      { parts: ['on the rough ER'], ans: ['b'], why: 'Bound: the ribosomes on the ER are what make it rough.' },
+      { parts: ['on the nuclear envelope'], ans: ['b'], why: 'Bound: ribosomes can sit on the outer membrane of the envelope too.' },
+      { parts: ['rRNA + protein'], ans: ['x'], why: 'Both: free and bound ribosomes are the same particle.' },
+      { parts: ['two subunits'], ans: ['x'], why: 'Both: each has a large and a small subunit; only the place differs.' },
+    ], [['f', 'free', null, 'F'], ['b', 'bound', null, 'B'], ['x', 'both', null, 'O']], { multi: false, text: true })) },
+  { id: 'p-dna', prompt: ['Which sentence about DNA in a eukaryotic cell is right?'],
+    build: withPic('dna', choice([['All of it is in the nucleus.'], ['Most of it is in the nucleus; mitochondria and chloroplasts hold a little.'], ['None is in a nucleus: it floats in the cytoplasm.'], ['It is all in the nucleolus.']], 1,
+      'Right. The nucleus holds most of the DNA, and mitochondria and chloroplasts keep a little of their own.',
+      ['Not all: mitochondria and chloroplasts carry a little DNA of their own.', null,
+       'That describes a prokaryote, whose DNA has no envelope round it. A eukaryotic cell keeps most of its DNA in the nucleus.',
+       'The nucleolus makes rRNA. The DNA, as chromatin, fills the rest of the nucleus.'])) },
+  { id: 'p-steps', prompt: ['Ribosome subunits: number the steps from 1 to 3.'],
+    build: withPic('steps', blanks([
+      { parts: ['They leave by the pores: step ', { box: '2' }], why: 'Step 2: the pore is the gate out of the nucleus.', hint: 'They have to be built before they can leave.', fx: () => stepFx(1, '2') },
+      { parts: ['Built in the nucleolus: step ', { box: '1' }], why: 'Step 1: the nucleolus makes rRNA and builds the subunits.', hint: 'Where are the subunits made?', fx: () => stepFx(0, '1') },
+      { parts: ['They clamp onto mRNA: step ', { box: '3' }], why: 'Step 3: out in the cytoplasm, the two subunits meet the messenger and start building.', hint: 'This happens after they are out of the nucleus.', fx: () => stepFx(2, '3') },
+    ])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// A numbered step badge; .t is its text.
+function badge(p, str, x, y, { o = 0, r = 24 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: '#3b8fd9', stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t });
+}
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+function stepFx(i, str) { const b = S.stepB?.[i]; if (!b) return; fxp(q => { b.t.textContent = q > 0 ? str : '?'; }, 0, .2); pulseFx(b, 1.4); }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>

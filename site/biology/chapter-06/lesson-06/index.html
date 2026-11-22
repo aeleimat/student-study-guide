@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 6, Lesson 6: Microtubules, Cilia and Flagella — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 6 (A Tour of the Cell), lesson 6: three everyday movements (a sperm cell, the airway lining, a
+// dividing cell), the cytoskeleton lit on the cell map, the three fibres to one scale, the microtubule (hollow rod,
+// 13 columns of tubulin dimers) as a track for motor proteins, the centrosome and its centrioles (nine triplets), cilia
+// and flagella and their beats, the 9 + 2 cross section and the basal body, dynein and the cross-links that turn sliding
+// into bending; checks, summary, practice. Plan, errata and storyboard: books/biology/chapters/chapter-06/lesson-06.md.
+const CHAPTER = { number: 606, label: '6, lesson 6', title: 'Microtubules, Cilia and Flagella', minutes: 7, language: 'en', lead: false, next: '../lesson-07/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+// The kit's moving pieces redraw only when their key changes (1/120 s for a beat, 1/1000 of a cycle, 1/4000 of a walk)
+// and draw from the value that first reached it: feed them values already on that grid, so seek and play draw alike.
+const qT = t => Math.round(t * 120) / 120, qK = (k, n) => Math.round(k * n) / n;
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+const tagAt = (p, str, a, l, t0, o = {}) => { const e = yTag(p, str, a, l, { o: 0, ...o }); show(e, t0); return e; };
+const RED = '#e5533d', MUCUS = '#cfd98a', RECEPTOR = '#6c8cff';
+
+// A rounded label chip centred on (x, y); o 0 until shown.
+function pill(p, str, x, y, { size = 28, color = COL.chalk, edge = COL.faint, o = 0, w } = {}) {
+  const g = G(p, { x, y, o }), W = w || str.length * size * .52 + 44;
+  mk('rect', { x: -W / 2, y: -size * .95, width: W, height: size * 1.9, rx: size * .95, fill: '#14294a', stroke: edge, 'stroke-width': 2.5 }, g);
+  wLabel(g, str, { y: size * .35, size, fill: color, o: 1 });
+  return g;
+}
+// A gear outline, radius r, n teeth, centred on 0.
+function gearD(r, n = 8) {
+  let d = '';
+  const q = (R, a) => `${(R * Math.cos(a)).toFixed(1)} ${(R * Math.sin(a)).toFixed(1)}`;
+  for (let i = 0; i < 2 * n; i++) { const a0 = i * Math.PI / n, a1 = (i + 1) * Math.PI / n, R = i % 2 ? r * .74 : r; d += (i ? 'L' : 'M') + q(R, a0 + .05) + 'L' + q(R, a1 - .05); }
+  return d + 'Z';
+}
+
+/* ---------- scenes and pieces ---------- */
+// A sperm-like cell swimming on the spot while the water drifts past it (dots move left): the cell seems to swim right.
+function swimView(p, { x = 0, y = 0, s = 1, o = 1, w = 400, h = 300, flS = .6, hx = 120 } = {}) {
+  const g = G(p, { x, y, s, o }), dl = G(g), dots = [];
+  for (let i = 0; i < 12; i++) dots.push([mk('circle', { r: 3 + 3 * wHash(i, 7), fill: YC.fluid, 'fill-opacity': .35 }, dl), wHash(i, 8), (wHash(i, 9) - .5) * h]);
+  const fl = flagellumSwim(g, { x: hx, y: 0, s: flS, speed: 0 });
+  return Object.assign(g, {
+    fl,
+    run(t) { t = qT(t); fl.beat(t); dots.forEach(([e, f, yy]) => yPose(e, w / 2 - yFrac(f + t * .14) * w, yy)); return g; },
+  });
+}
+// The airway lining as a wall on the right: cilia point left and beat upward; a mucus blob rides up over them.
+function airwayView(p, { x = 0, y = 0, s = 1, o = 1, n = 7, w = 330, len = 110 } = {}) {
+  const g = G(p, { x, y, s, o }), rg = G(g, { x: 70, r: -90 });
+  const row = ciliaRow(rg, { n, w, len, dots: false });
+  const blob = G(rg, { y: -len - 46 });
+  path(blob, cBlob(52, 28, { seed: 4 }), { fill: MUCUS, 'fill-opacity': .85, stroke: '#a8b25e', 'stroke-width': 3 });
+  return Object.assign(g, {
+    row, blob,
+    run(t) { t = qT(t); row.beat(t); const u = yFrac(t * .09); yPose(blob, -w / 2 - 20 + u * (w + 40), -len - 46, yBump(u, 0, 1) ** .4); return g; },
+  });
+}
+// A dividing animal cell: two poles (centrosomes) and the spindle fibres pulling four chromosomes apart. .set(k) k 0..1.
+function divCell(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const body = path(g, '', { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 5 });
+  const spin = path(g, '', { stroke: YC.mt, 'stroke-width': 2.5, 'stroke-opacity': .8 });
+  const pole = () => {
+    const pg = G(g);
+    mk('circle', { r: 22, fill: YC.mt, 'fill-opacity': .22 }, pg);
+    mk('rect', { x: -11, y: -10, width: 18, height: 8, rx: 3, fill: '#1d4a3c', stroke: YC.mt, 'stroke-width': 2 }, pg);
+    mk('rect', { x: -5, y: 1, width: 18, height: 8, rx: 3, fill: '#1d4a3c', stroke: YC.mt, 'stroke-width': 2, transform: 'rotate(14 4 5)' }, pg);
+    return pg;
+  };
+  const poles = [pole(), pole()], YS = [-54, -18, 18, 54], chs = [];
+  YS.forEach(() => [-1, 1].forEach(sd => { const c = G(g); mk('rect', { x: -5, y: -15, width: 10, height: 30, rx: 5, fill: CC.dna }, c); chs.push([c, sd]); }));
+  let cur = -1;
+  const dc = Object.assign(g, {
+    poles,
+    set(k) {
+      const key = Math.round(clamp01(k) * 1000); if (key === cur) return dc; cur = key; k = key / 1000;   // draw from the key, so every route to it draws the same
+      const rx = 160 + 40 * k, ry = 112 - 8 * k, P = 120 + 34 * k, pinch = 1 - .22 * yRamp(k, .6, 1);
+      const pts = [];
+      for (let i = 0; i < 48; i++) { const a = i / 48 * 2 * Math.PI, c = Math.cos(a), sn = Math.sin(a); pts.push([rx * c, ry * sn * (1 - (1 - pinch) * Math.exp(-(c * c) * 18))]); }
+      yD(body, ySmooth(pts, true));
+      yPose(poles[0], -P, 0); yPose(poles[1], P, 0);
+      let d = '';
+      chs.forEach(([c, sd], i) => {
+        const yy = YS[i >> 1] * (1 - .25 * k), xx = sd * (6 + k * (P - 44));
+        yPose(c, xx, yy, 1, -sd * 18 * k);
+        d += `M${sd * P} 0L${yF(xx)} ${yF(yy)}`;
+      });
+      for (const sd of [-1, 1]) for (const a of [150, 180, 210]) { const r0 = yRad(sd > 0 ? 180 - a : a); d += `M${sd * P} 0l${yF(34 * Math.cos(r0))} ${yF(34 * Math.sin(r0))}`; }
+      d += `M${-P} 0L${yF(P * .25)} -8M${P} 0L${yF(-P * .25)} 8`;
+      yD(spin, d);
+      return dc;
+    },
+  });
+  return dc.set(0);
+}
+// Mint microtubules from the centrosome, pink actin under the membrane and gold ropes, drawn over the cell map in its
+// own coordinates (o 0; draw them on). Returns the paths.
+function mapRays(cm) {
+  const g = G(cm), out = [], c0 = [-385, 110], inside = (x, y) => (x / 500) ** 2 + (y / 310) ** 2 < 1;
+  [150, 185, 215, 250, 290, 330, 10, 40, 70, 115].forEach((a, i) => {
+    const ar = yRad(a); let L = 80;
+    while (L < 520 && inside(c0[0] + (L + 10) * Math.cos(ar), c0[1] + (L + 10) * Math.sin(ar)) && Math.hypot(c0[0] + (L + 10) * Math.cos(ar) + 100, c0[1] + (L + 10) * Math.sin(ar) + 35) > 175) L += 10;
+    const e = path(g, `M${c0[0]} ${c0[1]}Q${yF(c0[0] + L * .5 * Math.cos(ar + .18))} ${yF(c0[1] + L * .5 * Math.sin(ar + .18))} ${yF(c0[0] + L * Math.cos(ar))} ${yF(c0[1] + L * Math.sin(ar))}`, { stroke: YC.mt, 'stroke-width': 6 }, { d: 0 });
+    out.push(e);
+  });
+  const pts = []; for (let i = 0; i <= 40; i++) { const a = yRad(-30 + i * 4.5); pts.push([480 * Math.cos(a), 290 * Math.sin(a)]); }
+  out.push(path(g, ySmooth(pts), { stroke: YC.actin, 'stroke-width': 4, 'stroke-dasharray': '9 5' }, { d: 0 }));
+  out.push(path(g, 'M60 -250Q170 -200 230 -280M120 200Q260 150 330 230', { stroke: YC.inter, 'stroke-width': 5 }, { d: 0 }));
+  return out;
+}
+// A still microtubule drawn like the kit's (same dimers, band and open + end) in four elements instead of one group per
+// column: the close-up holds seven long ones, and Firefox paints them on every frame of the push-in.
+function stillTube(p, { x = 0, y = 0, r = 0, len = 600, nm = 3 } = {}) {
+  const D = 25 * nm, g = G(p, { x, y, r }), nr = 6, pitch = 4 * nm, dp = 2 * pitch, N = Math.max(1, Math.floor(len / dp)), b = pitch * .56;
+  const rowY = j => -(D / 2 - b) * Math.cos(Math.PI * (j + .5) / nr);
+  mk('rect', { x: 0, y: -D / 2 + 2, width: N * dp - 2, height: D - 4, rx: 6, fill: YC.mtEdge }, g);
+  let da = '', db = '';
+  for (let i = 0; i < N; i++) for (let j = 0; j < nr; j++) { const off = (j * nm * .9) % pitch; da += yCirc(i * dp + pitch * .5 + off, rowY(j), b); db += yCirc(i * dp + pitch * 1.5 + off, rowY(j), b); }
+  path(g, da, { fill: YC.mt, stroke: YC.mtEdge, 'stroke-width': 1.2 });
+  path(g, db, { fill: YC.mtB, stroke: YC.mtEdge, 'stroke-width': 1.2 });
+  mk('ellipse', { cx: N * dp, rx: D * .16, ry: D / 2 - 1, fill: YC.mtB, stroke: YC.mtEdge, 'stroke-width': 1.5 }, g);
+  mk('ellipse', { cx: N * dp, rx: D * .09, ry: D / 2 - b * 1.6, fill: YC.lumen }, g);
+  return g;
+}
+// A close-up of cytoplasm: the nucleus edge, organelles and the three fibres in a network. Returns { g, tubes, mitos, ves, tethers }.
+function cytoNetwork(p) {
+  const g = G(p, { o: 0 });
+  mk('rect', { x: 0, y: 0, width: 1600, height: 900, fill: CC.cyto }, g);
+  mk('circle', { cx: -80, cy: 470, r: 340, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 9 }, g);
+  wLabel(g, 'nucleus', { x: 120, y: 480, size: 28, fill: COL.dim, o: 1 });
+  microfilament(g, { x: 40, y: 54, r: 1.2, len: 1540, nm: 1.4 });
+  microfilament(g, { x: 300, y: 860, r: -1.5, len: 1290, nm: 1.4 });
+  microfilament(g, { x: 1550, y: 120, r: 92, len: 700, nm: 1.4 });
+  intermediateFilament(g, { x: 250, y: 160, r: 8, len: 950, nm: 1.3 });
+  intermediateFilament(g, { x: 560, y: 820, r: -14, len: 900, nm: 1.3 });
+  intermediateFilament(g, { x: 240, y: 720, r: -62, len: 380, nm: 1.3 });
+  const C0 = [430, 560], tubes = [];
+  mk('circle', { cx: C0[0], cy: C0[1], r: 46, fill: YC.mt, 'fill-opacity': .18 }, g);
+  [[-52, 620], [-28, 980], [-8, 1120], [12, 1100], [34, 760], [-80, 470], [62, 420]].forEach(([r, len]) => tubes.push(stillTube(g, { x: C0[0], y: C0[1], r, len, nm: 1.2 })));
+  const mitos = [mitochondrion(g, { x: 1150, y: 300, s: .5, r: -20 }), mitochondrion(g, { x: 930, y: 690, s: .42, r: 12 })];
+  const ves = vesicle(g, { x: 740, y: 330, r: 34, cargo: 'protein' });
+  const tethers = path(g, 'M1065 360L1040 395M1215 245L1236 214M905 640L888 610M960 742L985 770M720 364L700 395', { stroke: YC.motor, 'stroke-width': 6 }, { d: 0 });
+  return { g, tubes, mitos, ves, tethers };
+}
+// A cilium cut open, standing on the cell: membrane sheath, microtubules inside, a basal body in the cell below.
+function ciliumCut(p, { x = 0, y = 0, h = 500, w = 124, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('rect', { x: -330, y: 0, width: 660, height: 160, fill: CC.cyto }, g);
+  mk('rect', { x: -w / 2, y: -h + w / 2, width: w, height: h - w / 2 + 4, fill: CC.cyto }, g);
+  mk('circle', { cy: -h + w / 2, r: w / 2, fill: CC.cyto }, g);
+  const bb = G(g, { y: 52 });
+  mk('rect', { x: -48, y: -38, width: 96, height: 76, rx: 8, fill: YC.mtEdge, stroke: YC.mt, 'stroke-width': 3 }, bb);
+  path(bb, 'M-30 -30V30M-14 -30V30M2 -30V30M18 -30V30M34 -30V30', { stroke: YC.mt, 'stroke-width': 5 });
+  let d = '', lum = '';
+  [-42, -30, 30, 42, -7, 7].forEach((xx, i) => { const top = i > 3 ? -h + 54 : -h + 66; d += `M${xx} -6V${top}`; lum += `M${xx} -10V${top + 6}`; });
+  path(g, d, { stroke: YC.mt, 'stroke-width': 11, 'stroke-linecap': 'round' });
+  path(g, lum, { stroke: YC.lumen, 'stroke-width': 3 });
+  path(g, `M-330 0H${-w / 2}V${-h + w / 2}A${w / 2} ${w / 2} 0 0 1 ${w / 2} ${-h + w / 2}V0H330`, { stroke: CC.membrane, 'stroke-width': 8 });
+  return g;
+}
+// A whole cilium on a strip of cell surface; .set(k) bends it to the right (k 0..1).
+function bendCilium(p, { x = 0, y = 0, s = 1, o = 1, len = 300, w = 24 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -160, y: 0, width: 320, height: 60, fill: CC.cyto }, g);
+  path(g, 'M-160 0H160', { stroke: CC.membrane, 'stroke-width': 6 });
+  const outer = path(g, '', { stroke: CC.membrane, 'stroke-width': w }), inner = path(g, '', { stroke: YC.mt, 'stroke-width': w * .38 });
+  let cur = -1;
+  const bc = Object.assign(g, {
+    set(k) {
+      const key = Math.round(clamp01(k) * 1000); if (key === cur) return bc; cur = key; k = key / 1000;
+      const pts = [[0, 0]], A = 1.15 * k, m = 20; let px = 0, py = 0;
+      for (let i = 1; i <= m; i++) { const a = A * i / m; px += len / m * Math.sin(a); py -= len / m * Math.cos(a); pts.push([px, py]); }
+      const d = ySmooth(pts); yD(outer, d); yD(inner, d); return bc;
+    },
+  });
+  return bc.set(0);
+}
+// One fibre by kind ('mt', 'if', 'mf') along +x from (x, y).
+function fiberRow(p, kind, x, y, len, nm = 3) {
+  return kind === 'mt' ? microtubule(p, { x, y, len, nm }) : kind === 'if' ? intermediateFilament(p, { x, y, len, nm }) : microfilament(p, { x, y, len, nm });
+}
+// A receptor on a motorProtein's vesicle, where the motor's stalk meets it (moves with the vesicle).
+function addReceptor(mp) {
+  const r = G(mp.vesicle, { y: 50 });
+  path(r, 'M-15 6Q-15 -10 0 -10Q15 -10 15 6', { stroke: RECEPTOR, 'stroke-width': 7 });
+  mk('circle', { cy: -10, r: 6, fill: RECEPTOR }, r);
+  return r;
+}
+// Three fused microtubules side by side (a triplet), centred on the origin.
+function tripletPic(p, { x = 0, y = 0, r = 34, o = 1, n = 3 } = {}) {
+  const g = G(p, { x, y, o }), sp = r * 1.72;
+  path(g, `M${-sp * (n - 1) / 2} 0H${sp * (n - 1) / 2}`, { stroke: YC.mtB, 'stroke-width': r * 1.5 });
+  for (let i = 0; i < n; i++) { const cx = (i - (n - 1) / 2) * sp; mk('circle', { cx, r, fill: YC.mt, stroke: YC.mtEdge, 'stroke-width': 3 }, g); mk('circle', { cx, r: r * .42, fill: YC.lumen }, g); }
+  return g;
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Cells that move', (m, D) => {
+  const p = panel(0), tSw = m('swim'), tLu = m('lung'), tSp = m('split'), tM = m('map'), tL = m('lit');
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 6 · LESSON 6', { x: 800, y: 300, size: 26, fill: COL.dim, o: 1 });
+  ['Microtubules,', 'cilia and flagella'].forEach((s, i) => wLabel(ttl, s, { x: 800, y: 400 + i * 82, size: 70, o: 1 }));
+  wLabel(ttl, 'A tour of the cell', { x: 800, y: 590, size: 30, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tSw - .5, .5);
+  // three everyday movements, one frame each
+  const frame = (x, title, t0) => {
+    const g = G(p, { x, y: 420, o: 0, s: .9 });
+    mk('rect', { x: -215, y: -200, width: 430, height: 400, rx: 24, fill: '#132a47', stroke: COL.faint, 'stroke-width': 2 }, g);
+    wLabel(g, title, { y: 252, size: 30, o: 1 });
+    tw(g, { o: 1, s: 1 }, t0, .6, out);
+    tw(g, { o: 0, s: .8, y: 470 }, tM - .2, .7, io);
+    return g;
+  };
+  const f1 = frame(290, 'a sperm cell swims', tSw - .1), f2 = frame(800, 'the airway lining', tLu - .1), f3 = frame(1310, 'a cell divides', tSp - .1);
+  const sw = swimView(f1, { w: 400, h: 340 }), aw = airwayView(f2, { x: 20 }), dc = divCell(f3, { s: .92 });
+  show(yArrow(f1, [150, -110], [200, -110], { o: 0, w: 5, head: 15 }), tSw + .8);
+  show(yArrow(f2, [-150, 80], [-150, -60], { color: MUCUS, o: 0, w: 5, head: 15 }), tLu + 1.6);
+  wLabel(f2, 'mucus', { x: -150, y: 120, size: 24, fill: MUCUS, o: 1 });
+  clockRun(t => { t = Math.min(t, tM + .5); sw.run(t); aw.run(t); dc.set(io(ramp(t, tSp + .6, tSp + 3))); }, D);   // still once the frames have gone
+  // map: back on the whole cell; lit: the cytoskeleton
+  const cm = cellMap(p, { x: 800, y: 470, s: .66 }); cm.build(0);
+  prog(q => cm.build(q), tM + .3, 2.4, lin);
+  prog(q => cm.focus(['cytoskeleton', 'centrosome'], q), tL, .8);
+  mapRays(cm).forEach((e, i) => draw(e, tL + .2 + .08 * i, .9));
+  const [ax, ay] = cm.pt('centrosome');
+  tagAt(p, 'cytoskeleton', [ax, ay], [300, 200], tL + .5, { size: 40, fill: YC.mt, line: YC.mt });
+  say(p, '?', 300, 290, tL + 1.7, { size: 64, fill: MC.hi, weight: 800 });
+}],
+
+/* ---------- fibres ---------- */
+['fibres', 'Three kinds of fiber', (m, D) => {
+  const p = panel(0), tN = m('net'), tT = m('three'), tMt = m('mt'), tIf = m('if'), tMf = m('mf'), tR = m('roles'), tH = m('hook');
+  // push from the map into the cytoplasm near the centrosome
+  const cam = camera(p, D, { x: 800, y: 470, z: 1 }), cm = cellMap(cam.world, { x: 800, y: 470, s: .66 });
+  cm.focus(['cytoskeleton', 'centrosome'], 1); mapRays(cm).forEach(e => put(e, { d: 1 }));
+  const [cx, cy] = cm.pt('centrosome');
+  cam.to({ x: cx + 60, y: cy, z: 4 }, .1, 2.2);
+  const N = cytoNetwork(p);
+  show(N.g, 1.5, .8); hide(cam.el, 2.4, .2);
+  const ttl = pill(p, 'the cytoskeleton', 800, 76, { size: 34, color: YC.mt }); show(ttl, 2, .5);
+  hide(say(p, 'a network of fibers through the cytoplasm', 800, 150, 2.4, { size: 28 }), tT - .3, .5);
+  // net: it organizes the cell and anchors organelles
+  draw(N.tethers, tN + 1.2, .8);
+  N.mitos.forEach((mt, i) => pulse(mt, tN + 2 + .3 * i, 1.08));
+  hide(tagAt(p, 'anchors organelles', [1215, 250], [1330, 150], tN + 2.4, { size: 28, anchor: 'start' }), tT - .3, .5);
+  // three: the network gives way to the three fibres, drawn to one scale
+  hide(N.g, tT - .3, .6); hide(ttl, tT - .3, .5);
+  const FC = fiberCompare(p, { x: 860, y: 370, len: 560, gap: 140 });
+  [FC.mt, FC.inter, FC.mf, ...FC.names, ...FC.subs, ...FC.sizes].forEach(e => put(e, { o: 0 }));
+  say(p, 'three kinds of fiber', 800, 110, tT + .2, { size: 38, weight: 700 });
+  const ax = G(p, { o: 0 }); show(ax, tT + .6, .5);
+  yArrow(ax, [1420, 236], [1420, 516], { color: COL.dim, w: 4, head: 14 });
+  wLabel(ax, 'thickest', { x: 1420, y: 214, size: 24, fill: COL.dim, o: 1 }); wLabel(ax, 'thinnest', { x: 1420, y: 556, size: 24, fill: COL.dim, o: 1 });
+  [[FC.mt, tMt, 0], [FC.inter, tIf, 1], [FC.mf, tMf, 2]].forEach(([f, t0, i]) => {
+    show(f, t0 + .1, .3); prog(q => f.grow(q), t0 + .1, 1.4, lin);
+    show(FC.names[i], t0 + .3, .4); show(FC.sizes[i], t0 + 2.2, .4);
+  });
+  // roles: three jobs
+  const role = (x, t0, a, b, icon) => {
+    const g = G(p, { x, y: 740, o: 0 }); tw(g, { o: 1, y: 730 }, t0, .5, out);
+    mk('rect', { x: -190, y: -70, width: 380, height: 140, rx: 22, fill: '#14294a', stroke: COL.faint, 'stroke-width': 2 }, g);
+    icon(G(g, { x: -120 }));
+    wLabel(g, a, { x: -50, y: -6, size: 30, anchor: 'start', o: 1 }); wLabel(g, b, { x: -50, y: 30, size: 24, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+    return g;
+  };
+  role(370, tR + 1, 'support', 'and shape', g => {
+    mk('ellipse', { rx: 52, ry: 40, fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 4 }, g);
+    path(g, 'M-40 -14L40 18M-34 22L36 -20', { stroke: YC.mt, 'stroke-width': 5 }); path(g, 'M0 -38V38', { stroke: YC.inter, 'stroke-width': 4 });
+  });
+  role(800, tR + 2.9, 'movement', 'the cell and its parts', g => {
+    mk('ellipse', { cx: -14, rx: 30, ry: 24, fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 4 }, g);
+    yArrow(g, [22, 0], [62, 0], { w: 5, head: 14 }); path(g, 'M-44 -6q-8 -10 -16 0t-16 0', { stroke: CC.membrane, 'stroke-width': 4 });
+  });
+  role(1230, tR + 4.6, 'regulation', 'of its chemistry', g => {
+    path(g, gearD(38, 8), { fill: '#2a4a74', stroke: COL.chalk, 'stroke-width': 3 }); mk('circle', { r: 12, fill: '#14294a', stroke: COL.chalk, 'stroke-width': 3 }, g);
+  });
+  // hook: this lesson follows the microtubule; the other two come next
+  hide(ax, tH, .4);
+  [FC.inter, FC.mf, FC.names[1], FC.names[2], FC.sizes[1], FC.sizes[2]].forEach(e => tw(e, { o: .25 }, tH + .2, .6));
+  draw(path(p, 'M290 178H1330V302H290Z', { stroke: YC.mt, 'stroke-width': 4, 'stroke-linejoin': 'round' }, { d: 0 }), tH + .2, .9);
+  say(p, 'this lesson', 1450, 250, tH + .6, { size: 30, fill: YC.mt, weight: 700 });
+  say(p, 'next lesson', 1450, 460, m('hook', 2.6), { size: 28, fill: COL.dim });
+}],
+
+/* ---------- tracks ---------- */
+['tracks', 'Microtubules as tracks', (m, D) => {
+  const p = panel(0), tTu = m('tube'), tW = m('wall'), tDi = m('dimer'), tJ = m('jobs'), tV = m('vesicle'), tWk = m('walk');
+  const A = G(p);
+  // a hollow rod, and the same rod seen end on
+  const MT = microtubule(A, { x: 520, y: 300, len: 1000, nm: 4 }); MT.grow(0);
+  prog(q => MT.grow(q), .2, 1.8, lin);
+  say(A, 'microtubule: a hollow rod', 1020, 200, .4, { size: 36, weight: 700, fill: YC.mt });
+  const SX = 260, SY = 300, sec = microtubule(A, { x: SX, y: SY, nm: 7, section: true, o: 0 }); show(sec, tTu, .5);
+  const DD = sec.D, b = (Math.PI * DD / 26) / (1 + Math.PI / 13), inner = DD / 2 - 2 * b;
+  const dims = G(A, { o: 0 }); show(dims, tTu + .6, .5);
+  path(dims, `M${SX - DD / 2} ${SY - DD / 2 - 22}H${SX + DD / 2}M${SX - DD / 2} ${SY - DD / 2 - 32}V${SY - DD / 2 - 12}M${SX + DD / 2} ${SY - DD / 2 - 32}V${SY - DD / 2 - 12}`, { stroke: COL.chalk, 'stroke-width': 3 });
+  wLabel(dims, '25 nm', { x: SX, y: SY - DD / 2 - 40, size: 28, o: 1 });
+  const lum = G(A, { o: 0 }); show(lum, tTu + 2.6, .5);
+  yArrow(lum, [SX - 8, SY + 14], [SX - inner + 6, SY + 14], { w: 3, head: 10 }); yArrow(lum, [SX + 8, SY + 14], [SX + inner - 6, SY + 14], { w: 3, head: 10 });
+  wLabel(lum, '15 nm', { x: SX, y: SY - 4, size: 24, o: 1 });
+  say(A, 'seen end on', SX, SY + DD / 2 + 40, tTu + .4, { size: 24, fill: COL.dim, weight: 500 });
+  const ln = G(A, { o: 0 }); show(ln, tTu + 5, .5);
+  yArrow(ln, [1000, 396], [520, 396], { w: 3, head: 12 }); yArrow(ln, [1040, 396], [1530, 396], { w: 3, head: 12 });
+  wLabel(ln, '200 nm to 25 µm long', { x: 1020, y: 440, size: 28, o: 1 });
+  // wall: 13 columns of tubulin, counted round the section; one column lit on the side view
+  const rr = DD / 2 - b;
+  for (let i = 0; i < 13; i++) { const a = yRad(-90 + i * 360 / 13), c = mk('circle', { cx: SX + rr * Math.cos(a), cy: SY + rr * Math.sin(a), r: b + 1, fill: 'none', stroke: '#fff6d8', 'stroke-width': 3 }, A); put(c, { o: 0 }); show(c, tW + .2 + .1 * i, .15); hide(c, tDi + .2, .4); }
+  const col = mk('rect', { x: 524, y: 300 - 22, width: 996, height: 20, rx: 10, fill: 'none', stroke: '#fff6d8', 'stroke-width': 3 }, A); put(col, { o: 0 });
+  show(col, tW + 1.6, .4); hide(col, tDi + .2, .4);
+  say(A, '13 columns of tubulin', SX, SY + DD / 2 + 76, tW + .6, { size: 28 });
+  // dimer: one alpha + one beta
+  const DX = 1160 + 8 + 7.2, DY = 289;
+  const box = mk('rect', { x: DX - 14, y: DY - 13, width: 44, height: 26, rx: 6, fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, A); put(box, { o: 0 }); show(box, tDi + .1, .3);
+  const call = G(A, { o: 0, x: 1300, y: 600, s: .4 }); tw(call, { o: 1, s: 1 }, tDi + .5, .7, out);
+  mk('circle', { cx: -46, r: 44, fill: YC.mt, stroke: YC.mtEdge, 'stroke-width': 3 }, call);
+  mk('circle', { cx: 46, r: 44, fill: YC.mtB, stroke: YC.mtEdge, 'stroke-width': 3 }, call);
+  wLabel(call, 'α', { x: -46, y: 14, size: 40, fill: YC.ink, weight: 800, o: 1 }); wLabel(call, 'β', { x: 46, y: 14, size: 40, fill: YC.ink, weight: 800, o: 1 });
+  wLabel(call, 'tubulin dimer', { y: -64, size: 32, weight: 700, o: 1 });
+  wLabel(call, 'α tubulin + β tubulin', { y: 82, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  draw(path(A, `M${DX + 8} ${DY + 14}L1205 548`, { stroke: COL.dim, 'stroke-width': 2.5, 'stroke-dasharray': '6 6' }, { d: 0 }), tDi + .4, .4);
+  // jobs: three jobs
+  [['shape the cell', 330, 1], ['guide organelles', 800, 2.3], ['move chromosomes in cell division', 1240, 4]].forEach(([s, x, dt], i) => {
+    const c = pill(A, s, x, 790, { size: 28, edge: YC.mt }); tw(c, { o: 1 }, tJ + dt, .5);
+  });
+  hide(A, tV - .3, .6);
+  // vesicle: a vesicle with cargo and a receptor, on a motor protein, on a microtubule track
+  const mp = motorProtein(p, { x: 800, y: 640, len: 1300, steps: 8, o: 0 }); addReceptor(mp); show(mp, tV, .6);
+  const [vx, vy] = mp.pt('vesicle');
+  const L1 = G(p); hide(L1, tWk, .4);
+  tagAt(L1, 'vesicle carrying cargo', [vx + 40, vy - 30], [vx + 190, vy - 110], tV + 1.4, { size: 28 });
+  tagAt(L1, 'receptor', [vx + 16, vy + 48], [vx + 190, vy + 30], tV + 3.2, { size: 28, fill: RECEPTOR });
+  tagAt(L1, 'motor protein', [vx, vy + 120], [vx + 190, vy + 110], tV + 4.6, { size: 28, fill: YC.motor });
+  say(p, 'microtubule: the track', 1150, 730, tV + 1, { size: 28, fill: YC.mt });
+  // walk: ATP powers each step; the vesicle rides along
+  const lab = G(p, { o: 0 }); show(lab, tWk + .5, .5);
+  wLabel(lab, 'motor protein', { y: -30, size: 28, fill: YC.motor, o: 1 }); wLabel(lab, 'powered by ATP', { y: 2, size: 24, fill: YC.atp, weight: 500, o: 1 });
+  clockRun(t => { mp.walk(qK(ramp(t, tWk + .4, tWk + 8), 4000)); const [mx, my] = mp.pt('vesicle'); yPose(lab, mx, my - 90); }, D);
+  say(p, 'like a train on a monorail', 800, 120, m('walk', 6.5), { size: 32, fill: COL.dim });
+  notToScale(p, 1570, 40, tV + .3);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0), RY = [170, 340, 510], kinds = ['if', 'mt', 'mf'], fs = [];
+  kinds.forEach((k, i) => fs.push(fiberRow(p, k, 380, RY[i], 840)));
+  ['A', 'B', 'C'].forEach((s, i) => wLabel(p, s, { x: 320, y: RY[i] + 12, size: 34, fill: COL.dim, weight: 800, o: 1 }));
+  wLabel(p, 'drawn to one scale', { x: 1560, y: 600, size: 22, fill: COL.dim, anchor: 'end', weight: 500, o: 1 });
+  const box = i => [360, RY[i] - 60, 880, 120];
+  S.q1 = kinds.map((k, i) => ({ el: fs[i], box: box(i), label: ['the top fiber', 'the middle fiber', 'the bottom fiber'][i] }));
+}, { ask: done => quiz(BAND, [
+  { id: 'c-mt', prompt: ['Click the microtubule.'],
+    build: pickEls(S.q1, 1, 'Right. The hollow tube of tubulin dimers is the microtubule, the thickest fiber, about 25 nm.',
+      i => i === 0 ? 'That rope of coiled strands is an intermediate filament, 8 to 12 nm. Look for the hollow tube.' : 'That twisted chain of beads is a microfilament, the thinnest fiber, 7 nm. Look for the thickest one.') },
+  { id: 'c-if', prompt: ['Click the intermediate filament.'],
+    build: pickEls(S.q1, 0, 'Right. The rope of coiled strands is the intermediate filament, in the middle at 8 to 12 nm.',
+      i => i === 1 ? 'That hollow tube is the microtubule, the thickest. The intermediate filament is a rope.' : 'That is the microfilament, the thinnest. The intermediate filament is thicker, and rope-like.') },
+  { id: 'c-mf', prompt: ['Click the microfilament.'],
+    build: pickEls(S.q1, 2, 'Right. Two twisted chains of beads: the microfilament, the thinnest fiber at about 7 nm.',
+      i => i === 1 ? 'That is the microtubule, the thickest fiber. Look for the thinnest one.' : 'That rope is an intermediate filament, 8 to 12 nm. The microfilament is thinner still.') },
+], done) }],
+
+/* ---------- centro ---------- */
+['centro', 'The centrosome', (m, D) => {
+  const p = panel(0), tN = m('nuc'), tMo = m('moc'), tP = m('pair'), tR = m('ring'), tC = m('count'), tDv = m('div');
+  // a cell near its nucleus; the camera later pushes into the centrosome
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const CX = 830, CY = 320, NX = 560, NY = 560, NR = 180;
+  mk('ellipse', { cx: 780, cy: 470, rx: 640, ry: 400, fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 7 }, W);
+  mk('circle', { cx: NX, cy: NY, r: NR, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 8 }, W);
+  path(W, `M${NX - 90} ${NY - 40}q20 -30 40 0t40 0t40 0M${NX - 60} ${NY + 40}q20 -26 40 0t40 0t40 0`, { stroke: CC.dna, 'stroke-width': 4, 'stroke-opacity': .7 });
+  wLabel(W, 'nucleus', { x: NX, y: NY + 110, size: 30, fill: COL.dim, o: 1 });
+  const rays = [];
+  for (let i = 0; i < 16; i++) {
+    const a = yRad(i * 22.5 + 7), c = Math.cos(a), s = Math.sin(a);
+    let L = 50; while (L < 900 && ((CX + (L + 12) * c - 780) / 615) ** 2 + ((CY + (L + 12) * s - 470) / 375) ** 2 < 1 && Math.hypot(CX + (L + 12) * c - NX, CY + (L + 12) * s - NY) > NR + 14) L += 12;
+    if (L < 80) continue;
+    rays.push(path(W, `M${yF(CX + 36 * c)} ${yF(CY + 36 * s)}L${yF(CX + L * c)} ${yF(CY + L * s)}`, { stroke: YC.mt, 'stroke-width': 7 }, { d: 0 }));
+  }
+  const cs = G(W, { o: 0 });
+  mk('circle', { cx: CX, cy: CY, r: 40, fill: YC.mt, 'fill-opacity': .16, stroke: YC.mt, 'stroke-opacity': .55, 'stroke-width': 2, 'stroke-dasharray': '5 6' }, cs);
+  centriole(cs, { R: 12, x: CX - 12, y: CY + 4 });
+  centriole(cs, { view: 'side', R: 8, len: 30, x: CX + 14, y: CY - 4, r: 90 });
+  show(cs, tN, .5);
+  const l1 = G(p); hide(l1, tP, .4);
+  tagAt(l1, 'centrosome', [CX + 30, CY - 26], [1080, 170], tN + .4, { size: 34, fill: YC.mt });
+  say(l1, 'a microtubule-organizing center', 1088, 214, tMo + 1.2, { size: 26, anchor: 'start', fill: COL.chalk });
+  rays.forEach((e, i) => draw(e, tMo + .4 + .12 * i, 1.6, out));
+  // pair: push in to the two centrioles
+  cam.to({ x: CX, y: CY, z: 3.4 }, tP - .2, 1.8);
+  const sx = (wx, wy) => [800 + (wx - CX) * 3.4, 450 + (wy - CY) * 3.4];
+  const l2 = G(p); hide(l2, tR - .2, .4);
+  const bk = mk('rect', { x: 560, y: 650, width: 480, height: 110, rx: 18, fill: COL.board, 'fill-opacity': .88 }, l2); put(bk, { o: 0 }); show(bk, tP + 1.5, .4);
+  say(l2, 'a pair of centrioles', 800, 700, tP + 1.6, { size: 34, weight: 700 });
+  [sx(CX - 12, CY + 4), sx(CX + 14, CY - 4)].forEach(([x, y], i) => draw(path(l2, `M${800 + (i ? 60 : -60)} 660L${x} ${y + 30}`, { stroke: COL.dim, 'stroke-width': 2.5 }, { d: 0 }), tP + 1.8, .4));
+  say(l2, 'in an animal centrosome', 800, 744, tP + 2.2, { size: 26, fill: COL.dim, weight: 500 });
+  hide(cam.el, tR - .2, .6);
+  // ring: one centriole end on, nine triplets in a ring
+  const E = G(p, { o: 0 }); show(E, tR + .2, .6);
+  const RX = 520, RYc = 460, RR = 160;
+  centriole(E, { x: RX, y: RYc, R: RR });
+  wLabel(E, 'one centriole, seen end on', { x: RX, y: 160, size: 32, weight: 700, o: 1 });
+  for (let i = 0; i < 9; i++) { const a = yRad(-90 + i * 40); say(E, String(i + 1), RX + (RR + 78) * Math.cos(a), RYc + (RR + 78) * Math.sin(a) + 12, tR + 2 + .42 * i, { size: 32, fill: MC.hi, weight: 800 }); }
+  const tc = tripletPic(p, { x: 1200, y: 330, o: 0 }); show(tc, tR + 5.2, .5);
+  const a1 = yRad(-50);
+  draw(path(p, `M${RX + (RR + 34) * Math.cos(a1)} ${RYc + (RR + 34) * Math.sin(a1)}L1080 330`, { stroke: COL.dim, 'stroke-width': 2.5, 'stroke-dasharray': '6 6' }, { d: 0 }), tR + 5, .4);
+  say(p, 'a triplet:', 1200, 420, tR + 5.4, { size: 30, weight: 700 });
+  say(p, 'three fused microtubules', 1200, 458, tR + 5.6, { size: 26, fill: COL.dim, weight: 500 });
+  // count: nine triplets of three
+  say(p, '9 triplets × 3 tubes', 1200, 590, tC + .4, { size: 40 });
+  say(p, '= 27 microtubules', 1200, 650, tC + 2.4, { size: 46, weight: 800, fill: YC.mt });
+  // div: before a cell divides, the centrosomes are the spindle's starting points
+  const Rest = [E, tc]; Rest.forEach(e => hide(e, tDv - .1, .5));
+  const cover = mk('rect', { x: 0, y: 0, width: 1600, height: 900, fill: COL.board }, p); put(cover, { o: 0 }); show(cover, tDv - .1, .5);
+  const dc = divCell(p, { x: 800, y: 470, s: 2.1, o: 0 }); show(dc, tDv + .3, .5);
+  prog(q => dc.set(q), tDv + 1.2, 3.6, io);
+  say(p, 'before a cell divides', 800, 110, tDv + .3, { size: 34, weight: 700 });
+  tagAt(p, 'centrosome', [800 - 2.1 * 154, 470], [330, 230], tDv + 2.2, { size: 28, fill: YC.mt });
+  tagAt(p, 'centrosome', [800 + 2.1 * 154, 470], [1270, 230], tDv + 2.2, { size: 28, fill: YC.mt });
+  say(p, 'fibers pull the chromosomes apart', 800, 790, tDv + 3.4, { size: 30 });
+}],
+
+/* ---------- cilia ---------- */
+['cilia', 'Cilia and flagella', (m, D) => {
+  const p = panel(0), tB = m('both'), tF = m('flag'), tC = m('cil'), tPw = m('power'), tRc = m('rec'), tMu = m('mucus');
+  // back to the sperm and the airway, small, then a cilium cut open
+  const I = G(p);
+  const sm = flagellumSwim(I, { x: 360, y: 210, s: .55, speed: 0, o: 0 }); show(sm, .2, .5);
+  wLabel(I, 'sperm: a flagellum', { x: 250, y: 300, size: 28, o: 1 });
+  const sr = ciliaRow(I, { x: 1300, y: 250, s: .55, n: 7, w: 420, len: 110, dots: false, o: 0 }); show(sr, .5, .5);
+  wLabel(I, 'airway: cilia', { x: 1300, y: 340, size: 28, o: 1 });
+  hide(I, tB + 1.2, .5);
+  const cut = ciliumCut(p, { x: 800, y: 770, h: 520, o: 0 }); show(cut, tB, .6); hide(cut, tF - .3, .5);
+  const LC = G(p); hide(LC, tF - .3, .5);
+  tagAt(LC, 'a core of microtubules', [794, 420], [1000, 400], tB + 3, { size: 28, fill: YC.mt });
+  tagAt(LC, 'covered by the plasma membrane', [862, 330], [1000, 300], tB + 6.5, { size: 28, fill: CC.membrane });
+  tagAt(LC, 'an extension from the cell', [740, 640], [560, 600], tB + 2.2, { size: 28 });
+  // flag: a long flagellum, an undulating wave
+  const div = G(p, { o: 0 }); show(div, tF, .4); path(div, 'M800 120V860', { stroke: COL.faint, 'stroke-width': 2 });
+  const SW1 = swimView(p, { x: 400, y: 430, w: 700, h: 400, flS: 1.05, hx: 220, o: 0 }); show(SW1, tF, .6);
+  say(p, 'flagellum', 400, 110, tF + .2, { size: 40, weight: 700, fill: YC.mt });
+  say(p, 'long, usually one or a few', 400, 152, tF + .8, { size: 26, fill: COL.dim, weight: 500 });
+  show(SW1.fl.swimArrow, tF + 3.6, .4); show(SW1.fl.waveArrow, tF + 2, .4);
+  say(p, 'an undulating wave', 290, 560, tF + 2.2, { size: 28, fill: YC.mt });
+  say(p, 'direction of swimming', 560, 312, tF + 3.8, { size: 26 });
+  // cil: many short cilia on a cell surface
+  const row = ciliaRow(p, { x: 1200, y: 330, n: 7, w: 560, len: 120, o: 0 }); show(row, tC, .6);
+  const ct = G(p); hide(ct, tMu - .3, .4);
+  say(ct, 'cilia', 1200, 110, tC + .2, { size: 40, weight: 700, fill: YC.mt });
+  say(ct, 'short, usually many', 1200, 152, tC + .8, { size: 26, fill: COL.dim, weight: 500 });
+  // power and rec: one cilium, slowed down, then the whole row beats
+  const BX = 1170, BY = 820;
+  const base = G(p, { o: 0 }); show(base, tC + 2.4, .5);
+  mk('rect', { x: BX - 230, y: BY, width: 460, height: 60, fill: CC.cyto }, base); path(base, `M${BX - 230} ${BY}H${BX + 230}`, { stroke: CC.membrane, 'stroke-width': 6 });
+  const ghosts = (qs, t0, t1) => qs.forEach(q => { const gc = ciliumBeat(p, { x: BX, y: BY, len: 250, w: 18, o: 0 }); gc.pose(q); tw(gc, { o: .22 }, t0, .4); hide(gc, t1, .4); });
+  ghosts([0, .1, .2], tPw + 2.4, tRc);
+  ghosts([.45, .62, .8], tRc + 2.8, tMu);
+  const big = ciliumBeat(p, { x: BX, y: BY, len: 250, w: 18, o: 0 }); show(big, tC + 2.4, .5);
+  const q0 = t => t < tPw + .3 ? 0 : t < tRc + .2 ? .3 * io(ramp(t, tPw + .3, tPw + 2.3)) : t < tMu ? .3 + .7 * io(ramp(t, tRc + .2, tRc + 2.8)) : (t - tMu) / 1.2;
+  const pw = G(p, { o: 0 }); show(pw, tPw + .6, .4); tw(pw, { o: .35 }, tRc, .4);
+  yArrow(pw, [BX - 150, 520], [BX + 160, 520], { color: RED, w: 6, head: 18 }); wLabel(pw, 'power stroke', { x: BX, y: 494, size: 30, fill: RED, o: 1 });
+  wLabel(pw, 'stiff: pushes the fluid', { x: BX, y: 572, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  const rc = G(p, { o: 0 }); show(rc, tRc + .6, .4);
+  yArrow(rc, [1530, 660], [1380, 660], { color: COL.chalk, w: 5, head: 16 });
+  wLabel(rc, 'recovery stroke', { x: 1455, y: 630, size: 28, o: 1 }); wLabel(rc, 'bends, swings back', { x: 1455, y: 700, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  // mucus: the row sweeps a blob of mucus along
+  const blob = G(p, { o: 0 }); path(blob, cBlob(70, 30, { seed: 5 }), { fill: MUCUS, 'fill-opacity': .85, stroke: '#a8b25e', 'stroke-width': 3 });
+  say(p, 'mucus swept out of the lungs', 1200, 100, tMu + .6, { size: 30, fill: MUCUS });
+  clockRun(t => {
+    const tq = qT(t), tI = qT(Math.min(t, tB + 1.7)); SW1.run(t); sm.beat(tI); sr.beat(tI);   // the small pair stops once faded
+    row.beat(t >= tC ? qT(t - tC) : 0); big.pose(qK(q0(t), 1000));
+    const u = ramp(t, tMu + .2, D); yPose(blob, 960 + 480 * u, 180, t < tMu ? 0 : Math.min(1, (t - tMu) * 2) * (1 - ramp(t, D - .4, D)));
+  }, D);
+}],
+
+/* ---------- nine ---------- */
+['nine', 'The 9 + 2 pattern', (m, D) => {
+  const p = panel(0), tO = m('outer'), tCe = m('centre'), tSp = m('spokes'), tBa = m('base'), tTr = m('triplet');
+  const AX = 520, AY = 480, RR = 230, ax = axoneme(p, { x: AX, y: AY, R: RR });
+  [ax.doublets, ax.central, ax.spokes, ax.links, ax.dyneins].forEach(e => put(e, { o: 0 }));
+  put(ax.membrane, { o: 0 }); show(ax.membrane, .2, .6);
+  const t0 = say(p, 'a cilium, cut across', AX, 120, .4, { size: 34, weight: 700 }); hide(t0, tCe + 2, .4);
+  // outer: nine doublets in a ring, numbered
+  show(ax.doublets, .4, .6); pulse(ax.doublets, tO + .1, 1.06);   // the ring comes in with the membrane, then is named
+  for (let i = 0; i < 9; i++) { const a = yRad(-90 + 20 + i * 40); say(p, String(i + 1), AX + (RR + 40) * Math.cos(a), AY + (RR + 40) * Math.sin(a) + 11, tO + .3 + .2 * i, { size: 30, fill: MC.hi, weight: 800 }); }
+  tagAt(p, 'outer doublet', ax.pt('doublet', 1), [840, 230], tO + 1.4, { size: 28, fill: YC.mt });
+  // centre: two single microtubules; 9 + 2
+  show(ax.central, tCe + .1, .5); pulse(ax.central, tCe + .5, 1.15);
+  tagAt(p, 'two central microtubules', ax.pt('central'), [840, 400], tCe + .4, { size: 28, fill: YC.mt });
+  const nine = pill(p, '9 + 2', AX, 120, { size: 44, color: YC.mt, edge: YC.mt }); show(nine, tCe + 2.6, .5);
+  // spokes: radial spokes and cross-links
+  show(ax.spokes, tSp + .2, .5);
+  tagAt(p, 'radial spoke', ax.pt('spoke', 3), [840, 560], tSp + .5, { size: 28, fill: YC.spoke });
+  show(ax.links, tSp + 3.2, .5);
+  tagAt(p, 'cross-linking proteins', ax.pt('link', 3), [840, 640], tSp + 3.4, { size: 28, fill: YC.link });
+  // base: the cilium on its cell, a basal body at its foot
+  const LX = 1340, LY = 470, LS = G(p, { o: 0 }); show(LS, tBa, .6);
+  mk('rect', { x: LX - 160, y: LY, width: 320, height: 110, fill: CC.cyto }, LS);
+  mk('rect', { x: LX - 34, y: 110, width: 68, height: LY - 110 + 4, fill: CC.cyto }, LS);
+  path(LS, `M${LX - 22} ${LY - 4}V150M${LX - 10} ${LY - 4}V150M${LX + 10} ${LY - 4}V150M${LX + 22} ${LY - 4}V150M${LX} ${LY - 4}V140`, { stroke: YC.mt, 'stroke-width': 5 });
+  path(LS, `M${LX - 160} ${LY}H${LX - 34}V144A34 34 0 0 1 ${LX + 34} 144V${LY}H${LX + 160}`, { stroke: CC.membrane, 'stroke-width': 6 });
+  mk('rect', { x: LX - 30, y: LY + 8, width: 60, height: 60, rx: 6, fill: YC.mtEdge, stroke: YC.mt, 'stroke-width': 3 }, LS);
+  path(LS, `M${LX - 18} ${LY + 14}V${LY + 62}M${LX} ${LY + 14}V${LY + 62}M${LX + 18} ${LY + 14}V${LY + 62}`, { stroke: YC.mt, 'stroke-width': 4 });
+  tagAt(p, 'basal body', [LX + 30, LY + 38], [1410, LY + 38], tBa + .8, { size: 28, anchor: 'start', fill: YC.mt });
+  say(p, 'anchors the cilium', 1490, LY + 80, tBa + 1.8, { size: 24, fill: COL.dim, weight: 500 });
+  // the 9 + 2 section came from the shaft
+  // triplet: the basal body cut across: nine triplets, no central pair
+  const bb = basalBody(p, { x: LX, y: 760, R: 62, o: 0 }); show(bb, tTr + .2, .6);
+  draw(path(p, `M${LX} ${LY + 70}V${760 - 100}`, { stroke: COL.dim, 'stroke-width': 2.5, 'stroke-dasharray': '6 6' }, { d: 0 }), tTr, .4);
+  say(p, 'nine triplets', 1080, 750, tTr + 1.2, { size: 28, fill: YC.mt, anchor: 'end' });
+  say(p, 'no central pair', 1080, 790, tTr + 2.4, { size: 28, fill: MC.hi, anchor: 'end' });
+  notToScale(p, 1570, 40, .3);
+}],
+
+/* ---------- dynein ---------- */
+['dynein', 'Dynein bends the cilium', (m, D) => {
+  const p = panel(0), tA = m('arms'), tG = m('grab'), tS = m('slide'), tL = m('link'), tB = m('bend'), tC = m('chain');
+  // where the arms sit: on the outer doublets of the 9 + 2
+  const ax = axoneme(p, { x: 170, y: 180, R: 120, o: 0 }); show(ax, .2, .5);
+  put(ax.dyneins, { o: .3 }); tw(ax.dyneins, { o: 1 }, tA + .2, .5);
+  say(p, 'dynein arms on the outer doublets', 320, 90, tA + 2, { size: 26, anchor: 'start', fill: YC.motor });
+  // two neighbouring doublets, side view
+  const X0 = 300, Y0 = 600, dw = dyneinWalk(p, { x: X0, y: Y0, len: 820, gap: 70, n: 6, slide: 130, cycles: 3, o: 0 });
+  // its opacity is posed in the clockRun below (fade in, out at the swap, back in)
+  const LA = G(p); hide(LA, tS, .4);
+  say(LA, 'outer doublet', X0 - 20, Y0 - 44, tA + 3, { size: 24, anchor: 'end', fill: YC.mt });
+  say(LA, 'outer doublet', X0 - 20, Y0 + 54, tA + 3, { size: 24, anchor: 'end', fill: YC.mt });
+  tagAt(LA, 'dynein', [X0 + 820 * 1.8 / 7, Y0], [X0 + 200, Y0 + 170], tA + .4, { size: 30, fill: YC.motor });
+  // grab: ATP powers each grab, pull and release
+  const atp = G(p, { o: 0 });   // opacity posed in the clockRun below
+  path(atp, 'M0 -18L5 -5L18 0L5 5L0 18L-5 5L-18 0L-5 -5Z', { fill: YC.atp }); wLabel(atp, 'ATP', { x: 30, y: 8, size: 24, fill: YC.atp, weight: 800, anchor: 'start', o: 1 });
+  put(atp, { x: X0 + 560, y: Y0 + 120 });
+  say(p, 'grab, move, let go', X0 + 560 + 110, Y0 + 128, tG + 2, { size: 28, anchor: 'start' });
+  // slide: without links the top doublet slips away; link: with them the base holds and the pair bends
+  const kFree = t => .3 * ramp(t, tG + .4, tS) + .7 * ramp(t, tS + .3, tL - .6);
+  const kLink = t => .12 * ramp(t, tL + .8, tB) + .88 * io(ramp(t, tB + .2, tB + 3.4));
+  const swap = tL - .2;
+  clockRun(t => {
+    ax.flick(qK(yFrac(ramp(t, tA, D) * 3), 2000));   // k 0..1 is three swings (periodic), nine over the beat
+    if (t < swap) dw.walk(qK(kFree(t), 4000), false); else dw.walk(qK(kLink(t), 4000), true);
+    yO(dw, t < tL - .6 ? (t < .5 ? 0 : Math.min(1, (t - .5) / .6)) : t < swap ? 1 - (t - (tL - .6)) / .4 : Math.min(1, (t - swap) / .4));
+    yPose(atp, X0 + 560, Y0 + 120, ramp(t, tG + .6, tG + 1) * (.5 + .5 * Math.abs(Math.sin(Math.PI * 3 * (t - tG)))));
+  }, D);
+  const fs = G(p, { o: 0 }); show(fs, tS + .5, .4); hide(fs, swap, .3);
+  yArrow(fs, [X0 + 840, Y0 - 100], [X0 + 960, Y0 - 100], { color: RED, w: 5, head: 16 });
+  wLabel(fs, 'free sliding:', { x: X0 + 900, y: Y0 - 190, size: 28, fill: RED, o: 1 }); wLabel(fs, 'they slip past', { x: X0 + 900, y: Y0 - 152, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const ls = G(p, { o: 0 }); show(ls, tL + .6, .5);
+  wLabel(ls, 'cross-links hold them:', { x: 1300, y: 380, size: 28, fill: YC.link, o: 1 }); wLabel(ls, 'limited sliding', { x: 1300, y: 416, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  // bend: the pair bends, and so does the whole cilium
+  const bc = bendCilium(p, { x: 1330, y: 790, len: 280, o: 0 }); show(bc, tB + .2, .5);
+  prog(q => bc.set(q), tB + .4, 3, io);
+  say(p, 'the whole cilium bends', 1330, 870, tB + 1.4, { size: 26 });
+  // chain: dynein movement, limited sliding, bending
+  const bar = G(p, { o: 0 }); show(bar, tC, .4);
+  mk('rect', { x: 120, y: 790, width: 1000, height: 76, rx: 18, fill: COL.board, stroke: COL.faint, 'stroke-width': 2 }, bar);
+  [['dynein movement', 280, YC.motor], ['limited sliding', 620, YC.link], ['bending', 960, YC.mt]].forEach(([s, x, c], i) => say(bar, s, x, 840, tC + .3 + .9 * i, { size: 30, weight: 700, fill: c }));
+  show(yArrow(bar, [432, 828], [474, 828], { o: 0, w: 4, head: 12 }), tC + .8); show(yArrow(bar, [766, 828], [830, 828], { o: 0, w: 4, head: 12 }), tC + 1.7);
+  notToScale(p, 1570, 40, .3);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0), dw = dyneinWalk(p, { x: 110, y: 660, len: 620, gap: 60, n: 5, linked: true }); dw.walk(.75, true);
+  wLabel(p, 'two outer doublets, dynein arms between', { x: 90, y: 770, size: 26, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+  axoneme(p, { x: 200, y: 200, R: 120 });
+  wLabel(p, '9 + 2', { x: 200, y: 370, size: 30, fill: YC.mt, weight: 800, o: 1 });
+}, { ask: done => quiz({ x: 820, y: 60, w: 740, cls: 'side' }, [
+  { id: 'c-dynein', prompt: ['Dynein arms slide the outer doublets past each other, yet the cilium bends. What turns the sliding into a bend?'],
+    build: choice([['The central pair pushes the cilium sideways.'], ['Cross-linking proteins hold the doublets together, so the sliding is limited.'], ['The basal body pulls the cilium over.'], ['The plasma membrane squeezes the core.']], 1,
+      'Right. The doublets cannot slip freely past each other, so a slide on one side bends the whole cilium.',
+      ['The central pair carries no dynein arms; the arms sit on the outer doublets.', null,
+       'The basal body only anchors the cilium to the cell.',
+       'The membrane only covers the core of microtubules.']) },
+], done) }],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'Summary', { x: 800, y: 92, size: 44, weight: 700, fill: YC.mt, o: 1 });   // on screen from the first frame
+  const rows = [
+    ['Three fibers; microtubules are the thickest:', 'hollow tubes of tubulin, tracks for motor proteins.', g => { microtubule(g, { x: 70, y: -26, len: 200, nm: 1.6 }); intermediateFilament(g, { x: 70, y: 12, len: 200, nm: 1.6 }); microfilament(g, { x: 70, y: 40, len: 200, nm: 1.6 }); }],
+    ['The centrosome organizes microtubules;', 'animal cells: a pair of centrioles, nine triplets each.', g => { mk('circle', { cx: 172, cy: 2, r: 84, fill: YC.mt, 'fill-opacity': .13, stroke: YC.mt, 'stroke-opacity': .5, 'stroke-width': 2, 'stroke-dasharray': '6 8' }, g); centriole(g, { x: 136, y: 14, R: 36 }); centriole(g, { view: 'side', R: 26, len: 84, x: 212, y: -6, r: 90 }); }],
+    ['Cilia and flagella: nine doublets and two', 'central microtubules, anchored by a basal body.', g => axoneme(g, { x: 170, y: 0, R: 64 })],
+    ['Dynein slides the doublets; cross-links limit', 'the sliding, and that makes the bend.', g => { const d = dyneinWalk(g, { x: 70, y: 30, len: 200, gap: 28, n: 3, linked: true }); d.walk(.8, true); }],
+  ];
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: -16, y: 170 + i * 165, o: 0 });
+    icon(G(g)); T(g, a, { x: 330, y: -6, size: 34, weight: 600 }); T(g, b, { x: 330, y: 38, size: 30, fill: COL.dim });
+    tw(g, { o: 1, x: 0 }, m('w' + (i + 1)), .6);
+  });
+  say(p, 'Now try the practice.', 800, 860, m('end'), { size: 32, fill: YC.mt });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('order', g => {
+    ['mf', 'mt', 'if'].forEach((k, i) => { fiberRow(g, k, 1060, 250 + i * 180, 460); wLabel(g, '?', { x: 1560, y: 266 + i * 180, size: 44, fill: MC.hi, weight: 800, o: 1 }); });
+    wLabel(g, 'drawn to one scale', { x: 1290, y: 760, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  });
+  at('motor', g => {
+    const mp = motorProtein(g, { x: 1270, y: 560, len: 600, steps: 5, s: .85 }); addReceptor(mp); mp.walk(.5);
+    wLabel(g, 'vesicle', { x: 1270, y: 230, size: 28, o: 1 }); wLabel(g, 'microtubule', { x: 1270, y: 650, size: 28, fill: YC.mt, o: 1 });
+  });
+  at('count', g => {
+    centriole(g, { x: 1270, y: 440, R: 150 });
+    wLabel(g, 'one centriole, end on', { x: 1270, y: 720, size: 28, o: 1 });
+  });
+  at('where', g => {
+    centriole(g, { x: 1120, y: 260, R: 70 }); wLabel(g, 'centriole', { x: 1120, y: 400, size: 26, o: 1 });
+    axoneme(g, { x: 1420, y: 300, R: 110 }); wLabel(g, 'cilium, cut across', { x: 1420, y: 460, size: 26, o: 1 });
+    basalBody(g, { x: 1200, y: 620, R: 70 }); wLabel(g, 'basal body, cut across', { x: 1200, y: 760, size: 26, o: 1 });
+  });
+  at('beat', g => {
+    const f = flagellumSwim(g, { x: 1460, y: 250, s: .85, speed: 0 }); f.beat(.3); put(f.swimArrow, { o: 1 });
+    wLabel(g, 'a flagellum', { x: 1260, y: 360, size: 26, o: 1 });
+    mk('rect', { x: 1060, y: 720, width: 400, height: 40, fill: CC.cyto }, g); path(g, 'M1060 720H1460', { stroke: CC.membrane, 'stroke-width': 5 });
+    [0, .1, .2, .3].forEach((q, i) => { const c = ciliumBeat(g, { x: 1260, y: 720, len: 200, w: 14, o: i === 3 ? 1 : .25 }); c.pose(q); });
+    yArrow(g, [1150, 470], [1380, 470], { color: RED, w: 5, head: 16 });
+    wLabel(g, 'a cilium', { x: 1260, y: 800, size: 26, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('order');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-order', prompt: ['Which lists the three fibers from thickest to thinnest?'],
+    build: withPic('order', choice([['microfilament, intermediate filament, microtubule'], ['intermediate filament, microtubule, microfilament'], ['microtubule, intermediate filament, microfilament'], ['microtubule, microfilament, intermediate filament']], 2,
+      'Right. Microtubules about 25 nm, intermediate filaments 8 to 12 nm, microfilaments about 7 nm.',
+      ['That runs from thinnest to thickest: the microfilament, at 7 nm, is the thinnest.',
+       'The microtubule, at 25 nm, is thicker than the intermediate filament.', null,
+       'The microfilament (7 nm) is the thinnest, so it comes last.'])) },
+  { id: 'p-motor', prompt: ['How does a motor protein move a vesicle?'],
+    build: withPic('motor', choice([['It pushes the vesicle through the cytosol, with no track.'], ['It grips a receptor on the vesicle and walks along a microtubule, powered by ATP.'], ['It is itself a microtubule that slides out of the cell.'], ['It runs on light, not ATP.']], 1,
+      'Right. The microtubule is the track; the motor protein carries the vesicle along it, using ATP at each step.',
+      ['The motor needs a track: it walks along a microtubule.', null,
+       'The motor protein is a protein that walks on the microtubule, not a microtubule itself.',
+       'Motor proteins are powered by ATP.'])) },
+  { id: 'p-count', prompt: ['Count the parts of one centriole.'],
+    build: withPic('count', blanks([
+      { parts: ['Triplets in one centriole: ', { box: '9' }], why: 'Nine triplets, in a ring.', hint: 'Count the groups round the ring.' },
+      { parts: ['Microtubules in that ring: ', { box: '27' }], why: '9 triplets × 3 microtubules = 27.', hint: 'Each triplet is three fused microtubules.' },
+    ])) },
+  { id: 'p-where', prompt: ['Which structure does each statement describe? Some fit more than one.'],
+    build: withPic('where', grid([
+      { parts: ['nine triplets in a ring, no central pair'], ans: ['c', 'b'], why: 'Both the centriole and the basal body.' },
+      { parts: ['nine doublets plus two central microtubules'], ans: ['i'], why: 'The cilium: the 9 + 2 pattern.' },
+      { parts: ['found as a pair in an animal centrosome'], ans: ['c'], why: 'The centrioles.' },
+      { parts: ['anchors a cilium or flagellum to the cell'], ans: ['b'], why: 'The basal body.' },
+      { parts: ['carries dynein arms on its outer doublets'], ans: ['i'], why: 'The cilium (and the flagellum).' },
+    ], [['c', 'centriole', null, 'C'], ['i', 'cilium', null, 'I'], ['b', 'basal body', null, 'B']], { text: true })) },
+  { id: 'p-beat', prompt: ['Flagellum, cilium, or both?'],
+    build: withPic('beat', grid([
+      { parts: ['beats in an undulating wave, like a snake'], ans: ['f'], why: 'The flagellum.' },
+      { parts: ['has a power stroke and a recovery stroke'], ans: ['c'], why: 'The cilium.' },
+      { parts: ['usually long, and one or a few per cell'], ans: ['f'], why: 'The flagellum. Cilia are short and usually many.' },
+      { parts: ['sweeps mucus out of the airway'], ans: ['c'], why: 'The cilia of the airway lining.' },
+      { parts: ['a core of microtubules covered by the plasma membrane'], ans: ['f', 'c'], why: 'Both share this structure.' },
+    ], [['f', 'flagellum', null, 'F'], ['c', 'cilium', null, 'C']], { text: true })) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>

@@ -82,8 +82,9 @@ body::before { background: none; }
 Contents.book({
   start: { unit: 3, chapter: 301, label: 1 },
   units: [   // [unit title, [[lesson title, minutes], ...], { unit, chapter }?]
-    ['Chapter 3: Water and Life', [['Polar Water and Hydrogen Bonds', 5], ['Cohesion and Moderation of Temperature', 7], ['Floating Ice and Water the Solvent', 7], ['Water Splitting, Acids, Bases and pH', 6], ['Buffers, Ka and pKa, Acid Rain', 7]]],
-    ['Chapter 5: Large Biological Molecules', [['Macromolecules, Monomers and Polymers', 7, { chapter: 1 }], ['Nucleic Acids: From Gene to Protein', 7, { chapter: 2 }], ['Nucleotides: Base, Sugar and Phosphate', 7, { chapter: 3 }], ['Polynucleotides and the Double Helix', 7, { chapter: 4 }]], { unit: 5, chapter: 501 }],
+    ['Water and Life', [['Polar Water and Hydrogen Bonds', 5], ['Cohesion and Moderation of Temperature', 7], ['Floating Ice and Water the Solvent', 7], ['Water Splitting, Acids, Bases and pH', 6], ['Buffers, Ka and pKa, Acid Rain', 7]]],
+    ['Large Biological Molecules', [['Macromolecules, Monomers and Polymers', 7, { chapter: 1 }], ['Nucleic Acids: From Gene to Protein', 7, { chapter: 2 }], ['Nucleotides: Base, Sugar and Phosphate', 7, { chapter: 3 }], ['Polynucleotides and the Double Helix', 7, { chapter: 4 }]], { unit: 5, chapter: 501 }],
+    ['A Tour of the Cell', [['Studying Cells: Prokaryotes and Eukaryotes', 7, { chapter: 1 }], ['The Nucleus and Ribosomes', 7, { chapter: 2 }], ['The ER and the Golgi Apparatus', 7, { chapter: 3 }], ['Lysosomes, Vacuoles and the Endomembrane System', 7, { chapter: 4 }], ['Mitochondria, Chloroplasts and Peroxisomes', 7, { chapter: 5 }], ['Microtubules, Cilia and Flagella', 7, { chapter: 6 }], ['Microfilaments and Intermediate Filaments', 7, { chapter: 7 }], ['Cell Walls, the ECM and Cell Junctions', 8, { chapter: 8 }]], { unit: 6, chapter: 601 }],
   ],
   hues: ['#f4a48c', '#86c9e8', '#f3c95c', '#e8a0c8', '#8fd6b0', '#bba8ee', '#f0b45a'],   // one colour per unit, cycling
   progressKey: 'animebook:progress:biology',   // the same key as --progress-key in lib/book.css
@@ -96,6 +97,17 @@ const resume = document.getElementById('resume'), resumeTo = resume.getAttribute
 if (resumeTo) {
   resume.setAttribute('href', lessonPath(+resumeTo[1]));
   resume.textContent = resume.textContent.replace('Chapter', 'Lesson');
+}
+// The engine labels each unit "Unit N"; a unit here is a textbook chapter, so the label reads "Chapter N" and the
+// unit titles in Contents.book carry only the chapter's name.
+for (const l of document.querySelectorAll('#units .unit h2 .label')) l.textContent = l.textContent.replace(/^Unit\b/, 'Chapter');
+// The engine counts its cards as "chapters" and the units as "units"; in this book a unit is a textbook chapter and a
+// card is a lesson. Rewrite the cover line and the contents header to say so ("3 chapters, 17 lessons, with sound").
+{
+  const cards = [...document.querySelectorAll('#units a.ch[id^="ch"]')], done = cards.filter(a => a.classList.contains('done')).length;
+  const nUnits = document.querySelectorAll('#units .unit').length, plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  document.getElementById('meta').textContent = `${plural(nUnits, 'chapter')}, ${plural(cards.length, 'lesson')}, with sound`;
+  document.getElementById('prog').innerHTML = done ? `<b>${done}</b> of ${plural(cards.length, 'lesson')} finished` : plural(cards.length, 'lesson');
 }
 </script>
 </body>

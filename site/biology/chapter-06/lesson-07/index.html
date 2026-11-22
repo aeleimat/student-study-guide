@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 6, Lesson 7: Microfilaments and Intermediate Filaments — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 6 (A Tour of the Cell), lesson 7: an arm and a pond amoeba open on the tour map with the cytoskeleton
+// lit; microfilaments (7 nm, a twisted double chain of actin) bear tension, form the cortex and the core of microvilli;
+// with myosin they slide in muscle, drive amoeboid movement and cytoplasmic streaming; the figure's three scale bars;
+// intermediate filaments (8–12 nm) hold shape and organelles and are the most permanent; the three fibres compared;
+// checks, summary, practice. Plan, errata and storyboard: books/biology/chapters/chapter-06/lesson-07.md.
+const CHAPTER = { number: 607, label: '6, lesson 7', title: 'Microfilaments and Intermediate Filaments', minutes: 7, language: 'en', lead: false, next: '../lesson-08/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+const tag = (p, str, a, l, t0, o = {}) => { const e = yTag(p, str, a, l, { o: 0, ...o }); show(e, t0, .5); return e; };
+const SKIN = '#d9a27e', SKIN_DK = '#a8714f', SLEEVE = '#4a6fa5', RED = '#e5533d', SURF = '#24405f';
+// The kit's poses cache on a rounded key but draw from the raw value, so a stepped frame keeps a pose from a value a
+// hair away from the final one (cyto.js microtubule.set, muscleUnit.contract, amoebaCrawl.crawl, cytoStreaming.flow).
+// The page hands them values already on their key's grid, so every pose is a function of the beat clock alone.
+const qz = (v, n) => Math.round(v * n) / n;
+// A drawn fraction that reached 0 leaves an empty style attribute (the engine hides it, then clears that): drop it.
+const l7Set = (e, v) => { const r = Math.round(v * 50) / 50; if (st(e).d !== r) { put(e, { d: r }); if (e.getAttribute('style') === '') e.removeAttribute('style'); } };
+
+// An arm curling a dumbbell: shoulder at the origin, upper arm down to the elbow at (0, 300). .lift(k) k 0..1 bends the
+// forearm up and the biceps bulges. .biceps is the bulge's centre in parent.
+function l7Arm(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M0 0L0 300', { stroke: SKIN, 'stroke-width': 104, 'stroke-linecap': 'round' });
+  const bi = mk('ellipse', { cx: 34, cy: 150, rx: 34, ry: 112, fill: SKIN, stroke: SKIN_DK, 'stroke-width': 3 }, g);
+  path(g, 'M-30 150Q-34 210 -22 262', { stroke: SKIN_DK, 'stroke-width': 3, 'stroke-opacity': .6 });
+  mk('rect', { x: -66, y: -90, width: 132, height: 120, rx: 26, fill: SLEEVE }, g);
+  path(g, 'M-66 22H66', { stroke: '#355584', 'stroke-width': 6 });
+  const fore = G(g, { x: 0, y: 300 });
+  path(fore, 'M0 0L250 0', { stroke: SKIN, 'stroke-width': 88, 'stroke-linecap': 'round' });
+  const db = G(fore, { x: 280 });
+  mk('rect', { x: -9, y: -110, width: 18, height: 220, rx: 6, fill: '#8a96a8' }, db);
+  mk('rect', { x: -34, y: -132, width: 68, height: 36, rx: 8, fill: '#5d6b80' }, db);
+  mk('rect', { x: -34, y: 96, width: 68, height: 36, rx: 8, fill: '#5d6b80' }, db);
+  mk('circle', { cx: 0, cy: 0, r: 50, fill: SKIN, stroke: SKIN_DK, 'stroke-width': 3 }, db);
+  path(db, 'M-22 -30Q-6 -36 10 -26M-24 -8Q-8 -14 10 -4M-22 14Q-6 8 10 18', { stroke: SKIN_DK, 'stroke-width': 3 });
+  mk('circle', { cx: 0, cy: 300, r: 50, fill: SKIN }, g);
+  let cur = -1;
+  const arm = Object.assign(g, {
+    lift(k) {
+      k = clamp01(k); const key = Math.round(k * 400); if (key === cur) return arm; cur = key; k = key / 400;
+      put(fore, { r: lerp(55, -78, io(k)) });
+      yAt(bi, 'rx', (34 + 30 * io(k)).toFixed(1)); yAt(bi, 'ry', (112 - 18 * io(k)).toFixed(1)); yAt(bi, 'cx', (34 + 16 * io(k)).toFixed(1));
+      return arm;
+    },
+    biceps() { return yOut(g, [60, 150]); },
+  });
+  return arm.lift(0);
+}
+
+// A bundle of muscle fibres, like strands of meat: five long fibres between two tendon plates, the right plate slides left
+// as .contract(k) k 0..1 shortens and fattens them. Centred on its origin, 640 wide at rest.
+function l7Fibres(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o }), N = 5, FILL = ['#b8554c', '#a84a42', '#c0605a', '#a84a42', '#b8554c'];
+  const tL = mk('rect', { x: -330, y: -200, width: 26, height: 400, rx: 10, fill: '#d8c9a6', stroke: '#9b8a62', 'stroke-width': 3 }, g);
+  const tR = mk('rect', { x: 310, y: -200, width: 26, height: 400, rx: 10, fill: '#d8c9a6', stroke: '#9b8a62', 'stroke-width': 3 }, g);
+  const fib = [], str = [];
+  for (let i = 0; i < N; i++) {
+    fib.push(mk('rect', { fill: FILL[i], stroke: '#7a2f2a', 'stroke-width': 3 }, g));
+    str.push(path(g, '', { stroke: '#e3948a', 'stroke-width': 2, 'stroke-opacity': .55 }));
+  }
+  let cur = -1;
+  const fb = Object.assign(g, {
+    contract(k) {
+      k = clamp01(k); const key = Math.round(k * 400); if (key === cur) return fb; cur = key; k = key / 400;
+      const e = io(k), right = lerp(306, 196, e), h = lerp(56, 76, e), gap = 8, tot = N * h + (N - 1) * gap, len = right - (-300);
+      yAt(tR, 'x', (right + 4).toFixed(1));
+      fib.forEach((r, i) => {
+        const y0 = -tot / 2 + i * (h + gap);
+        yAt(r, 'x', -300); yAt(r, 'y', y0.toFixed(1)); yAt(r, 'width', len.toFixed(1)); yAt(r, 'height', h.toFixed(1)); yAt(r, 'rx', h / 2);
+        let d = ''; for (let xx = -270; xx < right - 20; xx += 34) d += `M${xx} ${(y0 + 12).toFixed(1)}V${(y0 + h - 12).toFixed(1)}`;
+        yD(str[i], d);
+      });
+      return fb;
+    },
+  });
+  return fb.contract(0);
+}
+
+// A pond drop: a round slide of water with a few specks.
+function l7Pond(p, { x = 0, y = 0, r = 250, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: '#17425a', stroke: '#5fd3e8', 'stroke-width': 4, 'stroke-opacity': .6 }, g);
+  mk('circle', { r: r - 14, fill: 'none', stroke: '#5fd3e8', 'stroke-width': 2, 'stroke-opacity': .25 }, g);
+  let d = ''; for (let i = 0; i < 16; i++) { const a = wHash(i, 7) * 6.28, rr = (r - 40) * Math.sqrt(wHash(i, 8)); d += yCirc(rr * Math.cos(a), rr * Math.sin(a), 3 + 3 * wHash(i, 9)); }
+  path(g, d, { fill: '#8fd6b0', 'fill-opacity': .35 });
+  return g;
+}
+
+// The tour map: the animal cell with its cytoskeleton drawn brighter (pink actin under the membrane, mint microtubules
+// from the centrosome, gold intermediate filaments from the nucleus to the membrane). .net {pink, mint, gold} paths.
+function l7Map(p, { x = 800, y = 470, s = .72, o = 1, drawn = true } = {}) {
+  const cm = cellMap(p, { kind: 'animal', x, y, s, o });
+  const L = G(cm), st0 = { d: drawn ? 1 : 0 };
+  const pink = path(L, cBlob(510, 312, { seed: 2 }), { stroke: CC.actin, 'stroke-width': 7 }, st0);
+  const c0 = [-385, 110];
+  let md = '';
+  [[-480, -120], [-250, -255], [-150, 250], [-470, 215], [-10, 300], [-280, -60], [-330, 290]].forEach(([ex, ey], i) => {
+    const mx = (c0[0] + ex) / 2 + (i % 2 ? 30 : -30), my = (c0[1] + ey) / 2 + (i % 2 ? -20 : 20);
+    md += `M${c0[0]} ${c0[1]}Q${mx} ${my} ${ex} ${ey}`;
+  });
+  const mint = path(L, md, { stroke: CC.mt, 'stroke-width': 6 }, st0);
+  let gd = '';
+  [-62, -20, 25, 205, 245, 110].forEach(a => {
+    const ar = a * Math.PI / 180, sx = -100 + 158 * Math.cos(ar), sy = -35 + 158 * Math.sin(ar);
+    let [ex, ey] = cBlobPt(500, 300, ar, 2);
+    if (a === 110) { ex = -60; ey = 250; }
+    gd += `M${sx.toFixed(1)} ${sy.toFixed(1)}Q${((sx + ex) / 2 + 30).toFixed(1)} ${((sy + ey) / 2 - 25).toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}`;
+  });
+  const gold = path(L, gd, { stroke: CC.ifil, 'stroke-width': 7 }, st0);
+  return Object.assign(cm, { net: { pink, mint, gold } });
+}
+
+// Two hands with laced fingers: left (pink, actin) and right (lavender, myosin) fingers interleaved. Centred on origin.
+function l7Fingers(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -150, y: -78, width: 60, height: 156, rx: 22, fill: YC.actin }, g);
+  mk('rect', { x: 90, y: -78, width: 60, height: 156, rx: 22, fill: YC.myosin }, g);
+  [-60, -20, 20, 60].forEach(yy => mk('rect', { x: -110, y: yy - 13, width: 170, height: 26, rx: 13, fill: YC.actin, stroke: YC.actinDk, 'stroke-width': 2 }, g));
+  [-40, 0, 40].forEach(yy => mk('rect', { x: -60, y: yy - 13, width: 170, height: 26, rx: 13, fill: YC.myosin, stroke: YC.myosinEdge, 'stroke-width': 2 }, g));
+  return g;
+}
+
+// A four-pointed spark (energy), centred on its origin.
+function l7Spark(p, { x = 0, y = 0, s = 1, o = 1, color = YC.atp } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M0 -18L5 -5L18 0L5 5L0 18L-5 5L-18 0L-5 -5Z', { fill: color });
+  return g;
+}
+
+// A muscle cell: a long cell with faint striations of actin and myosin. Centred on its origin, 1300 × 130.
+function l7MuscleCell(p, { x = 0, y = 0, s = 1, o = 1, w = 1300, hh = 130 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -w / 2, y: -hh / 2, width: w, height: hh, rx: hh / 2, fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 6 }, g);
+  let a = '', b = '';
+  for (let xx = -w / 2 + 60; xx < w / 2 - 50; xx += 36) { a += `M${xx} ${-hh / 2 + 14}V${hh / 2 - 14}`; b += `M${xx + 18} ${-hh / 2 + 18}V${hh / 2 - 18}`; }
+  path(g, a, { stroke: YC.myosin, 'stroke-width': 8, 'stroke-opacity': .45 });
+  path(g, b, { stroke: YC.actin, 'stroke-width': 3, 'stroke-opacity': .45 });
+  mk('ellipse', { cx: -w * .22, cy: 0, rx: 60, ry: 26, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 3 }, g);
+  return g;
+}
+
+// A leaf: a pointed blade with a midrib and veins, a patch of cells marked near the middle. Centred on its origin.
+function l7Leaf(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-420 0C-300 -230 200 -260 420 0C200 260 -300 230 -420 0Z', { fill: '#3f9a4a', stroke: '#2f7a3a', 'stroke-width': 6 });
+  path(g, 'M-460 30L-420 0L420 0', { stroke: '#2a6a33', 'stroke-width': 8 });
+  let v = ''; [-280, -160, -40, 80, 200].forEach(xx => { v += `M${xx} 0Q${xx + 60} -70 ${xx + 110} -150M${xx} 0Q${xx + 60} 70 ${xx + 110} 150`; });
+  path(g, v, { stroke: '#2f7a3a', 'stroke-width': 4 });
+  let c = ''; for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) c += `M${-60 + i * 40} ${-80 + j * 24}h38v22h-38Z`;
+  path(g, c, { fill: '#5bbf5b', stroke: '#e9f5d0', 'stroke-width': 2 });
+  return g;
+}
+
+// A plain rope path of intermediate filament (gold with a dark edge), for curves the kit's straight piece cannot follow.
+function l7Rope(p, d, o = 1) {
+  const g = G(p, { o });
+  path(g, d, { stroke: YC.interDk, 'stroke-width': 11 });
+  path(g, d, { stroke: YC.inter, 'stroke-width': 6, 'stroke-dasharray': '12 5' });
+  return g;
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Moving cells', (m, D) => {
+  const p = panel(0), tA = m('arm'), tAm = m('amoeba'), tM = m('map'), tQ = m('ask');
+  // title, right
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 6 · LESSON 7', { x: 1150, y: 220, size: 26, fill: COL.dim, o: 1 });
+  ['Microfilaments', 'and intermediate', 'filaments'].forEach((s, i) => wLabel(ttl, s, { x: 1150, y: 310 + i * 76, size: 62, o: 1 }));
+  wLabel(ttl, 'A tour of the cell: the cytoskeleton', { x: 1150, y: 560, size: 30, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tAm - .2, .5);
+  // fibres: a bundle of muscle fibres (like strands of meat) that shortens and lengthens
+  const A = G(p, { o: 0 }); show(A, .2, .6);
+  mk('rect', { x: 60, y: 90, width: 620, height: 720, rx: 28, fill: '#132a47', stroke: COL.faint, 'stroke-width': 2 }, A);
+  const arm = l7Fibres(A, { x: 370, y: 450, s: .88 });
+  clockRun(t => arm.contract(t < tA + .3 ? 0 : t < tA + 2.7 ? ramp(t, tA + .3, tA + 2.7) : 1 - .6 * ramp(t, tAm - .3, tAm + 2)), D);
+  const ma = G(A, { o: 0 }); show(ma, tA + 1.6, .4);
+  yArrow(ma, [150, 700], [235, 700], { color: RED, w: 6, head: 18 });
+  yArrow(ma, [590, 700], [505, 700], { color: RED, w: 6, head: 18 });
+  say(A, 'muscle cells shorten', 370, 770, tA + 1.8, { size: 34, weight: 700 });
+  say(A, 'muscle fibres', 370, 150, tA + .5, { size: 28, fill: COL.dim, weight: 500 });
+  // amoeba: a pond drop, an amoeba putting out a lobe
+  const pd = l7Pond(p, { x: 1150, y: 450, r: 270, o: 0 }); show(pd, tAm, .6);
+  const am = amoebaCrawl(p, { x: 1070, y: 450, s: .62, R: 140, cycles: 2, o: 0 }); show(am, tAm + .2, .6);
+  prog(k => am.crawl(qz(k, 4000)), tAm + .6, tM - tAm - .2, lin);
+  const l1 = say(p, 'a pond amoeba', 1150, 790, tAm + .5, { size: 32, weight: 700 });
+  const l2 = say(p, 'crawls with no legs', 1150, 834, tAm + 1.2, { size: 28, fill: COL.dim, weight: 500 });
+  [A, pd, am, l1, l2].forEach(e => hide(e, tM - .1, .6));
+  // map: the tour map, the cytoskeleton lit
+  const cm = l7Map(p, { x: 800, y: 470, s: .72, o: 0, drawn: false });
+  show(cm, tM + .1, .4); prog(k => cm.build(k), tM + .1, 1.6, lin);
+  prog(k => cm.focus(['cytoskeleton', 'centrosome'], k), tM + 1.8, .9);
+  draw(cm.net.pink, tM + 2, 1.2); draw(cm.net.mint, tM + 2.4, 1.2); draw(cm.net.gold, tM + 2.8, 1.2);
+  say(p, 'cytoskeleton', 800, 120, tM + 2.2, { size: 44, weight: 700 });
+  say(p, 'scaffolding and rails', 800, 166, tM + 2.8, { size: 28, fill: COL.dim, weight: 500 });
+  // ask: two of its three kinds of fibre
+  const chips = [['microfilaments', YC.actin, 340, 1], ['intermediate filaments', YC.inter, 800, 1], ['microtubules · lesson 6', COL.dim, 1260, .5]];
+  chips.forEach(([s, c, x, op], i) => {
+    const g = G(p, { x, y: 810, o: 0 }); tw(g, { o: op }, tQ + .2 + .5 * i, .5);
+    const w = uiW(s, 30) + 50;
+    mk('rect', { x: -w / 2, y: -30, width: w, height: 60, rx: 30, fill: COL.board, stroke: c, 'stroke-width': 3 }, g);
+    wLabel(g, s, { y: 10, size: 30, fill: c, weight: 700, o: 1 });
+  });
+  const qm = say(p, '?', 1240, 330, tQ + 3.2, { size: 80, fill: CC.hi, weight: 800 }); pulse(qm, tQ + 3.5, 1.3);
+}],
+
+/* ---------- actin ---------- */
+['actin', 'Microfilaments', (m, D) => {
+  // Push from the tour map into its edge; a close-up of the cell edge takes over.
+  const p = panel(0), tR = m('rod'), tH = m('helix'), tP = m('pull'), tC = m('cortex'), tV = m('villi');
+  const cam = camera(p, D, { x: 800, y: 470, z: 1 }), W = cam.world;
+  const cm = l7Map(W, { x: 800, y: 470, s: .72 }); cm.focus(['cytoskeleton', 'centrosome'], 1);
+  const [ex, ey] = cOut(cm, cBlobPt(540, 340, -Math.PI / 2 - .15, 2));
+  cam.to({ x: ex, y: ey + 40, z: 6 }, .1, 1.4);
+  // the close-up covers the stage by 1.4 s, so the zoomed map (the costly frames) goes at once
+  const C = G(p, { o: 0 }); show(C, .95, .45); hide(cam.el, 1.4, .05);
+  mk('rect', { x: 0, y: 0, width: 1600, height: 900, fill: CC.cyto }, C);
+  mk('rect', { x: 0, y: 0, width: 1600, height: 84, fill: '#0f1e33' }, C);
+  mk('rect', { x: 0, y: 84, width: 1600, height: 30, fill: '#2b4a73' }, C);
+  path(C, 'M0 84H1600M0 114H1600', { stroke: CC.membrane, 'stroke-width': 6 });
+  wLabel(C, 'plasma membrane', { x: 1570, y: 60, size: 24, fill: COL.dim, anchor: 'end', weight: 500, o: 1 });
+  wLabel(C, 'cytoplasm', { x: 1570, y: 870, size: 24, fill: COL.dim, anchor: 'end', weight: 500, o: 1 });
+  // rod: one microfilament, a solid rod 7 nm across
+  const FL = G(C, { x: 800, y: 470 });
+  const rod = mk('rect', { x: -500, y: -28, width: 1000, height: 56, rx: 28, fill: YC.actin, stroke: YC.actinDk, 'stroke-width': 3 }, FL);
+  put(rod, { o: 0 }); show(rod, Math.min(tR, 1.4), .5);
+  const mf = microfilament(FL, { x: -500, y: 0, len: 1000, nm: 8, o: 0 });
+  const dim7 = G(FL, { o: 0 }); show(dim7, tR + 1.4, .4);
+  path(dim7, 'M530 -28V28M520 -28H540M520 28H540', { stroke: COL.chalk, 'stroke-width': 3 });
+  wLabel(dim7, '7 nm', { x: 552, y: 10, size: 30, anchor: 'start', weight: 700, o: 1 });
+  const lr = say(C, 'microfilament', 800, 360, tR + .4, { size: 42, weight: 700, fill: YC.actin });
+  const lr2 = say(C, 'a solid rod', 800, 400, tR + 1, { size: 28, fill: COL.dim, weight: 500 });
+  // helix: two strands of actin beads twisted together
+  hide(rod, tH + .2, .6); show(mf, tH + .2, .6);
+  const hl = G(C, { o: 0 }); show(hl, tH + 1.2, .5);
+  const b1 = mf.beads.find(b => b.x > 230 && b.front), b2 = mf.beads.find(b => b.x > 470 && b.front);
+  mk('circle', { cx: 300 + b1.x, cy: 470 + b1.y, r: 22, fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, hl);
+  path(hl, `M${300 + b1.x} ${470 + b1.y + 22}L${300 + b1.x - 40} 610`, { stroke: COL.dim, 'stroke-width': 2.5 });
+  wLabel(hl, 'actin subunit', { x: 300 + b1.x - 40, y: 646, size: 30, fill: YC.actin, weight: 700, o: 1 });
+  const s2 = G(C, { o: 0 }); show(s2, tH + 3.4, .5);
+  wLabel(s2, 'two strands, twisted into a helix', { x: 300 + b2.x + 60, y: 646, size: 30, o: 1 });
+  path(s2, `M${300 + b2.x + 60} 612L${300 + b2.x + 20} ${470 + 24}`, { stroke: COL.dim, 'stroke-width': 2.5 });
+  hide(lr, tP - .3, .3); hide(lr2, tP - .3, .3);
+  // pull: tension at both ends, the filament stays taut
+  hide(dim7, tP - .2, .3);
+  const PL = G(C, { o: 0 }); show(PL, tP + .1, .4);
+  yArrow(PL, [330, 470], [170, 470], { color: COL.chalk, w: 7, head: 22 });
+  yArrow(PL, [1270, 470], [1430, 470], { color: COL.chalk, w: 7, head: 22 });
+  wLabel(PL, 'bears tension', { x: 800, y: 330, size: 40, weight: 700, o: 1 });
+  wLabel(PL, 'resists pulling forces', { x: 800, y: 372, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  prog(q => put(FL, { s: 1 + .012 * Math.sin(Math.PI * q) }), tP + .2, 2.4, lin);
+  // a tent, held up by its cables
+  const tent = G(C, { x: 1320, y: 760, o: 0 }); show(tent, tP + 3.2, .5);
+  path(tent, 'M-70 0L0 -110L70 0Z', { fill: '#f39a2b', stroke: '#b86e1c', 'stroke-width': 3 });
+  path(tent, 'M0 -110L-150 10M0 -110L150 10', { stroke: YC.actin, 'stroke-width': 4 });
+  mk('rect', { x: -170, y: 0, width: 340, height: 6, fill: COL.dim }, tent);
+  wLabel(tent, 'like tent cables', { y: 50, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  // cortex: a mesh just inside the membrane; the filament joins it
+  hide(PL, tC - .4, .4); hide(tent, tC - .4, .4); hide(hl, tC - .4, .4); hide(s2, tC - .4, .4);
+  tw(FL, { s: .3, y: 190, o: 0 }, tC, 1.2, io);
+  const NC = 24, NR = 3, pts = [];
+  for (let r = 0; r < NR; r++) for (let c = 0; c < NC; c++) pts.push([c * 70 + (r % 2) * 35 + 22 * (wHash(r * NC + c, 2) - .5), 145 + r * 42 + 18 * (wHash(r * NC + c, 3) - .5)]);
+  let md = '';
+  const P2 = (r, c) => pts[r * NC + c];
+  for (let r = 0; r < NR; r++) for (let c = 0; c < NC; c++) {
+    const a = P2(r, c), seg = q => { if (q) md += `M${a[0].toFixed(1)} ${a[1].toFixed(1)}L${q[0].toFixed(1)} ${q[1].toFixed(1)}`; };
+    if (c + 1 < NC) seg(P2(r, c + 1));
+    if (r + 1 < NR) { seg(P2(r + 1, c)); seg(r % 2 ? (c + 1 < NC ? P2(r + 1, c + 1) : null) : (c > 0 ? P2(r + 1, c - 1) : null)); }
+  }
+  const mesh = path(C, md, { stroke: YC.actin, 'stroke-width': 5 }, { d: 0 }); draw(mesh, tC + .5, 1.6);
+  tag(C, 'cortex', [520, 185], [520, 330], tC + 1.2, { size: 38, fill: YC.actin });
+  say(C, 'a 3-D network just inside the plasma membrane', 520, 410, tC + 2, { size: 28 });
+  // the whole cell, small: the cortex ring keeps its shape
+  const cellI = G(C, { x: 1240, y: 640, o: 0 }); show(cellI, tC + 3.6, .6);
+  path(cellI, cBlob(220, 140, { seed: 4 }), { fill: '#21426b', stroke: CC.membrane, 'stroke-width': 5 });
+  path(cellI, cBlob(204, 126, { seed: 4 }), { stroke: YC.actin, 'stroke-width': 7, 'stroke-dasharray': '12 5' });
+  mk('circle', { cx: -40, cy: 10, r: 50, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 4 }, cellI);
+  mk('rect', { x: -40, y: -160, width: 80, height: 50, rx: 6, fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, cellI);
+  wLabel(cellI, 'supports the cell’s shape', { y: 205, size: 30, o: 1 });
+  // villi: an intestinal cell's microvilli, each with a bundle of microfilaments as its core
+  const V = G(p, { o: 0 }); show(V, tV, .7);
+  mk('rect', { x: 0, y: 0, width: 1600, height: 900, fill: '#0f1e33' }, V);
+  const X0 = 330, gapX = 165, FW = 76, top = 250, base = 560;
+  let d = `M0 ${base}`;
+  for (let i = 0; i < 7; i++) { const x = X0 + i * gapX; d += `L${x} ${base}V${top + FW / 2}A${FW / 2} ${FW / 2} 0 0 1 ${x + FW} ${top + FW / 2}V${base}`; }
+  d += `L1600 ${base}`;
+  path(V, d + 'V900H0Z', { fill: CC.cyto });
+  path(V, d, { stroke: CC.membrane, 'stroke-width': 6 });
+  let bd = '';
+  for (let i = 0; i < 7; i++) { const x = X0 + i * gapX + FW / 2; [-18, -6, 6, 18].forEach(o2 => { bd += `M${x + o2} ${top + 30}V${base + 90}`; }); }
+  const bundles = path(V, bd, { stroke: YC.actin, 'stroke-width': 5 }, { d: 0 }); draw(bundles, tV + 1.2, 1.4);
+  path(V, `M${X0 - 40} ${base + 80}H${X0 + 6 * gapX + FW + 40}`, { stroke: YC.actin, 'stroke-width': 4, 'stroke-opacity': .55, 'stroke-dasharray': '10 6' });
+  wLabel(V, 'intestinal cell', { x: 800, y: 760, size: 32, fill: COL.dim, weight: 600, o: 1 });
+  tag(V, 'microvilli', [X0 + 6 * gapX + FW / 2, top + 10], [1480, 150], tV + .9, { size: 36, anchor: 'middle' });
+  tag(V, 'core: a bundle\nof microfilaments', [X0 + FW / 2 + 6, 420], [180, 140], tV + 2.4, { size: 30, fill: YC.actin, anchor: 'middle' });
+  // food molecules drift down onto the fingers
+  const food = [];
+  for (let i = 0; i < 12; i++) food.push(mk('circle', { r: 7, fill: ['#f07a6a', '#ffd27a', '#8fd6b0'][i % 3] }, V));
+  clockRun(t => {
+    food.forEach((e, i) => {
+      const u = yFrac((t - tV) / 5 + i / 12), x = X0 - 30 + (i * 97) % (6 * gapX + 120), y = 90 + u * 150;
+      put(e, { x, y, o: t < tV ? 0 : ramp(t, tV + .6, tV + 1.2) * yBump(u, 0, 1) });
+    });
+  }, D);
+  say(V, 'more surface to soak up food', 800, 820, tV + 5, { size: 28, fill: COL.dim, weight: 500 });
+}, { lead: false }],
+
+/* ---------- muscle ---------- */
+['muscle', 'Actin and myosin', (m, D) => {
+  const p = panel(0), tMy = m('myo'), tPa = m('parallel'), tTh = m('thick'), tHe = m('heads'), tSl = m('slide'), tK = m('keep'), tE = m('energy'), tL = m('lift');
+  // a muscle cell, then a push into one repeating unit
+  const MC0 = l7MuscleCell(p, { x: 800, y: 460, o: 0 }); show(MC0, .2, .5);
+  const lm = say(p, 'a muscle cell', 800, 360, .4, { size: 36, weight: 700 });
+  const bx = mk('rect', { x: 740, y: 395, width: 120, height: 130, rx: 8, fill: 'none', stroke: COL.chalk, 'stroke-width': 4 }, p); put(bx, { o: 0 }); show(bx, 1.3, .3);
+  tw(MC0, { s: 7, o: 0 }, 2.3, 1.4, io); hide(bx, 2.4, .5); hide(lm, 2.2, .4);
+  // the unit (schematic)
+  const UX = 800, UY = 520, Wd = 1000, Hd = 300;
+  const mu = muscleUnit(p, { x: UX, y: UY, w: Wd, h: Hd, cycles: 4 });
+  mu.actins.forEach(a => put(a, { o: 0 })); mu.myosins.forEach(e => put(e, { o: 0 })); mu.plates.forEach(e => put(e.firstChild, { o: 0 }));
+  notToScale(p, 1570, 40, 3);
+  // myo: a myosin motor protein
+  const MY = G(p, { x: 800, y: 175, o: 0 }); show(MY, tMy, .5);
+  mk('rect', { x: -150, y: -9, width: 170, height: 18, rx: 9, fill: YC.myosin, stroke: YC.myosinEdge, 'stroke-width': 2 }, MY);
+  path(MY, 'M20 0Q36 -4 44 -22', { stroke: YC.myosinEdge, 'stroke-width': 6 });
+  mk('ellipse', { cx: 50, cy: -34, rx: 16, ry: 20, fill: YC.myosin, stroke: YC.myosinEdge, 'stroke-width': 2 }, MY);
+  wLabel(MY, 'myosin', { x: 100, y: -4, size: 36, weight: 700, fill: YC.myosin, anchor: 'start', o: 1 });
+  wLabel(MY, 'a motor protein', { x: 100, y: 34, size: 26, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+  tw(MY, { x: 260, y: 120, s: .7 }, tPa - .2, .8, io);
+  // parallel: thin actin filaments, fixed to the ends
+  mu.plates.forEach(e => show(e.firstChild, tPa, .4));
+  mu.actins.forEach((a, i) => show(a, tPa + .3 + .25 * i, .5));
+  tag(p, 'actin (thin)', [UX - Wd / 2 + 120, UY - Hd * .4], [230, 230], tPa + 1.4, { size: 32, fill: YC.actin });
+  // thick: myosin filaments slide in between, interdigitated
+  mu.myosins.forEach((e, i) => { const y0 = st(e).y; put(e, { y: y0 + 120 * (i ? 1 : -1) }); tw(e, { y: y0, o: 1 }, tTh + .2 + .3 * i, 1, out); });
+  tag(p, 'myosin (thick)', [UX + 250, UY - Hd * .2], [1430, 250], tTh + 1.4, { size: 32, fill: YC.myosin, anchor: 'middle' });
+  const fi = l7Fingers(p, { x: 1060, y: 130, s: .55, o: 0 }); show(fi, tTh + 3.2, .5);
+  say(p, 'interdigitated', 1060, 206, tTh + 3.4, { size: 26, fill: COL.dim, weight: 500 });
+  // heads: grip and pull; slide: the filaments slide, the unit shortens, the overlap grows
+  const hb = G(p, { o: 0 }); show(hb, tHe, .3); hide(hb, tSl + 1, .4);
+  const [hx, hy] = mu.pt('head');
+  mk('circle', { cx: hx, cy: hy, r: 30, fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, hb);
+  mu.heads.forEach((e, i) => { if (i % 3 === 0) pulse(e, tHe + .2 + .03 * i, 1.4); });
+  const lh = say(p, 'myosin heads grip and pull', 800, 820, tHe + .3, { size: 30 }); hide(lh, tSl - .1, .3);
+  const arr = G(p, { o: 0 }); show(arr, tSl, .4);
+  yArrow(arr, [210, 760], [360, 760], { color: RED, w: 8, head: 24 }); yArrow(arr, [1390, 760], [1240, 760], { color: RED, w: 8, head: 24 });
+  say(p, 'the filaments slide: the unit shortens', 800, 820, tSl + .4, { size: 30 });
+  const ov = path(p, '', { stroke: COL.chalk, 'stroke-width': 3 }, { o: 0 }); show(ov, tSl + 1.2, .4);
+  const ovT = say(p, 'overlap', 0, 0, tSl + 1.2, { size: 26, fill: COL.chalk });
+  const kp = path(p, '', { stroke: YC.actin, 'stroke-width': 3 }, { o: 0 }); show(kp, tK, .4);
+  const kpT = say(p, 'same length', 0, 0, tK + .2, { size: 26, fill: YC.actin });
+  say(p, 'filaments don’t shrink: they slide', 800, 870, tK + 1.6, { size: 30, fill: COL.dim, weight: 500 });
+  const mx = Wd * .31, aLen = Wd * .42;
+  clockRun(t => {
+    mu.contract(qz(ramp(t, tHe + .3, tSl + 5.4), 4000));
+    const lp = st(mu.plates[0]).x, tip = UX + lp + 4 + aLen, a0 = UX - mx, yb = UY + Hd / 2 + 40;
+    yD(ov, `M${a0.toFixed(1)} ${yb - 12}V${yb}H${tip.toFixed(1)}V${yb - 12}`);
+    put(ovT, { x: (a0 + tip) / 2, y: yb + 30 });
+    const ka = UX + lp + 4, ky = UY - Hd * .4 - 34;
+    yD(kp, `M${ka.toFixed(1)} ${ky + 12}V${ky}H${(ka + aLen).toFixed(1)}V${ky + 12}`);
+    put(kpT, { x: ka + aLen / 2, y: ky - 10 });
+  }, D);
+  // energy: a spark at the heads
+  const sp = mu.heads.filter((e, i) => i % 4 === 1).map(e => {
+    const mg = e.parentNode, s = Math.sign(st(e).y) || 1, [x, y] = [UX + st(e).x, UY + st(mg).y + st(e).y + s * 30];
+    return l7Spark(p, { x: x + 16, y, s: .8, o: 0 });
+  });
+  clockRun(t => sp.forEach((e, i) => { const o2 = t < tE + .2 ? 0 : (.35 + .65 * Math.abs(Math.sin(3 * (t - tE) + i))) * (1 - ramp(t, tL, tL + .5)), o3 = qz(o2, 50); if (st(e).o !== o3) put(e, { o: o3 }); }), D);
+  say(p, 'energy from the cell', 1340, 870, tE + .5, { size: 28, fill: YC.atp });
+  // lift: the unit shrinks away, the arm lifts
+  const all = [...p.children].filter(e => e !== MC0);
+  all.forEach(e => hide(e, tL, .5));
+  const arm = l7Fibres(p, { x: 800, y: 440, o: 0 }); show(arm, tL + .3, .5);
+  prog(k => arm.contract(k), tL + .7, 2, lin);
+  say(p, 'thousands of cells shorten together', 800, 820, tL + 1, { size: 32 });
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const mu = muscleUnit(p, { x: 400, y: 380, w: 640, h: 230 });
+  wLabel(p, 'actin', { x: 120, y: 220, size: 28, fill: YC.actin, weight: 700, o: 1 });
+  wLabel(p, 'myosin', { x: 400, y: 560, size: 28, fill: YC.myosin, weight: 700, o: 1 });
+  wLabel(p, 'one unit of a muscle cell', { x: 400, y: 640, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  mu.contract(.35);
+}, { ask: done => quiz({ x: 820, y: 60, w: 740, cls: 'side' }, [{
+  id: 'c-muscle', prompt: ['What happens when a muscle cell contracts?'],
+  build: choice([
+    ['The actin and myosin filaments each get shorter.'],
+    ['Myosin heads pull the actin filaments past the myosin filaments, so the cell shortens.'],
+    ['Microtubules push the two ends of the cell apart.'],
+    ['The cortex dissolves into the cytoplasm.'],
+  ], 1, 'Right. The filaments keep their length; they slide past each other, the overlap grows and the cell shortens.', [
+    'Neither kind of filament shrinks. They slide past each other, and the overlap grows.', null,
+    'Microtubules are not the motor here: myosin pulls on actin.',
+    'The cortex is the actin network under the membrane; it plays no part in this sliding.',
+  ]),
+}], done) }],
+
+/* ---------- amoeba ---------- */
+['amoeba', 'Amoeboid movement', (m, D) => {
+  const p = panel(0), tA = m('amoeba'), tC = m('cortex'), tI = m('inner'), tCo = m('contract'), tE = m('extend'), tCr = m('crawl');
+  const sf = G(p, { o: 0 }); show(sf, 0, .4);
+  mk('rect', { x: 0, y: 652, width: 1600, height: 70, fill: SURF }, sf);
+  path(sf, 'M0 652H1600', { stroke: '#4d6f99', 'stroke-width': 4 });
+  wLabel(sf, 'surface', { x: 40, y: 700, size: 26, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+  const AX = 700, AY = 432, AR = 200;
+  const am = amoebaCrawl(p, { x: AX, y: AY, R: AR, cycles: 2, o: 0 }); show(am, .05, .5);
+  say(p, 'amoeboid movement', 800, 110, tA + .2, { size: 44, weight: 700 });
+  say(p, 'crawling', 800, 154, tA + .8, { size: 28, fill: COL.dim, weight: 500 });
+  const lc = tag(p, 'cortex: gel with\nan actin network', am.pt('cortex'), [330, 230], tC + .3, { size: 30, fill: YC.actin, anchor: 'middle' });
+  const li = tag(p, 'inner cytoplasm:\nmore fluid', am.pt('inner'), [1180, 260], tI + .2, { size: 30 });
+  hide(lc, tE + .4, .4); hide(li, tE + .4, .4);
+  // contract: the back squeezes
+  const sq = G(p, { o: 0 }); show(sq, tCo + .2, .4); hide(sq, tE + .8, .5);
+  [[-150, 0], [-120, -110], [-120, 110]].forEach(([dx, dy]) => { const L = Math.hypot(dx, dy); const k = 1.45 * AR / 170; yArrow(sq, [AX + dx * k, AY + dy * k], [AX + dx * k - 60 * dx / L, AY + dy * k - 60 * dy / L], { color: RED, w: 6, head: 18 }); });
+  const lco = say(p, 'localized contraction: actin + myosin', 800, 790, tCo + .4, { size: 30, fill: RED }); hide(lco, tCr + 1, .4);
+  // extend and crawl: a pseudopodium, then the body follows along the surface
+  const pl = G(p, { o: 0 }); show(pl, tE + 1, .5);
+  const plL = path(pl, '', { stroke: COL.dim, 'stroke-width': 2.5 });
+  const plT = wLabel(pl, 'extending pseudopodium', { size: 32, weight: 700, fill: '#ffd27a', anchor: 'start', o: 1 });
+  const plS = wLabel(pl, '“false foot”', { size: 26, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+  const plMax = 1570 - uiW('extending pseudopodium', 32);
+  const trail = path(p, '', { stroke: COL.dim, 'stroke-width': 4, 'stroke-dasharray': '4 12' });
+  const ar = G(p, { o: 0 }); show(ar, tCr + .3, .4);
+  yArrow(ar, [0, 0], [120, 0], { color: COL.chalk, w: 6, head: 20 });
+  say(p, 'the cell moves toward its pseudopodium', 800, 790, tCr + 1.2, { size: 30 });
+  clockRun(t => {
+    am.crawl(qz(ramp(t, tE - .6, D - .2), 4000));
+    const [fx, fy] = am.pt('pseudopod'), [nx] = am.pt('nucleus');
+    yD(plL, `M${(fx - 20).toFixed(1)} ${(fy - 40).toFixed(1)}L${(fx + 20).toFixed(1)} ${(fy - 170).toFixed(1)}`);
+    const lx = Math.min(fx + 28, plMax); put(plT, { x: lx, y: fy - 172 }); put(plS, { x: lx, y: fy - 136 });
+    yD(trail, `M${AX - AR} 640H${(nx - AR * .8).toFixed(1)}`);
+    put(ar, { x: fx + 40, y: AY + 120 });
+  }, D);
+}],
+
+/* ---------- stream ---------- */
+['stream', 'Cytoplasmic streaming', (m, D) => {
+  const p = panel(0), tL = m('leaf'), tC = m('chloro'), tD = m('drive'), tS = m('speed');
+  const leaf = l7Leaf(p, { x: 800, y: 450, o: 0 }); show(leaf, .2, .6);
+  const ll = say(p, 'a leaf', 800, 150, .4, { size: 34, weight: 700 });
+  tw(leaf, { s: 6, x: 700, y: 670, o: 0 }, tL + .2, 1.6, io); hide(ll, tL, .4);
+  const CW = 1040, CH = 540, CX = 800, CY = 480;
+  const cs = cytoStreaming(p, { x: CX, y: CY, w: CW, h: CH, n: 20, speed: 80, actin: false, s: .2, o: 0 });
+  put(cs, { x: 820, y: 406 }); tw(cs, { s: 1, o: 1, x: CX, y: CY }, tL + .6, 1.4, out);
+  say(p, 'inside a leaf cell', 800, 110, tL + 1.6, { size: 36, weight: 700 });
+  // the flow is in the thin cytoplasm band round the vacuole: chevrons ride that band, the caption sits in the vacuole
+  const trk = yTrack(yRoundRect(CW - 74, CH - 74, 22));
+  put(cs.arrows, { o: 0 });
+  const LP = G(p, { x: CX, y: CY, o: 0 }); show(LP, tL + 2.2, .5);
+  const chev = []; for (let i = 0; i < 8; i++) chev.push(path(G(LP), 'M-9 -11L7 0L-9 11', { stroke: COL.chalk, 'stroke-width': 5 }));
+  const lpT = G(LP, { x: 0, y: -10 });
+  wLabel(lpT, 'cytoplasmic streaming', { y: 0, size: 32, weight: 700, o: 1 });
+  wLabel(lpT, 'the thin layer of cytoplasm flows round the cell', { y: 38, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  // the chloroplast label rides with one chloroplast
+  const ch = G(p, { o: 0 }); show(ch, tC + .3, .4); hide(ch, tS - .3, .4);
+  const chT = wLabel(ch, 'chloroplast', { size: 30, fill: YC.chloro, weight: 700, o: 1 });
+  const chR = mk('circle', { r: 30, fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, ch);
+  const boats = say(p, 'carried like boats on a river', 800, 860, tC + 1, { size: 28, fill: COL.dim, weight: 500 }); hide(boats, tD, .3);
+  // drive: actin tracks with myosin, and the sol ⇄ gel changes
+  const tr = path(cs, yLine(yRoundRect(CW - 74, CH - 74, 22), true), { stroke: YC.actin, 'stroke-width': 4, 'stroke-dasharray': '12 7' }, { o: 0 });
+  cs.insertBefore(tr, cs.chloros[0]); show(tr, tD + .2, .5);
+  const myo = cs.chloros.map(c => { const e = mk('circle', { cx: 0, cy: 14, r: 6, fill: YC.myosin, stroke: YC.myosinEdge, 'stroke-width': 1.5 }, c); put(e, { o: 0 }); show(e, tD + 1, .4); return e; });
+  const dr = G(p, { o: 0 }); show(dr, tD + .6, .4); hide(dr, tS - .3, .4);
+  wLabel(dr, 'actin + myosin', { x: 800, y: 665, size: 30, fill: YC.actin, weight: 700, o: 1 });
+  const sg = G(p, { x: 1430, y: 110, o: 0 }); show(sg, tD + 4.4, .4); hide(sg, tS - .3, .4);
+  mk('rect', { x: -150, y: -36, width: 300, height: 72, rx: 36, fill: COL.board, stroke: COL.dim, 'stroke-width': 2 }, sg);
+  wLabel(sg, 'fluid ⇄ gel-like', { y: 8, size: 28, weight: 700, o: 1 });
+  const sgs = say(p, 'slide term: sol-gel', 1430, 186, tD + 7, { size: 24, fill: COL.dim, weight: 500 }); hide(sgs, tS - .3, .4);
+  pulse(sg, tD + 7.2, 1.15);
+  // speed: materials ride round with the flow
+  const mats = []; for (let i = 0; i < 18; i++) mats.push(mk('circle', { r: 9, fill: ['#f07a6a', '#ffd27a', '#5fd3e8'][i % 3] }, cs));
+  say(p, 'materials distributed faster', 800, 860, tS + .4, { size: 32, weight: 700 });
+  clockRun(t => {
+    const ft = Math.max(0, t - tC);
+    cs.flow(qz(ft, 120));
+    chev.forEach((e, i) => { const [qx, qy, an] = trk.at(i / 8 + .03 + 80 * ft / trk.tot), cq = Math.cos(an * Math.PI / 180), sq = Math.sin(an * Math.PI / 180); put(e.parentNode, { x: qx - sq * 20, y: qy + cq * 20, r: an }); });
+    const [lx0, ly0] = trk.at(80 * ft / trk.tot), cx = CX + lx0, cy = CY + ly0, nx = (cx - CX) / (CW / 2), ny = (cy - CY) / (CH / 2), nl = Math.hypot(nx, ny) || 1;
+    put(chR, { x: cx, y: cy }); put(chT, { x: cx + 160 * nx / nl, y: cy + 80 * ny / nl + 10 });
+    mats.forEach((e, i) => {
+      const [x, y] = trk.at(i / 18 + .03 + 1.6 * 80 * Math.max(0, t - tS) / trk.tot);
+      const off = 16 * Math.sin(i * 2.3);
+      put(e, { x: x + off, y: y - off * .6, o: t < tS ? 0 : ramp(t, tS + .2, tS + .8) });
+    });
+  }, D);
+}],
+
+/* ---------- scale ---------- */
+['scale', 'Reading the scale bars', (m, D) => {
+  const p = panel(0), tM = m('muscle'), tP = m('plant'), tA = m('ameba'), tS = m('same');
+  say(p, 'Always read the scale bar', 800, 100, .3, { size: 40, weight: 700 });
+  const tile = (x, t0, title, val, word, fill) => {
+    const g = G(p, { x, y: 190, o: 0 }); tw(g, { o: 1 }, t0, .6);
+    mk('rect', { x: 0, y: 0, width: 440, height: 400, rx: 18, fill, stroke: COL.faint, 'stroke-width': 2 }, g);
+    wLabel(g, title, { x: 220, y: -18, size: 28, weight: 700, o: 1 });
+    wLabel(g, val, { x: 220, y: 470, size: 40, weight: 800, fill: '#ffd27a', o: 1 });
+    wLabel(g, word, { x: 220, y: 512, size: 26, fill: COL.dim, weight: 500, o: 1 });
+    return g;
+  };
+  // muscle: a striated electron micrograph, a 0.5 µm bar
+  const t1 = tile(80, tM, 'muscle (micrograph)', 'bar = 0.5 µm', 'zoomed in: filaments in one unit', '#2a2f37');
+  let a = '', b = '';
+  for (let x = 20; x + 92 < 430; x += 130) { a += `M${x + 40} 14h52v372h-52Z`; b += `M${x} 14V386`; }
+  path(t1, a, { fill: '#5d646e' }); path(t1, b, { stroke: '#b9bec6', 'stroke-width': 4 });
+  scaleBar(t1, { x: 330, y: 340, len: 26, text: '0.5 µm', size: 22, color: '#ffffff' });
+  // plant: brick cells with chloroplasts, a 30 µm bar
+  const t2 = tile(580, tP, 'plant cells', 'bar = 30 µm', 'a patch of whole cells', '#163a26');
+  let c = '', dd = '';
+  for (let j = 0; j < 5; j++) for (let i = -1; i < 4; i++) { const x = 20 + i * 150 + (j % 2) * 75, y = 20 + j * 72; const x0 = Math.max(10, x), x1 = Math.min(430, x + 146); if (x1 - x0 > 12) c += `M${x0} ${y}H${x1}V${y + 68}H${x0}Z`; for (let k = 0; k < 4; k++) { const cx = x + 22 + k * 34, cy = y + (k % 2 ? 18 : 50); if (cx > 18 && cx < 422) dd += yCirc(cx, cy, 8); } }
+  path(t2, c, { fill: '#1f5232', stroke: '#c9b27a', 'stroke-width': 4 });
+  path(t2, dd, { fill: '#5bbf5b' });
+  scaleBar(t2, { x: 300, y: 340, len: 100, text: '30 µm', size: 22, color: '#ffffff' });
+  // amoeba: a big blob, a 100 µm bar
+  const t3 = tile(1080, tA, 'amoeba', 'bar = 100 µm', 'one whole cell, much larger scale', '#16495a');
+  path(t3, cBlob(150, 110, { seed: 6, wob: .09, cx: 210, cy: 190 }), { fill: '#3e7f86', stroke: '#9fd8dc', 'stroke-width': 4 });
+  mk('circle', { cx: 190, cy: 200, r: 28, fill: '#24575e' }, t3);
+  scaleBar(t3, { x: 300, y: 340, len: 70, text: '100 µm', size: 22, color: '#ffffff' });
+  // same: the same two proteins in all three
+  [80, 580, 1080].forEach((x, i) => {
+    const g = G(p, { x: x + 400, y: 225, o: 0 }); show(g, tS + .3 + .3 * i, .4);
+    mk('circle', { cx: -16, r: 15, fill: YC.actin, stroke: '#ffffff', 'stroke-width': 2 }, g);
+    mk('circle', { cx: 16, r: 15, fill: YC.myosin, stroke: '#ffffff', 'stroke-width': 2 }, g);
+  });
+  const ln = path(p, 'M300 770H1300', { stroke: COL.dim, 'stroke-width': 3, 'stroke-dasharray': '8 8' }, { d: 0 }); draw(ln, tS + 1.2, .8);
+  const lb = G(p, { o: 0 }); show(lb, tS + 1.6, .5);
+  mk('rect', { x: 470, y: 738, width: 660, height: 64, rx: 32, fill: COL.board, stroke: COL.faint, 'stroke-width': 2 }, lb);
+  wLabel(lb, 'same two proteins: actin + myosin', { x: 800, y: 780, size: 32, weight: 700, o: 1 });
+}],
+
+/* ---------- inter ---------- */
+['inter', 'Intermediate filaments', (m, D) => {
+  const p = panel(0), tR = m('rope'), tS = m('size'), tJ = m('job'), tP = m('perm');
+  const A = G(p);
+  wLabel(A, 'the third class', { x: 800, y: 120, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(A, 'intermediate filament', { x: 800, y: 180, size: 44, weight: 700, fill: YC.inter, o: 1 });
+  say(A, 'a rope of protein', 800, 222, tR + .8, { size: 28, fill: COL.dim, weight: 500 });
+  const rope = intermediateFilament(A, { x: 300, y: 320, len: 1000, nm: 5 }); rope.grow(.08);
+  prog(k => rope.grow(.08 + .92 * k), .1, tR + 1.4, out);
+  const dz = G(A, { o: 0 }); show(dz, tR + 1.6, .4);
+  path(dz, 'M1330 295V345M1320 295H1340M1320 345H1340', { stroke: COL.chalk, 'stroke-width': 3 });
+  wLabel(dz, '8–12 nm', { x: 1352, y: 330, size: 30, anchor: 'start', weight: 700, o: 1 });
+  // size: between the two others
+  const SZ = G(A, { o: 0 }); show(SZ, tS + .1, .5);
+  const base = 680, sc = 5;
+  [[460, 7, YC.actin, 'microfilament', '7 nm', 1], [800, 10, YC.inter, 'intermediate', '8–12 nm', 1], [1140, 25, YC.mt, 'microtubule', '25 nm', .5]].forEach(([x, d, c, n, v, op]) => {
+    const g = G(SZ, { o: op });
+    mk('circle', { cx: x, cy: base - d * sc / 2, r: d * sc / 2, fill: c, stroke: mix(c, '#000000', .3), 'stroke-width': 2 }, g);
+    if (d === 25) mk('circle', { cx: x, cy: base - d * sc / 2, r: d * sc / 4, fill: YC.lumen }, g);
+    wLabel(g, n, { x, y: base + 44, size: 28, fill: c, weight: 700, o: 1 });
+    wLabel(g, v, { x, y: base + 80, size: 26, weight: 600, o: 1 });
+  });
+  path(SZ, `M340 ${base}H1260`, { stroke: COL.faint, 'stroke-width': 2 });
+  say(A, 'thicker than microfilaments, thinner than microtubules', 800, 860, tS + 2, { size: 28, fill: COL.dim, weight: 500 });
+  hide(A, tJ - .3, .5);
+  // job: ropes round the nucleus and out to the membrane, holding organelles
+  const B = G(p, { o: 0 }); show(B, tJ, .6);
+  const CX = 800, CY = 470, RX = 640, RY = 330;
+  path(B, cBlob(RX, RY, { seed: 5, cx: CX, cy: CY }), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 7 });
+  nucleus(B, { x: CX, y: CY, R: 110, pores: 6, lamina: false, ribos: false });
+  mitochondrion(B, { x: 410, y: 330, s: .42, r: -20 });
+  mitochondrion(B, { x: 1210, y: 620, s: .42, r: 15 });
+  let rd = '';
+  [[-150, 0], [-100, 0], [-35, 0], [20, 0], [70, 0], [130, 0], [200, 0]].forEach(([a]) => {
+    const ar = a * Math.PI / 180, [ex, ey] = cBlobPt(RX - 14, RY - 14, ar, 5), sx = 124 * Math.cos(ar), sy = 124 * Math.sin(ar);
+    rd += `M${(CX + sx).toFixed(1)} ${(CY + sy).toFixed(1)}Q${(CX + (sx + ex) / 2 + 26).toFixed(1)} ${(CY + (sy + ey) / 2 - 20).toFixed(1)} ${(CX + ex).toFixed(1)} ${(CY + ey).toFixed(1)}`;
+  });
+  rd += `M${CX - 90} ${CY - 72}Q560 360 470 345M${CX + 96} ${CY + 60}Q1050 600 1150 610`;
+  for (let i = 0; i < 4; i++) { const a0 = i * 90 + 10, a1 = a0 + 68, r = 124; rd += `M${(CX + r * Math.cos(a0 * Math.PI / 180)).toFixed(1)} ${(CY + r * Math.sin(a0 * Math.PI / 180)).toFixed(1)}A${r} ${r} 0 0 1 ${(CX + r * Math.cos(a1 * Math.PI / 180)).toFixed(1)} ${(CY + r * Math.sin(a1 * Math.PI / 180)).toFixed(1)}`; }
+  const ropes = l7Rope(B, rd, 0); show(ropes, tJ + .5, 1.2);
+  tag(B, 'supports cell shape', [CX + 470, CY - 255], [1260, 80], tJ + 1, { size: 32, fill: YC.inter, anchor: 'middle' });
+  tag(B, 'holds organelles in place', [470, 345], [340, 90], tJ + 2.6, { size: 32, fill: YC.inter, anchor: 'middle' });
+  // perm: the pink and mint fibres come and go; the gold ropes stay
+  const fl = G(B, { o: 0 }); show(fl, tP + .2, .5);
+  const pinks = [], mints = [];
+  for (let i = 0; i < 12; i++) {
+    const a0 = i * 30 + 4, pts = []; for (let k = 0; k <= 8; k++) pts.push(cBlobPt(RX - 30, RY - 30, (a0 + k * 2.6) * Math.PI / 180, 5));
+    pinks.push(path(fl, 'M' + pts.map(([x, y]) => `${(CX + x).toFixed(1)} ${(CY + y).toFixed(1)}`).join('L'), { stroke: YC.actin, 'stroke-width': 6 }, { d: 1 }));
+  }
+  [-125, -60, 45, 100, 160, 235, 300].forEach(a => { const ar = a * Math.PI / 180, r0 = 140, r1 = 330; mints.push(path(fl, `M${(CX + r0 * Math.cos(ar)).toFixed(1)} ${(CY + r0 * .8 * Math.sin(ar)).toFixed(1)}L${(CX + r1 * Math.cos(ar)).toFixed(1)} ${(CY + r1 * .75 * Math.sin(ar)).toFixed(1)}`, { stroke: YC.mt, 'stroke-width': 7 }, { d: 1 })); });
+  clockRun(t => {
+    if (t < tP) return;
+    [...pinks, ...mints].forEach((e, i) => { const ph = (t - tP) / 2.6 + i * .37, u = yFrac(ph); l7Set(e, u < .5 ? clamp01(u * 3) : clamp01((1 - u) * 3)); });
+  }, D);
+  const pm = G(p, { o: 0 }); show(pm, tP + 1, .5);
+  mk('rect', { x: 600, y: 818, width: 400, height: 64, rx: 32, fill: COL.board, stroke: YC.inter, 'stroke-width': 3 }, pm);
+  wLabel(pm, 'most permanent', { x: 800, y: 862, size: 34, fill: YC.inter, weight: 800, o: 1 });
+  const note = (str, x, w, t0, ink) => {
+    const g = G(p, { o: 0 }); show(g, t0, .5);
+    mk('rect', { x: x - w / 2, y: 818, width: w, height: 64, rx: 32, fill: COL.board, stroke: ink, 'stroke-width': 2 }, g);
+    wLabel(g, str, { x, y: 860, size: 28, fill: COL.chalk, weight: 600, o: 1 });
+  };
+  note('others: taken apart and rebuilt', 1295, 450, tP + 3, YC.actin);
+  note('stable, not unchangeable', 305, 370, tP + 6, YC.inter);
+}],
+
+/* ---------- compare ---------- */
+['compare', 'Three fibres compared', (m, D) => {
+  const p = panel(0), tMt = m('mt'), tIf = m('if'), tMf = m('mf'), tJ = m('jobs');
+  say(p, 'the three cytoskeleton fibres', 800, 90, .3, { size: 36, weight: 700 });
+  const fc = fiberCompare(p, { x: 760, y: 470, len: 520, nm: 3, gap: 180 });
+  const rows = [[fc.mt, tMt], [fc.inter, tIf], [fc.mf, tMf]];
+  rows.forEach(([f, t0], i) => {
+    put(f, { o: 0 }); show(f, t0 + .2, .5); prog(k => f.grow(f.N ? qz(k * f.N, 400) / f.N : k), t0 + .2, 1.2, out);
+    [fc.names[i], fc.subs[i], fc.sizes[i]].forEach((e, j) => { put(e, { o: 0 }); show(e, t0 + .5 + .4 * j, .4); });
+  });
+  // jobs: rails, anchors, cables
+  const tags = [['rails for motors', YC.mt, -180, 0], ['anchors', YC.inter, 0, 2.4], ['cables: pull, push, shape', YC.actin, 180, 6.2]];
+  tags.forEach(([s, c, dy, dt]) => {
+    const g = G(p, { x: 1210, y: 470 + dy, o: 0 }); tw(g, { o: 1 }, tJ + .2 + dt, .5);
+    const w = uiW(s, 26) + 40;
+    mk('rect', { x: 0, y: -26, width: w, height: 52, rx: 26, fill: COL.board, stroke: c, 'stroke-width': 3 }, g);
+    wLabel(g, s, { x: w / 2, y: 9, size: 26, fill: c, weight: 700, o: 1 });
+  });
+  // a vesicle rides the microtubule rail
+  const ves = G(p, { o: 0 });
+  mk('circle', { r: 26, fill: YC.vesicle, 'fill-opacity': .2, stroke: YC.vesicle, 'stroke-width': 4 }, ves);
+  path(ves, yCirc(-7, -5, 6) + yCirc(8, 4, 6), { fill: YC.cargo });
+  clockRun(t => { const u = io(ramp(t, tJ + .4, tJ + 4)); put(ves, { x: 520 + 480 * u, y: 470 - 180 - 66, o: t < tJ + .2 ? 0 : ramp(t, tJ + .2, tJ + .6) }); }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0), rows = [['intermediate filament', 'inter'], ['microtubule', 'mt'], ['microfilament', 'mf']];
+  rows.forEach(([n, k], i) => {
+    const y = 230 + i * 210;
+    wLabel(p, n, { x: 420, y: y - 60, size: 30, weight: 700, fill: k === 'mt' ? YC.mt : k === 'inter' ? YC.inter : YC.actin, o: 1 });
+    if (k === 'mt') microtubule(p, { x: 160, y, len: 520 });
+    else if (k === 'inter') intermediateFilament(p, { x: 160, y, len: 520 });
+    else microfilament(p, { x: 160, y, len: 520 });
+  });
+  wLabel(p, 'drawn to the same scale', { x: 420, y: 840, size: 24, fill: COL.dim, weight: 500, o: 1 });
+}, { ask: done => quiz({ x: 820, y: 60, w: 740, cls: 'side' }, [{
+  id: 'c-order', prompt: ['Number the fibres from thinnest (1) to widest (3).'],
+  build: blanks([
+    { parts: ['microtubule: ', { box: '3' }], why: '3: about 25 nm, the widest, a hollow tube.', hint: 'It is the widest of the three.' },
+    { parts: ['microfilament: ', { box: '1' }], why: '1: about 7 nm, the thinnest.', hint: 'Look for the narrowest fibre: the twisted chain of actin.' },
+    { parts: ['intermediate filament: ', { box: '2' }], why: '2: 8–12 nm, between the other two, hence “intermediate”.', hint: 'Its name tells you: it sits between the other two.' },
+  ]),
+}], done) }],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'To sum up', { x: 800, y: 120, size: 44, weight: 700, o: 1 });
+  const rows = [
+    ['Microfilaments: twisted chains of actin, 7 nm.', 'They bear tension and form the cortex.', g => microfilament(g, { x: 90, y: 10, len: 200, nm: 3 })],
+    ['With myosin they drive muscle contraction,', 'amoeboid movement and cytoplasmic streaming.', g => {
+      muscleUnit(g, { x: 110, y: 10, w: 150, h: 70, cycles: 1 });
+      path(g, cBlob(34, 26, { seed: 3, wob: .12, cx: 230, cy: 10 }), { fill: mix(YC.actin, '#0f1e33', .62), stroke: YC.membrane, 'stroke-width': 3 });
+    }],
+    ['Intermediate filaments, 8–12 nm: the most permanent.', 'They support cell shape and hold organelles in place.', g => intermediateFilament(g, { x: 90, y: 10, len: 200, nm: 3 })],
+  ];
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: -16, y: 230 + i * 190, o: 0 });
+    icon(G(g));
+    T(g, a, { x: 330, y: -6, size: 36, weight: 600 }); T(g, b, { x: 330, y: 40, size: 32, fill: COL.dim });
+    tw(g, { o: 1, x: 0 }, m('w' + (i + 1)), .6);
+  });
+  say(p, 'Now try the practice.', 800, 850, m('end'), { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('diam', g => {
+    microfilament(g, { x: 1000, y: 430, len: 540, nm: 6 });
+    wLabel(g, 'a microfilament, 7 nm', { x: 1270, y: 330, size: 32, fill: YC.actin, weight: 700, o: 1 });
+    mk('circle', { cx: 1270, cy: 430, r: 70, fill: 'none', stroke: COL.chalk, 'stroke-width': 4 }, g);
+    wLabel(g, 'built from?', { x: 1270, y: 560, size: 32, fill: CC.hi, weight: 700, o: 1 });
+  });
+  at('jobs', g => {
+    path(g, cBlob(300, 220, { seed: 4, cx: 1260, cy: 450 }), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 5 });
+    path(g, cBlob(284, 204, { seed: 4, cx: 1260, cy: 450 }), { stroke: YC.actin, 'stroke-width': 6, 'stroke-dasharray': '12 5' });
+    mk('circle', { cx: 1260, cy: 450, r: 70, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 4 }, g);
+    l7Rope(g, 'M1190 450Q1100 380 990 350M1330 450Q1430 520 1520 540M1260 380Q1280 300 1300 245M1260 520Q1230 600 1220 655');
+    wLabel(g, 'microfilaments', { x: 1260, y: 190, size: 28, fill: YC.actin, weight: 700, o: 1 });
+    wLabel(g, 'intermediate filaments', { x: 1260, y: 730, size: 28, fill: YC.inter, weight: 700, o: 1 });
+  });
+  at('ameba', g => {
+    mk('rect', { x: 960, y: 610, width: 640, height: 60, fill: SURF }, g);
+    const am = amoebaCrawl(g, { x: 1200, y: 440, R: 150, cycles: 1 }); am.crawl(.42);
+    S.ameba = { am, surf: g };
+  });
+  at('stream', g => {
+    const c = cytoStreaming(g, { x: 1270, y: 450, w: 560, h: 340, n: 12, speed: 0 }); c.flow(0);
+    wLabel(g, 'a plant cell', { x: 1270, y: 680, size: 28, fill: COL.dim, o: 1 });
+  });
+  at('partner', g => {
+    muscleUnit(g, { x: 1120, y: 300, w: 300, h: 110, cycles: 1 });
+    const a = amoebaCrawl(g, { x: 1400, y: 300, R: 70, cycles: 1 }); a.crawl(.4);
+    cytoStreaming(g, { x: 1260, y: 540, w: 360, h: 200, n: 8 });
+    wLabel(g, 'actin + ?', { x: 1260, y: 740, size: 40, fill: YC.actin, weight: 800, o: 1 });
+  });
+  at('perm', g => {
+    const mt = microtubule(g, { x: 1000, y: 260, len: 520 }); mt.grow(.55);
+    intermediateFilament(g, { x: 1000, y: 440, len: 520 });
+    const mf = microfilament(g, { x: 1000, y: 600, len: 520 }); mf.grow(.4);
+    wLabel(g, 'taken apart and rebuilt', { x: 1260, y: 340, size: 24, fill: COL.dim, weight: 500, o: 1 });
+    wLabel(g, 'stays', { x: 1260, y: 510, size: 26, fill: YC.inter, weight: 700, o: 1 });
+    wLabel(g, 'taken apart and rebuilt', { x: 1260, y: 670, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('diam');
+  // the amoeba picture's hit boxes, in stage coordinates
+  const { am, surf } = S.ameba, [fx, fy] = am.pt('pseudopod'), [cx, cy] = am.pt('cortex'), [ix, iy] = am.pt('inner');
+  S.pick = [
+    { el: am, box: [cx - 50, cy - 34, 100, 68], label: 'the cortex rim' },
+    { el: am, box: [ix - 60, iy - 40, 120, 80], label: 'the inner cytoplasm' },
+    { el: am, box: [fx - 95, fy - 70, 120, 140], label: 'the lobe at the front' },
+    { el: surf, box: [1300, 618, 240, 46], label: 'the surface' },
+  ];
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-diam', prompt: ['What is a microfilament built from?'],
+    build: withPic('diam', choice([['Tubulin dimers in a hollow tube.'], ['Actin subunits twisted into a double strand.'], ['Rope-like coiled protein fibres.'], ['Myosin heads.']], 1,
+      'Right. A microfilament is two strands of actin subunits twisted into a helix, about 7 nm across.',
+      ['That is a microtubule, the widest fibre (25 nm).', null,
+       'That describes an intermediate filament, 8–12 nm.',
+       'Myosin is actin’s partner motor, not what the filament is made of.'])) },
+  { id: 'p-jobs', prompt: ['Microfilaments, intermediate filaments, or both?'],
+    build: withPic('jobs', grid([
+      { parts: ['bear tension, resisting pulling forces'], ans: ['m'], why: 'Microfilaments: their main structural job.' },
+      { parts: ['form the cortex under the plasma membrane'], ans: ['m'], why: 'Microfilaments: a 3-D actin network.' },
+      { parts: ['form the core of a microvillus'], ans: ['m'], why: 'Microfilaments: a bundle in each microvillus.' },
+      { parts: ['fix organelles in place'], ans: ['i'], why: 'Intermediate filaments: they anchor organelles.' },
+      { parts: ['support the shape of the cell'], ans: ['b'], why: 'Both: the cortex and the intermediate filaments each help hold the shape.' },
+      { parts: ['are the most permanent fixtures'], ans: ['i'], why: 'Intermediate filaments: more stable, rebuilt less often.' },
+    ], [['m', 'microfilaments', null, 'M'], ['i', 'intermediate', null, 'I'], ['b', 'both', null, 'B']], { multi: false, text: true })) },
+  { id: 'p-ameba', prompt: ['Click the part the amoeba extends to move.'],
+    build: withPic('ameba', pickEls(S.pick, 2, 'Right. The pseudopodium; the cell then moves toward it.',
+      i => i === 0 ? 'That is the cortex, the gel with an actin network around the rim. Look for the lobe pushing out.'
+        : i === 1 ? 'That is the inner cytoplasm, more fluid; it flows into the lobe. Look for the lobe itself.'
+        : 'That is the surface the cell crawls on, not part of the cell.')) },
+  { id: 'p-stream', prompt: ['What does cytoplasmic streaming do in a plant cell?'],
+    build: withPic('stream', choice([['It thickens the cell wall.'], ['It circulates the cytoplasm, so materials are distributed faster.'], ['It fixes organelles permanently in place.'], ['It shortens the cell like a muscle.']], 1,
+      'Right. A circular flow carries materials, chloroplasts included, round the cell.',
+      ['Streaming moves the cytoplasm inside the cell; it does not build the wall.', null,
+       'Fixing organelles in place is the job of intermediate filaments. Streaming moves things.',
+       'Shortening is muscle contraction. Streaming moves cytoplasm in a loop.'])) },
+  { id: 'p-partner', prompt: ['Which protein works with actin in muscle contraction, amoeboid movement and streaming?'],
+    build: withPic('partner', choice([['Tubulin'], ['Myosin'], ['An intermediate filament protein'], ['Collagen']], 1,
+      'Right. Myosin, the motor protein, works with actin in all three.',
+      ['Tubulin builds microtubules, a different fibre.', null,
+       'Intermediate filaments are a separate fibre; they do not drive these movements.',
+       'Collagen is outside the cell, in the extracellular matrix (lesson 8).'])) },
+  { id: 'p-perm', prompt: ['Why are intermediate filaments called the most permanent of the three?'],
+    build: withPic('perm', choice([['They never change at all.'], ['They are more stable and rebuilt less often, so they hold shape and organelles in place.'], ['They are the thickest fibre.'], ['They are made of actin.']], 1,
+      'Right. Stable, not unchangeable: the other two are taken apart and rebuilt more quickly.',
+      ['Permanent here means more stable, not frozen: they can still change.', null,
+       'They are in the middle, 8–12 nm; microtubules are the thickest.',
+       'Actin builds microfilaments; intermediate filaments are other proteins.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>

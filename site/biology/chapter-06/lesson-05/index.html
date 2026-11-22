@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 6, Lesson 5: Mitochondria, Chloroplasts and Peroxisomes — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 6 (A Tour of the Cell), lesson 5: a leaf in sunlight and the plant cell map with three organelles lit;
+// the mitochondrion (cellular respiration, ATP, muscle and leaf cells) and its parts (two membranes, cristae and surface,
+// intermembrane space, matrix, DNA and ribosomes); a check; the chloroplast (photosynthesis, plastid, chlorophyll, sugar
+// and oxygen) and its parts (double membrane, stroma, thylakoids, grana); what the two share; one leaf cell where the
+// chloroplast's products feed the mitochondrion; a sort; the peroxisome (one membrane, oxidation, hydrogen peroxide,
+// catalase); summary; practice. Plan, errata and storyboard: books/biology/chapters/chapter-06/lesson-05.md.
+const CHAPTER = { number: 605, label: '6, lesson 5', title: 'Mitochondria, Chloroplasts and Peroxisomes', minutes: 7, language: 'en', lead: false, next: '../lesson-06/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const sayChem = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0].toFixed(1)} ${a[1].toFixed(1)}L${b[0].toFixed(1)} ${b[1].toFixed(1)}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+// A label with a leader from a point on the picture: the text starts (anchor 'start') or ends ('end') at the leader's end.
+function note(p, a, [tx, ty], str, t0, { anchor = 'start', size = 30, color = COL.chalk, sub, subColor = COL.dim, weight = 600 } = {}) {
+  const g = G(p, { o: 0 }), dx = anchor === 'start' ? -10 : anchor === 'end' ? 10 : 0, dy = anchor === 'middle' ? (a[1] < ty ? -size : size * .5) : -size * .32;
+  path(g, `M${a[0].toFixed(1)} ${a[1].toFixed(1)}L${(tx + dx).toFixed(1)} ${(ty + dy).toFixed(1)}`, { stroke: COL.dim, 'stroke-width': 2.5 });
+  mk('circle', { cx: a[0].toFixed(1), cy: a[1].toFixed(1), r: 4.5, fill: COL.dim }, g);
+  wChem(g, str, { x: tx, y: ty, size, fill: color, anchor, weight, o: 1 });
+  if (sub) wChem(g, sub, { x: tx, y: ty + size * 1.15, size: size * .8, fill: subColor, anchor, weight: 500, o: 1 });
+  show(g, t0, .5);
+  return g;
+}
+// Light up a colour attribute and let it settle back.
+function flash(e, attr, col, t0, hold = 1.6) {
+  const k = 'c_' + attr, was = e.getAttribute(attr);
+  tw(e, { [k]: col }, t0, .4); tw(e, { [k]: was }, t0 + .4 + hold, .7);
+}
+// A pulsing ring around a point (for small parts: a DNA loop, ribosome dots).
+function ringAt(p, [x, y], r, t0, color = '#fff6d8') {
+  const e = G(p, { x, y, o: 0 });
+  mk('circle', { r, fill: 'none', stroke: color, 'stroke-width': 4 }, e); show(e, t0, .3); pulse(e, t0 + .3, 1.25);
+  return e;
+}
+const SPARK = 'M0 -14L4 -4L14 0L4 4L0 14L-4 4L-14 0L-4 -4Z';
+// ATP sparks that leave the edge of an organelle (an ellipse rx, ry at cx, cy, turned r deg) and drift outward, never inside it and with no letters.
+function outSparks(p, cx, cy, rx, ry, angles, D, t0, travel = 70) {
+  const els = angles.map(() => { const e = G(p, { o: 0 }); path(e, SPARK, { fill: ATPC, stroke: '#c99a2e', 'stroke-width': 1.5 }); return e; });
+  clockRun(t => els.forEach((e, i) => {
+    const a = angles[i] * Math.PI / 180, ph = (((t - t0) * .4 + i / angles.length) % 1 + 1) % 1, on = t >= t0 ? 1 : 0;
+    const d = 1.04 + travel / Math.hypot(rx * Math.cos(a), ry * Math.sin(a)) * ph;
+    mPose(e, cx + rx * Math.cos(a) * d, cy + ry * Math.sin(a) * d, on * Math.sin(Math.PI * ph) * .95);
+  }), D);
+}
+const SUGAR = '#f3c95c', ATPC = CC.atp;
+// A sugar: a small yellow hexagon bead.
+function sugarBead(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, mPoly(6, 17, -90), { fill: SUGAR, stroke: '#b8902e', 'stroke-width': 3 });
+  return g;
+}
+// O2: two red oxygen atoms.
+function o2Mol(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-13 0H13', { stroke: WC.stick, 'stroke-width': 6 });
+  wAtom(g, 'O', { x: -13, r: 14, size: 13 }); wAtom(g, 'O', { x: 13, r: 14, size: 13 });
+  return g;
+}
+// A sun with rays, centred on its origin; .rays are the rays (pulse them).
+function sunIcon(p, { x = 0, y = 0, r = 60, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  const rays = G(g);
+  path(rays, Array.from({ length: 12 }, (_, i) => { const a = i * Math.PI / 6; return `M${(r * 1.38 * Math.cos(a)).toFixed(1)} ${(r * 1.38 * Math.sin(a)).toFixed(1)}L${(r * 1.78 * Math.cos(a)).toFixed(1)} ${(r * 1.78 * Math.sin(a)).toFixed(1)}`; }).join(''), { stroke: CC.light, 'stroke-width': 7 });
+  mk('circle', { r, fill: CC.light }, g);
+  return Object.assign(g, { rays });
+}
+// A warm light ray from a to b (drawn on with draw()).
+const lightRay = (p, a, b, w = 9) => path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: CC.light, 'stroke-width': w, 'stroke-dasharray': '18 10' }, { d: 0 });
+// A plain green chloroplast seen whole (the kit draws it cut open): an oval with a soft shine.
+function wholeChloro(p, { x = 0, y = 0, s = 1, o = 1, rx = 220, ry = 105, r = 0 } = {}) {
+  const g = G(p, { x, y, s, o, r });
+  mk('ellipse', { rx, ry, fill: CC.chloro, stroke: '#3c9a44', 'stroke-width': 7 }, g);
+  path(g, `M${-rx * .55} ${-ry * .45}Q0 ${-ry * .8} ${rx * .5} ${-ry * .5}`, { stroke: '#fff', 'stroke-opacity': .25, 'stroke-width': 10 });
+  return g;
+}
+// The leaf backdrop: a sun and a big leaf with veins. Returns { g, sun, leaf, lens }; the lens (o 0) shows the leaf's cells.
+function leafScene(p) {
+  const g = G(p);
+  const sun = sunIcon(g, { x: 190, y: 150, r: 64 });
+  const leaf = G(g, { x: 600, y: 520, r: -24 });
+  path(leaf, 'M-360 0C-250 -210 120 -250 360 0C120 250 -250 210 -360 0Z', { fill: WC.leaf, stroke: WC.leafDk, 'stroke-width': 6 });
+  path(leaf, 'M-430 18L-360 0L330 0', { stroke: '#c9e4b0', 'stroke-width': 9 });
+  let v = ''; for (let i = 0; i < 6; i++) { const x0 = -250 + i * 100; v += `M${x0} 0Q${x0 + 50} -60 ${x0 + 90} -130M${x0} 0Q${x0 + 50} 60 ${x0 + 90} 130`; }
+  path(leaf, v, { stroke: '#a9d494', 'stroke-width': 4, 'stroke-opacity': .8 });
+  // the lens: a circle of leaf cells, each with green dots
+  const lens = G(g, { x: 640, y: 470, o: 0 });
+  mk('circle', { r: 112, fill: '#2a5a34', stroke: '#e9f3d8', 'stroke-width': 6 }, lens);
+  let cells = '', dots = '';
+  for (let i = -3; i <= 3; i++) for (let j = -2; j <= 2; j++) {
+    const cx = i * 40 + (j % 2 ? 20 : 0), cy = j * 44;
+    if (Math.hypot(cx, cy) > 92) continue;
+    cells += `M${cx - 18} ${cy - 20}h36v40h-36Z`;
+    for (let q = 0; q < 3; q++) dots += `M${(cx - 9 + 9 * q).toFixed(1)} ${(cy + (q % 2 ? 8 : -6)).toFixed(1)}h.01`;
+  }
+  path(lens, cells, { fill: '#183457', stroke: CC.wall, 'stroke-width': 3 });
+  path(lens, dots, { stroke: CC.chloro, 'stroke-width': 9 });
+  return { g, sun, leaf, lens };
+}
+// The tour thread: the plant cell map in a camera, pushed in to one organelle (name, instance) over [t0, t0 + dur];
+// the map fades as the close-up drawn over it arrives. Returns the camera and the map.
+const MAP = { x: 800, y: 480, s: .62 }, LIT = ['mitochondria', 'chloroplasts', 'peroxisomes'];
+function mapPush(p, D, name, i, z, t0 = .05, dur = 1.9) {
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), cm = cellMap(cam.world, { kind: 'plant', ...MAP });
+  cm.focus(LIT, 1);
+  const [x, y] = cm.pt(name, i);
+  cam.to({ x, y, z }, t0, dur);
+  hide(cam.el, t0 + dur - .7, .7);
+  return { cam, cm };
+}
+// Small inset scenes for the mitochondrion beat.
+function muscleInset(p, { x, y, o = 0 }) {
+  const g = G(p, { x, y, o });
+  mk('rect', { x: -200, y: -150, width: 400, height: 300, rx: 22, fill: '#14294a', stroke: COL.faint, 'stroke-width': 2 }, g);
+  [-80, 0, 80].forEach((fy, i) => {
+    mk('rect', { x: -170, y: fy - 30, width: 340, height: 60, rx: 30, fill: '#a8475e', stroke: '#d8788c', 'stroke-width': 3 }, g);
+    let st2 = ''; for (let sx = -150; sx <= 150; sx += 22) st2 += `M${sx} ${fy - 24}V${fy + 24}`;
+    path(g, st2, { stroke: '#c96478', 'stroke-width': 4 });
+    for (let k = 0; k < 4; k++) { const bx = -120 + k * 80 + (i % 2) * 36; mk('rect', { x: bx - 17, y: fy - 9, width: 34, height: 18, rx: 9, fill: CC.mito, stroke: '#c9761b', 'stroke-width': 2 }, g); }
+  });
+  return g;
+}
+function leafCellInset(p, { x, y, o = 0 }) {
+  const g = G(p, { x, y, o });
+  mk('rect', { x: -200, y: -150, width: 400, height: 300, rx: 30, fill: CC.cyto, stroke: CC.wall, 'stroke-width': 12 }, g);
+  mk('ellipse', { cx: 30, cy: 10, rx: 120, ry: 80, fill: CC.vac, stroke: CC.vacEdge, 'stroke-width': 3 }, g);
+  mk('circle', { cx: -130, cy: -60, r: 34, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 4 }, g);
+  [[-90, -110, 8], [70, -115, -5], [165, -20, 80], [150, 95, -60], [-40, 110, 6]].forEach(([cx, cy, r]) => wholeChloro(g, { x: cx, y: cy, s: .16, r }));
+  [[-150, 50], [-70, 40], [60, 112]].forEach(([bx, by]) => mk('rect', { x: bx - 22, y: by - 11, width: 44, height: 22, rx: 11, fill: CC.mito, stroke: '#c9761b', 'stroke-width': 2.5 }, g));
+  return g;
+}
+// A small grey ribosome-like dot that makes a coral protein chain: the chain's beads are placed by the caller.
+function proteinChain(p, n = 5) {
+  const g = G(p, { o: 0 }), beads = [];
+  const bond = path(g, '', { stroke: WC.stick, 'stroke-width': 4 });
+  for (let j = 0; j < n; j++) beads.push(mk('circle', { r: 9, fill: CC.cargo, stroke: mix(CC.cargo, '#000000', .3), 'stroke-width': 2 }, g));
+  return Object.assign(g, {
+    beads,
+    // lay the chain along dir (deg) from (0, 0), m beads out
+    set(m, dir = 0) {
+      const ux = Math.cos(dir * Math.PI / 180), uy = Math.sin(dir * Math.PI / 180); let d = '';
+      beads.forEach((b, j) => { const dd = Math.max(0, m - 1 - j) * 20, w = 6 * Math.sin(j * 1.7); const bx = ux * dd - uy * w, by = uy * dd + ux * w; mPose(b, bx, by, clamp01(m - j)); if (m > j) d += `${d ? 'L' : 'M'}${bx.toFixed(1)} ${by.toFixed(1)}`; });
+      mD(bond, d);
+    },
+  });
+}
+// Chloroplast grana in the kit's own layout (chloroplast(), w 440, h 210): [x, y, discs] per stack, local.
+const STACKS = [[-.55, .05, 4], [-.28, -.22, 6], [-.02, .18, 5], [.26, -.15, 6], [.52, .1, 4]].map(([u, v, n]) => [u * 220, v * 105, n]);
+const stackBox = ([sx, sy, n], pad = 4) => { const H = n * 14 - 3; return [sx - 28.6 - pad, sy - H / 2 - pad, 57.2 + 2 * pad, H + 2 * pad]; };
+const discBox = ([sx, sy, n], j, pad = 3) => { const H = n * 14 - 3; return [sx - 28.6 - pad, sy - H / 2 + j * 14 - pad, 57.2 + 2 * pad, 11 + 2 * pad]; };
+// a box in group g's frame → the stage's (scale and translate only)
+const boxOut = (g, [x, y, w, h]) => { const [X0, Y0] = cOut(g, [x, y]), s = st(g).s; return [X0, Y0, w * s, h * s]; };
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Three organelles', (m, D) => {
+  const p = panel(0), cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const tL = m('leaf'), tM = m('map'), tLit = m('lit'), tA = m('ask');
+  const lf = leafScene(W); put(lf.g, { o: 0 }); show(lf.g, .1, .6);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 6 · LESSON 5', { x: 1230, y: 220, size: 26, fill: COL.dim, o: 1 });
+  ['Mitochondria,', 'chloroplasts and', 'peroxisomes'].forEach((s, i) => wLabel(ttl, s, { x: 1230, y: 310 + i * 76, size: 62, o: 1 }));
+  wLabel(ttl, 'A tour of the cell', { x: 1230, y: 560, size: 30, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tM - .4, .5);
+  // leaf: the sun shines, and a lens shows the busy cells inside the leaf
+  pulse(lf.sun.rays, tL + .1, 1.12); pulse(lf.sun, tL + .6, 1.06);
+  [[320, 230, 520, 400], [260, 290, 430, 520]].forEach(([x1, y1, x2, y2], i) => draw(lightRay(W, [x1, y1], [x2, y2], 7), tL + .3 + .3 * i, .8));
+  tw(lf.lens, { o: 1 }, tL + 1.4, .6); pulse(lf.lens, tL + 1.6, 1.08);
+  const lb = say(p, 'every cell is busy', 640, 830, tL + 2.2, { size: 30, fill: '#e9f3d8' }); hide(lb, tM, .4);
+  // map: push into the lens; the plant cell map arrives
+  cam.to({ x: 640, y: 470, z: 7 }, tM, 1.8);
+  hide(lf.g, tM + 1.1, .6);
+  const cm = cellMap(p, { kind: 'plant', ...MAP, o: 0 });
+  show(cm, tM + 1.2, .8);
+  const tour = say(p, 'the plant cell, from our tour', 800, 90, tM + 1.6, { size: 30, fill: COL.dim, weight: 500 });
+  hide(tour, tLit, .4);
+  // lit: three organelles lit, the rest dimmed, each named
+  prog(k => cm.focus(LIT, k), tLit, .9, io);
+  const lC = note(p, cm.pt('chloroplasts', 0), [520, 170], 'chloroplasts', tLit + .4, { anchor: 'end', size: 34, color: CC.chloro });
+  const lM = note(p, cm.pt('mitochondria', 1), [380, 640], 'mitochondria', tLit + .9, { anchor: 'end', size: 34, color: CC.mito });
+  const lP = note(p, cm.pt('peroxisomes', 1), [1220, 640], 'peroxisomes', tLit + 1.4, { anchor: 'start', size: 34, color: CC.perox });
+  // ask: two change energy from one form to another; the third deals with a harmful by-product
+  say(p, 'changes energy', 520, 210, tA + .4, { size: 26, fill: COL.dim, weight: 500, anchor: 'end' });
+  say(p, 'changes energy', 380, 680, tA + .6, { size: 26, fill: COL.dim, weight: 500, anchor: 'end' });
+  say(p, 'from one form to another', 380, 714, tA + .9, { size: 26, fill: COL.dim, weight: 500, anchor: 'end' });
+  const tP = tA + 3.3;
+  say(p, 'deal with a harmful', 1220, 680, tP, { size: 26, fill: COL.dim, weight: 500, anchor: 'start' });
+  say(p, 'by-product', 1220, 714, tP + .2, { size: 26, fill: COL.dim, weight: 500, anchor: 'start' });
+  
+}],
+
+/* ---------- mito ---------- */
+['mito', 'The mitochondrion', (m, D) => {
+  const p = panel(0), tW = m('where'), tR = m('resp'), tAt = m('atp'), tMu = m('muscle'), tPl = m('plant');
+  mapPush(p, D, 'mitochondria', 0, 5);
+  const mt = mitochondrion(p, { x: 880, y: 470, s: .6, cut: 0, o: 0, r: -4 });
+  tw(mt, { s: 1.55, o: 1 }, 1.2, 1, out);
+  say(p, 'MITOCHONDRION', 880, 190, 1.6, { size: 46, weight: 800, fill: CC.mito });
+  say(p, 'plural: mitochondria', 880, 230, 2.1, { size: 24, fill: COL.dim, weight: 500 });
+  // where: nearly all eukaryotic cells, plant and animal
+  const wh = G(p, { o: 0 }); show(wh, tW + .3, .6); hide(wh, tMu - .2, .4);
+  const ic1 = cIcon(wh, 'plant', 160), ic2 = cIcon(wh, 'animal', 150);
+  put(ic1, { x: 185, y: 470 }); put(ic2, { x: 375, y: 470 });
+  [[150, 455], [215, 490], [350, 485], [400, 455]].forEach(([bx, by]) => mk('rect', { x: bx - 13, y: by - 7, width: 26, height: 14, rx: 7, fill: CC.mito, stroke: '#c9761b', 'stroke-width': 2 }, wh));
+  wLabel(wh, 'in nearly all', { x: 280, y: 590, size: 30, o: 1 });
+  wLabel(wh, 'eukaryotic cells', { x: 280, y: 628, size: 30, o: 1 });
+  wLabel(wh, 'plant and animal', { x: 280, y: 664, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  // resp: cellular respiration generates ATP: sparks fly out
+  say(p, 'cellular respiration', 880, 770, tR + .2, { size: 40, weight: 700, fill: CC.mito });
+  say(p, 'a metabolic process that generates ATP', 880, 814, tR + 2.2, { size: 28, fill: COL.dim, weight: 500 });
+  outSparks(p, 880, 470, 300, 130, [25, 75, 105, 155], D, tR + 3, 60);
+  // atp: one spark, named
+  const ap = G(p, { x: 1400, y: 430, o: 0 }); show(ap, tAt + .1, .5);
+  path(ap, SPARK, { fill: ATPC, stroke: '#c99a2e', 'stroke-width': 1.5, transform: 'scale(4)' });
+  wLabel(ap, 'ATP', { y: -78, size: 50, weight: 800, fill: ATPC, o: 1 });
+  say(p, 'adenosine triphosphate', 1400, 540, tAt + .8, { size: 26, fill: COL.chalk, weight: 500 });
+  say(p, 'the energy carrier', 1400, 590, tAt + 3, { size: 30, weight: 700, fill: ATPC });
+  say(p, 'the cell spends on its work', 1400, 628, tAt + 3.6, { size: 24, fill: COL.dim, weight: 500 });
+  pulse(ap, tAt + 3, 1.12);
+  // muscle: a runner's leg muscle, full of mitochondria
+  const mu = muscleInset(p, { x: 280, y: 440 }); show(mu, tMu + .2, .6); hide(mu, tPl, .4);
+  const ml = G(p, { o: 0 }); show(ml, tMu + 1, .5); hide(ml, tPl, .4);
+  wLabel(ml, 'a runner’s leg muscle', { x: 280, y: 240, size: 28, o: 1 });
+  wLabel(ml, 'many mitochondria', { x: 280, y: 640, size: 28, fill: CC.mito, weight: 700, o: 1 });
+  wLabel(ml, 'it spends a lot of ATP', { x: 280, y: 676, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  // plant: a leaf cell has them too
+  const lc = leafCellInset(p, { x: 280, y: 440 }); show(lc, tPl + .3, .6);
+  const ll = G(p, { o: 0 }); show(ll, tPl + 1, .5);
+  wLabel(ll, 'a leaf cell', { x: 280, y: 240, size: 28, o: 1 });
+  wLabel(ll, 'mitochondria too', { x: 280, y: 640, size: 28, fill: CC.mito, weight: 700, o: 1 });
+  wLabel(ll, 'ATP all day and all night', { x: 280, y: 676, size: 24, fill: COL.dim, weight: 500, o: 1 });
+}, { lead: false }],
+
+/* ---------- mstruct ---------- */
+['mstruct', 'Inside a mitochondrion', (m, D) => {
+  const p = panel(0), t2 = m('two'), tO = m('outer'), tI = m('inner'), tC = m('cristae'), tAr = m('area'), tIm = m('ims'), tMx = m('matrix'), tRb = m('ribo');
+  const mt = mitochondrion(p, { x: 600, y: 420, s: 2.1, cut: 0, o: 0 });
+  show(mt, .1, .5); prog(k => mt.cut(k), .5, 1.1, io);
+  const L = (lx, ly) => cOut(mt, [lx, ly]);
+  const outerP = mt.firstElementChild;
+  notToScale(p, 1570, 40, .3);
+  // two: both membranes glow
+  say(p, '2 membranes', 600, 220, t2 + .2, { size: 38, weight: 700 });
+  flash(outerP, 'stroke', '#ffe3b0', t2 + .1, .8); flash(mt.inner, 'stroke', '#fff1d6', t2 + .3, .8);
+  // outer, inner
+  note(p, L(100, -75), [1090, 200], 'outer membrane', tO + .1, { color: CC.mito });
+  flash(outerP, 'stroke', '#ffe3b0', tO + .1);
+  note(p, L(90, -61), [1090, 270], 'inner membrane', tI + .1, { color: CC.cristae, sub: 'folds inward' });
+  flash(mt.inner, 'stroke', '#fff1d6', tI + .1);
+  // cristae: the folds
+  const cr = note(p, L(59.4, -10), [1090, 380], 'cristae', tC + .1, { color: CC.cristae, sub: 'the folds' });
+  const [c2x, c2y] = L(99, 20); path(cr, `M${c2x.toFixed(1)} ${c2y.toFixed(1)}L1080 370`, { stroke: COL.dim, 'stroke-width': 2.5 });
+  mk('circle', { cx: c2x.toFixed(1), cy: c2y.toFixed(1), r: 4.5, fill: COL.dim }, cr);
+  flash(mt.inner, 'stroke', '#fff1d6', tC + .1, 1.2);
+  // area: the inner membrane unfolded is far longer than the outer: room for the ATP-making enzymes
+  const un = G(p);
+  const rOut = path(un, 'M220 722H620', { stroke: CC.mito, 'stroke-width': 9 }, { d: 0 });
+  const rIn = path(un, 'M220 812H1020', { stroke: CC.cristae, 'stroke-width': 9 }, { d: 0 });
+  draw(rOut, tAr + .3, .7); draw(rIn, tAr + 1.1, 2);
+  say(un, 'outer', 200, 731, tAr + .3, { size: 26, anchor: 'end', fill: CC.mito });
+  say(un, 'inner, unfolded', 200, 821, tAr + 1.1, { size: 26, anchor: 'end', fill: CC.cristae });
+  for (let i = 0; i < 16; i++) {
+    const x = 245 + i * 50, k = mk('g', {}, un);
+    path(k, 'M0 0V-18', { stroke: CC.cristae, 'stroke-width': 4 }); mk('circle', { cy: -26, r: 10, fill: MC.enzyme, stroke: MC.enzymeEdge, 'stroke-width': 2.5 }, k);
+    put(k, { x, y: 806, o: 0 }); show(k, tAr + 3.2 + .08 * i, .3);
+  }
+  for (let i = 0; i < 8; i++) {
+    const x = 245 + i * 50, k = mk('g', {}, un);
+    path(k, 'M0 0V-18', { stroke: CC.mito, 'stroke-width': 4 }); mk('circle', { cy: -26, r: 10, fill: MC.enzyme, stroke: MC.enzymeEdge, 'stroke-width': 2.5 }, k);
+    put(k, { x, y: 716, o: 0 }); show(k, tAr + 3.2 + .08 * i, .3);
+  }
+  say(un, 'more surface,', 1090, 760, tAr + 2.4, { size: 30, anchor: 'start', weight: 700 });
+  say(un, 'more ATP-making enzymes', 1090, 800, tAr + 3.6, { size: 28, anchor: 'start', fill: MC.enzyme });
+  // ims: the gap between the membranes
+  const band = path(mt, cStadium(373, 143), { stroke: '#ffd9a0', 'stroke-width': 6 }, { o: 0 });
+  tw(band, { o: .75 }, tIm + .1, .5); tw(band, { o: .35 }, tMx, .6);
+  note(p, L(183, 0), [1090, 470], 'intermembrane space', tIm + .3, { color: '#ffd9a0', sub: 'between the two membranes' });
+  // matrix: inside the inner membrane
+  tw(mt.inner, { c_fill: '#b8782a' }, tMx + .1, .6);
+  note(p, L(135, 25), [1090, 580], 'matrix', tMx + .3, { color: '#e0a050', sub: 'some steps of cellular respiration' });
+  // ribo: its own DNA and small ribosomes
+  ringAt(p, mt.pt('dna'), 38, tRb + .2);
+  ringAt(p, mt.pt('ribosome'), 26, tRb + 1.4);
+  note(p, mt.pt('dna'), [600, 650], 'DNA', tRb + .3, { color: CC.dna, size: 28 });
+  note(p, mt.pt('ribosome'), [330, 650], 'ribosomes', tRb + 1.5, { anchor: 'end', color: CC.ribo, size: 28 });
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0), mt = mitochondrion(p, { x: 800, y: 330, s: 2.4 });
+  notToScale(p, 1570, 40, .2);
+  const B = b => boxOut(mt, b);
+  S.q1 = [
+    { el: mt.firstElementChild, box: B([50, -90, 60, 22]), label: 'outer membrane' },
+    { el: mt.firstElementChild, box: B([-194, -36, 22, 72]), label: 'intermembrane space' },
+    { el: mt.inner, box: B([-34, -66, 28, 86]), label: 'a crista' },
+    { el: mt.inner, box: B([118, -26, 40, 52]), label: 'matrix' },
+  ];
+}, { ask: done => quiz(BAND, [
+  { id: 'c-matrix', prompt: ['Click the compartment inside the inner membrane.'],
+    build: pickEls(S.q1, 3, 'Right. The matrix lies inside the inner membrane, and some steps of cellular respiration happen there.',
+      i => i === 0 ? 'That is the outer membrane: a membrane, not a compartment. Look inside the folded inner membrane.'
+        : i === 1 ? 'That is the intermembrane space, the gap between the two membranes. The question asks for the space inside the inner one.'
+        : 'That is a crista, a fold of the inner membrane itself. Look for the space the inner membrane encloses.') },
+], done) }],
+
+/* ---------- chloro ---------- */
+['chloro', 'The chloroplast', (m, D) => {
+  const p = panel(0), tLf = m('leaf'), tPh = m('photo'), tPs = m('plastid'), tCh = m('chl'), tSu = m('sugar'), tCap = tCh + 3.85;
+  mapPush(p, D, 'chloroplasts', 1, 5);
+  const ov = wholeChloro(p, { x: 800, y: 440, s: .5, o: 0, rx: 290, ry: 135 });
+  tw(ov, { s: 1, o: 1 }, 1.2, 1, out);
+  say(p, 'CHLOROPLAST', 800, 255, 1.6, { size: 46, weight: 800, fill: CC.chloro });
+  // leaf: in leaves and green parts of plants, and in algae
+  const wh = G(p, { o: 0 }); show(wh, tLf + .6, .6);
+  const lfI = G(wh, { x: 170, y: 420, r: -30 });
+  path(lfI, 'M-80 0C-50 -50 30 -55 80 0C30 55 -50 50 -80 0Z', { fill: WC.leaf, stroke: WC.leafDk, 'stroke-width': 4 });
+  path(lfI, 'M-100 4L-80 0L70 0', { stroke: '#c9e4b0', 'stroke-width': 4 });
+  let al = ''; for (let i = 0; i < 6; i++) al += `M${332 + 6 * Math.sin(i)} ${360 + i * 26}a12 12 0 1 0 0.1 0`;
+  path(wh, al, { fill: '#4fae6a', stroke: '#2f7a46', 'stroke-width': 3 });
+  wLabel(wh, 'leaf', { x: 170, y: 520, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(wh, 'alga', { x: 335, y: 540, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(wh, 'leaves, green parts', { x: 250, y: 600, size: 28, o: 1 });
+  wLabel(wh, 'of plants, algae', { x: 250, y: 636, size: 28, o: 1 });
+  // photo
+  say(p, 'site of photosynthesis', 800, 640, tPh + .2, { size: 38, weight: 700, fill: CC.chloro });
+  // plastid: one kind in a family of pigment-containing organelles
+  const pl = G(p, { o: 0 }); show(pl, tPs + .3, .6);
+  wholeChloro(pl, { x: 1270, y: 330, s: .26 });
+  mk('ellipse', { cx: 1390, cy: 330, rx: 50, ry: 27, fill: '#e0a24a', stroke: '#b87a2a', 'stroke-width': 4 }, pl);
+  mk('ellipse', { cx: 1500, cy: 330, rx: 46, ry: 26, fill: '#8f98a6', stroke: '#6c7482', 'stroke-width': 4 }, pl);
+  path(pl, 'M1210 270V250H1550V270', { stroke: COL.chalk, 'stroke-width': 4 });
+  wLabel(pl, 'plastids', { x: 1380, y: 232, size: 34, weight: 700, o: 1 });
+  wLabel(pl, 'a family of organelles', { x: 1380, y: 410, size: 26, o: 1 });
+  wLabel(pl, 'that contain pigments', { x: 1380, y: 444, size: 26, o: 1 });
+  const ring = mk('ellipse', { cx: 1270, cy: 330, rx: 72, ry: 44, fill: 'none', stroke: CC.chloro, 'stroke-width': 4 }, p); put(ring, { o: 0 }); show(ring, tPs + 2.2, .4);
+  say(p, 'chloroplast: one kind', 1270, 500, tPs + 2.4, { size: 26, fill: CC.chloro });
+  // chl: chlorophyll, the green pigment, captures light
+  let dd = ''; for (let i = 0; i < 46; i++) { const a = wHash(i, 7) * 2 * Math.PI, rr = Math.sqrt(wHash(i, 8)) * .85; dd += `M${(800 + 280 * rr * Math.cos(a)).toFixed(1)} ${(440 + 125 * rr * Math.sin(a)).toFixed(1)}h.01`; }
+  const chl = path(p, dd, { stroke: '#1f7a34', 'stroke-width': 14 }, { o: 0 }); show(chl, tCh + .3, .8);
+  say(p, 'chlorophyll: the green pigment', 800, 690, tCh + .8, { size: 30, fill: '#9fe39a' });
+  const sn = sunIcon(p, { x: 380, y: 110, r: 36, o: 0 }); show(sn, tCap - .4, .4);
+  draw(lightRay(p, [425, 155], [620, 370]), tCap, .6); draw(lightRay(p, [440, 135], [680, 335]), tCap + .2, .6);
+  say(p, 'captures light', 290, 235, tCap + .4, { size: 30, fill: CC.light });
+  // sugar: light energy builds sugar from carbon dioxide and water; oxygen is released
+  const tIn = tSu + 2.2, tOut = tSu + 4.6;
+  sayChem(p, 'CO_2 + H_2O', 360, 812, tIn, { size: 32, weight: 700 });
+  show(mArrow(p, [430, 780], [560, 560], { color: COL.chalk, o: 0 }), tIn + .3);
+  show(mArrow(p, [1040, 560], [1170, 780], { color: COL.chalk, o: 0 }), tOut);
+  const sb = sugarBead(p, { x: 1180, y: 805, o: 0 }); show(sb, tOut + .4, .4);
+  say(p, 'sugar', 1206, 815, tOut + .4, { size: 32, weight: 700, fill: SUGAR, anchor: 'start' });
+  sayChem(p, '+ O_2', 1300, 815, tOut + 1.2, { size: 32, weight: 700, anchor: 'start' });
+  const o2 = o2Mol(p, { x: 1420, y: 805, o: 0 }); show(o2, tOut + 1.2, .4);
+}, { lead: false }],
+
+/* ---------- cstruct ---------- */
+['cstruct', 'Inside a chloroplast', (m, D) => {
+  const p = panel(0), tE = m('env'), tS = m('stroma'), tT = m('thy'), tG = m('granum'), tGs = tG + 4.2, tW = m('work');
+  const c = chloroplast(p, { x: 620, y: 440, s: 1.9 }), L = (lx, ly) => cOut(c, [lx, ly]);
+  const ov = wholeChloro(p, { x: 620, y: 440, s: 1.9 }); put(c, { o: 0 }); show(c, .1, .4); hide(ov, .4, 1.1);
+  const [outerP, innerP] = [c.children[0], c.children[1]];
+  const raysG = c.querySelector('path[stroke-dasharray="1 1"]')?.parentNode;
+  if (raysG) { raysG.querySelectorAll('path').forEach(e => e.setAttribute('vector-effect', 'non-scaling-stroke')); put(raysG, { s: .5 }); }
+  notToScale(p, 1570, 40, .3);
+  // env: a double membrane, inner and outer
+  hide(say(p, 'double membrane', 620, 200, tE + .2, { size: 36, weight: 700 }), tW, .4);
+  flash(outerP, 'stroke', '#d8ffd0', tE + .3, 1); flash(innerP, 'stroke', '#d8ffd0', tE + .6, 1);
+  note(p, L(150, -77), [1090, 210], 'outer membrane', tE + 1.4, { color: CC.chloro, size: 28 });
+  note(p, L(165, -57), [1090, 268], 'inner membrane', tE + 2, { color: CC.chloro, size: 28 });
+  // stroma: the fluid inside
+  tw(innerP, { c_fill: '#c8f0c0' }, tS + .1, .6); tw(innerP, { c_fill: CC.stroma }, tS + 2.2, .8);
+  note(p, c.pt('stroma'), [1090, 370], 'stroma', tS + .3, { color: '#c8f0c0', sub: 'the fluid inside' });
+  // thy: one flattened membrane sac
+  const [dx, dy, dw, dh] = discBox(STACKS[3], 1, 1);
+  const disc = mk('rect', { x: dx, y: dy, width: dw, height: dh, rx: 6, fill: '#e6ff9e', 'fill-opacity': .55, stroke: '#f2ffd0', 'stroke-width': 2.5 }, c);
+  put(disc, { o: 0 }); show(disc, tT + .2, .4);
+  note(p, L(STACKS[3][0] + 28, dy + dh / 2), [1090, 480], 'thylakoid', tT + .4, { color: '#e6ff9e', sub: 'a flattened sac of membrane' });
+  // granum: one stack; grana: many stacks
+  const [bx, by, , bh] = stackBox(STACKS[1], 6);
+  const [X1, Y1] = L(bx, by), [, Y2] = L(bx, by + bh);
+  draw(path(p, `M${(X1 + 14).toFixed(1)} ${Y1.toFixed(1)}H${X1.toFixed(1)}V${Y2.toFixed(1)}H${(X1 + 14).toFixed(1)}`, { stroke: COL.chalk, 'stroke-width': 4 }, { d: 0 }), tG + .2, .5);
+  note(p, [X1, (Y1 + Y2) / 2], [200, 610], 'granum', tG + .6, { anchor: 'middle', color: '#e6ff9e', sub: 'a stack of thylakoids' });
+  STACKS.forEach((sk, i) => {
+    const [x, y, w, h] = stackBox(sk, 5);
+    const r = mk('rect', { x, y, width: w, height: h, rx: 8, fill: 'none', stroke: '#f2ffd0', 'stroke-width': 2.5 }, c);
+    put(r, { o: 0 }); show(r, tGs + .15 * i, .3); hide(r, tW - .2, .4);
+  });
+  say(p, 'grana: many stacks', 620, 700, tGs + .4, { size: 32, weight: 700, fill: '#e6ff9e' });
+  // work: chlorophyll and the photosynthesis enzymes work here: light comes in, the grana glow
+  hide(disc, tW - .2, .4);
+  prog(k => c.light(k), tW + .3, 2.5, lin);
+  [[-150, 50], [-10, -50], [120, -60], [90, 55], [-110, -70]].forEach(([ex, ey], i) => {
+    const e = enzyme(c, { x: ex, y: ey, R: 11, dir: 90 * i, o: 0 }); show(e, tW + 1.4 + .15 * i, .3);
+  });
+  say(p, 'chlorophyll and photosynthesis enzymes', 620, 770, tW + 1.6, { size: 30, fill: MC.enzyme });
+  say(p, 'the working parts', 620, 810, tW + 2.6, { size: 26, fill: COL.dim, weight: 500 });
+}],
+
+/* ---------- twins ---------- */
+['twins', 'What they share', (m, D) => {
+  const p = panel(0), tN = m('no'), tLink = tN + 2.9, tDb = m('dbl'), tDn = m('dna'), tIm = m('import'), tMade = tIm + 2.6, tSw = m('swap'), tSw2 = tSw + 3.5;
+  // the endomembrane system, a dim stripe at the top
+  const em = G(p, { o: 0 }); show(em, .1, .5);
+  roughER(em, { x: 430, y: 135, s: .42, n: 3 });
+  golgi(em, { x: 800, y: 140, s: .34 });
+  lysosome(em, { x: 1130, y: 140, s: .6, n: 2 });
+  wLabel(em, 'the endomembrane system', { x: 800, y: 60, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  const ves = vesicle(p, { x: 545, y: 140, r: 16, n: 2, o: 0 });
+  // the two organelles
+  const mt = mitochondrion(p, { x: 450, y: 560, s: 1.2, o: 0 }), ch = chloroplast(p, { x: 1150, y: 560, s: 1.05, o: 0 });
+  show(mt, .3, .5); show(ch, .5, .5);
+  say(p, 'mitochondrion', 450, 700, .6, { size: 30, weight: 700, fill: CC.mito });
+  say(p, 'chloroplast', 1150, 700, .8, { size: 30, weight: 700, fill: CC.chloro });
+  // no: not part of the endomembrane system
+  draw(path(p, 'M120 245H1480', { stroke: COL.chalk, 'stroke-width': 4, 'stroke-dasharray': '16 12' }, { d: 0 }), tN + .1, .8);
+  const X = G(p, { x: 800, y: 245, o: 0 }); path(X, 'M-22 -22L22 22M22 -22L-22 22', { stroke: COL.bad, 'stroke-width': 8 }); show(X, tN + .9, .3);
+  say(p, 'not part of it', 800, 300, tN + 1.1, { size: 30, weight: 700 });
+  tw(em, { o: .55 }, tN + .6, .5);
+  // the chain the vesicles link: a vesicle travels ER → Golgi → onward
+  show(ves, tLink, .3);
+  prog(k => ves.move([[545, 140], [680, 120], [745, 140]], k), tLink + .2, 1.6, io);
+  prog(k => ves.move([[855, 140], [960, 120], [1080, 140]], k), tLink + 1.9, 1.4, io);
+  hide(ves, tLink + 3.3, .3);
+  // dbl: a double membrane each
+  const dbl = (o, pathsOf, x, y, t0) => { pathsOf.forEach((e, i) => flash(e, 'stroke', '#fff6d8', t0 + .2 * i, 1)); say(p, 'double membrane', x, y, t0 + .3, { size: 28 }); };
+  dbl(mt, [mt.firstElementChild, mt.inner], 450, 420, tDb);
+  dbl(ch, [ch.children[0], ch.children[1]], 1150, 420, tDb + .4);
+  // dna: their own DNA and small ribosomes
+  [[mt, 'dna', 26], [mt, 'ribosome', 20], [ch, 'dna', 24], [ch, 'ribosome', 20]].forEach(([o, k, r], i) => ringAt(p, o.pt(k), r, tDn + .2 + .3 * i));
+  say(p, 'own DNA and ribosomes', 450, 742, tDn + .8, { size: 26, fill: CC.dna });
+  say(p, 'own DNA and ribosomes', 1150, 742, tDn + 1.1, { size: 26, fill: CC.dna });
+  // import: most of their proteins are made on free ribosomes in the cytosol and imported
+  const rb = ribosome(p, { x: 800, y: 600, s: .42, o: 0 }); show(rb, tIm + .3, .4);
+  say(p, 'free ribosome', 800, 660, tIm + .5, { size: 24, fill: CC.ribo });
+  const chains = [proteinChain(p, 5), proteinChain(p, 5)];
+  const go = [[640, 560], [930, 560]];
+  clockRun(t => chains.forEach((c, i) => {
+    const grow = 5 * ramp(t, tMade, tMade + 1.6), mv = io(ramp(t, tMade + 2, tMade + 3.6));
+    const dir = i ? -20 : 200, sx = 800 + (i ? 30 : -30), sy = 575;
+    mPose(c, lerp(sx, go[i][0], mv), lerp(sy, go[i][1], mv), ramp(t, tMade, tMade + .3) * (1 - ramp(t, tMade + 3.4, tMade + 3.9)));
+    c.set(grow, dir);
+  }), D);
+  show(mArrow(p, [720, 520], [640, 520], { color: CC.cargo, o: 0, w: 5, head: 15 }), tMade + 2);
+  show(mArrow(p, [880, 520], [960, 520], { color: CC.cargo, o: 0, w: 5, head: 15 }), tMade + 2);
+  say(p, 'most of their proteins: made in the cytosol, then imported', 800, 360, tMade + .4, { size: 28, fill: CC.cargo });
+  // swap: their jobs differ
+  say(p, 'food energy → ATP', 450, 812, tSw + .3, { size: 32, weight: 700, fill: ATPC });
+  say(p, 'light energy → sugar', 1150, 812, tSw2 + .2, { size: 32, weight: 700, fill: SUGAR });
+  flash(mt.firstElementChild, 'stroke', ATPC, tSw + .3, 2); flash(ch.children[0], 'stroke', SUGAR, tSw2 + .2, 2);
+}],
+
+/* ---------- leafday ---------- */
+['leafday', 'One leaf cell', (m, D) => {
+  const p = panel(0), tSn = m('sun'), tB = m('burn'), tMk = m('make'), tN = m('note'), tOnly = tN + 3.3;
+  const cell = G(p, { o: 0 }); show(cell, .1, .5);
+  mk('rect', { x: 440, y: 110, width: 960, height: 720, rx: 60, fill: CC.cyto, stroke: CC.wall, 'stroke-width': 22 }, cell);
+  mk('rect', { x: 454, y: 124, width: 932, height: 692, rx: 50, fill: 'none', stroke: CC.membrane, 'stroke-width': 5 }, cell);
+  wLabel(cell, 'one leaf cell', { x: 500, y: 790, size: 28, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+  const ch = chloroplast(p, { x: 880, y: 300, s: .85, r: -4, o: 0 }), mt = mitochondrion(p, { x: 880, y: 650, s: .95, o: 0 });
+  show(ch, .3, .5); show(mt, .5, .5);
+  say(p, 'chloroplast', 880, 420, .7, { size: 26, fill: CC.chloro });
+  say(p, 'mitochondrion', 880, 755, .9, { size: 26, fill: CC.mito });
+  const sn = sunIcon(p, { x: 190, y: 150, r: 56, o: 0 }); show(sn, .3, .5);
+  // sun: light reaches the chloroplast; sugar and oxygen come out
+  draw(lightRay(p, [250, 205], [700, 270]), tSn + .1, .8); draw(lightRay(p, [240, 230], [720, 320]), tSn + .3, .8);
+  prog(k => ch.light(k), tSn + .3, 1.6, lin);
+  const loop = [[1100, 300], [1250, 350], [1280, 480], [1240, 600], [1080, 650]];
+  draw(path(p, cSmooth(loop), { stroke: COL.faint, 'stroke-width': 26 }, { d: 0 }), tSn + .5, 1);
+  const items = [];
+  for (let i = 0; i < 6; i++) items.push(i % 2 ? o2Mol(p, { s: .8, o: 0 }) : sugarBead(p, { s: .9, o: 0 }));
+  clockRun(t => items.forEach((e, i) => {
+    const t0 = tSn + 1.6 + .45 * i, out = ramp(t, t0, t0 + 1.1), along = ramp(t, tB + .2 + .35 * i, tB + 2.6 + .35 * i);
+    const k0 = [1100 - 160 + 110 * out, 300 + (i % 3 - 1) * 26];
+    const q = along > 0 ? cAlong(loop, along) : k0;
+    mPose(e, q[0] + (along > 0 ? (i % 3 - 1) * 14 : 0), q[1], ramp(t, t0, t0 + .3) * (1 - ramp(t, tB + 2.4 + .35 * i, tB + 2.9 + .35 * i)));
+  }), D);
+  say(p, 'sugar', 1210, 450, tSn + 2.4, { size: 30, weight: 700, fill: SUGAR, anchor: 'end' });
+  sayChem(p, '+ O_2', 1210, 492, tSn + 3, { size: 30, weight: 700, anchor: 'end' });
+  // make: cellular respiration makes ATP from them
+  outSparks(p, 880, 650, 185, 72, [150, 180, 210, 235], D, tMk + .3, 55);
+  say(p, 'ATP', 1100, 760, tMk + .8, { size: 36, weight: 800, fill: ATPC });
+  // note: the products of one feed the other; only the chloroplast captures light
+  const ring = mk('ellipse', { cx: 960, cy: 480, rx: 380, ry: 330, fill: 'none', stroke: COL.chalk, 'stroke-width': 3.5, 'stroke-dasharray': '12 10' }, p);
+  put(ring, { o: 0 }); show(ring, tN + .2, .5);
+  say(p, 'one feeds', 880, 490, tN + .5, { size: 30 });
+  say(p, 'the other', 880, 530, tN + .7, { size: 30 });
+  say(p, 'only the chloroplast', 190, 290, tOnly + .2, { size: 28, fill: CC.light });
+  say(p, 'captures light', 190, 326, tOnly + .4, { size: 28, fill: CC.light });
+  pulse(sn, tOnly + .2, 1.12);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  mitochondrion(p, { x: 370, y: 270, s: 1.2 });
+  wLabel(p, 'mitochondrion', { x: 370, y: 410, size: 32, weight: 700, fill: CC.mito, o: 1 });
+  chloroplast(p, { x: 370, y: 620, s: 1.05 });
+  wLabel(p, 'chloroplast', { x: 370, y: 780, size: 32, weight: 700, fill: CC.chloro, o: 1 });
+}, { ask: done => quiz({ x: 760, y: 60, w: 800, cls: 'side' }, [{
+  id: 'c-sort', prompt: ['Mitochondrion or chloroplast?'],
+  build: grid([
+    { parts: ['makes ATP by cellular respiration'], ans: ['m'], why: 'Mitochondrion: it is the site of cellular respiration.' },
+    { parts: ['site of photosynthesis'], ans: ['c'], why: 'Chloroplast: its chlorophyll captures light for photosynthesis.' },
+    { parts: ['has cristae'], ans: ['m'], why: 'Mitochondrion: cristae are the folds of its inner membrane.' },
+    { parts: ['has thylakoids stacked in grana'], ans: ['c'], why: 'Chloroplast: each granum is a stack of thylakoids.' },
+    { parts: ['has a matrix'], ans: ['m'], why: 'Mitochondrion: the matrix lies inside its inner membrane.' },
+    { parts: ['has a stroma'], ans: ['c'], why: 'Chloroplast: the stroma is the fluid around its thylakoids.' },
+  ], [['m', 'mitochondrion', CC.mito, 'M'], ['c', 'chloroplast', CC.chloro, 'C']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- perox ---------- */
+['perox', 'The peroxisome', (m, D) => {
+  const p = panel(0), t1 = m('one'), tOx = m('ox'), tH = m('h2o2'), tC = m('cat'), tE = m('eq'), tS = m('safe');
+  mapPush(p, D, 'peroxisomes', 0, 6);
+  const R0 = 110, SC = 2.1, X0 = 560, Y0 = 470;
+  const px = peroxisome(p, { x: X0, y: Y0, r: R0, s: .5, o: 0 }); put(px.core, { o: 0 });
+  tw(px, { s: SC, o: 1 }, 1.2, 1, out);
+  const memb = px.firstElementChild;
+  // the kit's product labels sit on the molecules at this size: hide them and name the products locally
+  px.lastElementChild.querySelectorAll('text').forEach(e => { if (/^(H2O|O2)$/.test(e.textContent.trim())) e.setAttribute('display', 'none'); });
+  say(p, 'PEROXISOME', X0, 160, 1.6, { size: 46, weight: 800, fill: CC.perox });
+  // one: a single membrane
+  flash(memb, 'stroke', '#f4ffb0', t1 + .1, 1.4);
+  note(p, [X0 + R0 * SC * .96, Y0 - 20], [1010, 270], 'single membrane', t1 + .3, { color: CC.perox, sub: 'one, not two' });
+  // ox: oxidation uses oxygen to break down molecules
+  const oxG = G(p); hide(oxG, tH - .2, .4);
+  const o2 = o2Mol(oxG, { x: 180, y: 520, s: 1.1, o: 0 });
+  show(o2, tOx + .2, .3); tw(o2, { x: 470, y: 540 }, tOx + .5, 1.6, io);
+  const bead = (x, c) => { const e = mk('circle', { r: 20, fill: c, stroke: mix(c, '#000000', .3), 'stroke-width': 3 }, oxG); put(e, { x, y: 560, o: 0 }); show(e, tOx + .3, .4); return e; };
+  const b1 = bead(560, '#8f9bb0'), b2 = bead(600, '#b0bccc'), b3 = bead(640, '#8f9bb0');
+  tw(b1, { x: 530, y: 590 }, tOx + 2.4, .6, out); tw(b3, { x: 680, y: 600 }, tOx + 2.4, .6, out); tw(b2, { y: 520 }, tOx + 2.4, .6, out);
+  hide(o2, tOx + 2.2, .3);
+  const lOx = note(p, [X0 + 140, Y0 + 60], [1010, 400], 'oxidation', tOx + 1, { color: COL.chalk, sub: 'reactions that use oxygen to break down molecules' });
+  hide(lOx, tC, .4);
+  // h2o2: hydrogen peroxide, harmful; cat: catalase converts it; eq: 2 H2O2 → 2 H2O + O2
+  const K = t => t < tH + .4 ? 0 : t < tC ? .2 * ramp(t, tH + .4, tH + 1.4) : t < tE ? .2 + .1 * ramp(t, tC + .3, tC + 1) + .15 * ramp(t, tC + 1.4, tC + 3.6) : .45 + .35 * ramp(t, tE + .3, tE + 3.6) + .2 * ramp(t, tE + 3.8, tE + 4.8);
+  // the kit walks both H2O2 labels into the enzyme's mouth, where they land on each other and on the O2 atoms:
+  // fade them out on the way in and take them out of the picture once gone
+  const hpT = [...px.lastElementChild.querySelectorAll('text')].filter(e => e.textContent.trim() === 'H2O2');
+  let hpOn = null;   // react() rewrites the labels' opacity every frame, so fade them every frame; toggle display only on change
+  clockRun(t => { const k = K(t); px.react(k); const f = 1 - ramp(k, .3, .37), on = f > 0;
+    hpT.forEach(e => { e.setAttribute('opacity', f.toFixed(3)); if (on !== hpOn) e.setAttribute('display', on ? 'inline' : 'none'); }); hpOn = on; }, D);
+  const warn = G(p, { x: 170, y: 270, o: 0 }); show(warn, tH + 1.5, .4);
+  path(warn, 'M0 -34L34 26H-34Z', { fill: '#ffd27a', stroke: '#c9761b', 'stroke-width': 3 });
+  wLabel(warn, '!', { y: 18, size: 36, weight: 900, fill: '#3b2a0a', o: 1 });
+  const lH = note(p, [X0 - R0 * SC * .45, Y0 - R0 * SC * .5], [170, 360], 'hydrogen peroxide', tH + 1.3, { anchor: 'middle', color: '#ffd6a8', sub: 'harmful to the cell' });
+  hide(lH, tC + 2.3, .4); hide(warn, tC + 2.3, .4);   // with the H2O2 labels, which fade out by about tC + 2.4
+  note(p, [X0 - R0 * SC * .02 + 20, Y0 - R0 * SC * .32 - 10], [1010, 470], 'catalase', tC + .9, { color: MC.enzyme, sub: 'an enzyme that converts it' });
+  sayChem(p, 'H_2O', 636, 356, tE + 3.8, { size: 30, weight: 700, anchor: 'end' });
+  sayChem(p, 'O_2', 726, 520, tE + 3.8, { size: 30, weight: 700 });
+  sayChem(p, 'H_2O', 585, 625, tE + 3.8, { size: 30, weight: 700, anchor: 'start' });
+  // the equation strip
+  const eq = G(p, { o: 0 }); show(eq, tE + .4, .5);
+  mk('rect', { x: 300, y: 742, width: 1000, height: 96, rx: 18, fill: COL.board, stroke: COL.faint, 'stroke-width': 2 }, eq);
+  wChem(eq, '2 H_2O_2', { x: 470, y: 806, size: 44, weight: 700, fill: '#ffd6a8', o: 1 });
+  mArrow(eq, [580, 792], [720, 792], { color: COL.chalk, w: 5, head: 16 });
+  wLabel(eq, 'catalase', { x: 650, y: 772, size: 22, fill: MC.enzyme, o: 1 });
+  wChem(eq, '2 H_2O + O_2', { x: 940, y: 806, size: 44, weight: 700, o: 1 });
+  wLabel(eq, 'water and oxygen', { x: 1170, y: 802, size: 24, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+  // safe: it all stays inside; the rest of the cell is shielded
+  flash(memb, 'stroke', '#f4ffb0', tS + .2, 2.4);
+  tw(memb, { 'a_stroke-width': 12 }, tS + .2, .5); tw(memb, { 'a_stroke-width': 6 }, tS + 3.2, .6);
+  say(p, 'kept inside:', 1010, 600, tS + .6, { size: 30, anchor: 'start', weight: 700 });
+  say(p, 'the rest of the cell', 1010, 640, tS + 1, { size: 28, anchor: 'start' });
+  say(p, 'is shielded', 1010, 678, tS + 1.2, { size: 28, anchor: 'start' });
+}, { lead: false }],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['Mitochondria: cellular respiration makes ATP.', 'Cristae fold the inner membrane: more surface.', g => mitochondrion(g, { x: 160, y: 0, s: .55 })],
+    ['Chloroplasts: photosynthesis.', 'Chlorophyll in thylakoids, stacked in grana, in the stroma.', g => chloroplast(g, { x: 160, y: 0, s: .5 })],
+    ['Both: two membranes, their own DNA and ribosomes;', 'not part of the endomembrane system.', g => { mitochondrion(g, { x: 95, y: 0, s: .3 }); chloroplast(g, { x: 225, y: 0, s: .27 }); }],
+    ['Peroxisomes: one membrane.', 'Catalase: 2 H_2O_2 → 2 H_2O + O_2', g => { const x = peroxisome(g, { x: 160, y: 0, s: .55 }); put(x.core, { o: 0 }); }],
+  ];
+  const icons = [];
+  wLabel(p, 'TO SUM UP', { x: 800, y: 82, size: 40, weight: 800, fill: COL.dim, o: 1 });   // on screen from the first frame
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: -16, y: 160 + i * 165, o: 0 });
+    const ic = G(g); icon(ic); icons.push(ic);
+    wChem(g, a, { x: 330, y: -6, size: 36, weight: 600, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 330, y: 40, size: 30, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+    tw(g, { o: 1, x: 0 }, m('w' + (i + 1)), .6);
+  });
+  say(p, 'Now try the practice.', 800, 860, m('end'), { size: 32, fill: WC.bond });
+  clockRun(t => icons.forEach((ic, i) => put(ic, { y: 4 * Math.sin(1.6 * t + 1.3 * i) })), D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('cristae', g => {
+    const mt = mitochondrion(g, { x: 1260, y: 420, s: 1.5 });
+    const [ax, ay] = cOut(mt, [59.4, -10]);
+    path(g, `M${ax.toFixed(1)} ${ay.toFixed(1)}L1380 650`, { stroke: COL.dim, 'stroke-width': 2.5 });
+    wLabel(g, 'cristae', { x: 1380, y: 690, size: 32, fill: CC.cristae, weight: 700, o: 1 });
+    wLabel(g, '?', { x: 1460, y: 690, size: 60, fill: MC.hi, weight: 800, o: 1 });
+    notToScale(g, 1570, 40, 0);
+  });
+  at('grana', g => {
+    const c = chloroplast(g, { x: 1260, y: 450, s: 1.4 });
+    S.grana = [
+      { el: c, box: boxOut(c, stackBox(STACKS[1], 6)), label: 'a stack of discs' },
+      { el: c, box: boxOut(c, [146, -18, 46, 46]), label: 'the fluid around the stacks' },
+      { el: c, box: boxOut(c, [-45, -116, 90, 20]), label: 'the outer membrane' },
+      { el: c, box: boxOut(c, discBox(STACKS[3], 0, 4)), label: 'a single disc' },
+    ];
+  });
+  at('share', g => {
+    mitochondrion(g, { x: 1270, y: 300, s: 1.1 });
+    chloroplast(g, { x: 1270, y: 600, s: 1 });
+    wLabel(g, 'both?', { x: 1270, y: 460, size: 40, fill: MC.hi, weight: 800, o: 1 });
+  });
+  at('perox', g => {
+    const x = peroxisome(g, { x: 1260, y: 430, s: 1.9 }); put(x.core, { o: 0 }); x.react(.2);
+    wChem(g, 'H_2O_2 → ?', { x: 1260, y: 760, size: 44, weight: 700, fill: '#ffd6a8', o: 1 });
+  });
+  at('terms', g => {
+    const mt = mitochondrion(g, { x: 1150, y: 230, s: .9 }), ch = chloroplast(g, { x: 1150, y: 520, s: .85 });
+    const x = peroxisome(g, { x: 1150, y: 770, s: .75 }); put(x.core, { o: 0 });
+    wLabel(g, 'mitochondrion', { x: 1400, y: 240, size: 28, fill: CC.mito, anchor: 'start', o: 1 });
+    wLabel(g, 'chloroplast', { x: 1400, y: 530, size: 28, fill: CC.chloro, anchor: 'start', o: 1 });
+    wLabel(g, 'peroxisome', { x: 1260, y: 780, size: 28, fill: CC.perox, anchor: 'start', o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('cristae');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-cristae', prompt: ['Why does the inner membrane of a mitochondrion fold into cristae?'],
+    build: withPic('cristae', choice([['To hold the mitochondrion’s DNA.'], ['To give more surface for the enzymes that make ATP.'], ['To catch light for photosynthesis.'], ['To join the mitochondrion to the ER.']], 1,
+      'Right. More folding means more surface, and the enzymes that make ATP work on that surface.',
+      ['The DNA lies in the matrix; the folds are there for surface.', null,
+       'Mitochondria do not use light; that is the chloroplast’s job.',
+       'Mitochondria are not part of the endomembrane system, so they do not join the ER.'])) },
+  { id: 'p-grana', prompt: ['Click one granum.'],
+    build: (body, api) => { S.pics?.('grana'); return pickEls(S.grana, 0, 'Right. A granum is a stack of thylakoids.',
+      i => i === 1 ? 'That is the stroma, the fluid around the stacks. A granum is a stack of discs.'
+        : i === 2 ? 'That is the outer membrane, part of the envelope. Look inside for a stack of discs.'
+        : 'That is one thylakoid, a single sac. A granum is a whole stack of them.')(body, api); } },
+  { id: 'p-share', prompt: ['Which statement is true of both mitochondria and chloroplasts?'],
+    build: withPic('share', choice([['They are part of the endomembrane system.'], ['They make all of their own proteins.'], ['They have a double membrane and their own DNA.'], ['They have a single membrane.']], 2,
+      'Right. Both have two membranes and their own DNA and ribosomes.',
+      ['Neither is: they are not linked to the ER and Golgi by vesicles.',
+       'They make a few, but most of their proteins are made on free ribosomes in the cytosol and imported.', null,
+       'A single membrane is the peroxisome; these two have a double membrane.'])) },
+  { id: 'p-perox', prompt: ['What does a peroxisome do with the hydrogen peroxide its reactions make?'],
+    build: withPic('perox', choice([['It turns it into ATP.'], ['It converts it to water and releases oxygen.'], ['It sends it to the Golgi in a vesicle.'], ['It builds sugar from it.']], 1,
+      'Right. Catalase converts it: 2 H₂O₂ → 2 H₂O + O₂.',
+      ['ATP comes from cellular respiration in mitochondria.', null,
+       'Peroxisomes keep it inside and break it down; they are not part of the Golgi traffic.',
+       'Building sugar is photosynthesis, in the chloroplast.'])) },
+  { id: 'p-terms', prompt: ['True or false?'],
+    build: withPic('terms', grid([
+      { parts: ['A mitochondrion has two membranes.'], ans: ['t'], why: 'True: an outer membrane and a folded inner membrane.' },
+      { parts: ['A chloroplast is one kind of plastid.'], ans: ['t'], why: 'True: plastids are a family of pigment-containing organelles.' },
+      { parts: ['The stroma is a stack of thylakoids.'], ans: ['f'], why: 'False: the stroma is the fluid; a stack of thylakoids is a granum.' },
+      { parts: ['A peroxisome has a double membrane.'], ans: ['f'], why: 'False: a peroxisome has a single membrane.' },
+      { parts: ['Photosynthesis happens in the mitochondrion.'], ans: ['f'], why: 'False: photosynthesis happens in the chloroplast.' },
+      { parts: ['ATP is the energy carrier made by cellular respiration.'], ans: ['t'], why: 'True.' },
+    ], TF, { multi: false, text: true })) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>

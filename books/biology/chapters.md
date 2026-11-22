@@ -22,3 +22,18 @@ Slides cover concept 5.1 (polymers) and concept 5.5 (nucleic acids) only. Slide 
 | chapter-05/lesson-02 | Nucleic acids: from gene to protein | 7–9 | 7 | ready |
 | chapter-05/lesson-03 | Nucleotides: base, sugar and phosphate | 10–12 | 7 | ready |
 | chapter-05/lesson-04 | Polynucleotides and the double helix | 13–17 | 7 | ready |
+
+## Unit 6: Chapter 6: A Tour of the Cell (source/chapter-06-a-tour-of-the-cell.pdf, slides)
+
+63 slides, concepts 6.1–6.7 (6.7 marked "Self Study" on the slides, taught anyway). No question slides: each lesson writes its own checks and practice. Handwritten notes on the slides are a student's; wrong ones are listed per lesson (e.g. slide 26 "smooth ER makes protein", slide 13's ribosome list under the nucleolus). Every lesson after the first opens on the same cell map with its organelles lit (the tour thread). Shared kits: site/biology/lib/cell.js (organelles, cell maps) and site/biology/lib/cyto.js (cytoskeleton, walls, ECM, junctions). Team brief: chapters/chapter-06/BRIEF.md.
+
+| Lesson | Title | Pages | Minutes | Status |
+|---|---|---|---|---|
+| chapter-06/lesson-01 | Studying cells: prokaryotes and eukaryotes | 1–7 | 7 | ready |
+| chapter-06/lesson-02 | The nucleus and ribosomes | 8–15 | 7 | ready |
+| chapter-06/lesson-03 | The ER and the Golgi apparatus | 16–21 | 7 | ready |
+| chapter-06/lesson-04 | Lysosomes, vacuoles and the endomembrane system | 22–26 | 7 | ready |
+| chapter-06/lesson-05 | Mitochondria, chloroplasts and peroxisomes | 27–33 | 7 | ready |
+| chapter-06/lesson-06 | Microtubules, cilia and flagella | 34–46 | 7 | ready |
+| chapter-06/lesson-07 | Microfilaments and intermediate filaments | 47–52 | 7 | ready |
+| chapter-06/lesson-08 | Cell walls, the ECM and cell junctions | 53–63 | 8 | ready |

@@ -55,16 +55,20 @@
   </div>
 
   <script>
-  // Each card's chapter line comes from its book's contents page (the unit titles in Contents.book), so it stays
+  // Each card's chapter line comes from its book's contents page (the units in Contents.book), so it stays
   // current as chapters are added. Without the fetch (opened from disk) the generic line stays.
   for (const el of document.querySelectorAll('.units[data-book]')) {
     fetch(el.dataset.book).then(r => r.ok ? r.text() : Promise.reject()).then(html => {
-      const units = [...html.matchAll(/\[\s*'(Chapter [^']+)',\s*\[((?:\s*\['[^']*',[^\]]*\],?)*)\s*\]/g)];
+      // Each unit is ['Title', [[lesson, minutes, …], …], { unit: N }?]; a unit without { unit } follows the one
+      // before it, and the first starts at the book's start.unit. The unit number is the textbook chapter.
+      const body = html.slice(html.indexOf('units: ['));
+      let num = +(html.match(/start:\s*\{\s*unit:\s*(\d+)/)?.[1] ?? 1) - 1;
+      const units = [...body.matchAll(/\[\s*'([^']+)',\s*\[((?:\s*\['[^']*',[^\]]*\],?)*)\s*\](?:\s*,\s*\{\s*unit:\s*(\d+))?/g)]
+        .map(u => ({ title: u[1], lessons: (u[2].match(/\['/g) || []).length, n: num = u[3] ? +u[3] : num + 1 }));
       if (!units.length) return;
-      const lessons = units.reduce((n, u) => n + (u[2].match(/\['/g) || []).length, 0);
-      const nums = units.map(u => u[1].match(/^Chapter (\d+)/)?.[1]).filter(Boolean);
+      const lessons = units.reduce((n, u) => n + u.lessons, 0), nums = units.map(u => u.n);
       el.textContent = `${nums.length > 1 ? 'Chapters ' + nums.slice(0, -1).join(', ') + ' and ' + nums.at(-1) : 'Chapter ' + nums[0]} · ${lessons} lessons`;
-      el.title = units.map(u => u[1]).join('\n');
+      el.title = units.map(u => `Chapter ${u.n}: ${u.title}`).join('\n');
     }).catch(() => {});
   }
   </script>

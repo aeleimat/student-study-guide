@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 6, Lesson 4: Lysosomes, Vacuoles and the Endomembrane System — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 6 (A Tour of the Cell), lesson 4: a white blood cell swallows a bacterium; the tour map with
+// lysosomes and vacuoles lit; the lysosome (sac, hydrolytic, four kinds of macromolecule, why a sac); phagocytosis in four
+// steps; check on the order; autophagy; the three kinds of vacuole; the central vacuole of a lettuce cell; check on the
+// vacuoles; the endomembrane route (nuclear envelope, ER, vesicle, cis and trans Golgi, lysosome, plasma membrane); two
+// proteins sorted at the trans face; summary; practice. Plan, errata and storyboard:
+// books/biology/chapters/chapter-06/lesson-04.md.
+const CHAPTER = { number: 604, label: '6, lesson 4', title: 'Lysosomes, Vacuoles and the Endomembrane System', minutes: 7, language: 'en', lead: false, next: '../lesson-05/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const lerp2 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+const showLabel = (p, a, b, str, t0, o = {}) => { const g = cLabel(p, a, b, str, o); show(g, t0); return g; };
+const BADGE = '#3b8fd9';
+const GLOW = '#c9a6f0';
+
+// A numbered step badge; .t is its text.
+function badge(p, str, x, y, { o = 0, r = 24 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: BADGE, stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t });
+}
+
+// A wobbly round cell outline of radius R with one pseudopod bulging toward angle phi (bulge 0..1).
+function bulgeD(R, phi, bulge, seed = 1) {
+  let d = '';
+  for (let i = 0; i < 72; i++) {
+    const th = i / 72 * 2 * Math.PI, c = Math.max(0, Math.cos(th - phi));
+    const k = 1 + .04 * Math.sin(3 * th + seed) + .03 * Math.sin(5 * th + 2 * seed) + bulge * .5 * c ** 8;
+    d += (i ? 'L' : 'M') + cF(R * k * Math.cos(th)) + ' ' + cF(R * k * Math.sin(th));
+  }
+  return d + 'Z';
+}
+
+// A white blood cell: wobbly outline, a lobed nucleus. .shape(phi, bulge) reshapes the outline toward its prey.
+function whiteCell(p, { x = 0, y = 0, s = 1, o = 1, R = 95 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const body = path(g, bulgeD(R, 0, 0), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 6 });
+  const nu = G(g, { x: -R * .3, y: R * .1 });
+  [[-18, 6, 22], [8, -14, 20], [22, 14, 18]].forEach(([a, b, r]) => mk('circle', { cx: a, cy: b, r, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 4 }, nu));
+  let last = '';
+  return Object.assign(g, {
+    nu, R,
+    shape(phi, bulge) { const d = bulgeD(R, Math.round(phi * 50) / 50, Math.round(bulge * 50) / 50); if (d !== last) { body.setAttribute('d', d); last = d; } },
+  });
+}
+
+// A rod-shaped bacterium with a short flagellum, centred on its origin, pointing +x.
+function bacterium(p, { x = 0, y = 0, s = 1, o = 1, r = 0 } = {}) {
+  const g = G(p, { x, y, s, o, r });
+  path(g, 'M-34 0q-10 -8 -20 0t-20 0t-20 0', { stroke: '#9fd28e', 'stroke-width': 3 });
+  path(g, cStadium(70, 28), { fill: '#6fae5a', stroke: '#3f7a35', 'stroke-width': 3 });
+  path(g, 'M-14 -2h28', { stroke: '#3f7a35', 'stroke-width': 3, 'stroke-opacity': .6 });
+  return g;
+}
+
+// A pond protist: an oval cell with a fringe of cilia (.cilia(t) waves them), a nucleus, two food vacuoles.
+function protist(p, { x = 0, y = 0, s = 1, o = 1, rx = 200, ry = 110 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const cil = path(g, '', { stroke: CC.membrane, 'stroke-width': 2.5, 'stroke-opacity': .8 });
+  path(g, `M${-rx} 0A${rx} ${ry} 0 1 0 ${rx} 0A${rx} ${ry} 0 1 0 ${-rx} 0Z`, { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 6 });
+  mk('ellipse', { cx: -rx * .67, cy: ry * .2, rx: 32, ry: 22, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 4 }, g);
+  vacuole(g, { kind: 'food', x: rx * .6, y: ry * .3, r: 18 });
+  vacuole(g, { kind: 'food', x: rx * .72, y: -ry * .25, r: 14 });
+  let last = -1;
+  const pr = Object.assign(g, {
+    rx, ry,
+    cilia(t) {
+      const f = Math.round(t * 12) / 12; if (f === last) return pr; last = f;
+      let d = '';
+      for (let i = 0; i < 52; i++) {
+        const a = i / 52 * 2 * Math.PI, bx = rx * Math.cos(a), by = ry * Math.sin(a);
+        const nx = Math.cos(a) / rx, ny = Math.sin(a) / ry, L = Math.hypot(nx, ny), ux = nx / L, uy = ny / L;
+        const w = 7 * Math.sin(f * 7 - i * .6);
+        d += `M${cF(bx)} ${cF(by)}L${cF(bx + ux * 16 - uy * w)} ${cF(by + uy * 16 + ux * w)}`;
+      }
+      cil.setAttribute('d', d);
+      return pr;
+    },
+  });
+  return pr.cilia(0);
+}
+
+// A small plant cell with its central vacuole (vacuole panel, check 2): wall, membrane, thin cytosol, nucleus, chloroplasts.
+function plantCell(p, { x = 0, y = 0, s = 1, o = 1, w = 360, h = 300 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: 26, fill: CC.cyto, stroke: CC.wall, 'stroke-width': 14 }, g);
+  mk('rect', { x: -w / 2 + 10, y: -h / 2 + 10, width: w - 20, height: h - 20, rx: 18, fill: 'none', stroke: CC.membrane, 'stroke-width': 3 }, g);
+  const vac = G(g);
+  mk('rect', { x: -w / 2 + 34, y: -h / 2 + 32, width: w - 66, height: h - 62, rx: 40, fill: CC.vac, stroke: CC.vacEdge, 'stroke-width': 5 }, vac);
+  mk('circle', { cx: -w / 2 + 34, cy: -h / 2 + 34, r: 22, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 4 }, g);
+  [[20, -h / 2 + 22, 0], [w / 2 - 22, 40, 90], [-60, h / 2 - 22, 0]].forEach(([a, b, r]) => {
+    const c = G(g, { x: a, y: b, r });
+    mk('ellipse', { rx: 26, ry: 11, fill: CC.chloro, stroke: CC.grana, 'stroke-width': 2.5 }, c);
+    path(c, 'M-12 -4v8M0 -5v10M12 -4v8', { stroke: CC.grana, 'stroke-width': 4 });
+  });
+  return Object.assign(g, { vac });
+}
+
+// The four kinds of macromolecule as small icons, centred on (x, y), each in a left and a right half (.l, .r) so a bite
+// can split it. kind: 'protein' | 'fat' | 'sugar' | 'nucleic'.
+function molIcon(p, kind, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o }), l = G(g), r = G(g);
+  if (kind === 'protein') {
+    const cols = ['#c9a0dc', '#f4a48c', '#86c9e8', '#8fd6b0', '#e8a0c8'];
+    path(l, 'M-56 6L-28 -6L0 6', { stroke: WC.stick, 'stroke-width': 4 }); path(r, 'M28 -6L56 6', { stroke: WC.stick, 'stroke-width': 4 });
+    cols.forEach((c, i) => mk('circle', { cx: -56 + 28 * i, cy: i % 2 ? -6 : 6, r: 12, fill: c, stroke: mix(c, '#000000', .3), 'stroke-width': 2.5 }, i < 3 ? l : r));
+  } else if (kind === 'fat') {
+    mk('rect', { x: -50, y: -34, width: 18, height: 68, rx: 6, fill: '#f2efe6', stroke: '#b8b2a2', 'stroke-width': 2.5 }, l);
+    [-24, 0, 24].forEach(yy => path(r, `M-30 ${yy}l12 -7l12 7l12 -7l12 7l12 -7l12 7l12 -7`, { stroke: CC.lipid, 'stroke-width': 5 }));
+  } else if (kind === 'sugar') {
+    const hex = cx => { let d = ''; for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; d += (i ? 'L' : 'M') + cF(cx + 17 * Math.cos(a)) + ' ' + cF(17 * Math.sin(a)); } return d + 'Z'; };
+    path(l, 'M-40 0H0', { stroke: WC.stick, 'stroke-width': 4 }); path(r, 'M20 0H40', { stroke: WC.stick, 'stroke-width': 4 });
+    [-40, 0, 40].forEach((cx, i) => path(i < 2 ? l : r, hex(cx), { fill: MC.sugar, stroke: MC.sugarEdge, 'stroke-width': 2.5 }));
+  } else {
+    mRNA(l, { seq: 'AU', x: -60, y: -12, s: .55, ends: false });
+    mRNA(r, { seq: 'GC', x: 8, y: -12, s: .55, ends: false });
+  }
+  return Object.assign(g, { l, r });
+}
+
+// The endomembrane traffic figure (slide 26 redrawn flat): nucleus, rough ER joined to it and to the smooth ER, the
+// Golgi (cis face left, toward the ER; trans face right), the plasma membrane along the bottom right.
+const RT = { N: [230, 430], ER: [590, 470], SER: [520, 705], GOL: [1000, 470], ERX: [745, 500], CIS: [872, 470], IN: [890, 470],
+  OUT: [1040, 470], TRANS: [1100, 470], LYSO: [1360, 300], PMY: 830, PMX: 1300 };
+function routeFig(p, { o = 1 } = {}) {
+  const g = G(p, { o });
+  const pm = G(g);
+  // the cell's edge: the plasma membrane runs along the bottom, the outside lies beneath it
+  mk('rect', { x: 0, y: RT.PMY, width: 1600, height: 900 - RT.PMY, fill: '#0b1728' }, pm);
+  path(pm, `M0 ${RT.PMY}H1600`, { stroke: CC.membrane, 'stroke-width': 9 });
+  for (let x = 30; x < 1600; x += 44) mk('circle', { cx: x, cy: RT.PMY + 12, r: 4.5, fill: CC.membrane, 'fill-opacity': .55 }, pm);
+  const links = G(g);
+  cTube(links, 'M362 448Q400 462 436 468', { w: 30 });
+  cTube(links, 'M462 548Q440 600 430 645', { w: 24 });
+  const ser = smoothER(g, { x: RT.SER[0], y: RT.SER[1], w: 300 });
+  const rer = roughER(g, { x: RT.ER[0], y: RT.ER[1], w: 320, n: 4, gap: 56 });
+  const nu = nucleus(g, { x: RT.N[0], y: RT.N[1], s: .58, pores: 6, lamina: false, ribos: true });
+  const gol = golgi(g, { x: RT.GOL[0], y: RT.GOL[1], s: .85, n: 5 });
+  return Object.assign(g, { nu, rer, ser, gol, pm, links });
+}
+
+// One protein's trip: a vesicle buds at the ER and carries it to the cis face, it moves through the stack and is
+// modified, a new vesicle forms round it at the trans face and carries it to `dest`. tt = { bud, cis, mod, trans, arrive }.
+// cargo 'protein' (coral dot) or 'enzyme' (olive pac-man); tt.gone (optional) fades the second vesicle out. Returns the
+// vesicles (.v1, .v2) and the bare cargo (.free) for what happens next.
+function trip(p, { cargo = 'protein', start = RT.ERX, dest, via, tt, D }) {
+  const v1 = vesicle(p, { r: 22, cargo, n: 1, o: 0 });
+  const free = G(p, { o: 0 });
+  const tag = G(free, { s: 0 });
+  path(tag, 'M5 -5L13 -13M13 -13L21 -11M13 -13L12 -21', { stroke: CC.tag, 'stroke-width': 3.5 });
+  mk('circle', { cx: 21, cy: -11, r: 4, fill: CC.tag }, tag); mk('circle', { cx: 12, cy: -21, r: 4, fill: CC.tag }, tag);
+  const body = cargo === 'enzyme' ? enzyme(free, { R: 9, dir: 0 }) : mk('circle', { r: 6, fill: CC.cargo, stroke: '#a44a3e', 'stroke-width': 2 }, free);
+  const v2 = vesicle(p, { r: 22, cargo, n: 1, o: 0 });
+  if (cargo === 'protein') v2.cargo[0].setAttribute('fill', CC.cargoMod);
+  const leg1 = [start, [start[0] + 60, start[1] + 10], RT.CIS], leg3 = via ? [RT.TRANS, via, dest] : [RT.TRANS, dest];
+  clockRun(t => {
+    const grow = io(ramp(t, tt.bud, tt.bud + 1)), go = io(ramp(t, tt.bud + 1, tt.cis)), merge = ramp(t, tt.cis, tt.cis + .7);
+    const q = cAlong(leg1, go);
+    cSet(v1, { x: q[0], y: q[1], s: (.3 + .7 * grow) * (1 - .5 * merge), o: t < tt.bud ? 0 : (1 - merge) });
+    const th = io(ramp(t, tt.mod, tt.trans)), bud = io(ramp(t, tt.trans, tt.trans + 1));
+    const fx = lerp(RT.IN[0], RT.OUT[0], th);
+    cSet(free, { x: lerp(fx, RT.TRANS[0], bud), y: RT.IN[1], o: ramp(t, tt.cis + .3, tt.cis + .7) * (1 - ramp(t, tt.trans + .6, tt.trans + 1)) });
+    cSet(tag, { s: io(ramp(t, lerp(tt.mod, tt.trans, .4), lerp(tt.mod, tt.trans, .7))) });
+    const ride = io(ramp(t, tt.trans + 1, tt.arrive)), q3 = cAlong(leg3, ride);
+    cSet(v2, { x: q3[0], y: q3[1], s: .3 + .7 * bud, o: t < tt.trans + .4 ? 0 : ramp(t, tt.trans + .4, tt.trans + .8) * (1 - ramp(t, tt.gone ?? 1e9, (tt.gone ?? 1e9) + .5)) });
+  }, D);
+  return { v1, v2, free };
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Lysosomes and vacuoles', (m, D) => {
+  const p = panel(0), tC = m('chase'), tK = m('catch'), tA = m('ask');
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 6 · LESSON 4', { x: 1190, y: 220, size: 26, fill: COL.dim, o: 1 });
+  ['Lysosomes,', 'vacuoles and the', 'endomembrane', 'system'].forEach((s, i) => wLabel(ttl, s, { x: 1190, y: 300 + i * 70, size: 58, o: 1 }));
+  wLabel(ttl, 'A tour of the cell', { x: 1190, y: 620, size: 30, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out);
+  // the microscope field: pale disc, red blood cells drifting
+  const F0 = G(p, { o: 0 }); show(F0, .2, .6);
+  mk('circle', { cx: 420, cy: 470, r: 360, fill: '#1f4069', stroke: '#5a7ea8', 'stroke-width': 10 }, F0);
+  const rbc = [[180, 330], [300, 220], [640, 600], [560, 760], [210, 700], [690, 300], [400, 800]].map(([x, y], i) => {
+    const e = G(F0, { x, y, r: 30 * i });
+    mk('ellipse', { rx: 40, ry: 34, fill: '#b8555a', stroke: '#8c3d44', 'stroke-width': 3 }, e);
+    mk('ellipse', { rx: 18, ry: 14, fill: '#9a434a' }, e);
+    return [e, x, y];
+  });
+  wLabel(F0, 'under a microscope', { x: 420, y: 72, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const wc = whiteCell(F0, { x: 250, y: 600 }), bac = bacterium(F0, { x: 480, y: 420 });
+  const ring = G(F0, { o: 0 }); mk('circle', { r: 42, fill: CC.foodFill, 'fill-opacity': .6, stroke: CC.vacEdge, 'stroke-width': 5 }, ring);
+  F0.insertBefore(ring, bac);
+  const lw = say(p, 'a white blood cell', 250, 760, .9, { size: 28 }); hide(lw, tK, .4);
+  const lb = say(p, 'a bacterium', 520, 360, 1.4, { size: 28, fill: '#9fd28e' }); hide(lb, tC + .6, .4);
+  // chase: the cell glides after the bacterium; catch: a pseudopod reaches it and it is pulled inside a bubble
+  const cellAt = t => { const k = io(ramp(t, tC, tK + 1)); return [lerp(250, 450, k) + 4 * Math.sin(1.3 * t), lerp(600, 475, k) + 4 * Math.sin(1.1 * t)]; };
+  const bacFree = t => { const k = ramp(t, tC, tK); return [lerp(480, 565, io(k)) + 6 * Math.sin(5 * t), lerp(420, 395, k) + 8 * Math.sin(3.3 * t)]; };
+  clockRun(t => {
+    rbc.forEach(([e, x, y], i) => cSet(e, { x: x + 6 * Math.sin(.4 * t + i), y: y + 5 * Math.sin(.5 * t + 2 * i) }));
+    const c = cellAt(t), inK = io(ramp(t, tK, tK + 1.8));
+    const inside = [c[0] + 28, c[1] - 22], fr = bacFree(Math.min(t, tK)), b = lerp2(fr, inside, inK);
+    cSet(wc, { x: c[0], y: c[1] });
+    cSet(bac, { x: b[0], y: b[1], r: 8 * Math.sin(4 * t) * (1 - inK) - 20 * inK, s: 1 - .25 * inK });
+    cSet(ring, { x: inside[0], y: inside[1], o: ramp(t, tK + 1.2, tK + 1.8) });
+    const reach = io(ramp(t, tC + 1, tK)) * (1 - io(ramp(t, tK + .2, tK + 1.6)));
+    wc.shape(Math.atan2(b[1] - c[1], b[0] - c[0]), reach);
+  }, D);
+  // ask: where is it digested?
+  const qm = say(p, '?', 478, 330, tA + .2, { size: 70, fill: MC.hi, weight: 800 }); pulse(qm, tA + .5, 1.3);
+  say(p, 'where is it digested?', 420, 880, tA + .9, { size: 30 });
+}],
+
+/* ---------- tour ---------- */
+['tour', 'The tour map', (m, D) => {
+  const p = panel(0), cam = camera(p, D), W = cam.world, tL = m('lit'), tDm = m('dim'), tP = m('push');
+  const an = cellMap(W, { kind: 'animal', x: 470, y: 480, s: .6, o: 0 }), pl = cellMap(W, { kind: 'plant', x: 1200, y: 480, s: .48, o: 0 });
+  show(an, .2, .6); show(pl, .4, .6);
+  const top = G(p, { o: 0 }); show(top, .3, .5); hide(top, tP - .3, .4);
+  wLabel(top, 'Lysosomes and vacuoles', { x: 800, y: 110, size: 46, weight: 700, o: 1 });
+  wLabel(top, 'animal cell', { x: 470, y: 238, size: 28, fill: COL.dim, o: 1 });
+  wLabel(top, 'plant cell', { x: 1200, y: 262, size: 28, fill: COL.dim, o: 1 });
+  // lit: glows round the lysosomes and the central vacuole, with labels
+  const L0 = an.pt('lysosomes', 0), L1 = an.pt('lysosomes', 1), V = pl.pt('vacuole');
+  const glows = [L0, L1].map(([x, y]) => { const e = G(W, { x, y, o: 0 }); mk('circle', { r: 26, fill: 'none', stroke: GLOW, 'stroke-width': 4 }, e); show(e, tL + .2, .4); return e; });
+  const lab = G(p, { o: 0 }); show(lab, tL + .3, .5); hide(lab, tP - .3, .4);
+  wLabel(lab, 'lysosomes', { x: 620, y: 800, size: 32, weight: 700, fill: GLOW, o: 1 });
+  path(lab, `M560 776L${L0[0] + 14} ${L0[1] + 22}M660 776L${L1[0]} ${L1[1] + 28}`, { stroke: COL.dim, 'stroke-width': 2.5 });
+  wLabel(lab, 'central vacuole', { x: 1250, y: 800, size: 32, weight: 700, fill: CC.vacEdge, o: 1 });
+  path(lab, `M1250 772L${V[0] + 10} ${V[1] + 90}`, { stroke: COL.dim, 'stroke-width': 2.5 });
+  // dim: the rest fades; it was covered in lessons 2 and 3
+  prog(k => { an.focus('lysosomes', k); pl.focus('vacuole', k); }, tDm, 1.2);
+  const tg = say(p, 'nucleus, ribosomes, ER, Golgi: lessons 2 and 3', 800, 860, tDm + 1.4, { size: 26, fill: COL.dim, weight: 500 });
+  hide(tg, tP - .3, .4);
+  clockRun(t => { const u = Math.min(t, tP + .5); glows.forEach((e, i) => cSet(e, { s: t > tL ? 1 + .12 * Math.sin(3 * u + i) : 1 })); }, D);   // still once hidden
+  // push: onto one lysosome
+  cam.to({ x: L1[0], y: L1[1], z: 5 }, tP, 1.7);
+  glows.forEach(e => hide(e, tP, .4));
+}],
+
+/* ---------- lyso ---------- */
+['lyso', 'The lysosome', (m, D) => {
+  const p = panel(0), tS = m('sac'), tH = m('hyd'), tF = m('four'), tW = m('why');
+  const LX = 400, LY = 470;
+  const L = lysosome(p, { x: LX, y: LY, r: 60, s: 3, n: 3, o: 0 }); show(L, .1, .6);
+  say(p, 'LYSOSOME', LX, 200, .3, { size: 46, weight: 700, fill: GLOW });
+  say(p, 'a membranous sac of hydrolytic enzymes', LX, 750, 1.4, { size: 28 });
+  say(p, 'that digest macromolecules', LX, 790, 3, { size: 28, fill: COL.dim, weight: 500 });
+  clockRun(t => L.chomp(Math.floor(Math.min(t, tW) * 10) / 10), D);   // 10 bites a second, and still once the two cells take over: the big sac repaints less
+  // sac: the membrane lights; enzymes kept inside
+  const rim = G(p, { x: LX, y: LY, o: 0 }); mk('circle', { r: 182, fill: 'none', stroke: GLOW, 'stroke-width': 8 }, rim);
+  show(rim, tS + .1, .3); pulse(rim, tS + .3, 1.05); hide(rim, tS + 2.6, .5);
+  showLabel(p, [LX + 128, LY - 128], [650, 270], 'membrane', tS + .4);
+  showLabel(p, [LX + 40, LY + 64], [610, 700], 'enzymes, kept inside', tS + 1.6);
+  // hyd: water breaks a bond
+  const R0 = G(p, { o: 0 }); show(R0, tH, .5); hide(R0, tW - .2, .5);
+  wLabel(R0, 'hydrolytic: breaks bonds using water', { x: 1210, y: 120, size: 30, weight: 700, o: 1 });
+  const pc = polymerChain(R0, { x: 1190, y: 260, s: .85, n: 4, enzyme: true }); pc.show(4);
+  prog(k => pc.hydrolyse(2, k), tH + 1, 3.4, lin);
+  // four: the four kinds of macromolecule, each bitten in two
+  const KIND = [['protein', 'proteins'], ['fat', 'fats'], ['sugar', 'polysaccharides'], ['nucleic', 'nucleic acids']];
+  const R1 = G(p, { o: 1 }); hide(R1, tW - .2, .5);
+  const offs = [.3, 1.4, 2.4, 3.9];
+  KIND.forEach(([k, name], i) => {
+    const x = 940 + i * 180, y = 520, t0 = tF + offs[i];
+    const ic = molIcon(R1, k, { x, y, o: 0 }); show(ic, t0, .4);
+    say(R1, name, x, 610, t0 + .1, { size: 25 });
+    const en = enzyme(R1, { x: x + 4, y: y - 70, R: 22, dir: 90, o: 0 }); show(en, t0 + .4, .3); hide(en, t0 + 1.9, .4);
+    prog(q => en.bite(.15 + .85 * Math.abs(Math.cos(q * 3 * Math.PI))), t0 + .4, 1.4, lin);
+    tw(ic.l, { x: -10 }, t0 + 1.3, .4); tw(ic.r, { x: 12 }, t0 + 1.3, .4);
+  });
+  // why: a sealed sac keeps the cell safe; leaking enzymes would digest it
+  const cellBlob = (g, x, y) => { path(g, cBlob(170, 120, { seed: 3, cx: x, cy: y }), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 5 }); mk('circle', { cx: x - 90, cy: y - 20, r: 34, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 4 }, g); };
+  const A = G(p, { o: 0 }); show(A, tW + .2, .5);
+  cellBlob(A, 1010, 430); const La = lysosome(A, { x: 1050, y: 450, r: 40, n: 2 });
+  wLabel(A, 'enzymes stay in the sac', { x: 1010, y: 610, size: 28, fill: COL.good, o: 1 });
+  const B = G(p, { o: 0 }); show(B, tW + 1.8, .5);
+  cellBlob(B, 1400, 430);
+  path(B, 'M1418 418A40 40 0 1 1 1440 486', { stroke: CC.lyso, 'stroke-width': 6, 'stroke-dasharray': '16 10' });
+  const loose = [[1330, 380], [1470, 390], [1360, 500], [1510, 470], [1300, 460]].map(([x, y], i) => enzyme(B, { x, y, R: 14, dir: 70 * i }));
+  [[1345, 410, 22], [1480, 440, 18], [1395, 470, 16]].forEach(([x, y, r]) => mk('circle', { cx: x, cy: y, r, fill: '#0f1e33', 'fill-opacity': .85 }, B));
+  wLabel(B, 'leaking: the cell digests itself', { x: 1400, y: 610, size: 28, fill: COL.bad, o: 1 });
+  const X = G(p, { x: 1400, y: 430, o: 0 }); path(X, 'M-120 -90L120 90M120 -90L-120 90', { stroke: COL.bad, 'stroke-width': 10 }); show(X, tW + 3.6, .3);
+  clockRun(t => { if (t > tW) { const q = Math.floor(t * 8) / 8; La.chomp(q); loose.forEach((e, i) => e.bite(.55 + .45 * Math.sin(5 * q + i))); } }, D);
+}],
+
+/* ---------- phago ---------- */
+['phago', 'Phagocytosis', (m, D) => {
+  const p = panel(0), t1 = m('one'), t2 = m('two'), t3 = m('three'), t4 = m('four'), tSm = m('small');
+  const dg = digest(p, { x: 800, y: 250, s: 1.2, kind: 'phago', o: 0 }); show(dg, .1, .5);
+  say(p, 'Phagocytosis', 90, 80, .3, { size: 44, weight: 700, anchor: 'start' });
+  say(p, 'the white blood cell, up close', 90, 122, .8, { size: 26, fill: COL.dim, weight: 500, anchor: 'start' });
+  say(p, 'outside', 1500, 200, .6, { size: 26, fill: COL.dim, weight: 500, anchor: 'end' });
+  say(p, 'cytoplasm', 1240, 680, .6, { size: 26, fill: COL.dim, weight: 500, anchor: 'end' });
+  say(p, 'plasma membrane', 330, 240, t1 + .6, { size: 26, anchor: 'end' });
+  hide(say(p, 'particle', 950, 110, 1.2, { size: 26, anchor: 'start' }), t2 + 2, .4);
+  // the four steps, each with its badge
+  const steps = [[t1, 'engulf'], [t2, 'food vacuole forms'], [t3, 'lysosome fuses'], [t4, 'digestion']];
+  steps.forEach(([t0, s], i) => {
+    const x = 200 + i * 340;
+    show(badge(p, String(i + 1), x, 800), t0 + .1, .3);
+    say(p, s, x + 36, 810, t0 + .3, { size: 28, anchor: 'start' });
+  });
+  clockRun(t => {
+    const e = t < t2 ? .6 * io(ramp(t, t1 + .3, t2 - .3)) : .6 + .4 * ramp(t, t2 + .2, t2 + 3.2);
+    dg.engulf(e);
+    dg.fuse(ramp(t, t3 + .2, t3 + 3.4));
+    dg.breakdown(Math.round(ramp(t, t4 + .6, tSm + 2.5) * 240) / 240);
+    if (t > t3 + 2) dg.lysosome.chomp(Math.floor(t * 12) / 12);
+  }, D);
+  showLabel(p, [740, 440], [520, 560], 'food vacuole', t2 + 3);
+  hide(showLabel(p, [1160, 590], [1300, 500], 'lysosome', t3 + .5), t3 + 2.4, .4);
+  say(p, 'enzymes spill in', 925, 455, t4 + .6, { size: 26, anchor: 'start', fill: CC.enzyme });
+  say(p, 'small molecules: used by the cell', 800, 680, tSm + .8, { size: 26, fill: CC.food });
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const dg = digest(p, { x: 420, y: 250, s: .7, kind: 'phago' }); dg.engulf(.3);
+  wLabel(p, 'phagocytosis', { x: 420, y: 120, size: 34, weight: 700, o: 1 });
+  lysosome(p, { x: 590, y: 430, r: 33, n: 2 });
+  wLabel(p, 'lysosome', { x: 590, y: 490, size: 24, fill: COL.dim, o: 1 });
+  wLabel(p, 'In what order?', { x: 420, y: 700, size: 30, fill: MC.hi, o: 1 });
+}, { ask: done => quiz({ x: 860, y: 90, w: 700, cls: 'side' }, [{
+  id: 'c-phago-order', prompt: ['Number the steps of phagocytosis from 1 to 4.'],
+  build: blanks([
+    { parts: ['A lysosome fuses with the vacuole: step ', { box: '3' }], why: 'Step 3: the lysosome joins a food vacuole that already exists.', hint: 'It needs something to fuse with first.' },
+    { parts: ['The cell engulfs the particle: step ', { box: '1' }], why: 'Step 1: the plasma membrane wraps round the particle.', hint: 'Nothing happens until the particle is taken in.' },
+    { parts: ['Enzymes digest the contents: step ', { box: '4' }], why: 'Step 4: digestion comes last, once the enzymes are inside.', hint: 'The enzymes arrive with the lysosome, so this cannot come before the fusion.' },
+    { parts: ['A food vacuole forms: step ', { box: '2' }], why: 'Step 2: the wrapped particle pinches off inside a food vacuole.', hint: 'This follows the engulfing, before the lysosome arrives.' },
+  ]),
+}], done) }],
+
+/* ---------- auto ---------- */
+['auto', 'Autophagy', (m, D) => {
+  const p = panel(0), tO = m('old'), tWr = m('wrap'), tF = m('fuse'), tDg = m('dig'), tN = m('name');
+  const C = [770, 450];
+  const bg = G(p, { o: 0 }); show(bg, .1, .6);
+  path(bg, cBlob(720, 330, { seed: 4, cx: 800, cy: 525 }), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 7 });
+  wLabel(bg, 'inside a cell', { x: 400, y: 385, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  path(bg, cDots([[300, 300], [360, 620], [1240, 260], [1300, 640], [480, 720], [1120, 760], [260, 470], [1400, 450]]), { stroke: CC.ribo, 'stroke-width': 9 });
+  // the vesicle's inside (under the organelles) and its double membrane
+  const inner = mk('ellipse', { cx: C[0], cy: C[1], rx: 248, ry: 140, fill: CC.foodFill }, p); put(inner, { o: 0 }); show(inner, tWr + 1.2, .6);
+  const tint = mk('ellipse', { cx: C[0], cy: C[1], rx: 244, ry: 136, fill: CC.lyso, 'fill-opacity': .35 }, p); put(tint, { o: 0 });
+  // old: a worn mitochondrion and a damaged peroxisome
+  const mi = mitochondrion(p, { x: 660, y: 440, s: .55, r: -10, worn: true, o: 0 });
+  const px = G(p, { x: 905, y: 455, o: 0 });
+  peroxisome(px, { s: .52 });
+  mk('circle', { r: 60, fill: '#8b8f99', 'fill-opacity': .45 }, px);
+  path(px, 'M-20 -54L-6 -20L-22 6L-4 30', { stroke: '#1b2230', 'stroke-width': 4 });
+  show(mi, tO + .3, .5); show(px, tO + .6, .5);
+  hide(say(p, 'old or damaged organelles', C[0], 268, tO + .4, { size: 30 }), tN, .4);
+  const lm = say(p, 'worn mitochondrion', 620, 640, tO + 2, { size: 26, fill: CC.mito }); hide(lm, tDg, .4);
+  const lp = say(p, 'peroxisome', 930, 640, tO + 4.3, { size: 26, fill: CC.perox }); hide(lp, tDg, .4);
+  // wrap: a double membrane closes round both
+  const env = [[248, 140], [262, 154]].map(([rx, ry]) => path(p, `M${C[0]} ${C[1] + ry}A${rx} ${ry} 0 1 1 ${C[0] + .01} ${C[1] + ry}`, { stroke: CC.vacEdge, 'stroke-width': 6 }, { d: 0 }));
+  env.forEach((e, i) => draw(e, tWr + .2 + .2 * i, 1.6));
+  showLabel(p, [C[0] + 200, C[1] - 120], [1090, 250], 'vesicle', tWr + 1.2);
+  // fuse: a lysosome arrives and merges; its enzymes come in
+  const L = lysosome(p, { x: 1260, y: 720, r: 55, n: 2, o: 0 });
+  tw(L, { o: 1 }, tF, .4); tw(L, { x: 1010, y: 520 }, tF + .1, 1.4, io); tw(L, { s: .5, o: 0 }, tF + 1.5, .7);
+  show(tint, tF + 1.6, .7);
+  showLabel(p, [1240, 680], [1330, 600], 'lysosome', tF + .3);
+  const en = [[700, 360], [860, 360], [640, 530], [900, 540]].map(([x, y], i) => { const e = enzyme(p, { x, y, R: 22, dir: 60 + 90 * i, o: 0 }); show(e, tF + 1.8 + .15 * i, .4); return e; });
+  // dig: the organelles fall to pieces
+  tw(mi, { s: .2, o: 0 }, tDg + .4, 3); tw(px, { s: .3, o: 0 }, tDg + .6, 3);
+  const frag = Array.from({ length: 16 }, (_, i) => {
+    const e = mk('circle', { r: 6 + 3 * wHash(i, 3), fill: i % 3 === 2 ? CC.perox : i % 2 ? CC.cristae : CC.mito }, p);
+    const a = i / 16 * 2 * Math.PI, home = [C[0] + (60 + 120 * wHash(i, 4)) * Math.cos(a), C[1] + (30 + 70 * wHash(i, 5)) * Math.sin(a)];
+    const away = [C[0] + 520 * Math.cos(a) * (.7 + .3 * wHash(i, 6)), C[1] + 290 * Math.sin(a) * (.7 + .3 * wHash(i, 6))];
+    put(e, { x: C[0], y: C[1], o: 0 }); return { e, home, away };
+  });
+  say(p, 'digestion', C[0], 650, tDg + .8, { size: 28, fill: CC.enzyme });
+  // name: autophagy; the building blocks go back to the cell
+  say(p, 'AUTOPHAGY', 800, 80, tN + .2, { size: 50, weight: 700, fill: GLOW });
+  say(p, 'the cell recycles its own worn parts', 800, 124, tN + 1, { size: 28, fill: COL.dim, weight: 500 });
+  env.forEach(e => tw(e, { o: .25 }, tN + 2.4, .8));
+  tw(tint, { o: .3 }, tN + 2.4, .8);
+  say(p, 'building blocks to reuse', 800, 800, tN + 3, { size: 28, fill: CC.cristae });
+  clockRun(t => {
+    const q = Math.floor(t * 12) / 12;
+    if (t > tF + 2) en.forEach((e, i) => e.bite(.55 + .45 * Math.sin(5 * q + 2 * i)));
+    if (t < tDg + .6) { frag.forEach(({ e }) => cSet(e, { o: 0 })); return; }   // hidden until digestion: don't move them
+    const f = Math.floor(t * 30) / 30, b = io(ramp(f, tDg + .6, tDg + 3.6)), out = io(ramp(f, tN + 2.4, tN + 5));   // 30 updates a second
+    frag.forEach(({ e, home, away }, i) => { const q = lerp2(lerp2(C, home, b), away, out); cSet(e, { x: q[0] + 4 * Math.sin(2 * f + i), y: q[1] + 4 * Math.sin(1.7 * f + 2 * i), o: ramp(f, tDg + .6, tDg + 1.2) }); });
+  }, D);
+}],
+
+/* ---------- vacuole ---------- */
+['vacuole', 'Vacuoles', (m, D) => {
+  const p = panel(0), tFo = m('food'), tCo = m('contr'), tCe = m('central'), tSo = m('some');
+  say(p, 'Vacuoles', 800, 82, .2, { size: 46, weight: 700 });
+  say(p, 'membrane-bound compartments, in several kinds', 800, 126, .9, { size: 28, fill: COL.dim, weight: 500 });
+  const box = (x, t0, title) => {
+    const g = G(p, { o: 0 }); tw(g, { o: .35 }, .5, .6); tw(g, { o: 1 }, t0, .5);
+    mk('rect', { x: x - 240, y: 170, width: 480, height: 540, rx: 20, fill: '#132a47', stroke: COL.faint, 'stroke-width': 2 }, g);
+    wLabel(g, title, { x, y: 214, size: 26, fill: COL.dim, weight: 500, o: 1 });
+    return g;
+  };
+  // food vacuole, in a white blood cell
+  const P1 = box(290, tFo, 'a white blood cell');
+  const wc = whiteCell(P1, { x: 290, y: 430, R: 150 }); put(wc.nu, { x: -60, y: -40 });
+  vacuole(P1, { kind: 'food', x: 340, y: 470, r: 52 });
+  say(P1, 'food vacuole', 290, 640, tFo + .3, { size: 32, weight: 700 });
+  say(P1, 'formed by phagocytosis', 290, 680, tFo + .9, { size: 24, fill: COL.dim, weight: 500 });
+  // contractile vacuole, in a pond protist: water seeps in, the star collects it and pumps it out
+  const P2 = box(800, tCo, 'a pond protist');
+  const pr = protist(P2, { x: 800, y: 450, rx: 200, ry: 110 });
+  const cv = vacuole(P2, { kind: 'contractile', x: 800, y: 450, r: 30, s: 1.2 });
+  const seep = Array.from({ length: 8 }, (_, i) => waterMolecule(P2, { s: .2, face: false, o: 0, r: 45 * i }));
+  say(P2, 'contractile vacuole', 800, 640, tCo + .3, { size: 32, weight: 700 });
+  say(P2, 'pumps excess water out', 800, 680, tCo + 4.6, { size: 24, fill: COL.dim, weight: 500 });
+  // central vacuole, in a plant cell
+  const P3 = box(1310, tCe, 'a mature plant cell');
+  plantCell(P3, { x: 1310, y: 440 });
+  say(P3, 'central vacuole', 1310, 640, tCe + .3, { size: 32, weight: 700 });
+  say(P3, 'holds water and organic compounds', 1310, 680, tCe + 3.9, { size: 24, fill: COL.dim, weight: 500 });
+  // some: who has them
+  say(p, 'plant and fungal cells: one or several vacuoles', 800, 790, tSo + .3, { size: 30 });
+  say(p, 'other cells have them too', 800, 832, tSo + 3.4, { size: 28, fill: COL.dim, weight: 500 });
+  clockRun(t => {
+    pr.cilia(t);
+    const T0 = tCo + 4, per = 3.2;
+    cv.pump(t < T0 ? .3 * ramp(t, tCo, T0) : cFrac((t - T0) / per));
+    seep.forEach((e, i) => {
+      const a = i / 8 * 2 * Math.PI + .4, c = t < tCo + .5 ? -1 : cFrac((t - tCo - .5) / 2.4 + i / 8);
+      const R0 = 1.35 - .6 * c;
+      cSet(e, { x: 800 + 200 * R0 * Math.cos(a), y: 450 + 110 * R0 * Math.sin(a), o: c < 0 ? 0 : Math.min(1, c * 5) * (1 - ramp(c, .8, 1)) });
+    });
+  }, D);
+}],
+
+/* ---------- central ---------- */
+['central', 'The central vacuole', (m, D) => {
+  const p = panel(0), cam = camera(p, D), W = cam.world, tL = m('leaf'), tB = m('big'), tWi = m('wilt'), tWh = m('where');
+  // a crisp lettuce leaf, then the camera pushes into one of its cells
+  const leaf = G(W, { o: 0 }); show(leaf, .1, .6);
+  // a lettuce leaf: a ruffled, frilly edge and a midrib with branching veins
+  let ld = '';
+  for (let i = 0; i < 360; i++) {
+    const th = i / 360 * 2 * Math.PI, k = 1 + .045 * Math.sin(13 * th + 1) + .02 * Math.sin(21 * th + .5) + .03 * Math.sin(3 * th + 2);
+    ld += (i ? 'L' : 'M') + cF(800 + 560 * k * Math.cos(th)) + ' ' + cF(495 + 320 * k * Math.sin(th));
+  }
+  path(leaf, ld + 'Z', { fill: '#7cc46a', stroke: '#a8dc7c', 'stroke-width': 10, 'stroke-linejoin': 'round' });
+  let vd = 'M250 520Q800 495 1350 470';
+  for (let i = 0; i < 7; i++) {
+    const x = 380 + i * 130, y = 520 - (x - 250) * .045, L = 190 - i * 18, sgn = [-1, 1];
+    sgn.forEach(sg => { vd += `M${x} ${cF(y)}Q${x + L * .5} ${cF(y + sg * L * .35)} ${x + L} ${cF(y + sg * L * 1.05)}`; });
+  }
+  path(leaf, vd, { stroke: '#c8ecb0', 'stroke-width': 7, 'stroke-linecap': 'round', 'stroke-opacity': .85 });
+  const cells = G(W, { o: 0 });
+  let cd = ''; for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) cd += `M${862 + i * 13} ${459 + j * 10}h11v8h-11z`;
+  path(cells, cd, { fill: '#5fa84f', stroke: '#2f6a2a', 'stroke-width': 1.2 });
+  show(cells, tL + 1, .5);
+  hide(say(p, 'a crisp lettuce leaf', 800, 70, .3, { size: 34, weight: 700 }), tL + 1.4, .5);
+  cam.to({ x: 900, y: 478, z: 9 }, tL + 1.4, 2.4);
+  // the close-up cell, faded in over the push
+  const CX = 620, CY = 470, HW = 450, HH = 290;
+  const cu = G(p, { o: 0 }); show(cu, tL + 3, .8);
+  mk('rect', { x: 0, y: 0, width: 1600, height: 900, fill: '#0f1e33' }, cu);
+  path(cu, `M${CX - HW - 200} ${CY - HH - 11}H${CX + HW + 200}M${CX - HW - 200} ${CY + HH + 11}H${CX + HW + 200}`, { stroke: CC.wall, 'stroke-width': 22, 'stroke-opacity': .4 });
+  mk('rect', { x: CX - HW - 11, y: CY - HH - 11, width: 2 * HW + 22, height: 2 * HH + 22, rx: 30, fill: '#1a3420', stroke: CC.wall, 'stroke-width': 22 }, cu);
+  const cyto = path(cu, '', { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 5 });
+  const vac = path(cu, '', { fill: CC.vac, stroke: CC.vacEdge, 'stroke-width': 6 });
+  const nuc = G(cu); mk('circle', { r: 30, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 5 }, nuc); mk('circle', { cx: 6, cy: -4, r: 10, fill: CC.nucleolus }, nuc);
+  const chl = [0, 1, 2, 3].map(() => { const c = G(cu); chloroplast(c, { s: .17 }); return c; });
+  const waters = Array.from({ length: 6 }, (_, i) => waterMolecule(cu, { s: .3, face: false, o: 0, r: 60 * i }));
+  const rr = (hx, hy, r) => `M${cF(CX - hx + r)} ${cF(CY - hy)}H${cF(CX + hx - r)}A${r} ${r} 0 0 1 ${cF(CX + hx)} ${cF(CY - hy + r)}V${cF(CY + hy - r)}A${r} ${r} 0 0 1 ${cF(CX + hx - r)} ${cF(CY + hy)}H${cF(CX - hx + r)}A${r} ${r} 0 0 1 ${cF(CX - hx)} ${cF(CY + hy - r)}V${cF(CY - hy + r)}A${r} ${r} 0 0 1 ${cF(CX - hx + r)} ${cF(CY - hy)}Z`;
+  // the state: vacuole size v (1 = full) and the membrane's pull from the wall w (0 = against it)
+  const vAt = t => t < tWi ? lerp(.72, 1, io(ramp(t, tB + .3, tB + 2.6))) : lerp(1, .58, io(ramp(t, tWi + .3, tWi + 3)));
+  const wAt = t => io(ramp(t, tWi + .3, tWi + 3));
+  const li = G(p, { x: 1380, y: 210, o: 0 }); show(li, tL + 3.4, .5);
+  const lf = G(li); path(lf, 'M0 60C-60 20 -70 -60 0 -100C70 -60 60 20 0 60Z', { fill: '#7cc46a', stroke: '#a8dc7c', 'stroke-width': 5 }); path(lf, 'M0 60V-90', { stroke: '#c8ecb0', 'stroke-width': 4 });
+  path(li, 'M0 60V110', { stroke: '#a8dc7c', 'stroke-width': 7 });
+  const lc = wLabel(li, 'crisp', { x: 130, y: 0, size: 28, fill: '#a8dc7c', o: 1 });
+  const ll = wLabel(li, 'limp', { x: 130, y: 0, size: 28, fill: COL.bad, o: 0 });
+  tw(lc, { o: 0 }, tWi + 2, .4); tw(ll, { o: 1 }, tWi + 2.2, .4);
+  let lastV = -1, lastW = -1;
+  clockRun(t => {
+    const v = Math.round(vAt(t) * 400) / 400, w = Math.round(wAt(t) * 400) / 400;
+    const vx = 410 * v, vy = 250 * v;
+    const mx = lerp(HW - 4, vx + 46, w), my = lerp(HH - 4, vy + 40, w);
+    if (v !== lastV || w !== lastW) { mD(vac, rr(vx, vy, 90 * v)); mD(cyto, rr(mx, my, lerp(26, 70, w))); lastV = v; lastW = w; }
+    const lay = (a, b) => (a + b) / 2;
+    cSet(nuc, { x: CX - lay(vx, mx) + 6, y: CY - lay(vy, my) + 60 });
+    [[CX - 140, CY - lay(vy, my), 0], [CX + 160, CY - lay(vy, my), 0], [CX + lay(vx, mx), CY + 40, 90], [CX - 60, CY + lay(vy, my), 0]]
+      .forEach(([x, y, r], i) => cSet(chl[i], { x, y, r }));
+    waters.forEach((e, i) => {
+      const k = ramp(t, tWi + .3 + .3 * i, tWi + 2.4 + .3 * i), a = -.9 + i * .36;
+      cSet(e, { x: CX + lerp(300, 560, k) * Math.cos(a) * 1.3, y: CY + lerp(170, 360, k) * Math.sin(a), o: k > 0 && k < 1 ? Math.min(1, 6 * k) * (1 - ramp(k, .8, 1)) : 0 });
+    });
+    const droop = io(ramp(t, tWi + .5, tWi + 3));
+    cSet(lf, { r: 70 * droop, s: 1 - .15 * droop });
+  }, D);
+  // labels beside what they name
+  const lv = showLabel(p, [CX + 200, CY - 60], [1180, 400], 'central vacuole', tB + .4, { size: 30 });
+  const lcy = showLabel(p, [CX + HW - 18, CY + 170], [1180, 600], 'cytosol: a thin layer', tB + 2.6, { size: 30 });
+  showLabel(p, [CX + 260, CY + HH + 8], [1180, 820], 'cell wall', tB + 4.2, { size: 28 });
+  hide(lv, tWi, .3); hide(lcy, tWi, .3);
+  say(p, 'water lost: the vacuole shrinks', 1180, 400, tWi + 1.2, { size: 28, anchor: 'start', fill: '#5fd3e8' });
+  // where: nucleus and chloroplasts in the thin layer (positions once the wilt has settled)
+  const v1 = .58, vx1 = 410 * v1, vy1 = 250 * v1, mx1 = vx1 + 46, my1 = vy1 + 40;
+  const nP = [CX - (vx1 + mx1) / 2 + 6, CY - (vy1 + my1) / 2 + 60], cP2 = [CX + (vx1 + mx1) / 2, CY + 40];
+  showLabel(p, [nP[0] - 18, nP[1] - 18], [260, 120], 'nucleus', tWh + .3, { size: 28 });
+  showLabel(p, [cP2[0] + 14, cP2[1]], [1180, 520], 'chloroplasts', tWh + 1.4, { size: 28 });
+  say(p, 'in the thin layer of cytosol', 1180, 560, tWh + 2.2, { size: 26, anchor: 'start', fill: COL.dim, weight: 500 });
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const wc = whiteCell(p, { x: 250, y: 180, R: 150, s: .55 }); put(wc.nu, { x: -60, y: -40 });
+  vacuole(p, { kind: 'food', x: 278, y: 202, r: 29 });
+  wLabel(p, 'food', { x: 420, y: 190, size: 30, weight: 700, anchor: 'start', o: 1 });
+  protist(p, { x: 250, y: 440, rx: 200, ry: 110, s: .6 });
+  vacuole(p, { kind: 'contractile', x: 250, y: 440, r: 30, s: .72 }).pump(.5);
+  wLabel(p, 'contractile', { x: 420, y: 450, size: 30, weight: 700, anchor: 'start', o: 1 });
+  plantCell(p, { x: 250, y: 700, s: .6 });
+  wLabel(p, 'central', { x: 420, y: 710, size: 30, weight: 700, anchor: 'start', o: 1 });
+}, { ask: done => quiz({ x: 640, y: 50, w: 920, cls: 'side' }, [{
+  id: 'c-vacuoles', prompt: ['Which vacuole is it?'],
+  build: grid([
+    { parts: ['formed by phagocytosis'], ans: ['f'], why: 'Food vacuole: the membrane wraps a particle and pinches off.' },
+    { parts: ['pumps extra water out of a pond protist'], ans: ['c'], why: 'Contractile vacuole: it collects the extra water and squeezes it out.' },
+    { parts: ['holds water and organic compounds in a plant cell'], ans: ['p'], why: 'Central vacuole.' },
+    { parts: ['fills most of the cell; keeps lettuce crisp'], ans: ['p'], why: 'Central vacuole: full of water, it presses the cell out against its wall.' },
+    { parts: ['a bubble holding a swallowed bacterium'], ans: ['f'], why: 'Food vacuole: a lysosome will fuse with it and digest the bacterium.' },
+    { parts: ['a star-shaped collector of water'], ans: ['c'], why: 'Contractile vacuole: its canals gather water, then it contracts.' },
+  ], [['f', 'food', null, 'F'], ['c', 'contractile', null, 'C'], ['p', 'central', null, 'E']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- route ---------- */
+['route', 'The endomembrane system', (m, D) => {
+  const p = panel(0), tE = m('er'), tV = m('ves'), tC = m('cis'), tM = m('mod'), tT = m('trans'), tLy = m('lyso'), tPm = m('pm');
+  const fig = routeFig(p, { o: 0 }); show(fig, .2, .8);
+  say(p, 'the endomembrane system', 800, 80, 2.6, { size: 42, weight: 700 });
+  say(p, 'membranes that work as one connected system', 800, 124, 4, { size: 26, fill: COL.dim, weight: 500 });
+  notToScale(p, 1570, 40, .4);
+  // er: nucleus, its envelope joined to the ER; rough ER with ribosomes; smooth ER without
+  say(p, 'nucleus', RT.N[0], 612, tE + .2, { size: 28 });
+  const join = path(p, 'M340 440Q392 458 436 468', { stroke: COL.chalk, 'stroke-width': 6 }, { d: 0 });
+  draw(join, 9.6, .8); tw(join, { o: 0 }, 12, .6);
+  showLabel(p, [372, 450], [420, 250], 'envelope joined to the ER', 9.5, { size: 28 });
+  showLabel(p, [740, 604], [776, 664], 'rough ER', 12.4, { size: 30, color: '#9fe3df' });
+  say(p, 'ribosomes build proteins', 776, 700, 13.4, { size: 24, fill: COL.dim, weight: 500, anchor: 'start' });
+  showLabel(p, [430, 770], [345, 805], 'smooth ER: no ribosomes', 17.4, { size: 26 });
+  // ves → cis → mod → trans: one protein's trip; lyso: its vesicle becomes a lysosome
+  const tr = trip(p, { cargo: 'protein', dest: RT.LYSO, via: [1230, 360], tt: { bud: tV + .2, cis: tC + .2, mod: tM + .3, trans: tT, arrive: tLy + 1.8, gone: tLy + 1.9 }, D });
+  showLabel(p, [790, 488], [700, 318], 'transport vesicle', tV + 1.4, { size: 28 });
+  showLabel(p, [911, 385], [868, 196], 'cis face', tC + .3, { size: 28, color: CC.golgi, weight: 700 });
+  say(p, 'receives', 858, 230, tC + 1.2, { size: 24, anchor: 'end', fill: COL.dim, weight: 500 });
+  say(p, 'Golgi: modifies, sorts, packs', 1090, 300, tM + .3, { size: 28 });
+  say(p, 'trans face', 1090, 745, tT + .3, { size: 28, anchor: 'start', fill: CC.golgi, weight: 700 });
+  say(p, 'ships', 1090, 777, tT + 1.2, { size: 24, anchor: 'start', fill: COL.dim, weight: 500 });
+  const L = lysosome(p, { x: RT.LYSO[0], y: RT.LYSO[1], r: 50, n: 2, o: 0 });
+  show(L, tLy + 1.6, .7);
+  say(p, 'lysosome', RT.LYSO[0], 200, tLy + 2, { size: 30, weight: 700, fill: GLOW });
+  say(p, 'stays in the cell', RT.LYSO[0], 232, tLy + 2.6, { size: 24, fill: COL.dim, weight: 500 });
+  // pm: another vesicle from the trans face fuses with the plasma membrane: exocytosis
+  const v3 = vesicle(p, { r: 24, cargo: 'protein', n: 3, o: 0, seed: 2 }); put(v3, { r: 180 });
+  v3.cargo.forEach(c => c.setAttribute('fill', CC.cargoMod));
+  const leg = [RT.TRANS, [1200, 600], [RT.PMX, RT.PMY - 74]];
+  say(p, 'plasma membrane: the cell’s edge', 1580, 805, tPm + .4, { size: 26, anchor: 'end' });
+  say(p, 'outside the cell', 1580, 880, tPm + 1, { size: 24, anchor: 'end', fill: COL.dim, weight: 500 });
+  say(p, 'exocytosis', 1080, 868, tPm + 6.6, { size: 32, weight: 700, fill: CC.cargoMod });
+  clockRun(t => {
+    if (t > tLy) L.chomp(Math.floor(t * 10) / 10);
+    const g0 = io(ramp(t, tPm + .2, tPm + 1)), go = io(ramp(t, tPm + 1, tPm + 3)), q = cAlong(leg, go);
+    cSet(v3, { x: q[0], y: q[1], s: .3 + .7 * g0, o: t < tPm + .2 ? 0 : 1 });
+    v3.fuse(ramp(t, tPm + 3.2, tPm + 6.4));
+  }, D);
+  // the route arrows, step by step
+  [[[760, 530], [850, 500], tV + 3], [[905, 420], [1040, 420], tM + 1], [[1150, 430], [1300, 340], tLy + .4], [[1140, 520], [1250, 690], tPm + .5]]
+    .forEach(([a, b, t0]) => show(mArrow(p, a, b, { color: COL.dim, w: 4, head: 13, o: 0 }), t0, .5));
+}],
+
+/* ---------- example ---------- */
+['example', 'Two proteins', (m, D) => {
+  const p = panel(0), cam = camera(p, D), W = cam.world, tA = m('a'), tA2 = m('a2'), tB = m('b'), tB2 = m('b2'), tS = m('same');
+  routeFig(W);
+  const Z = 1, CXv = 800, CYv = 450, toS = ([x, y]) => [(x - CXv) * Z + 800, (y - CYv) * Z + 450];
+  cam.to({ x: CXv, y: CYv, z: Z }, .1, 1.6);
+  say(p, 'two proteins, one Golgi', 800, 60, .4, { size: 34, weight: 700 });
+  // a: a digestive enzyme rides to a lysosome
+  const ea = enzyme(W, { x: 640, y: 440, R: 14, dir: 0, o: 0 }); show(ea, tA + .2, .4); hide(ea, tA2 + .3, .3);
+  const lA = say(p, 'digestive enzyme', ...toS([600, 330]), tA + .3, { size: 28, fill: CC.enzyme, weight: 700 }); hide(lA, tB - .2, .4);
+  const A = trip(W, { cargo: 'enzyme', start: [700, 470], dest: RT.LYSO, via: [1230, 360], tt: { bud: tA2 + .2, cis: tA2 + 2, mod: tA2 + 2.6, trans: tA2 + 4.2, arrive: tA2 + 6.4, gone: tA2 + 6.5 }, D });
+  const L = lysosome(W, { x: RT.LYSO[0], y: RT.LYSO[1], r: 50, n: 2, o: 0 }); show(L, tA2 + 6.2, .7);
+  say(p, 'becomes a lysosome', ...toS([RT.LYSO[0], 220]), tA2 + 6.5, { size: 28, fill: GLOW, weight: 700 });
+  // b: insulin rides to the plasma membrane and out
+  const eb = mk('circle', { cx: 0, cy: 0, r: 8, fill: CC.cargo, stroke: '#a44a3e', 'stroke-width': 2 }, W); put(eb, { x: 640, y: 500, o: 0 });
+  show(eb, tB + .2, .4); hide(eb, tB2 + .3, .3);
+  const lB = say(p, 'insulin: sent out', ...toS([600, 640]), tB + .3, { size: 28, fill: CC.cargo, weight: 700 }); hide(lB, tS, .4);
+  const B = trip(W, { cargo: 'protein', start: [700, 500], dest: [RT.PMX, RT.PMY - 74], via: [1200, 600], tt: { bud: tB2 + .2, cis: tB2 + 1.8, mod: tB2 + 2.3, trans: tB2 + 3.6, arrive: tB2 + 5.2 }, D });
+  // B's second vesicle, turned so its "up" points down to the membrane, fuses with it: exocytosis
+  put(B.v2, { r: 180 });
+  prog(k => B.v2.fuse(k), tB2 + 5.3, 1.6, lin);
+  say(p, 'released outside', ...toS([RT.PMX + 190, 862]), tB2 + 6.4, { size: 26, fill: CC.cargoMod });
+  say(p, 'plasma membrane: the cell’s edge', 40, 800, tB2 + 5, { size: 24, anchor: 'start', fill: COL.dim, weight: 500 });
+  // same: the fork at the trans face
+  const fk = G(W, { o: 0 }); show(fk, tS + .3, .5);
+  mk('circle', { cx: RT.TRANS[0] + 10, cy: RT.TRANS[1], r: 34, fill: 'none', stroke: MC.hi, 'stroke-width': 5 }, fk);
+  mArrow(fk, [1130, 445], [1290, 330], { color: CC.enzyme, w: 5, head: 15 });
+  mArrow(fk, [1130, 500], [1270, 690], { color: CC.cargo, w: 5, head: 15 });
+  say(p, 'sorted at the trans face:', ...toS([1180, 720]), tS + 2.4, { size: 28, weight: 700, fill: MC.hi });
+  say(p, 'that decides the destination', ...toS([1180, 753]), tS + 2.9, { size: 26, fill: COL.dim, weight: 500 });
+  notToScale(p, 1570, 40, .4);
+  clockRun(t => { if (t > tA2 + 6) L.chomp(Math.floor(t * 10) / 10); }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'Summary', { x: 800, y: 92, size: 44, weight: 700, o: 1 });
+  const rows = [
+    ['Lysosomes are sacs of hydrolytic enzymes:', 'they digest proteins, fats, polysaccharides, nucleic acids.', g => { lysosome(g, { x: 170, y: 0, r: 52, n: 3 }); }],
+    ['Phagocytosis: a lysosome fuses with a food vacuole.', 'Autophagy: it recycles old organelles.', g => { vacuole(g, { kind: 'food', x: 140, y: 0, r: 46 }); lysosome(g, { x: 222, y: 26, r: 30, n: 2 }); }],
+    ['Vacuoles come in kinds:', 'food, contractile and central.', g => { vacuole(g, { kind: 'food', x: 80, y: 0, r: 28 }); vacuole(g, { kind: 'contractile', x: 170, y: 0, r: 14 }); mk('rect', { x: 222, y: -34, width: 76, height: 68, rx: 18, fill: CC.vac, stroke: CC.vacEdge, 'stroke-width': 4 }, g); }],
+    ['The endomembrane route:', 'ER → vesicle → Golgi → lysosome or plasma membrane.', g => { roughER(g, { x: 70, y: 0, s: .3, w: 320, n: 4, gap: 56 }); golgi(g, { x: 200, y: 0, s: .26, n: 5 }); lysosome(g, { x: 300, y: -14, r: 20, n: 2 }); mArrow(g, [236, 20], [272, -4], { color: COL.dim, w: 3, head: 9 }); }],
+  ];
+  const icons = [];
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: -16, y: 170 + i * 165, o: 0 });
+    const ic = G(g); icon(ic); icons.push(ic);
+    T(g, a, { x: 340, y: -6, size: 36, weight: 600 }); T(g, b, { x: 340, y: 40, size: 30, fill: COL.dim });
+    tw(g, { o: 1, x: 0 }, m('w' + (i + 1)), .6);
+  });
+  say(p, 'Now try the practice.', 800, 860, m('end'), { size: 32, fill: WC.bond });
+  clockRun(t => icons.forEach((ic, i) => put(ic, { y: 4 * Math.sin(1.6 * t + 1.3 * i) })), D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('lyso', g => {
+    lysosome(g, { x: 1270, y: 430, r: 60, s: 2.6, n: 3 });
+    wLabel(g, '?', { x: 1270, y: 200, size: 80, fill: MC.hi, weight: 800, o: 1 });
+  });
+  at('kinds', g => {
+    lysosome(g, { x: 1270, y: 450, r: 60, s: 1.4, n: 3 });
+    [['protein', 1270, 230], ['fat', 1490, 450], ['sugar', 1270, 680], ['nucleic', 1060, 450]].forEach(([k, x, y]) => molIcon(g, k, { x, y }));
+    wLabel(g, 'which can it digest?', { x: 1270, y: 820, size: 28, fill: COL.dim, o: 1 });
+  });
+  at('auto', g => {
+    path(g, cBlob(300, 260, { seed: 4, cx: 1270, cy: 450 }), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 5 });
+    mk('ellipse', { cx: 1240, cy: 440, rx: 150, ry: 92, fill: CC.foodFill, stroke: CC.vacEdge, 'stroke-width': 5 }, g);
+    mk('ellipse', { cx: 1240, cy: 440, rx: 163, ry: 105, fill: 'none', stroke: CC.vacEdge, 'stroke-width': 5 }, g);
+    mitochondrion(g, { x: 1240, y: 440, s: .6, r: -8, worn: true });
+    lysosome(g, { x: 1440, y: 590, r: 40, n: 2 });
+  });
+  at('route', g => {
+    const k = .42, ox = 940, oy = 230, sp = ([x, y]) => [ox + k * x, oy + k * y];
+    routeFig(G(g, { x: ox, y: oy, s: k }));
+    lysosome(g, { x: sp(RT.LYSO)[0], y: sp(RT.LYSO)[1], r: 22, n: 2 });
+    [['rough ER', sp([590, 610])], ['Golgi', sp([1000, 640])], ['plasma membrane', sp([1330, 860])]].forEach(([s, [x, y]]) => wLabel(g, s, { x, y, size: 22, fill: COL.dim, o: 1 }));
+    S.stepB = [sp([590, 470]), sp([800, 410]), sp([872, 570]), sp([1100, 560]), sp([1300, 720])].map(([x, y]) => badge(g, '?', x, y, { o: 1, r: 20 }));
+  });
+  at('fork', g => {
+    mk('rect', { x: 960, y: 420, width: 640, height: 340, fill: CC.cyto }, g);
+    const v = vesicle(g, { x: 1270, y: 510, r: 40, n: 3, membrane: true, mw: 640 });
+    v.cargo.forEach(c => c.setAttribute('fill', CC.cargoMod)); v.fuse(.6);
+    wLabel(g, 'outside the cell', { x: 1270, y: 250, size: 28, fill: COL.dim, o: 1 });
+    wLabel(g, 'inside the cell', { x: 1270, y: 720, size: 28, fill: COL.dim, o: 1 });
+    wLabel(g, 'plasma membrane', { x: 1580, y: 405, size: 24, fill: COL.dim, anchor: 'end', o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('lyso');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-lyso', prompt: ['What is a lysosome?'],
+    build: withPic('lyso', choice([['A sac of ribosomes that builds proteins'], ['A membranous sac of hydrolytic enzymes that digest macromolecules'], ['A stack of membranes that ships proteins'], ['A store of water in plant cells']], 1,
+      'Right. Its enzymes break bonds with water, and the sac keeps them away from the rest of the cell.',
+      ['Ribosomes build proteins, and they are not kept in a sac. A lysosome breaks molecules down.', null,
+       'That is the Golgi apparatus: it modifies, sorts and ships products.',
+       'That is the central vacuole of a plant cell.'])) },
+  { id: 'p-kinds', prompt: ['Lysosomal enzymes can digest which molecules?'],
+    build: withPic('kinds', choice([['Only proteins'], ['Only fats and sugars'], ['Proteins, fats, polysaccharides and nucleic acids'], ['None: they only store them']], 2,
+      'Right. All four kinds of macromolecule.',
+      ['Proteins, yes, but fats, polysaccharides and nucleic acids too.', 'Those, and proteins and nucleic acids as well.', null,
+       'Lysosomes digest; their enzymes break the molecules apart.'])) },
+  { id: 'p-auto', prompt: ['What is autophagy?'],
+    build: withPic('auto', choice([['A cell engulfing a particle from outside'], ['A pond cell pumping out extra water'], ['Lysosomes recycling the cell’s own old organelles and macromolecules'], ['A vesicle fusing with the plasma membrane']], 2,
+      'Right. A membrane wraps the worn parts, a lysosome fuses with it, and the pieces are reused.',
+      ['That is phagocytosis: the particle comes from outside the cell.', 'That is the job of a contractile vacuole.', null,
+       'That is exocytosis: contents leave the cell.'])) },
+  { id: 'p-route', prompt: ['Number the route of a secreted protein from 1 to 5.'],
+    build: withPic('route', blanks([
+      { parts: ['The cis Golgi receives it: step ', { box: '3' }], why: 'Step 3: the vesicle fuses with the cis face.', hint: 'The cis face is the receiving side, so the protein must reach it first.', fx: () => stepFx(2, '3') },
+      { parts: ['The rough ER makes the protein: step ', { box: '1' }], why: 'Step 1: ribosomes on the rough ER build it.', hint: 'Where is the protein made?', fx: () => stepFx(0, '1') },
+      { parts: ['A vesicle fuses with the plasma membrane: step ', { box: '5' }], why: 'Step 5: exocytosis releases it outside.', hint: 'This is how it leaves the cell, at the very end.', fx: () => stepFx(4, '5') },
+      { parts: ['A transport vesicle carries it: step ', { box: '2' }], why: 'Step 2: a vesicle buds off the ER.', hint: 'It travels from the ER to the Golgi in this.', fx: () => stepFx(1, '2') },
+      { parts: ['The trans Golgi ships it out: step ', { box: '4' }], why: 'Step 4: it leaves from the trans face.', hint: 'The shipping side comes after the receiving side.', fx: () => stepFx(3, '4') },
+    ])) },
+  { id: 'p-fork', prompt: ['A vesicle from the trans Golgi fuses with the plasma membrane. What happens?'],
+    build: withPic('fork', choice([['It sorts its contents outside the cell'], ['It releases its contents outside the cell'], ['It makes proteins on the membrane'], ['It digests the cell']], 1,
+      'Right. That is exocytosis.',
+      ['Sorting happens inside the Golgi, at the trans face, before the vesicle leaves.', null,
+       'Proteins are made by ribosomes on the rough ER, not by the vesicle.',
+       'Digestive enzymes stay in lysosomes; this vesicle carries a product out.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+function stepFx(i, str) { const b = S.stepB?.[i]; if (!b) return; fxp(q => { b.t.textContent = q > 0 ? str : '?'; }, 0, .2); pulseFx(b, 1.4); }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>

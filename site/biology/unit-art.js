@@ -46,5 +46,15 @@
         Tx(x0 - 8, cy + A + 5, '3′', 16, 'a', 'end') + Tx(x1 + 8, cy + A + 5, '5′', 16, 'a') +
         Tx(420, 36, 'A–T  G–C', 14, 'faint');
     })()),
+    // Unit 6 (Chapter 6: A Tour of the Cell): a cell outline with its nucleus (nucleolus inside, two pores), a
+    // mitochondrion with folded cristae, a Golgi stack shedding a vesicle, and a few ribosome dots.
+    reset(`<g>` +
+      P('M260 92C260 40 330 14 415 14C505 14 575 40 575 92C575 146 505 172 415 172C330 172 260 146 260 92Z') +
+      C(340, 92, 40, 'a') + C(350, 84, 11) + P('M302 82L310 82M370 108L378 112', 'faint') +
+      P('M430 128C430 112 450 106 478 106C506 106 524 112 524 128C524 144 506 150 478 150C450 150 430 144 430 128Z') +
+      P('M444 128C450 116 456 140 462 120C468 140 474 116 480 134C486 116 492 140 498 120C504 140 508 118 512 128', 'a') +
+      P('M440 46C470 40 500 40 530 46M444 58C472 52 498 52 526 58M448 70C474 64 496 64 522 70', 'a') + C(540, 80, 7) +
+      C(398, 60, 3, 'faint') + C(410, 140, 3, 'faint') + C(392, 120, 3, 'faint') + C(552, 118, 3, 'faint') +
+      `</g>`),
   ];
 })();

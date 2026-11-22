@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 6, Lesson 8: Cell Walls, the ECM and Cell Junctions — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 6 (A Tour of the Cell), lesson 8: the last stop of the tour, the cell's outside. The tour map pulls
+// out to a tissue; plant cell walls (who has them, three jobs, swelling against the wall, cellulose in a matrix), the
+// three wall layers, plasmodesmata; the animal extracellular matrix and its integrins; the gut lining's junctions (tight,
+// desmosome, gap); a recap of the whole tour, practice. Plan, errata and storyboard:
+// books/biology/chapters/chapter-06/lesson-08.md. Kits: cyto.js (plantWalls, ecmScene, cellJunction), cell.js (cellMap).
+const CHAPTER = { number: 608, label: '6, lesson 8', title: 'Cell Walls, the ECM and Cell Junctions', minutes: 8, language: 'en', lead: false };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+const BADGE = '#3b8fd9', GOOD = '#8fd6b0', RED = '#f07a6a';
+
+// A pill tag centred on its origin: a rounded box sized to the text. o 0 unless given.
+function pill(p, str, x, y, { color = COL.chalk, size = 28, fill = COL.board, o = 0, weight = 700, w } = {}) {
+  const g = G(p, { x, y, o }), W = w || Math.max(90, str.length * size * .56 + 40), H = size * 1.7;
+  mk('rect', { x: -W / 2, y: -H / 2, width: W, height: H, rx: H / 2, fill, stroke: color, 'stroke-width': 3 }, g);
+  T(g, str, { x: 0, y: size * .36, size, fill: color, weight, anchor: 'middle' });
+  return Object.assign(g, { W, H });
+}
+// A numbered badge; .t is its text.
+function badge(p, str, x, y, { o = 0, r = 22 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: BADGE, stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t });
+}
+// A dark backing box behind labels that sit over a busy picture.
+const backing = (p, x, y, w, h, o = .82, t0) => { const r = mk('rect', { x, y, width: w, height: h, rx: 12, fill: COL.board, 'fill-opacity': o }, p); if (t0 !== undefined) { put(r, { o: 0 }); show(r, t0, .3); } return r; };
+
+/* ---------- local pieces (candidates for cyto.js) ---------- */
+// A row of n columnar epithelial cells (gut lining) centred on its origin: microvilli on top, a matrix band below, and at
+// every seam a tight junction (beads near the top), a desmosome (plaques with gold filaments) and gap junctions (low).
+// .seamX(k) the x of seam k (1..n−1); .yT .yD .yG the heights of the three junctions; .marks {tight, desmo, gap} groups.
+function tissueRow(p, { x = 0, y = 0, s = 1, o = 1, n = 6, cw = 170, ch = 320, marks = true } = {}) {
+  const g = G(p, { x, y, s, o }), W = n * cw, x0 = -W / 2, top = -ch / 2, bot = ch / 2;
+  const mat = G(g);
+  mk('rect', { x: x0 - 14, y: bot + 4, width: W + 28, height: 50, rx: 10, fill: '#4a3a1f' }, mat);
+  let cd = ''; for (let i = 0; i < 3; i++) { cd += `M${x0 - 6} ${bot + 16 + i * 13}`; for (let xx = x0; xx <= -x0 + 6; xx += 40) cd += `Q${xx + 10} ${bot + 8 + i * 13 + (i % 2 ? 8 : -2)} ${xx + 20} ${bot + 16 + i * 13}T${xx + 40} ${bot + 16 + i * 13}`; }
+  path(mat, cd, { stroke: YC.collagen, 'stroke-width': 4, 'stroke-opacity': .8 });
+  let vd = '';
+  for (let i = 0; i < n; i++) {
+    const cx = x0 + i * cw;
+    for (let j = 0; j < 6; j++) { const vx = cx + 16 + j * (cw - 32) / 5.4; vd += `M${(vx - 6).toFixed(1)} ${top + 4}V${top - 20}a6 6 0 0 1 12 0V${top + 4}`; }
+  }
+  path(g, vd, { fill: YC.cyto, stroke: YC.membrane, 'stroke-width': 3 });
+  let nd = '';
+  for (let i = 0; i < n; i++) {
+    const cx = x0 + i * cw;
+    mk('rect', { x: cx + 3, y: top, width: cw - 6, height: ch, rx: 16, fill: YC.cyto, stroke: YC.membrane, 'stroke-width': 4 }, g);
+    nd += `M${cx + cw / 2 - cw * .2} ${bot - ch * .3}a${cw * .2} ${ch * .12} 0 1 0 ${cw * .4} 0a${cw * .2} ${ch * .12} 0 1 0 ${-cw * .4} 0Z`;
+  }
+  path(g, nd, { fill: YC.nucleo, stroke: YC.env, 'stroke-width': 3 });
+  const yT = top + 30, yD = -ch * .04, yG = bot - ch * .2, mk3 = { tight: G(g), desmo: G(g), gap: G(g) };
+  if (marks) {
+    let bt = '', pd = '', fd = '', gd = '';
+    for (let k = 1; k < n; k++) {
+      const sx = x0 + k * cw;
+      for (let yy = yT - 18; yy <= yT + 18; yy += 9) bt += yCirc(sx - 3, yy, 3.6) + yCirc(sx + 3, yy, 3.6);
+      pd += `M${sx - 11} ${yD - 16}h6v32h-6ZM${sx + 5} ${yD - 16}h6v32h-6Z`;
+      for (let i = 0; i < 4; i++) { const yy = yD - 12 + i * 8; fd += `M${sx - 11} ${yy}q-14 ${(i - 1.5) * 5} -28 ${(i - 1.5) * 9}M${sx + 11} ${yy}q14 ${(i - 1.5) * 5} 28 ${(i - 1.5) * 9}`; }
+      for (let i = 0; i < 3; i++) gd += `M${sx - 9} ${yG - 14 + i * 12}h18v7h-18Z`;
+    }
+    path(mk3.tight, bt, { fill: YC.seam });
+    path(mk3.desmo, fd, { stroke: YC.inter, 'stroke-width': 2.5 });
+    path(mk3.desmo, pd, { fill: YC.myosin });
+    path(mk3.gap, gd, { fill: YC.connexon, stroke: YC.myosinEdge, 'stroke-width': 1.5 });
+  }
+  return Object.assign(g, { W, top, bot, yT, yD, yG, marks: mk3, matrix: mat, seamX: k => x0 + k * cw });
+}
+
+// Two small plant cells sharing a wall, with a plasmodesma through it (an icon), centred on the origin.
+function plantPair(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  [-1, 1].forEach(sd => mk('rect', { x: sd < 0 ? -104 : 4, y: -60, width: 100, height: 120, rx: 12, fill: YC.cyto, stroke: YC.wall, 'stroke-width': 10 }, g));
+  mk('rect', { x: -12, y: -12, width: 24, height: 24, fill: YC.cyto }, g);
+  path(g, 'M-14 -13H14M-14 13H14', { stroke: YC.membrane, 'stroke-width': 4 });
+  return g;
+}
+
+// A celery stalk, snapped, with a magnifier on its box-walled cells. Origin: the panel's centre (480 × 720 panel).
+function celery(p, { x = 0, y = 0, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  const st = G(g, { x: -120, y: 120 });
+  path(st, 'M-62 230C-70 120 -66 20 -52 -120L-40 -132L-28 -116L-14 -136L0 -118L14 -134L28 -114L42 -130L52 -118C64 0 66 120 62 230Z', { fill: '#7cc46a', stroke: '#4f9443', 'stroke-width': 4 });
+  path(st, 'M-36 228C-40 120 -38 20 -30 -110M-10 228C-12 120 -10 20 -6 -114M14 228C14 120 14 20 16 -112M38 228C40 120 40 20 34 -114', { stroke: '#5aa64d', 'stroke-width': 4 });
+  path(st, 'M-52 -120L-40 -132L-28 -116L-14 -136L0 -118L14 -134L28 -114L42 -130L52 -118L50 -104C20 -96 -20 -96 -50 -106Z', { fill: '#cfe8b8' });
+  wLabel(g, 'celery', { x: -120, y: 380, size: 30, fill: COL.dim, weight: 600, o: 1 });
+  // magnifier
+  const cx = 70, cy = -100, R = 150;
+  path(g, `M${-120 + 40} ${120 - 120}L${cx - R * .8} ${cy + R * .6}`, { stroke: COL.dim, 'stroke-width': 2.5, 'stroke-dasharray': '8 7' });
+  mk('circle', { cx, cy, r: R, fill: '#1c3a2a', stroke: COL.chalk, 'stroke-width': 5 }, g);
+  let cd = '';
+  for (let r = -3; r <= 3; r++) for (let c = -3; c <= 3; c++) {
+    const bx = cx + c * 64 + (r % 2 ? 32 : 0) - 28, by = cy + r * 52 - 22;
+    if (Math.hypot(bx + 28 - cx, by + 22 - cy) > R - 40) continue;
+    cd += `M${bx + 10} ${by}h36a10 10 0 0 1 10 10v24a10 10 0 0 1 -10 10h-36a10 10 0 0 1 -10 -10v-24a10 10 0 0 1 10 -10Z`;
+  }
+  path(g, cd, { fill: '#2f6a46', stroke: YC.wall, 'stroke-width': 7 });
+  return Object.assign(g, { lens: [cx, cy, R] });
+}
+
+// A strip of heart-muscle cells joined end to end (gap junctions at the joins), centred on its origin. .beat(t, t0)
+// from t0 a wave runs along the strip and each cell twitches in turn, then they beat together, about once a second.
+function heartStrip(p, { x = 0, y = 0, s = 1, o = 1, n = 4, cw = 104, ch = 70 } = {}) {
+  const g = G(p, { x, y, s, o }), cells = [], x0 = -n * cw / 2;
+  for (let i = 0; i < n; i++) {
+    const c = G(g, { x: x0 + cw * (i + .5) });
+    mk('rect', { x: -cw / 2 + 2, y: -ch / 2, width: cw - 4, height: ch, rx: 14, fill: '#6a2a3a', stroke: '#e58a9c', 'stroke-width': 3 }, c);
+    let sd = ''; for (let j = -3; j <= 3; j++) sd += `M${j * 12} ${-ch / 2 + 8}V${ch / 2 - 8}`;
+    path(c, sd, { stroke: '#e58a9c', 'stroke-width': 2, 'stroke-opacity': .5 });
+    cells.push(c);
+  }
+  let jd = ''; for (let i = 1; i < n; i++) jd += `M${x0 + i * cw - 5} -8h10v6h-10ZM${x0 + i * cw - 5} 4h10v6h-10Z`;
+  path(g, jd, { fill: YC.connexon });
+  const glow = mk('circle', { r: 18, fill: '#ffd27a', 'fill-opacity': .8 }, g); put(glow, { x: x0, y: 0, o: 0 });
+  const hs = Object.assign(g, {
+    cells, glow,
+    beat(t, t0) {
+      const u = t - t0;
+      if (u < 0) { cells.forEach(c => yS(c, 1)); yO(glow, 0); return hs; }
+      const ph = yFrac(u / 1.1), gx = x0 + n * cw * clamp01(ph / .45);
+      yPose(glow, gx, 0, ph < .5 ? 1 : 0);
+      cells.forEach((c, i) => { const ci = (i + .5) / n * .45; yS(c, 1 + .07 * yBump(ph, ci - .05, ci + .25)); });
+      return hs;
+    },
+  });
+  return hs;
+}
+
+// Clip the infinite line through (px, py) at angle a to the rectangle; returns [x1, y1, x2, y2] or null.
+function clipLine(px, py, a, [rx, ry, rw, rh]) {
+  const dx = Math.cos(a), dy = Math.sin(a); let t0 = -1e5, t1 = 1e5;
+  for (const [p0, d, lo, hi] of [[px, dx, rx, rx + rw], [py, dy, ry, ry + rh]]) {
+    if (Math.abs(d) < 1e-9) { if (p0 < lo || p0 > hi) return null; continue; }
+    let a1 = (lo - p0) / d, a2 = (hi - p0) / d; if (a1 > a2) [a1, a2] = [a2, a1];
+    t0 = Math.max(t0, a1); t1 = Math.min(t1, a2);
+  }
+  return t1 > t0 ? [px + dx * t0, py + dy * t0, px + dx * t1, py + dy * t1] : null;
+}
+// The inside of a wall, magnified: cellulose fibers (tan rods, two crossing layers) in a matrix of other
+// polysaccharides (pale threads) and protein (coral dots), filling the box [x, y, w, h]. .fibers .matrix groups.
+function wallWeave(p, [bx, by, bw, bh], { o = 1 } = {}) {
+  const g = G(p, { o }), pad = 14, box = [bx + pad, by + pad, bw - 2 * pad, bh - 2 * pad];
+  mk('rect', { x: bx, y: by, width: bw, height: bh, rx: 20, fill: '#3a3322', stroke: COL.chalk, 'stroke-width': 4 }, g);
+  const matrix = G(g), fibers = G(g);
+  let td = '';
+  for (let i = 0; i < 9; i++) { const yy = by + 40 + i * (bh - 80) / 8; td += `M${bx + 24} ${yy}`; for (let xx = bx + 24; xx < bx + bw - 40; xx += 36) td += `q9 ${i % 2 ? 9 : -9} 18 0t18 0`; }
+  path(matrix, td, { stroke: '#e9dcc0', 'stroke-width': 2.5, 'stroke-opacity': .45 });
+  let dd = '';
+  for (let i = 0; i < 22; i++) dd += yCirc(bx + 30 + wHash(i, 7) * (bw - 60), by + 30 + wHash(i, 8) * (bh - 60), 7);
+  path(matrix, dd, { fill: YC.cargo });
+  let fa = '', fb = '';
+  for (let i = -4; i <= 5; i++) { const l = clipLine(bx + bw / 2 + i * 70, by + bh / 2, -.32, box); if (l) fa += `M${l[0].toFixed(1)} ${l[1].toFixed(1)}L${l[2].toFixed(1)} ${l[3].toFixed(1)}`; }
+  for (let i = -4; i <= 4; i++) { const l = clipLine(bx + bw / 2 + i * 84, by + bh / 2, .5, box); if (l) fb += `M${l[0].toFixed(1)} ${l[1].toFixed(1)}L${l[2].toFixed(1)} ${l[3].toFixed(1)}`; }
+  path(fibers, fb, { stroke: YC.wall2, 'stroke-width': 15, 'stroke-linecap': 'round' });
+  path(fibers, fa, { stroke: '#6e5a2e', 'stroke-width': 19, 'stroke-linecap': 'round' });
+  path(fibers, fa, { stroke: YC.wall, 'stroke-width': 14, 'stroke-linecap': 'round' });
+  return Object.assign(g, { fibers, matrix });
+}
+
+// A single proteoglycan close-up (core protein with sugar chains), centred on its origin, vertical.
+function proteoglycanOne(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  let br = '';
+  for (let j = 0; j < 8; j++) { const yy = -105 + j * 30, sd = j % 2 ? 1 : -1; br += `M0 ${yy}l${sd * 70} -20`; for (let q = 1; q <= 3; q++) br += `M${sd * 18 * q} ${yy - 5 * q}l${sd * 8} -14M${sd * 18 * q} ${yy - 5 * q}l${sd * 12} 10`; }
+  path(g, br, { stroke: YC.proteoglycan, 'stroke-width': 4 });
+  path(g, 'M0 -120V120', { stroke: '#e4dbff', 'stroke-width': 9 });
+  return g;
+}
+
+// A plain animal cell (blob, nucleus) centred on its origin.
+function blobCell(p, { x = 0, y = 0, s = 1, o = 1, rx = 150, ry = 115, seed = 5, sw = 6 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, cBlob(rx, ry, { seed }), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': sw });
+  mk('circle', { cx: -rx * .25, cy: -ry * .1, r: Math.min(rx, ry) * .32, fill: CC.nucleo, stroke: CC.env, 'stroke-width': sw * .8 }, g);
+  return g;
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'The cell’s outside', (m, D) => {
+  const p = panel(0), cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const tM = m('map'), tO = m('out'), tC = m('celery'), tS = m('skin'), t3 = m('three');
+  // neighbors, around the map (out of view until the pull-out)
+  const nb = G(W); let ni = 0;
+  for (let r = -2; r <= 2; r++) for (let c = -3; c <= 3; c++) {
+    const cx = 800 + c * 720 + (r % 2 ? 360 : 0), cy = 450 + r * 450;
+    if ((!r && !c) || Math.abs(cx - 800) > 2300) continue;
+    const g = blobCell(nb, { x: cx, y: cy, rx: 320, ry: 196, seed: ni + 3, sw: 11, o: 0 });
+    show(g, tO + .8 + .06 * ni++, .6);
+  }
+  const cm = cellMap(W, { kind: 'animal', x: 800, y: 450, s: .62 });
+  cm.build(0); prog(k => cm.build(k), tM - 1.2, 2.4, lin);
+  // title
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 6 · LESSON 8', { x: 800, y: 260, size: 26, fill: COL.dim, o: 1 });
+  ['Cell walls, the ECM', 'and cell junctions'].forEach((s, i) => wLabel(ttl, s, { x: 800, y: 360 + i * 84, size: 70, o: 1 }));
+  wLabel(ttl, 'A tour of the cell: the last stop', { x: 800, y: 560, size: 32, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tM - 1.4, .5);
+  // map: the tour map, the last stop
+  const lt = pill(p, 'the tour map: last stop', 800, 160, { color: MC.hi, size: 30 }); show(lt, tM + .8, .5); hide(lt, tO, .4);
+  // out: pull out to a tissue; our cell outlined
+  cam.to({ z: .4 }, tO, 3.4);
+  const ring = path(W, cBlob(400, 262, { seed: 2 }), { stroke: MC.hi, 'stroke-width': 9, 'stroke-dasharray': '26 18' }, { o: 0 });
+  put(ring, { x: 800, y: 450, o: 0 }); show(ring, tO + 3.4, .5);
+  // celery: a panel on the left
+  const cp = G(p, { o: 0, x: -40 }); tw(cp, { o: 1, x: 0 }, tC, .7, out);
+  mk('rect', { x: 40, y: 60, width: 480, height: 730, rx: 24, fill: COL.board, stroke: COL.faint, 'stroke-width': 3 }, cp);
+  const ce = celery(cp, { x: 280, y: 400 });
+  say(cp, 'boxed in by walls', 350, 140, tC + 2.4, { size: 30, fill: YC.wall });
+  // skin: a panel on the right, cells fastened on a matrix
+  const gp = G(p, { o: 0, x: 40 }); tw(gp, { o: 1, x: 0 }, tS, .7, out);
+  mk('rect', { x: 1080, y: 60, width: 480, height: 730, rx: 24, fill: COL.board, stroke: COL.faint, 'stroke-width': 3 }, gp);
+  wLabel(gp, 'skin, gut lining', { x: 1320, y: 130, size: 32, weight: 700, o: 1 });
+  const tr = tissueRow(gp, { x: 1320, y: 420, s: .5, n: 5, cw: 160, ch: 330 });
+  say(gp, 'cells fastened together', 1320, 620, tS + 4.2, { size: 28, fill: YC.seam });
+  say(gp, 'and to a matrix', 1320, 660, tS + 5.4, { size: 28, fill: YC.collagen });
+  pulse(tr.marks.tight, tS + 4.4, 1.15); pulse(tr.matrix, tS + 5.6, 1.08);
+  // three: what we will meet
+  [['cell walls', 280, YC.wall, 1.9], ['extracellular matrix', 800, YC.collagen, 3.5], ['junctions', 1320, YC.seam, 5.5]].forEach(([s, x, c, dt]) => {
+    const e = pill(p, s, x, 842, { color: c, size: 32 }); show(e, t3 + dt, .4); pulse(e, t3 + dt + .1, 1.12);
+  });
+}],
+
+/* ---------- walls ---------- */
+['walls', 'Who has a wall', (m, D) => {
+  const p = panel(0), tW = m('who'), tJ = m('jobs'), tSw = m('swell'), tMd = m('made'), tR = m('rebar');
+  // the plant cell: a wall round a protoplast that can swell
+  const PX = 500, PY = 450, pc = G(p, { x: PX, y: PY, o: 0 }); show(pc, .2, .5);
+  const proto = G(pc);
+  const prg = G(proto); mk('rect', { x: -150, y: -110, width: 300, height: 220, rx: 26, fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 6 }, prg);
+  const vac = G(proto, { x: 30, y: 10 }); mk('ellipse', { rx: 80, ry: 56, fill: CC.vac, stroke: CC.vacEdge, 'stroke-width': 3 }, vac);
+  mk('circle', { cx: -95, cy: -50, r: 28, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 4 }, proto);
+  mk('rect', { x: -190, y: -150, width: 380, height: 300, rx: 36, fill: 'none', stroke: CC.wall, 'stroke-width': 18 }, pc);
+  say(p, 'plant cell', PX, 262, .5, { size: 30, fill: YC.wall });
+  // the animal cell: no wall
+  const AX = 1110, ac = blobCell(p, { x: AX, y: PY, o: 0 }); show(ac, .4, .5);
+  const al = say(p, 'animal cell', AX, 262, .7, { size: 30 });
+  // who: chips
+  const who = [['plants', 1.4, true], ['prokaryotes', 1.9, true], ['fungi', 2.9, true], ['some protists', 3.6, true], ['animals', 5, false]];
+  let cx = 130;
+  who.forEach(([s, dt, ok]) => {
+    const str = (ok ? '✓ ' : '✗ ') + s, w = str.length * 15 + 40, e = pill(p, str, cx + w / 2, 120, { color: ok ? GOOD : RED, size: 27, w });
+    show(e, tW + dt, .35); cx += w + 26;
+  });
+  const X = G(p, { x: AX + 120, y: 340, o: 0 }); path(X, 'M-26 -26L26 26M26 -26L-26 26', { stroke: RED, 'stroke-width': 9 }); show(X, tW + 5.2, .3);
+  const nw = say(p, 'no wall', AX + 120, 300, tW + 5.4, { size: 26, fill: RED });
+  hide(X, tSw + .2, .3); hide(nw, tSw + .2, .3);
+  // jobs: three tags under the plant cell
+  [['protect', 300, 0], ['keep shape', 480, 1.6], ['limit water uptake', 760, 3.6]].forEach(([s, x, dt]) => show(pill(p, s, x, 700, { color: YC.wall, size: 26 }), tJ + dt, .35));
+  // swell: water comes in; the protoplast swells until the wall pushes back; the bare cell keeps swelling
+  const drops = G(p);
+  const mkDrops = (cx0, cy0, n, t0, rin) => { for (let i = 0; i < n; i++) {
+    const a = i / n * 2 * Math.PI + .3, d = mk('circle', { r: 8, fill: '#5fb4ff' }, drops), sx = cx0 + 300 * Math.cos(a), sy = cy0 + 215 * Math.sin(a), ex = cx0 + rin * Math.cos(a), ey = cy0 + rin * .7 * Math.sin(a);
+    put(d, { x: sx, y: sy, o: 0 }); const t1 = t0 + .35 * i;
+    prog(q => yPose(d, lerp(sx, ex, io(q)), lerp(sy, ey, io(q)), Math.min(ramp(q, 0, .15), 1 - ramp(q, .85, 1))), t1, 1.6, lin);
+  } };
+  mkDrops(PX, PY, 7, tSw + .2, 90); mkDrops(AX, PY, 7, tSw + .2, 70);
+  tw(prg, { s: 1.2 }, tSw + .5, 3.6, io);   // a transform, not four geometry writes a frame
+  tw(vac, { s: 1.3 }, tSw + .5, 3.6, io);
+  const push = G(p, { o: 0 });
+  [[[PX - 250, PY], [PX - 205, PY]], [[PX + 250, PY], [PX + 205, PY]], [[PX, PY + 205], [PX, PY + 165]]].forEach(([a, b]) => yArrow(push, a, b, { color: YC.wall, w: 7, head: 20 }));
+  show(push, tSw + 4.2, .3); pulse(push, tSw + 4.4, 1.04);
+  say(p, 'wall', PX - 330, PY - 10, tSw + 4.3, { size: 28, fill: YC.wall });
+  say(p, 'pushes back', PX - 330, PY + 26, tSw + 4.5, { size: 28, fill: YC.wall });
+  tw(ac, { s: 1.42 }, tSw + .5, 7.2, lin);
+  const ab = say(p, 'no wall: it could burst', AX, 680, tSw + 6.4, { size: 28, fill: RED });
+  // made: the animal cell leaves; a close-up of the wall's inside
+  [ac, al, X, nw, ab, drops].forEach(e => hide(e, tMd - .2, .4));
+  const zl = path(p, `M${PX + 190} ${PY - 150}L870 240M${PX + 190} ${PY + 150}L870 640`, { stroke: COL.dim, 'stroke-width': 2.5, 'stroke-dasharray': '8 7' }, { o: 0 });
+  show(zl, tMd + .1, .4);
+  const zr = mk('rect', { x: PX + 172, y: PY - 168, width: 36, height: 36, fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, p); put(zr, { o: 0 }); show(zr, tMd, .3);
+  const wv = wallWeave(p, [870, 230, 650, 410], { o: 0 }); show(wv, tMd + .2, .6);
+  const l1 = say(p, 'cellulose fibers', 1030, 696, tMd + 1.6, { size: 28, fill: YC.wall }); pulse(wv.fibers, tMd + 1.6, 1.02);
+  say(p, 'in polysaccharides + protein', 1310, 736, tMd + 3, { size: 26, fill: COL.dim, weight: 500 });
+  // rebar: rods in concrete
+  const rb = pill(p, 'like steel rods in concrete', 1195, 810, { color: YC.wall, size: 30 }); show(rb, tR + .3, .4); pulse(rb, tR + .4, 1.1);
+  pulse(wv.fibers, tR + 2.6, 1.03);
+}],
+
+/* ---------- layers ---------- */
+['layers', 'Three layers', (m, D) => {
+  const p = panel(0), tM = m('mid'), tP = m('prim'), tS = m('sec'), tT = m('trunk'), tO = m('order'), K = 2.6;
+  const wall = plantWalls(p, { x: 800, y: 450, s: K, w: 1100, h: 760, n: 2 });
+  put(wall, { o: 0 }); show(wall, .1, .6);
+  say(p, 'plant cell', 300, 70, .6, { size: 30, fill: COL.dim });
+  say(p, 'its neighbor', 1300, 70, .8, { size: 30, fill: COL.dim });
+  // band edges on the stage (layer half-widths × K): lamella 13, primary to 65, secondary to 153, membrane at 161
+  const hl = (x0, x1, t0, t1) => { const r = mk('rect', { x: x0 - 4, y: 40, width: x1 - x0 + 8, height: 820, rx: 8, fill: 'none', stroke: '#fff6d8', 'stroke-width': 4 }, p); put(r, { o: 0 }); show(r, t0, .3); hide(r, t1, .4); return r; };
+  // mid
+  hl(787, 813, tM + .2, tP - .3);
+  backing(p, 150, 120, 470, 90, .82, tM + .2);
+  say(p, 'middle lamella', 600, 160, tM + .3, { size: 34, anchor: 'end', fill: YC.lamella });
+  say(p, 'the glue between neighbors', 600, 196, tM + 3.8, { size: 26, anchor: 'end', fill: COL.dim, weight: 500 });
+  leader(p, [610, 150], [800, 150], tM + .4);
+  // prim
+  hl(813, 865, tP + .2, tS - .3); hl(735, 787, tP + .2, tS - .3);
+  backing(p, 150, 280, 470, 90, .82, tP + .2);
+  say(p, 'primary wall', 600, 320, tP + .3, { size: 34, anchor: 'end', fill: YC.wall });
+  say(p, 'thin and flexible', 600, 356, tP + 4.3, { size: 26, anchor: 'end', fill: COL.dim, weight: 500 });
+  leader(p, [610, 310], [761, 310], tP + .4); leader(p, [761, 310], [839, 250], tP + .6);
+  // sec
+  hl(865, 953, tS + .2, tT + 4); hl(647, 735, tS + .2, tT + 4);
+  backing(p, 990, 400, 420, 90, .82, tS + .2);
+  say(p, 'secondary wall', 1000, 440, tS + .3, { size: 34, anchor: 'start', fill: YC.wall2 });
+  say(p, 'some cells only; thick, strong', 1000, 476, tS + 1.4, { size: 26, anchor: 'start', fill: COL.dim, weight: 500 });
+  leader(p, [992, 430], [909, 430], tS + .4);
+  say(p, 'plasma membrane', 1000, 568, tS + 3.4, { size: 28, anchor: 'start', fill: YC.membrane });
+  leader(p, [992, 560], [961, 560], tS + 3.5);
+  // trunk: wood is mostly secondary walls
+  const tk = G(p, { o: 0 }); show(tk, tT + .1, .5);
+  mk('rect', { x: 1150, y: 620, width: 400, height: 250, rx: 20, fill: COL.board, stroke: COL.faint, 'stroke-width': 3 }, tk);
+  [92, 74, 56, 38, 20].forEach((r, i) => mk('circle', { cx: 1250, cy: 760, r, fill: i ? (i % 2 ? '#c99a5a' : '#b08045') : '#7a5a3e', stroke: '#6e4c2a', 'stroke-width': i ? 2 : 10 }, tk));
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) mk('rect', { x: 1370 + i * 52, y: 700 + j * 52, width: 48, height: 48, rx: 6, fill: CC.cyto, stroke: YC.wall2, 'stroke-width': 11 }, tk);
+  wLabel(tk, 'wood: mostly', { x: 1440, y: 660, size: 24, o: 1 });
+  wLabel(tk, 'secondary walls', { x: 1440, y: 690, size: 24, fill: YC.wall, o: 1 });
+  wLabel(tk, 'tree trunk', { x: 1250, y: 860, size: 22, fill: COL.dim, o: 1 });
+  // order: from the middle outward
+  const steps = [['middle lamella', 800, 770], ['primary wall', 839, 715], ['secondary wall', 909, 770], ['plasma membrane', 961, 715]];
+  show(yArrow(p, [790, 828], [1010, 828], { color: COL.chalk, w: 5, head: 16, o: 0 }), tO + .2, .5);
+  const lst = G(p, { o: 0 }); show(lst, tO + .1, .3);
+  backing(lst, 80, 640, 470, 210);
+  steps.forEach(([s, x, y], i) => {
+    const t0 = tO + 1.4 + 1.1 * i;
+    show(badge(p, String(i + 1), x, y), t0, .3);
+    const b = badge(lst, String(i + 1), 120, 680 + 48 * i, { o: 1, r: 18 });
+    put(b, { o: 0 }); show(b, t0, .3);
+    say(lst, s, 150, 690 + 48 * i, t0 + .1, { size: 28, anchor: 'start' });
+  });
+  notToScale(p, 1570, 40, .3);
+}],
+
+/* ---------- plasmo ---------- */
+['plasmo', 'Plasmodesmata', (m, D) => {
+  const p = panel(0), cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world, K = 2.6, Z = .62;
+  const tPo = m('pore'), tL = m('line'), tPa = m('pass'), tOn = m('only');
+  const wall = plantWalls(W, { x: 800, y: 450, s: K, w: 1100, h: 760, n: 2 });
+  const PY = [450 - 195 * K, 450 + 195 * K];   // the two pores, world y
+  const sc = wy => 450 + (wy - 450) * Z;       // screen y at the wide view
+  cam.to({ z: Z }, .3, 3);
+  // pore
+  const lp = G(p, { o: 0 }); show(lp, tPo + .2, .4); hide(lp, tL - .4, .3);
+  backing(lp, 1130, 410, 300, 60);
+  wLabel(lp, 'plasmodesmata', { x: 1140, y: 452, size: 34, anchor: 'start', fill: GOOD, o: 1 });
+  path(lp, `M1130 440L905 ${sc(PY[0]) + 6}M1130 452L905 ${sc(PY[1]) - 6}`, { stroke: COL.dim, 'stroke-width': 2.5 });
+  // line: push onto the top pore; the plasma membrane runs through it
+  cam.to({ x: 800, y: PY[0], z: 1.6 }, tL - .3, 1.8);
+  const glow = path(wall, 'M-62 -320V-210H62V-320M-62 -70V-180H62V-70', { stroke: '#d6f0ff', 'stroke-width': 2.4 }, { d: 0 });
+  draw(glow, tL + .4, 1.6); hide(glow, tPa - .2, .4);
+  const ll = G(p, { o: 0 }); show(ll, tL + 1, .4); hide(ll, tPa - .3, .3);
+  backing(ll, 60, 170, 440, 100);
+  wLabel(ll, 'lined by the', { x: 280, y: 210, size: 30, o: 1 });
+  wLabel(ll, 'plasma membrane', { x: 280, y: 250, size: 30, fill: YC.membrane, o: 1 });
+  path(ll, 'M440 270L700 392', { stroke: COL.dim, 'stroke-width': 2.5 });
+  const lc = G(p, { o: 0 }); show(lc, tL + 4.2, .4); hide(lc, tPa - .3, .3);
+  yArrow(lc, [300, 450], [1300, 450], { color: '#fff6d8', w: 5, head: 18 });
+  backing(lc, 470, 640, 660, 60);
+  wLabel(lc, 'one cytoplasm runs into the next', { x: 800, y: 682, size: 32, fill: '#fff6d8', o: 1 });
+  // pass: back out; things cross through both pores
+  cam.to({ x: 800, y: 450, z: Z }, tPa - .3, 1.6);
+  put(wall.dots, { o: 0 }); show(wall.dots, tPa + .8, .3);
+  prog(k => wall.pass(k), tPa + 1, 6, lin);
+  const prot = G(W, { o: 0 }); [[0, 0], [20, -10], [12, 14]].forEach(([dx, dy]) => mk('circle', { cx: dx, cy: dy, r: 15, fill: YC.cargo, stroke: '#a84a3c', 'stroke-width': 2.5 }, prot));
+  const rna = G(W, { o: 0 }); path(rna, 'M-60 0q10 -12 20 0t20 0t20 0t20 0t20 0t20 0', { stroke: MC.U, 'stroke-width': 10 });
+  const route = (e, t0, dur, yy) => prog(q => { const k = io(q); yPose(e, lerp(200, 1400, k), lerp(yy - 60, PY[0], Math.min(1, k * 3)) + (k > .66 ? (k - .66) * 120 : 0), Math.min(ramp(q, 0, .1), 1 - ramp(q, .92, 1))); }, t0, dur, lin);
+  route(prot, tPa + 2.6, 5, PY[0]); route(rna, tPa + 3.4, 5, PY[0] + 20);
+  say(p, 'water, small solutes', 210, 858, tPa + .8, { size: 30, fill: YC.fluid });
+  say(p, 'even proteins and RNA', 240, 50, tPa + 3, { size: 30, fill: YC.cargo });
+  say(p, 'cytoplasm', 300, 460, tPa + 1, { size: 26, fill: COL.dim }); say(p, 'cytoplasm', 1300, 460, tPa + 1, { size: 26, fill: COL.dim });
+  // only
+  const ob = pill(p, 'plants only', 1380, 330, { color: GOOD, size: 32 }); show(ob, tOn + .2, .4); pulse(ob, tOn + .3, 1.12);
+  say(p, 'animal cells: other connections', 1380, 390, tOn + 2.4, { size: 24, fill: COL.dim, weight: 500 });
+  notToScale(p, 1570, 860, .3);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0), K = 3.4, X = 800, Y = 330;
+  plantWalls(p, { x: X, y: Y, s: K, w: 600, h: 600, n: 2 });
+  mk('rect', { x: 0, y: 650, width: 1600, height: 250, fill: COL.board }, p);
+  wLabel(p, 'plant cell', { x: 330, y: 80, size: 30, fill: COL.dim, o: 1 });
+  wLabel(p, 'its neighbor', { x: 1270, y: 80, size: 30, fill: COL.dim, o: 1 });
+  // the layers on the left half (× K): lamella 17, primary to 85, secondary to 200, membrane at 211
+  const box = (x0, x1) => [x0, 120, x1 - x0, 500];
+  const el = b => { const r = mk('rect', { x: b[0], y: b[1], width: b[2], height: b[3], fill: '#ffffff', 'fill-opacity': .001 }, p); return r; };
+  const items = [
+    { b: box(X - 20, X + 20), label: 'the middle lamella' },
+    { b: box(X - 85, X - 22), label: 'a primary wall' },
+    { b: box(X - 198, X - 87), label: 'a secondary wall' },
+    { b: box(X - 226, X - 200), label: 'a plasma membrane' },
+  ];
+  S.q1 = items.map(it => ({ el: el(it.b), box: it.b, label: it.label }));
+}, { ask: done => quiz(BAND, [
+  { id: 'c-layer', prompt: ['Click the layer that lies between two adjacent plant cells.'],
+    build: pickEls(S.q1, 0, 'Right. The middle lamella is the thin layer between the primary walls of neighboring cells, the glue that holds them together.',
+      i => i === 1 ? 'That is a primary wall: each cell’s own thin, flexible wall. Look for the thin layer the two cells share.'
+        : i === 2 ? 'That is a secondary wall, added inside the primary wall, and only in some cells. The shared layer is in the middle.'
+        : 'That is the cell’s plasma membrane, inside all its walls. The layer between the cells is in the very middle.') },
+], done) }],
+
+/* ---------- ecm ---------- */
+['ecm', 'The extracellular matrix', (m, D) => {
+  const p = panel(0), tM = m('matrix'), tC = m('coll'), tF = m('fibro'), tP = m('proteo'), tW = m('web');
+  const ec = ecmScene(p, { x: 660, y: 500, s: 1.15 }), P = ec.parts;
+  ['integrins', 'filaments', 'fibronectin', 'collagen', 'proteoglycans'].forEach(k => put(P[k], { o: 0 }));
+  put(ec, { o: 0 }); show(ec, .1, .5);
+  say(p, 'ANIMAL CELL', 660, 820, .4, { size: 26, fill: COL.dim, weight: 700 });
+  say(p, 'outside', 140, 140, .6, { size: 26, fill: COL.dim, anchor: 'start', weight: 700 });
+  say(p, 'plasma membrane', 140, 560, .8, { size: 26, fill: YC.membrane, anchor: 'start' });
+  // matrix: name it
+  const hd = G(p, { o: 0 }); show(hd, tM + .2, .5);
+  wLabel(hd, 'extracellular', { x: 1410, y: 150, size: 36, weight: 700, o: 1 });
+  wLabel(hd, 'matrix (ECM)', { x: 1410, y: 194, size: 36, weight: 700, o: 1 });
+  wLabel(hd, 'covers animal cells', { x: 1410, y: 232, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  // coll, fibro, proteo
+  show(P.collagen, tC + .1, .8);
+  const [cx0, cy0] = ec.pt('collagen');
+  say(p, 'collagen', 1410, 320, tC + .6, { size: 32, fill: YC.collagen });
+  say(p, 'strong, ropelike fibers', 1410, 352, tC + 1.4, { size: 22, fill: COL.dim, weight: 500 });
+  leader(p, [1300, 316], [1180, 262], tC + .7);
+  show(P.fibronectin, tF + .1, .8); show(P.integrins, tF + .4, .6, lin); tw(P.integrins, { o: .35 }, tF + 1.2, .6);
+  // labelled from below, at the right-hand fibronectin (local x 160, y -110), clear of the proteoglycans
+  const fx0 = 660 + 160 * 1.15, fy0 = 500 - 110 * 1.15;
+  say(p, 'fibronectin', 990, 648, tF + .6, { size: 32, anchor: 'start', fill: YC.fibronectin });
+  say(p, 'connects the matrix to the cell', 990, 680, tF + 1.6, { size: 22, anchor: 'start', fill: COL.dim, weight: 500 });
+  leader(p, [984, 622], [fx0, fy0], tF + .7);
+  show(P.proteoglycans, tP + .1, .8);
+  const [px0, py0] = ec.pt('proteoglycans');
+  say(p, 'proteoglycan', 1410, 540, tP + .6, { size: 32, fill: YC.proteoglycan });
+  leader(p, [1300, 534], [px0 + 30, py0], tP + .7);
+  const pg = proteoglycanOne(p, { x: 1410, y: 690, s: .62, o: 0 }); show(pg, tP + 1.4, .5);
+  say(p, 'core protein', 1338, 790, tP + 2, { size: 22, anchor: 'end', fill: '#e4dbff' });
+  say(p, 'sugar chains', 1410, 596, tP + 2.8, { size: 22, fill: YC.proteoglycan });
+  // web: together they weave a web
+  [P.collagen, P.fibronectin, P.proteoglycans].forEach((e, i) => { tw(e, { o: .55 }, tW + .2 + .2 * i, .3); tw(e, { o: 1 }, tW + .6 + .2 * i, .4); });
+  const mt = pill(p, 'a web, like mattress filling', 660, 70, { color: COL.chalk, size: 28 }); show(mt, tW + 2.6, .4);
+  notToScale(p, 1570, 870, .3);
+}],
+
+/* ---------- integrin ---------- */
+['integrin', 'Integrins', (m, D) => {
+  const p = panel(0), tI = m('integ'), tO = m('out'), tN = m('in'), tB = m('bridge'), tF = m('four');
+  const ec = ecmScene(p, { x: 660, y: 500, s: 1.15 }), P = ec.parts;
+  put(P.filaments, { o: 0 }); put(P.integrins, { o: .35 });
+  say(p, 'ANIMAL CELL', 660, 820, .2, { size: 26, fill: COL.dim, weight: 700 });
+  say(p, 'outside', 140, 140, .2, { size: 26, fill: COL.dim, anchor: 'start', weight: 700 });
+  say(p, 'inside: cytoplasm', 140, 760, .2, { size: 26, fill: COL.dim, anchor: 'start', weight: 700 });
+  // integ: the integrins light up
+  show(P.integrins, tI + .1, .4);
+  const [ix, iy] = ec.pt('integrins');
+  const ig = G(p, { o: 0 }); show(ig, tI + .4, .4);
+  backing(ig, 1250, 520, 300, 80);
+  wLabel(ig, 'integrin', { x: 1262, y: 556, size: 34, anchor: 'start', fill: YC.integrin, weight: 700, o: 1 });
+  wLabel(ig, 'spans the membrane', { x: 1262, y: 588, size: 22, anchor: 'start', fill: COL.dim, weight: 500, o: 1 });
+  path(ig, `M1256 546L${ix + 8} ${iy + 6}`, { stroke: COL.dim, 'stroke-width': 2.5 });
+  // out: binds the matrix outside
+  [P.fibronectin, P.collagen].forEach((e, i) => { tw(e, { o: .5 }, tO + .2 + .2 * i, .25); tw(e, { o: 1 }, tO + .5 + .2 * i, .35); });
+  const ol = G(p, { o: 0 }); show(ol, tO + .3, .4);
+  backing(ol, 1250, 300, 300, 76);
+  wLabel(ol, 'outside: binds', { x: 1262, y: 332, size: 26, anchor: 'start', o: 1 });
+  wLabel(ol, 'the matrix', { x: 1262, y: 364, size: 26, anchor: 'start', fill: YC.fibronectin, o: 1 });
+  // in: links to microfilaments
+  show(P.filaments, tN + .2, .8);
+  const nl = G(p, { o: 0 }); show(nl, tN + .6, .4);
+  backing(nl, 1250, 640, 300, 76);
+  wLabel(nl, 'inside: links to', { x: 1262, y: 672, size: 26, anchor: 'start', o: 1 });
+  wLabel(nl, 'microfilaments', { x: 1262, y: 704, size: 26, anchor: 'start', fill: YC.actin, o: 1 });
+  // bridge: a pull on the matrix reaches the cell's scaffolding
+  const outer = [P.collagen, P.fibronectin, P.proteoglycans], inner = [P.integrins, P.filaments];
+  const pa = G(p, { o: 0 }); yArrow(pa, [1170, 150], [1300, 112], { color: MC.hi, w: 8, head: 22 }); show(pa, tB + .2, .3);
+  prog(q => { const k = Math.sin(Math.PI * Math.min(1, q * 1.4)) * (q < .72 ? 1 : 0), k2 = Math.sin(Math.PI * clamp01((q - .08) * 1.4)) * (q < .8 ? 1 : 0);
+    outer.forEach(e => yPose(e, 30 * k, -10 * k)); inner.forEach(e => yPose(e, 16 * k2, -4 * k2)); }, tB + .4, 3.2, lin);
+  hide(pa, tB + 4, .4);
+  const bl = say(p, 'a pull outside is felt inside', 660, 70, tB + 1.2, { size: 30, fill: MC.hi });
+  // four: the matrix's four jobs
+  hide(bl, tF - .2, .3);
+  const fj = G(p, { o: 0 }); show(fj, tF, .3);
+  wLabel(fj, 'ECM jobs:', { x: 100, y: 66, size: 30, anchor: 'start', weight: 700, o: 1 });
+  [['support', .4], ['adhesion', 1.6], ['movement', 3.4], ['regulation', 5.2]].forEach(([s, dt], i) => { const e = pill(p, s, 390 + 240 * i, 56, { color: YC.collagen, size: 28, w: 220 }); show(e, tF + dt, .35); pulse(e, tF + dt + .05, 1.1); });
+  notToScale(p, 1570, 870, .3);
+}],
+
+/* ---------- junc ---------- */
+['junc', 'Junctions between cells', (m, D) => {
+  const p = panel(0), tG = m('gut'), tK = m('kinds'), tPl = m('plant');
+  const tr = tissueRow(p, { x: 680, y: 450, n: 6, cw: 170, ch: 320, o: 0 }); show(tr, .2, .6);
+  [tr.marks.tight, tr.marks.desmo, tr.marks.gap].forEach(e => put(e, { o: 0 }));
+  // gut contents above
+  const gc = G(p, { o: 0 }); show(gc, tG + .4, .6);
+  let dd = ''; for (let i = 0; i < 40; i++) dd += yCirc(190 + wHash(i, 3) * 980, 160 + wHash(i, 4) * 80, 6 + 4 * wHash(i, 5));
+  path(gc, dd, { fill: '#c9a46a', 'fill-opacity': .7 });
+  wLabel(gc, 'gut contents', { x: 680, y: 130, size: 26, fill: COL.dim, o: 1 });
+  say(p, 'gut lining: a sheet of cells', 680, 740, tG + .6, { size: 32 });
+  say(p, 'matrix', 1210, 670, tG + 1.4, { size: 24, fill: YC.collagen, anchor: 'start' });
+  // kinds: the junctions at every seam flash
+  [tr.marks.tight, tr.marks.desmo, tr.marks.gap].forEach((e, i) => { show(e, tK + .3 + .5 * i, .3); tw(e, { o: .45 }, tK + 1 + .5 * i, .3); tw(e, { o: 1 }, tK + 1.3 + .5 * i, .3); });
+  say(p, 'intercellular junctions', 680, 790, tK + 1.4, { size: 28, fill: YC.seam });
+  // plant: plasmodesmata in plants; three kinds in animals, named at one seam
+  const pp = plantPair(p, { x: 1400, y: 120, s: .75, o: 0 }); show(pp, tPl + .2, .4);
+  say(p, 'plants: plasmodesmata', 1400, 196, tPl + .5, { size: 26, fill: GOOD });
+  const SX = 680 + tr.seamX(5);
+  [['tight junction', tr.yT, 1.9], ['desmosome', tr.yD, 2.8], ['gap junction', tr.yG, 4.4]].forEach(([s, yy, dt]) => {
+    say(p, s, 1260, 450 + yy + 10, tPl + dt, { size: 28, anchor: 'start', fill: YC.seam });
+    leader(p, [1252, 450 + yy], [SX + 14, 450 + yy], tPl + dt);
+  });
+  say(p, 'animals:', 1260, 266, tPl + 1.5, { size: 26, anchor: 'start', fill: COL.dim });
+}],
+
+/* ---------- tight ---------- */
+['tight', 'Tight junctions', (m, D) => junctionBeat(m, D, 'tight', 'yT', (p, jc, P) => {
+  const tPr = m('press'), tL = m('leak'), tS = m('seal'), tU = m('use');
+  const [jx, jy] = jc.pt('junction');
+  say(p, 'TIGHT JUNCTION', 1330, 90, .4, { size: 34, weight: 800, fill: YC.seam });
+  say(p, 'gut side', P.x - 160, 112, .5, { size: 24, fill: COL.dim });
+  say(p, 'membranes', 1130, 300, tPr + .3, { size: 30, anchor: 'start' });
+  say(p, 'pressed together', 1130, 336, tPr + .6, { size: 30, anchor: 'start' });
+  leader(p, [1122, 312], [jx + 30, jy], tPr + .4);
+  // leak: fluid comes down between the cells and stops at the seal
+  const ar = path(p, `M${P.x - 40} 120Q${P.x - 4} 150 ${P.x} 230`, { stroke: RED, 'stroke-width': 5, 'stroke-dasharray': '10 8' }, { d: 0 }); draw(ar, tL, .8);
+  prog(k => jc.leak(k), tL + .1, 3, lin);
+  say(p, 'fluid stopped', 1130, 470, tL + 2.6, { size: 30, anchor: 'start', fill: RED });
+  // seal: like the zipper on a sandwich bag
+  const bag = G(p, { x: 1330, y: 610, o: 0 }); show(bag, tS + .2, .4);
+  path(bag, 'M-90 -50H90V70Q90 80 80 80H-80Q-90 80 -90 70Z', { fill: '#5fd3e8', 'fill-opacity': .18, stroke: '#cfe6ff', 'stroke-width': 4 });
+  path(bag, 'M-90 -50H90', { stroke: YC.seam, 'stroke-width': 10 });
+  path(bag, 'M-84 -50H84', { stroke: '#ffffff', 'stroke-width': 3, 'stroke-dasharray': '4 6' });
+  mk('rect', { x: 50, y: -64, width: 22, height: 28, rx: 4, fill: YC.seam }, bag);
+  say(p, 'a seal, like a zipper bag', 1330, 730, tS + .6, { size: 28 });
+  // use: the gut contents stay in
+  const ul = pill(p, 'gut contents stay in', 1330, 810, { color: GOOD, size: 28 }); show(ul, tU + .4, .4);
+})],
+
+/* ---------- desmo ---------- */
+['desmo', 'Desmosomes', (m, D) => junctionBeat(m, D, 'desmosome', 'yD', (p, jc, P) => {
+  const tPl = m('plaque'), tI = m('if'), tR = m('rivet');
+  say(p, 'DESMOSOME', 1330, 90, .4, { size: 34, weight: 800, fill: YC.myosin });
+  const hm = 21, sx = P.x + (hm + 14) * P.s;
+  say(p, 'a plaque on each cell', 1130, 300, tPl + .3, { size: 30, anchor: 'start', fill: YC.myosin });
+  leader(p, [1122, 300], [sx, P.y - 40], tPl + .4); leader(p, [1122, 300], [P.x - (hm + 14) * P.s, P.y - 60], tPl + .5);
+  say(p, 'intermediate', 1130, 440, tI + .3, { size: 30, anchor: 'start', fill: YC.inter });
+  say(p, 'filaments', 1130, 476, tI + .5, { size: 30, anchor: 'start', fill: YC.inter });
+  leader(p, [1122, 450], [P.x + 150 * P.s, P.y + 60], tI + .4);
+  say(p, 'like cables', 1130, 512, tI + 1.4, { size: 24, anchor: 'start', fill: COL.dim, weight: 500 });
+  // rivet: the cells tug apart and hold
+  prog(k => jc.pull(Math.sin(Math.PI * Math.min(1, k * 2)) * .9 + (k > .5 ? .1 * Math.sin(Math.PI * (k - .5) * 2) : 0)), tR + .4, 3, lin);
+  const pa = G(p, { o: 0 }); show(pa, tR + .3, .3); hide(pa, tR + 3.6, .4);
+  yArrow(pa, [P.x - 330, P.y + 200], [P.x - 430, P.y + 200], { color: MC.hi, w: 8, head: 22 });
+  yArrow(pa, [P.x + 330, P.y + 200], [P.x + 430, P.y + 200], { color: MC.hi, w: 8, head: 22 });
+  const rv = G(p, { x: 1330, y: 640, o: 0 }); show(rv, tR + .3, .4);
+  mk('rect', { x: -80, y: -34, width: 70, height: 68, rx: 6, fill: '#5d6b80' }, rv); mk('rect', { x: 10, y: -34, width: 70, height: 68, rx: 6, fill: '#5d6b80' }, rv);
+  mk('rect', { x: -40, y: -10, width: 80, height: 20, rx: 4, fill: '#cfd8ea' }, rv);
+  mk('circle', { cx: -44, cy: 0, r: 16, fill: '#e8edf5', stroke: '#8a97ab', 'stroke-width': 3 }, rv); mk('circle', { cx: 44, cy: 0, r: 16, fill: '#e8edf5', stroke: '#8a97ab', 'stroke-width': 3 }, rv);
+  say(p, 'anchoring junction', 1330, 730, tR + .6, { size: 30, fill: YC.myosin });
+  say(p, 'rivets cells into strong sheets', 1330, 770, tR + 2, { size: 24, fill: COL.dim, weight: 500 });
+  const sk = pill(p, 'skin stretches, does not tear', 1330, 830, { color: GOOD, size: 26 }); show(sk, tR + 4.4, .4);
+}, { ly: 268 })],
+
+/* ---------- gap ---------- */
+['gap', 'Gap junctions', (m, D) => junctionBeat(m, D, 'gap', 'yG', (p, jc, P) => {
+  const tC = m('chan'), tSm = m('small'), tH = m('heart'), tN = m('name');
+  say(p, 'GAP JUNCTION', 1300, 90, .4, { size: 34, weight: 800, fill: YC.connexon });
+  const [cx, cy] = jc.pt('channel');
+  say(p, 'a channel between', 1000, 250, tC + .3, { size: 28, anchor: 'start' });
+  say(p, 'two cytoplasms', 1000, 284, tC + .6, { size: 28, anchor: 'start' });
+  leader(p, [992, 262], [cx + 24, cy], tC + .4);
+  prog(k => jc.pass(k), tSm + .2, 7, lin);
+  say(p, 'small molecules, ions', P.x, 830, tSm + .6, { size: 28, fill: YC.atp });
+  // heart: muscle cells beat together
+  const hs = heartStrip(p, { x: 1260, y: 440, o: 0 }); show(hs, tH + .2, .5);
+  clockRun(t => hs.beat(t, tH + 1), D, { tail: true });
+  say(p, 'heart muscle', 1260, 370, tH + .5, { size: 28, fill: '#e58a9c' });
+  say(p, 'signals pass; the cells beat together', 1260, 515, tH + 2, { size: 24, fill: COL.dim, weight: 500 });
+  // name: communicating junction, the animal counterpart of plasmodesmata
+  const nm = pill(p, 'communicating junction', 1260, 620, { color: YC.connexon, size: 28 }); show(nm, tN + .2, .4);
+  const pp = plantPair(p, { x: 1260, y: 770, s: .6, o: 0 }); show(pp, tN + 2.6, .4);
+  draw(path(p, 'M1260 650V722', { stroke: COL.dim, 'stroke-width': 3, 'stroke-dasharray': '7 6' }, { d: 0 }), tN + 2.4, .4);
+  say(p, 'like plasmodesmata', 1360, 780, tN + 2.8, { size: 24, anchor: 'start', fill: GOOD });
+}, { x: 520, s: 1.25 })],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  [['tight', 'tight junction', YC.seam], ['desmosome', 'desmosome', YC.myosin], ['gap', 'gap junction', YC.connexon]].forEach(([k, s, c], i) => {
+    const jc = cellJunction(p, { kind: k, x: 230, y: 160 + 280 * i, s: .44 });
+    if (k === 'tight') jc.leak(1); else if (k === 'gap') jc.pass(.5);
+    wLabel(p, s, { x: 400, y: 170 + 280 * i, size: 30, anchor: 'start', fill: c, weight: 700, o: 1 });
+  });
+}, { ask: done => quiz({ x: 820, y: 60, w: 740, cls: 'side' }, [{
+  id: 'c-junc', prompt: ['Tight junction, desmosome or gap junction?'],
+  build: grid([
+    { parts: ['stops fluid leaking between cells'], ans: ['t'], why: 'Tight junction: the membranes are pressed together into a seal.' },
+    { parts: ['rivets cells into strong sheets'], ans: ['d'], why: 'Desmosome: an anchoring junction.' },
+    { parts: ['lets small molecules pass from cell to cell'], ans: ['g'], why: 'Gap junction: a channel between two cytoplasms.' },
+    { parts: ['intermediate filaments run into it'], ans: ['d'], why: 'Desmosome: its plaques are anchored by intermediate filaments.' },
+    { parts: ['heart muscle cells signal through it'], ans: ['g'], why: 'Gap junction: signals pass, so the cells beat together.' },
+    { parts: ['the membranes of neighbors are pressed together'], ans: ['t'], why: 'Tight junction.' },
+  ], [['t', 'tight', null, 'T'], ['d', 'desmosome', null, 'D'], ['g', 'gap', null, 'G']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- recap ---------- */
+['recap', 'The whole tour', (m, D) => {
+  const p = panel(0), cm = cellMap(p, { kind: 'animal', x: 760, y: 440, s: .72, o: 0 }); show(cm, .1, .5);
+  const seq = [['nuc', 'nucleus', 'nucleus: head office'], ['ribo', 'ribosomes', 'ribosomes: workbenches'], ['er', 'roughER', 'ER: production line'],
+    ['golgi', 'golgi', 'Golgi: sorts and ships'], ['lyso', 'lysosomes', 'lysosomes: recycling'], ['mito', 'mitochondria', 'mitochondria: energy'],
+    ['perox', 'peroxisomes', 'peroxisomes: peroxide'], ['cyto', 'cytoskeleton', 'cytoskeleton: scaffolding, rails']];
+  const ts = seq.map(([k]) => m(k)), tOut = m('outside'), tEnd = m('end');
+  const inset = cellMap(p, { kind: 'plant', x: 1430, y: 770, s: .2, o: 0 });
+  inset.focus('chloroplasts', 1); show(inset, ts[5] + .3, .5);
+  say(p, 'plants: chloroplasts', 1430, 668, ts[5] + .6, { size: 24, fill: CC.chloro });
+  const labs = seq.map(([k, name, str], i) => {
+    const l = cm.label(name, str, { size: 28, ...(name === 'ER' || name === 'roughER' ? { at: [760, 860] } : {}), ...(name === 'cytoskeleton' ? { at: [470, 840] } : {}) });
+    show(l, ts[i] + .2, .3); hide(l, (ts[i + 1] ?? tOut) - .1, .3); return l;
+  });
+  clockRun(t => {
+    let i = -1; ts.forEach((tt, j) => { if (t >= tt) i = j; });
+    if (t >= tEnd) cm.focus([], 0);
+    else if (t >= tOut) cm.focus('none', .55 - .35 * ramp(t, tOut, tOut + 1));
+    else if (i < 0) cm.focus('none', .55 * ramp(t, .6, 2));
+    else cm.focus(seq[i][1], .55);
+  }, D);
+  // outside: wall, matrix and junctions round the cell
+  const ic = (x, y, dt, f, str, c) => { const g = G(p, { x, y, o: 0 }); f(g); show(g, tOut + dt, .4); say(p, str, x, y + 80, tOut + dt + .1, { size: 26, fill: c }); };
+  ic(150, 150, .3, g => mk('rect', { x: -60, y: -50, width: 120, height: 100, rx: 14, fill: CC.cyto, stroke: YC.wall, 'stroke-width': 14 }, g), 'cell wall', YC.wall);
+  ic(1440, 150, 1.4, g => { path(g, 'M-80 -20C-30 -50 30 10 80 -20', { stroke: YC.collagen, 'stroke-width': 16 }); proteoglycanOne(g, { x: 20, y: 10, s: .3 }); }, 'matrix', YC.collagen);
+  ic(150, 720, 2.6, g => { tissueRow(g, { s: .36, n: 2, cw: 160, ch: 240 }); }, 'junctions', YC.seam);
+  say(p, 'Now try the practice.', 760, 870, tEnd + .1, { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('wall', g => {
+    const c = G(g, { x: 1120, y: 300 }); mk('rect', { x: -100, y: -75, width: 200, height: 150, rx: 22, fill: CC.cyto, stroke: YC.wall, 'stroke-width': 12 }, c);
+    mk('ellipse', { cx: 20, rx: 50, ry: 34, fill: CC.vac }, c);
+    wLabel(g, 'plant cell', { x: 1120, y: 420, size: 28, o: 1 });
+    const f = G(g, { x: 1420, y: 300 });
+    path(f, 'M-24 -20C-30 20 -32 50 -38 78H38C32 50 30 20 24 -20Z', { fill: '#efe4cc', stroke: YC.wall, 'stroke-width': 5 });
+    path(f, 'M-100 -14C-100 -84 -52 -112 0 -112C52 -112 100 -84 100 -14C60 -26 -60 -26 -100 -14Z', { fill: '#c06a4a', stroke: '#8f4a32', 'stroke-width': 6 });
+    path(f, 'M-80 -14C-40 -2 40 -2 80 -14', { stroke: '#8f4a32', 'stroke-width': 4 });
+    [[-48, -64], [10, -84], [52, -56], [-6, -48]].forEach(([cx, cy]) => mk('circle', { cx, cy, r: 9, fill: '#f6ead2' }, f));
+    wLabel(g, 'fungus', { x: 1420, y: 420, size: 28, o: 1 });
+    prokaryote(g, { x: 1120, y: 620, s: .36, flagella: 0 });
+    wLabel(g, 'bacterium', { x: 1120, y: 730, size: 28, o: 1 });
+    blobCell(g, { x: 1420, y: 620, rx: 110, ry: 80 });
+    wLabel(g, 'animal cell', { x: 1420, y: 730, size: 28, o: 1 });
+  });
+  at('layer', g => {
+    plantWalls(g, { x: 1270, y: 450, s: 2.2, w: 300, h: 900, n: 2 });
+    wLabel(g, 'cell', { x: 1050, y: 80, size: 28, fill: COL.chalk, o: 1 });
+    wLabel(g, 'neighbor', { x: 1480, y: 80, size: 28, fill: COL.chalk, o: 1 });
+    yArrow(g, [1270, 820], [1460, 820], { color: '#fff6d8', w: 5 });
+    wLabel(g, 'number from the glue outward', { x: 1270, y: 870, size: 24, fill: '#fff6d8', o: 1 });
+  });
+  at('pd', g => {
+    const pw = plantWalls(g, { x: 1270, y: 450, s: 1.3, w: 460, h: 620, n: 3 }); pw.pass(.55);
+    const [qx, qy] = pw.pt('plasmodesma');
+    badge(g, '?', qx, qy - 52, { o: 1 });
+  });
+  at('ecm', g => {
+    ecmScene(g, { x: 1270, y: 520, s: .6 });
+    wLabel(g, 'an animal cell’s surface', { x: 1270, y: 720, size: 26, fill: COL.dim, o: 1 });
+  });
+  at('integ', g => {
+    const ec = ecmScene(g, { x: 1270, y: 520, s: .6 }), [ix, iy] = ec.pt('integrins');
+    badge(g, '?', ix + 50, iy + 60, { o: 1 });
+    wLabel(g, 'what does this protein do?', { x: 1270, y: 720, size: 26, fill: COL.dim, o: 1 });
+  });
+  at('gut', g => {
+    const tr = tissueRow(g, { x: 1270, y: 480, s: .6, n: 4, cw: 170, ch: 320 });
+    let dd = ''; for (let i = 0; i < 18; i++) dd += yCirc(1080 + wHash(i, 3) * 380, 250 + wHash(i, 4) * 50, 5 + 3 * wHash(i, 5)); path(g, dd, { fill: '#c9a46a', 'fill-opacity': .7 });
+    wLabel(g, 'gut contents', { x: 1270, y: 230, size: 24, fill: COL.dim, o: 1 });
+    const sx = 1270 + tr.seamX(2) * .6, sy = 480 + tr.yT * .6;
+    path(g, `M${sx - 30} 290Q${sx} 300 ${sx} ${sy - 10}`, { stroke: RED, 'stroke-width': 4, 'stroke-dasharray': '9 7' });
+    badge(g, '?', sx + 40, sy, { o: 1 });
+    wLabel(g, 'gut lining', { x: 1270, y: 720, size: 26, fill: COL.dim, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('wall');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-wall', prompt: ['Which cells do NOT have a cell wall?'],
+    build: withPic('wall', choice([['plant cells'], ['animal cells'], ['fungi'], ['prokaryotes']], 1,
+      'Right. Animal cells have no wall; they are covered by an extracellular matrix instead.',
+      ['Plant cells do have walls, made of cellulose fibers in a matrix.', null,
+       'Fungi have cell walls too.', 'Prokaryotes such as bacteria have a cell wall outside the plasma membrane.'])) },
+  { id: 'p-layer', prompt: ['Number the layers from the middle of the wall outward (1 to 3).'],
+    build: withPic('layer', blanks([
+      { parts: ['middle lamella: ', { box: '1' }], why: 'It lies in the very middle, between the two cells.', hint: 'Which layer is the glue the two cells share?' },
+      { parts: ['primary cell wall: ', { box: '2' }], why: 'Each cell’s primary wall sits next to the middle lamella.', hint: 'It is next to the glue.' },
+      { parts: ['secondary cell wall: ', { box: '3' }], why: 'The secondary wall is added inside the primary wall, next to the plasma membrane.', hint: 'It lies between the primary wall and the membrane.' },
+    ])) },
+  { id: 'p-pd', prompt: ['What passes through plasmodesmata?'],
+    build: withPic('pd', choice([['only ions, between animal cells'], ['nothing: they are blocked'], ['water, small solutes, and even proteins and RNA, between plant cells'], ['whole cells']], 2,
+      'Right. Plasmodesmata are channels through plant cell walls; the cytoplasm of neighbors is continuous.',
+      ['Plasmodesmata are in plants, and more than ions can pass.', 'They are open channels, lined by the plasma membrane.', null,
+       'Cells are far too large: the channel joins the cytoplasm of two cells.'])) },
+  { id: 'p-ecm', prompt: ['True or false?'],
+    build: withPic('ecm', grid([
+      { parts: ['Collagen is part of the extracellular matrix.'], ans: ['t'], why: 'True: collagen is its main fiber.' },
+      { parts: ['Animal cells are covered by an extracellular matrix.'], ans: ['t'], why: 'True.' },
+      { parts: ['Plasmodesmata are found in animal cells.'], ans: ['f'], why: 'False: plasmodesmata are in plants; animal cells have gap junctions.' },
+      { parts: ['A plant cell wall contains cellulose.'], ans: ['t'], why: 'True: cellulose fibers in other polysaccharides and protein.' },
+      { parts: ['Integrins sit in the cell wall.'], ans: ['f'], why: 'False: integrins span the plasma membrane of animal cells, which have no wall.' },
+    ], TF, { multi: false, text: true })) },
+  { id: 'p-integ', prompt: ['What do integrins do?'],
+    build: withPic('integ', choice([['They make collagen.'], ['They span the membrane, binding the matrix outside and linking to microfilaments inside.'], ['They seal the gap between cells.'], ['They carry water through the cell wall.']], 1,
+      'Right. Integrins tie the matrix to the cytoskeleton, so a pull outside is felt inside.',
+      ['Collagen is made and secreted by the cell; integrins bind the matrix.', null,
+       'Sealing is the tight junction’s job.', 'That is plasmodesmata, in plants; integrins are in animal cell membranes.'])) },
+  { id: 'p-gut', prompt: ['A gut lining must keep fluid from leaking between its cells. Which junction does this?'],
+    build: withPic('gut', choice([['gap junction'], ['tight junction'], ['desmosome'], ['plasmodesma']], 1,
+      'Right. At a tight junction the membranes of neighbors are pressed together, sealing the sheet.',
+      ['A gap junction is a channel between cells, not a seal.', null,
+       'A desmosome fastens cells together, but it does not seal the gap.', 'Plasmodesmata are in plants only.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { const p = panel(0); cellMap(p, { kind: 'animal', x: 800, y: 450, s: .9, o: .22 }); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The three junction beats: the gut lining, the camera pushes to one seam (k: 'yT' | 'yD' | 'yG'), then the close-up
+// (cellJunction) fades in on its own panel; f(p, jc, place) draws the labels and actions.
+function junctionBeat(m, D, kind, k, f, place = {}) {
+  const p = panel(0), cam = camera(p, D, { x: 680, y: 450, z: 1 }), W = cam.world;
+  const tr = tissueRow(W, { x: 680, y: 450, n: 6, cw: 170, ch: 320 }), SX = 680 + tr.seamX(5), SY = 450 + tr[k];
+  cam.to({ x: SX, y: SY, z: 4 }, .1, 1.5);
+  const P = { x: 600, y: 470, s: 1.4, ...place };
+  const cl = G(p, { o: 0 }); show(cl, 1.1, .5);
+  mk('rect', { x: 0, y: 0, width: 1600, height: 900, fill: COL.board }, cl);
+  const jc = cellJunction(cl, { kind, x: P.x, y: P.y, s: P.s });
+  const ly = P.y + (P.ly ?? 210) * P.s;
+  wLabel(cl, 'one cell', { x: P.x - 160 * P.s, y: ly, size: 26, fill: COL.dim, o: 1 });
+  wLabel(cl, 'its neighbor', { x: P.x + 160 * P.s, y: ly, size: 26, fill: COL.dim, o: 1 });
+  notToScale(cl, 300, 880, .1);
+  f(cl, jc, P);
+}
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>

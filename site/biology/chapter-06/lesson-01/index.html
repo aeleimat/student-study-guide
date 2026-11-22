@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 6, Lesson 1: Studying Cells: Prokaryotes and Eukaryotes — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 6 (A Tour of the Cell), lesson 1: a pond drop under the microscope, the three ideas about cells, the
+// light microscope's light path (and the electron microscope in one line), cell fractionation in an ultracentrifuge,
+// a check, the four features all cells share, prokaryotic and eukaryotic cells compared, yeast and E. coli, the parts
+// of a rod-shaped bacterium with its micrograph, a check, then the whole animal cell built as a preview of the tour.
+// Plan, errata and storyboard: books/biology/chapters/chapter-06/lesson-01.md.
+const CHAPTER = { number: 601, label: '6, lesson 1', title: 'Studying Cells: Prokaryotes and Eukaryotes', minutes: 7, language: 'en', lead: false, next: '../lesson-02/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+const tagAt = (p, a, b, str, t0, o = {}) => { const e = cLabel(p, a, b, str, o); show(e, t0, .4); return e; };
+const BADGE = '#3b8fd9', PANEL = '#14294a', DIM_TXT = '#c8ccd6', BEAM = '#6c8cff', GREY = '#9a9a9a';
+
+// A rounded panel (a card on the board).
+function slab(p, x, y, w, h, { o = 1, edge = COL.faint } = {}) {
+  const g = G(p, { o });
+  mk('rect', { x, y, width: w, height: h, rx: 18, fill: PANEL, stroke: edge, 'stroke-width': 2 }, g);
+  return g;
+}
+// A numbered step badge; .t is its text.
+function badge(p, str, x, y, { o = 0, r = 24 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: BADGE, stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t });
+}
+
+// A small round eukaryotic cell centred on its origin: membrane, cytosol, a nucleus, a few ribosomes and one
+// mitochondrion. .memb is the outline, .nuc the nucleus group.
+function roundCell(p, { x = 0, y = 0, r = 60, s = 1, o = 1, seed = 1, mito = true } = {}) {
+  const g = G(p, { x, y, s, o });
+  const memb = path(g, cBlob(r, r * .88, { seed, wob: .05 }), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': Math.max(2.5, r * .06) });
+  const nuc = G(g, { x: -r * .16, y: -r * .08 });
+  mk('circle', { r: r * .32, fill: CC.nucleo, stroke: CC.env, 'stroke-width': Math.max(2, r * .05) }, nuc);
+  mk('circle', { cx: r * .06, cy: r * .04, r: r * .1, fill: CC.nucleolus }, nuc);
+  if (mito) mk('ellipse', { cx: r * .42, cy: r * .36, rx: r * .2, ry: r * .09, fill: CC.mito, transform: 'rotate(-20 ' + (r * .42) + ' ' + (r * .36) + ')' }, g);
+  const dots = [];
+  for (let i = 0; i < 9; i++) { const a = i * 2.39 + seed, rr = r * (.55 + .25 * wHash(i, seed)); dots.push([rr * Math.cos(a), rr * .85 * Math.sin(a)]); }
+  path(g, cDots(dots), { stroke: CC.ribo, 'stroke-width': Math.max(3, r * .07) });
+  return Object.assign(g, { memb, nuc });
+}
+
+// A slipper-shaped protist (one cell): cilia fringe, nucleus, food vacuoles. Centred on its origin, long axis along x.
+function protist(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  let cd = '';
+  for (let i = 0; i < 40; i++) { const a = i / 40 * 2 * Math.PI, px = 92 * Math.cos(a), py = 40 * Math.sin(a), n = Math.hypot(px / 92 ** 2, py / 40 ** 2), nx = px / 92 ** 2 / n, ny = py / 40 ** 2 / n; cd += `M${cF(px)} ${cF(py)}l${cF(nx * 12)} ${cF(ny * 12)}`; }
+  path(g, cd, { stroke: '#cfd8e3', 'stroke-width': 2.2 });
+  mk('ellipse', { rx: 92, ry: 40, fill: '#1d3d5f', stroke: CC.membrane, 'stroke-width': 4 }, g);
+  mk('ellipse', { cx: -6, cy: 0, rx: 24, ry: 15, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 3 }, g);
+  [[40, -12, 9], [-46, 10, 7], [58, 12, 6]].forEach(([cx, cy, r]) => mk('circle', { cx, cy, r, fill: '#2e5072', stroke: CC.vacEdge, 'stroke-width': 2 }, g));
+  return g;
+}
+
+// One cell dividing in two: the outline of two equal circles, centres ±d from (cx, cy), radius r; one path.
+function splitCell(cx, cy, r, d) {
+  if (d >= r) return cCircle(r, cx - d, cy) + cCircle(r, cx + d, cy);
+  const h = Math.sqrt(r * r - d * d), R = r.toFixed(1);
+  return `M${cx} ${(cy - h).toFixed(1)}A${R} ${R} 0 1 1 ${cx} ${(cy + h).toFixed(1)}A${R} ${R} 0 1 1 ${cx} ${(cy - h).toFixed(1)}Z`;
+}
+
+// An eye (no person), light enters from the left; centred on its origin.
+function eyeIcon(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-64 0Q0 -48 64 0Q0 48 -64 0Z', { fill: '#f2efe6', stroke: '#c9c3b2', 'stroke-width': 3 });
+  mk('circle', { cx: -10, r: 24, fill: '#4a8fe7' }, g);
+  mk('circle', { cx: -10, r: 11, fill: '#0b1626' }, g);
+  mk('circle', { cx: -16, cy: -7, r: 5, fill: '#ffffff' }, g);
+  return g;
+}
+
+// A glass lens seen edge-on (biconvex), centred on its origin.
+function lensIcon(p, { x = 0, y = 0, rx = 22, ry = 110, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('ellipse', { rx, ry, fill: '#a8e0ea', 'fill-opacity': .3, stroke: '#e8f4fa', 'stroke-width': 3 }, g);
+  return g;
+}
+
+// A grey transmission electron micrograph tile of a rod bacterium, kept grey as printed (slide 7 b). Centred on its
+// origin, w × h.
+function temTile(p, { x = 0, y = 0, w = 400, h = 260, o = 1, seed = 3 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: 10, fill: GREY, stroke: '#cfcfcf', 'stroke-width': 3 }, g);
+  const spk = (n, k, col, sw) => { const pts = []; for (let i = 0; i < n; i++) pts.push([(wHash(i, seed + k) - .5) * (w - 16), (wHash(i, seed + k + 1) - .5) * (h - 16)]); path(g, cDots(pts), { stroke: col, 'stroke-width': sw }); };
+  spk(160, 0, '#8a8a8a', 5); spk(120, 4, '#ababab', 4);
+  const rod = G(g, { r: -28 }), L = w * .78, H = h * .42;
+  path(rod, cStadium(L + 14, H + 14), { fill: '#7c7c7c' });
+  path(rod, cStadium(L, H), { fill: '#5e5e5e', stroke: '#c4c4c4', 'stroke-width': 3 });
+  const inner = []; for (let i = 0; i < 140; i++) { const u = (wHash(i, seed + 9) - .5) * (L - H * .6), v = (wHash(i, seed + 10) - .5) * (H - 20); inner.push([u, v]); }
+  path(rod, cDots(inner), { stroke: '#4a4a4a', 'stroke-width': 4 });
+  path(rod, cBlob(L * .2, H * .26, { seed: 5, wob: .12, cx: -L * .05 }), { fill: '#9b9b9b' });
+  path(rod, cBlob(L * .1, H * .18, { seed: 7, wob: .15, cx: L * .25, cy: 4 }), { fill: '#8e8e8e' });
+  return g;
+}
+
+// Small silhouettes of other bacterial shapes: spheres (cocci) and a spiral. Centred on its origin.
+function otherShapes(p, { x = 0, y = 0, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  [[-110, -6], [-82, 10], [-114, 22], [-86, -20]].forEach(([cx, cy]) => mk('circle', { cx, cy, r: 15, fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 3.5 }, g));
+  let d = ''; for (let i = 0; i <= 40; i++) { const u = i / 40; d += (i ? 'L' : 'M') + cF(10 + u * 150) + ' ' + cF(14 * Math.sin(u * 4 * Math.PI)); }
+  path(g, d, { stroke: CC.membrane, 'stroke-width': 13 });
+  path(g, d, { stroke: CC.cyto, 'stroke-width': 6 });
+  return g;
+}
+
+// A tangled chromosome (a cream coil) centred on its origin, rx × ry.
+function coilPath(rx, ry, seed = 1, n = 60) {
+  const pts = [];
+  for (let i = 0; i < n; i++) pts.push([rx * Math.sin(i * .37 + seed) * (.55 + .45 * Math.cos(i * .13)), ry * Math.sin(i * .61) * (.55 + .45 * Math.sin(i * .19 + 1))]);
+  return cSmooth(pts);
+}
+
+// A small budding yeast cell (a fungus: eukaryotic), centred on its origin.
+function yeastCell(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, cBlob(46, 40, { seed: 3, cx: 150, cy: -84 }), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 6 });
+  const memb = path(g, cBlob(170, 135, { seed: 2 }), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 6 });
+  mk('ellipse', { cx: 50, cy: 30, rx: 70, ry: 52, fill: CC.vac, 'fill-opacity': .55, stroke: CC.vacEdge, 'stroke-width': 3 }, g);
+  const nuc = G(g, { x: -55, y: -25 });
+  mk('circle', { r: 48, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 6 }, nuc);
+  mk('circle', { r: 41, fill: 'none', stroke: CC.env, 'stroke-width': 3 }, nuc);
+  mk('circle', { cx: 10, cy: 6, r: 14, fill: CC.nucleolus }, nuc);
+  path(nuc, coilPath(26, 22, 2, 30), { stroke: CC.dna, 'stroke-width': 2.5 });
+  mitochondrion(g, { x: -80, y: 75, s: .2, r: 10 });
+  mitochondrion(g, { x: 95, y: -70, s: .17, r: -30 });
+  const dots = []; for (let i = 0; i < 18; i++) { const a = i * 2.4, rr = 95 + 40 * wHash(i, 8); dots.push([rr * Math.cos(a), rr * .8 * Math.sin(a)]); }
+  path(g, cDots(dots), { stroke: CC.ribo, 'stroke-width': 7 });
+  return Object.assign(g, { memb, nuc });
+}
+
+// A light microscope's light path, left to right (lamp, specimen, two lenses, eye), for a picture on the practice screen.
+function miniPath(p, x, y, s) {
+  const g = G(p, { x, y, s });
+  mk('circle', { cx: 0, r: 26, fill: CC.light }, g);
+  path(g, 'M26 0L200 -40M26 0L200 0M26 0L200 40M200 -40L360 -60M200 0L360 0M200 40L360 60M360 -60L540 50M360 0L540 0M360 60L540 -50M540 50L700 14M540 0L700 0M540 -50L700 -14', { stroke: CC.light, 'stroke-width': 3, 'stroke-opacity': .8 });
+  mk('rect', { x: 192, y: -80, width: 16, height: 160, fill: '#cfe6f0', 'fill-opacity': .5 }, g);
+  lensIcon(g, { x: 360, rx: 16, ry: 84 }); lensIcon(g, { x: 540, rx: 18, ry: 96 });
+  eyeIcon(g, { x: 760, s: .8 });
+  return g;
+}
+
+// cell.js gives cellMap and prokaryote a .part(name) method, but on an SVG element that name is the DOM's own
+// Element.part (a DOMTokenList; assigning a function to it only sets its value), so it cannot be called. Local
+// workaround: the prokaryote's parts come from its .parts object, and the animal map's part groups from their order in
+// the map's group (creation order, with ribosomes and cytoskeleton moved under the nucleus by the kit).
+const MAP_DOM = ['cytoplasm', 'membrane', 'ribosomes', 'cytoskeleton', 'nucleus', 'roughER', 'smoothER', 'golgi', 'vesicles', 'mitochondria', 'lysosomes', 'peroxisomes', 'centrosome'];
+function mapParts(cm) { const kids = [...cm.children], o = {}; MAP_DOM.forEach((n, i) => { o[n] = kids[i]; }); return o; }
+const pkPart = (pk, n) => pk.parts[n] || pk.parts[n + 's'];
+
+/* ---------- the pond ---------- */
+function pond(p) {
+  const g = G(p);
+  mk('rect', { x: -200, y: -200, width: 2000, height: 700, fill: '#16304f' }, g);
+  path(g, 'M-200 470Q100 360 360 430T900 410T1400 400T1800 440V520H-200Z', { fill: '#12283f' });
+  mk('rect', { x: -200, y: 470, width: 2000, height: 700, fill: '#1f4a6b' }, g);
+  path(g, 'M140 560h120M420 610h160M1150 540h140M1300 640h120M80 700h90M640 560h80', { stroke: '#3d6c8f', 'stroke-width': 4, 'stroke-linecap': 'round' });
+  [[330, 600, 60], [1180, 600, 48], [480, 690, 38]].forEach(([cx, cy, r]) => path(g, `M${cx} ${cy}m${-r} 0a${r} ${r * .35} 0 1 0 ${2 * r} 0L${cx + 6} ${cy}Z`, { fill: '#3f7f4a' }));
+  // reeds with cattail heads
+  const reed = (x0, n, k) => {
+    let d = '', heads = '';
+    for (let i = 0; i < n; i++) { const x = x0 + i * 26 + 12 * wHash(i, k), top = 260 + 120 * wHash(i, k + 1), lean = 30 * (wHash(i, k + 2) - .5); d += `M${cF(x)} 900Q${cF(x + lean * .3)} ${cF(top + 200)} ${cF(x + lean)} ${cF(top)}`; if (i % 2 === 0) heads += `M${cF(x + lean * .95)} ${cF(top + 30)}v-1`; }
+    path(g, d, { stroke: '#4f8a5a', 'stroke-width': 7 });
+    path(g, heads, { stroke: '#8a5a3a', 'stroke-width': 14, 'stroke-linecap': 'round' });
+  };
+  reed(-30, 11, 3); reed(1340, 11, 9);
+  // a dock plank in the foreground with a glass slide; one drop of pond water on it
+  mk('rect', { x: 520, y: 722, width: 760, height: 64, rx: 8, fill: '#7a5a3e' }, g);
+  mk('rect', { x: 520, y: 786, width: 760, height: 18, fill: '#5c412b' }, g);
+  mk('rect', { x: 760, y: 700, width: 280, height: 22, rx: 3, fill: '#cfe6f0', 'fill-opacity': .55, stroke: '#e8f4fa', 'stroke-width': 2 }, g);
+  const glow = mk('ellipse', { cx: 900, cy: 694, rx: 70, ry: 34, fill: '#8fd0e8', 'fill-opacity': .35 }, g); put(glow, { o: 0 });
+  const drop = G(g, { x: 900, y: 700 });
+  path(drop, 'M-36 0Q-34 -24 0 -26Q34 -24 36 0Z', { fill: '#8fd0e8', stroke: '#d8f2fa', 'stroke-width': 2.5 });
+  mk('ellipse', { cx: -12, cy: -16, rx: 9, ry: 4, fill: '#ffffff', 'fill-opacity': .7 }, drop);
+  return { g, glow, drop };
+}
+
+/* ---------- the map beat's labels (screen positions, label to the left or right of the cell) ---------- */
+const MAP_X = 720, MAP_Y = 470, MAP_S = .72;
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Studying cells', (m, D) => {
+  const p = panel(0), cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const tDr = m('drop'), tSc = m('scope'), tPu = m('push'), tCe = m('cell'), tAs = m('ask');
+  const pd = pond(W);
+  const ttl = G(p, { o: 0, y: 24 });
+  mk('rect', { x: 1000, y: 150, width: 560, height: 340, rx: 20, fill: COL.board, 'fill-opacity': .82 }, ttl);
+  wLabel(ttl, 'BIOLOGY · CHAPTER 6 · LESSON 1', { x: 1280, y: 205, size: 24, fill: COL.dim, o: 1 });
+  ['Studying cells:', 'prokaryotes and', 'eukaryotes'].forEach((s, i) => wLabel(ttl, s, { x: 1280, y: 285 + i * 66, size: 56, o: 1 }));
+  wLabel(ttl, 'A tour of the cell', { x: 1280, y: 460, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tDr - .2, .5);
+  // drop: the drop on the slide glows
+  show(pd.glow, tDr + .1, .5); pulse(pd.drop, tDr + .3, 1.25);
+  const dl = say(W, 'a drop of pond water', 900, 640, tDr + .5, { size: 32, fill: '#d8f2fa' }); hide(dl, tSc, .4);
+  // scope: a microscope slides in over the slide and its lamp comes on
+  const MX = 920, MY = 902;
+  const ms = microscope(W, { x: MX, y: MY }); const [EX, EY] = ms.pt('eyepiece'); put(ms, { x: 1900 });
+  tw(ms, { x: MX }, tSc, 1.2, out);
+  prog(k => ms.lamp(k), tSc + 1.1, .4);
+  // push: into the eyepiece, and the round field of view opens
+  cam.to({ x: EX, y: EY, z: 7 }, tPu - .2, 1.6, io);
+  const dark = mk('rect', { x: 0, y: 0, width: 1600, height: 900, fill: '#06101c' }, p); put(dark, { o: 0 });
+  show(dark, tPu + .8, .5);
+  hide(W, tPu + 1.4, .1);   // the pond and microscope sit under the opaque cover from here: stop painting them
+  const FV = G(p, { x: 800, y: 450, s: .1, o: 0 });
+  mk('circle', { r: 330, fill: '#204d63' }, FV);
+  const sw = G(FV);
+  mk('circle', { r: 640, fill: 'none', stroke: '#06101c', 'stroke-width': 620 }, FV);
+  mk('circle', { r: 330, fill: 'none', stroke: '#3b5568', 'stroke-width': 10 }, FV);
+  tw(FV, { s: 1, o: 1 }, tPu + .9, 1, out);
+  // the swimmers: a rod bacterium, three round eukaryotic cells, a protist
+  const rod = prokaryote(sw, { s: .2, fimbriae: false });
+  const c1 = roundCell(sw, { r: 62, seed: 1 }), c2 = roundCell(sw, { r: 46, seed: 3 }), c3 = roundCell(sw, { r: 36, seed: 5, mito: false });
+  const pr = protist(sw, { s: .85 });
+  const q = G(c1, { x: 70, y: -66, o: 0 });
+  mk('circle', { r: 26, fill: MC.hi }, q); wLabel(q, '?', { y: 12, size: 34, fill: '#14233a', weight: 800, o: 1 });
+  const moves = [
+    [rod, t => [-150 + 120 * Math.sin(.35 * t), -150 + 50 * Math.sin(.5 * t + 1)], true],
+    [c1, t => [40 + 40 * Math.sin(.3 * t + 2), 30 + 30 * Math.sin(.4 * t)], false],
+    [c2, t => [170 + 50 * Math.sin(.4 * t + 1), -140 + 40 * Math.sin(.33 * t + 3)], false],
+    [c3, t => [-200 + 40 * Math.sin(.45 * t + 4), 120 + 40 * Math.sin(.3 * t + 2)], false],
+    [pr, t => [110 + 70 * Math.sin(.28 * t + 5), 228 + 18 * Math.sin(.5 * t + 1)], true],
+  ];
+  clockRun(t => {
+    moves.forEach(([e, f, turn]) => {
+      const [x, y] = f(t), [x2, y2] = f(t + .05), r = turn ? Math.atan2(y2 - y, x2 - x) * 180 / Math.PI : 0;
+      cSet(e, { x, y, r: turn ? r : 0 });
+    });
+    rod.beat(t);
+  }, D);
+  // cell: every one is a cell; one pulses
+  const ring = mk('circle', { r: 80, fill: 'none', stroke: CC.membrane, 'stroke-width': 4, 'stroke-dasharray': '10 8' }, c1); put(ring, { o: 0 }); show(ring, tCe + .1, .4);
+  pulse(c1.nuc, tCe + .3, 1.25);
+  say(p, 'every living thing is made of cells', 800, 840, tCe + .3, { size: 32 });
+  // ask: how do we study it?
+  show(q, tAs + .1, .3); pulse(q, tAs + .4, 1.3);
+  say(p, 'how do we study something this small?', 800, 66, tAs + .4, { size: 32, fill: MC.hi });
+}],
+
+/* ---------- ideas ---------- */
+['ideas', 'Three ideas', (m, D) => {
+  const p = panel(0), tB = m('basic'), tF = m('form'), tP = m('prev');
+  const CX = 380, CY = 470;
+  // the cell, which will divide in prev
+  const outline = path(p, splitCell(CX, CY, 190, 0), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 7 }, { o: 0 });
+  show(outline, .2, .6);
+  const half = (dx) => {
+    const g = G(p, { x: CX, y: CY, o: 0 });
+    mk('circle', { cx: -10, cy: -10, r: 62, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 6 }, g);
+    mk('circle', { cx: 0, cy: -2, r: 18, fill: CC.nucleolus }, g);
+    path(g, coilPath(38, 30, 3, 34), { stroke: CC.dna, 'stroke-width': 2.5, transform: 'translate(-10 -10)' });
+    mitochondrion(g, { x: 70 * dx || 80, y: 100, s: .2, r: 15 });
+    const dots = []; for (let i = 0; i < 12; i++) { const a = i * 2.4 + 1, rr = 95 + 35 * wHash(i, 4); dots.push([rr * Math.cos(a), rr * .9 * Math.sin(a)]); }
+    path(g, cDots(dots), { stroke: CC.ribo, 'stroke-width': 9 });
+    return g;
+  };
+  const hA = half(1), hB = half(1);
+  show(hA, .4, .6);
+  hide(say(p, 'a cell', CX, 230, .6, { size: 30, fill: COL.dim, weight: 500 }), tP + .6, .4);
+  // three cards
+  const CARDX = 760, CW = 800, CH = 182, CY0 = 100, GAP = 30;
+  const cardG = i => { const g = G(p, { o: 0, x: 30 }); slab(g, CARDX, CY0 + i * (CH + GAP), CW, CH); return g; };
+  const k1 = cardG(0), k2 = cardG(1), k3 = cardG(2);
+  [[k1, tB], [k2, tF], [k3, tP]].forEach(([g, t0], i) => { tw(g, { o: 1, x: 0 }, t0 + .1, .6, out); badge(g, String(i + 1), CARDX + 44, CY0 + i * (CH + GAP) + 50, { o: 1 }); });
+  const line = (g, i, a, b, ca = COL.chalk) => { wLabel(g, a, { x: CARDX + 86, y: CY0 + i * (CH + GAP) + 64, size: 34, anchor: 'start', fill: ca, o: 1 }); wLabel(g, b, { x: CARDX + 86, y: CY0 + i * (CH + GAP) + 112, size: 27, anchor: 'start', fill: COL.dim, weight: 500, o: 1 }); };
+  line(k1, 0, 'The cell is the simplest unit that lives', 'every organism is made of cells');
+  line(k2, 1, 'Structure and function are related', 'the shape of a part fits its job');
+  line(k3, 2, 'All cells come from earlier cells', 'a cell divides; it never appears from nothing');
+  // card 1 icon: a tree made of cells
+  {
+    const ic = G(k1, { x: CARDX + 720, y: CY0 + 150 });
+    mk('rect', { x: -7, y: -50, width: 14, height: 50, fill: '#7a5a3e' }, ic);
+    [[-24, -70], [0, -86], [24, -70], [-12, -104], [14, -104], [0, -60]].forEach(([cx, cy]) => mk('circle', { cx, cy, r: 15, fill: '#3f7f4a', stroke: CC.membrane, 'stroke-width': 2.5 }, ic));
+    put(ic, { s: .95 });
+  }
+  // form: a part of the cell (the nucleus) is ringed and linked to card 2
+  const rg = mk('circle', { cx: CX - 10, cy: CY - 10, r: 80, fill: 'none', stroke: MC.hi, 'stroke-width': 5, 'stroke-dasharray': '12 8' }, p); put(rg, { o: 0 });
+  show(rg, tF + .6, .4); hide(rg, tP - .2, .4);
+  const lf = path(p, `M${CX + 66} ${CY - 50}L${CARDX - 8} ${CY0 + CH + GAP + 92}`, { stroke: MC.hi, 'stroke-width': 3 }, { d: 0 });
+  draw(lf, tF + .9, .6); hide(lf, tP - .2, .4);
+  const jl = say(p, 'part ↔ job', 665, 396, tF + 1.4, { size: 28, fill: MC.hi }); hide(jl, tP - .2, .4);
+  // card 3 icon: one cell → two
+  {
+    const ic = G(k3, { x: CARDX + 700, y: CY0 + 2 * (CH + GAP) + 140 });
+    mk('circle', { cx: -40, r: 18, fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 3 }, ic);
+    mArrow(ic, [-16, 0], [12, 0], { w: 3, head: 9 });
+    mk('circle', { cx: 34, cy: -14, r: 14, fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 3 }, ic);
+    mk('circle', { cx: 34, cy: 18, r: 14, fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 3 }, ic);
+  }
+  // prev: the cell pinches into two
+  const tS = tP + .8;
+  put(hB, { o: 0 }); show(hB, tS, .01);
+  clockRun(t => {
+    const k = io(ramp(t, tS, tS + 3.2)), d = lerp(0, 150, k), r = lerp(190, 142, k);
+    mD(outline, splitCell(CX, CY, r, d));
+    const sc = lerp(1, .78, k);
+    cSet(hA, { x: CX - d, s: sc }); cSet(hB, { x: CX + d, s: sc });
+  }, D);
+  say(p, 'two new cells', CX, 720, tS + 3.4, { size: 30 });
+}],
+
+/* ---------- scope ---------- */
+['scope', 'The microscope', (m, D) => {
+  const p = panel(0), tL = m('light'), tN = m('lens'), tE = m('eye'), tM = m('more'), AY = 320;
+  say(p, 'light microscope', 800, 78, .2, { size: 40, weight: 700 });
+  const sub = say(p, 'the simplest type', 800, 120, tL + .5, { size: 26, fill: COL.dim, weight: 500 });
+  void sub;
+  // the path's parts
+  const lamp = G(p, { x: 140, y: AY, o: 0 }); show(lamp, .3, .5);
+  mk('rect', { x: -26, y: 30, width: 52, height: 60, rx: 8, fill: '#7f8fa6' }, lamp);
+  const bulbGlow = mk('circle', { r: 60, fill: CC.light, 'fill-opacity': .25 }, lamp); put(bulbGlow, { o: 0 });
+  mk('circle', { r: 34, fill: CC.light, stroke: '#fff3c4', 'stroke-width': 3 }, lamp);
+  show(bulbGlow, tL + .1, .4);
+  wLabel(lamp, 'light', { y: 130, size: 26, fill: CC.light, o: 1 });
+  const slide = G(p, { x: 380, y: AY, o: 0 }); show(slide, .4, .5);
+  mk('rect', { x: -10, y: -110, width: 20, height: 220, rx: 3, fill: '#cfe6f0', 'fill-opacity': .5, stroke: '#e8f4fa', 'stroke-width': 2 }, slide);
+  roundCell(slide, { r: 13, seed: 2, mito: false });
+  const l1 = lensIcon(p, { x: 620, y: AY, rx: 22, ry: 100, o: 0 }), l2 = lensIcon(p, { x: 860, y: AY, rx: 26, ry: 124, o: 0 });
+  show(l1, .5, .5); show(l2, .6, .5);
+  const eye = eyeIcon(p, { x: 1100, y: AY, o: 0 }); show(eye, .7, .5);
+  // light: rays from the lamp through the specimen
+  const rayA = path(p, `M174 ${AY}L380 ${AY - 70}M174 ${AY}L380 ${AY}M174 ${AY}L380 ${AY + 70}`, { stroke: CC.light, 'stroke-width': 4 }, { d: 0 });
+  draw(rayA, tL + .3, 1);
+  say(p, 'specimen', 380, 150, tL + 3.2, { size: 30 });
+  say(p, 'the thing being viewed', 380, 180, tL + 3.8, { size: 22, fill: COL.dim, weight: 500 });
+  leader(p, [380, 190], [380, AY - 114], tL + 3.4);
+  // lens: on through the two lenses, which magnify
+  const rayB = path(p, `M380 ${AY - 70}L620 ${AY - 70}L860 ${AY + 90}L1040 ${AY + 22}M380 ${AY}L1040 ${AY}M380 ${AY + 70}L620 ${AY + 70}L860 ${AY - 90}L1040 ${AY - 22}`, { stroke: CC.light, 'stroke-width': 4 }, { d: 0 });
+  draw(rayB, tN + .2, 1.6);
+  const gl = G(p, { o: 0 }); show(gl, tN + 1.4, .4);
+  path(gl, `M620 ${AY - 112}V${AY - 150}H860V${AY - 136}`, { stroke: COL.dim, 'stroke-width': 2.5 });
+  wLabel(gl, 'glass lenses', { x: 740, y: AY - 166, size: 30, o: 1 });
+  say(p, 'magnify the image', 740, AY + 182, tN + 2.4, { size: 26, fill: COL.dim, weight: 500 });
+  // eye: the enlarged image, beside the eye
+  pulse(eye, tE + .2, 1.15);
+  const big = roundCell(p, { x: 1370, y: AY, r: 130, seed: 2, mito: false, o: 0, s: .1 });
+  tw(big, { o: 1, s: 1 }, tE + .6, 1.2, out);
+  say(p, 'magnified image', 1370, AY - 160, tE + 1.2, { size: 30 });
+  say(p, 'detail the unaided eye cannot see', 1370, AY + 176, tE + 2.6, { size: 24, fill: COL.dim, weight: 500 });
+  draw(path(p, `M1170 ${AY}L1225 ${AY}`, { stroke: COL.dim, 'stroke-width': 3, 'stroke-dasharray': '8 6' }, { d: 0 }), tE + 1, .4);
+  // more: the electron microscope, in one panel
+  const EP = G(p, { o: 0, y: 20 }); tw(EP, { o: 1, y: 0 }, tM + .1, .7, out);
+  slab(EP, 120, 556, 1360, 312);
+  wLabel(EP, 'electron microscope', { x: 160, y: 606, size: 32, anchor: 'start', weight: 700, o: 1 });
+  mk('rect', { x: 170, y: 700, width: 60, height: 70, rx: 8, fill: '#7f8fa6' }, EP);
+  mk('rect', { x: 552, y: 650, width: 16, height: 170, rx: 3, fill: '#cfe6f0', 'fill-opacity': .4 }, EP);
+  [700, 850].forEach(x => { mk('rect', { x: x - 18, y: 640, width: 36, height: 34, rx: 6, fill: '#b08a4a' }, EP); mk('rect', { x: x - 18, y: 796, width: 36, height: 34, rx: 6, fill: '#b08a4a' }, EP); });
+  wLabel(EP, 'beam of electrons, not light', { x: 520, y: 846, size: 24, fill: BEAM, o: 1 });
+  const tile = temTile(EP, { x: 1250, y: 712, w: 360, h: 186 });
+  void tile;
+  wLabel(EP, 'finer detail', { x: 1250, y: 606, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const dots = Array.from({ length: 18 }, (_, i) => { const e = mk('circle', { r: 6, fill: BEAM }, EP); put(e, { x: 240, y: 735 }); return e; });
+  clockRun(t => {
+    const on = ramp(t, tM + .8, tM + 1.3);
+    dots.forEach((e, i) => { const u = cFrac(.35 * t + i / dots.length), x = 240 + u * 790, y = 735 + 22 * Math.sin(i * 2.1) * (1 - .6 * ramp(x, 700, 1000)); cSet(e, { x, y, o: on * (1 - ramp(u, .9, 1)) }); });
+  }, D);
+  // the bacterium photo comes later
+  const lt = say(EP, 'the bacterium photo later is one of these', 1250, 840, tM + 6.4, { size: 22, fill: COL.dim, weight: 500 });
+  void lt;
+}],
+
+/* ---------- frac ---------- */
+['frac', 'Cell fractionation', (m, D) => {
+  const p = panel(0), tBr = m('break'), tSp = m('spin'), tLa = m('layers'), tTe = m('test'), tLi = m('link');
+  const hd = say(p, 'cell fractionation', 800, 70, 2.8, { size: 40, weight: 700 }); hide(hd, tLi - .2, .4);
+  hide(say(p, 'what does each part do?', 800, 112, 3.4, { size: 26, fill: COL.dim, weight: 500 }), tLi - .2, .4);
+  // three cells on the left
+  const cells = [250, 450, 650].map((y, i) => { const g = G(p, { x: 240, y, o: 0 }); cIcon(G(g, { y: 66 }), 'animal', 170); show(g, .3 + .2 * i, .6); return g; });
+  const cl = say(p, 'cells', 240, 790, .9, { size: 28, fill: COL.dim, weight: 500 }); hide(cl, tBr + .3, .3);
+  // the rotor with the tube; the tube's mouth is at (800, 440) while the rotor is still
+  const RG = G(p, { x: 800, y: 450 });
+  const disc = G(RG, { o: 0 });
+  mk('circle', { r: 335, fill: '#1c2e47', stroke: '#7f8fa6', 'stroke-width': 7 }, disc);
+  [90, 180, 270].forEach(a => { const g = G(disc, { r: a }); mk('rect', { x: -34, y: -24, width: 68, height: 320, rx: 34, fill: '#2b405e', stroke: '#5b6f8c', 'stroke-width': 3 }, g); });
+  mk('circle', { r: 36, fill: '#7f8fa6' }, disc);
+  const tube = centrifugeTube(RG, { x: 0, y: 300, s: .85, o: 0 });
+  tube.spin(0);
+  show(tube, tBr - .1, .5);
+  // break: the cells burst; their pieces fly into the tube
+  const cols = [CC.env, CC.mito, CC.er, CC.ribo, CC.lyso, CC.mito, CC.er, CC.ribo];
+  const frags = [];
+  cells.forEach((c, i) => {
+    tw(c, { s: 1.15, o: 0 }, tBr + .1 + .15 * i, .5);
+    cols.forEach((col, j) => {
+      const e = mk('circle', { r: 7 + 4 * wHash(j, i), fill: col }, p); put(e, { x: 240, y: [250, 450, 650][i], o: 0 });
+      frags.push({ e, x0: 240 + 70 * (wHash(j, i + 3) - .5), y0: [250, 450, 650][i] + 60 * (wHash(j, i + 5) - .5), t0: tBr + .15 + .15 * i + .04 * j });
+    });
+  });
+  clockRun(t => frags.forEach(({ e, x0, y0, t0 }) => {
+    const k = io(ramp(t, t0 + .2, t0 + 1.4)), x = lerp(x0, 800, k), y = lerp(y0, 445, k) - 160 * Math.sin(Math.PI * k);
+    cSet(e, { x, y, o: ramp(t, t0, t0 + .2) * (1 - ramp(k, .85, 1)) });
+  }), D);
+  hide(say(p, 'break the cells open', 240, 790, tBr + .6, { size: 26, fill: COL.dim, weight: 500 }), tLa, .4);
+  // spin: the rotor spins up and down; the parts settle into layers
+  show(disc, tSp - .2, .5);
+  const uc = G(p, { o: 0 }); show(uc, tSp + .8, .4); hide(uc, tLa + 5.4, .4);
+  wLabel(uc, 'ultracentrifuge', { x: 1300, y: 330, size: 34, weight: 700, o: 1 });
+  wLabel(uc, 'a very fast centrifuge', { x: 1300, y: 372, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const arcs = path(uc, 'M1130 450A335 335 0 0 1 1060 650M470 450A335 335 0 0 1 540 250', { stroke: COL.chalk, 'stroke-width': 4, 'stroke-dasharray': '14 10' });
+  void arcs;
+  const tA = tSp + .5, tB = tLa + 4.6;
+  clockRun(t => {
+    const k = ramp(t, tA, tB), a = 360 * 7 * (k < .5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k));
+    cSet(RG, { r: a });
+    tube.spin(ramp(t, tA + 1, tB - .4));
+  }, D);
+  hide(disc, tB + .2, .5);
+  // layers: the tube moves left; label the bands
+  tw(RG, { x: 620, s: 1.25 }, tB + .6, .9, io);
+  const TX = 620, bandPt = i => { const [lx, lyy] = tube.layerPt(i); return [TX + 1.25 * lx, 450 + 1.25 * lyy]; };
+  const names = ['nuclei: heaviest, at the bottom', 'mitochondria', 'ER pieces', 'ribosomes: lightest, on top'];
+  const ly = [800, 742, 684, 626];
+  const t0 = tB + 1.4;
+  names.forEach((s, i) => {
+    tagAt(p, bandPt(i), [740, ly[i]], s, t0 + .45 * i, { size: 26 });
+  });
+  say(p, 'separated organelles', 620, 380, tB + 1.2, { size: 30, weight: 700 });
+  // test: one batch goes to biochemistry
+  const TC = G(p, { o: 0, x: 20 }); tw(TC, { o: 1, x: 0 }, tTe + .2, .6, out);
+  slab(TC, 1170, 220, 390, 380);
+  wLabel(TC, 'biochemistry', { x: 1365, y: 270, size: 32, weight: 700, o: 1 });
+  const mt = mitochondrion(TC, { x: 1365, y: 410, s: .55 });
+  // keep three of the kit's five ATP sparks (every other one): neighbours in phase overlap their 'ATP' labels
+  [...mt.lastElementChild.children].forEach((e, i) => { if (i % 2) e.remove(); });
+  wLabel(TC, 'what chemistry does it do?', { x: 1365, y: 560, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  clockRun(t => mt.spark(t, ramp(t, tTe + 1.6, tTe + 2.2)), D);
+  show(mArrow(p, [960, 742], [1160, 520], { color: MC.hi, w: 4, head: 14, o: 0 }), tTe + .6);
+  // link: the microscope picture (structure) joined to the result (function)
+  const MV = G(p, { x: 240, y: 360, o: 0 }); show(MV, tLi + .2, .6);
+  mk('circle', { r: 140, fill: '#204d63' }, MV);
+  mitochondrion(MV, { s: .55, r: -15 });
+  mk('circle', { r: 140, fill: 'none', stroke: '#3b5568', 'stroke-width': 10 }, MV);
+  say(p, 'structure: the microscope', 240, 545, tLi + .8, { size: 26 });
+  say(p, 'function: the chemistry', 1365, 650, tLi + 1.4, { size: 26 });
+  draw(path(p, 'M1365 210Q800 -20 300 214', { stroke: MC.hi, 'stroke-width': 4, 'stroke-dasharray': '12 8' }, { d: 0 }), tLi + 2, 1.2);
+  say(p, 'structure ↔ function', 800, 140, tLi + 3, { size: 34, fill: MC.hi, weight: 700 });
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  // the rotor and a tube, still; nothing names what it does
+  const RG = G(p, { x: 500, y: 400, s: .7 });
+  mk('circle', { r: 335, fill: '#1c2e47', stroke: '#7f8fa6', 'stroke-width': 7 }, RG);
+  [90, 180, 270].forEach(a => { const g = G(RG, { r: a }); mk('rect', { x: -34, y: -24, width: 68, height: 320, rx: 34, fill: '#2b405e', stroke: '#5b6f8c', 'stroke-width': 3 }, g); });
+  mk('circle', { r: 36, fill: '#7f8fa6' }, RG);
+  centrifugeTube(RG, { x: 0, y: 300, s: .85 }).spin(0);
+  wLabel(p, 'ultracentrifuge', { x: 500, y: 690, size: 30, weight: 700, o: 1 });
+  [300, 500].forEach(y => { const g = G(p, { x: 130, y }); cIcon(G(g, { y: 50 }), 'animal', 120); });
+  wLabel(p, 'broken cells go in', { x: 130, y: 620, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  mArrow(p, [200, 400], [255, 400], { w: 4, head: 14 });
+}, { ask: done => quiz({ x: 900, y: 80, w: 660, cls: 'side' }, [{
+  id: 'c-frac', prompt: ['What does the ultracentrifuge do in cell fractionation?'],
+  build: choice([['It magnifies the cells so we can see them.'], ['It spins broken cells so their organelles separate from one another.'], ['It makes new cells from cell parts.'], ['It passes light through the specimen.']], 1,
+    'Right. Heavier parts settle first, so different organelles end up apart and each batch can be tested.',
+    ['Magnifying is a microscope’s job. The ultracentrifuge spins.', null,
+     'Cells come only from earlier cells. The centrifuge only sorts the pieces of broken ones.',
+     'That is the light microscope. The ultracentrifuge spins the mixture so the parts settle apart.']),
+}], done) }],
+
+/* ---------- shared ---------- */
+['shared', 'What all cells share', (m, D) => {
+  const p = panel(0), tA = m('all'), tPm = m('pm'), tCy = m('cytosol'), tCh = m('chrom'), tR = m('ribo'), tS = m('so');
+  const C = G(p, { x: 800, y: 450 });
+  const fill = path(C, cBlob(300, 215, { seed: 4 }), { fill: CC.cyto }, { o: 0 });
+  const glow = path(C, cBlob(260, 180, { seed: 4 }), { fill: '#2a5280' }, { o: 0 });
+  const ring = path(C, cBlob(300, 215, { seed: 4 }), { stroke: COL.dim, 'stroke-width': 6 }, { d: 0 });
+  draw(ring, .2, 1.2);
+  // all
+  say(p, 'every cell', 800, 150, tA + .2, { size: 40, weight: 700 });
+  say(p, 'four things in common', 800, 192, tA + .8, { size: 28, fill: COL.dim, weight: 500 });
+  pulse(C, tA + .5, 1.05);
+  // pm: the ring lights blue
+  tw(ring, { c_stroke: CC.membrane, 'a_stroke-width': 11 }, tPm + .1, .6);
+  const TG = [];
+  TG.push(tagAt(p, [520, 520], [345, 600], 'plasma membrane', tPm + .4, { color: CC.membrane }));
+  TG.push(say(p, 'controls what moves in and out', 345, 640, tPm + 1.2, { size: 22, fill: COL.dim, weight: 500, anchor: 'end' }));
+  // cytosol
+  show(fill, tCy, .6); show(glow, tCy + .2, .6); tw(glow, { o: .35 }, tCy + 1, .8);
+  TG.push(tagAt(p, [620, 330], [300, 300], 'cytosol', tCy + .4));
+  TG.push(say(p, 'the semifluid inside', 300, 340, tCy + .9, { size: 22, fill: COL.dim, weight: 500, anchor: 'end' }));
+  // chrom: a cream coil
+  const ch = path(C, coilPath(120, 80, 2, 70), { stroke: CC.dna, 'stroke-width': 4 }, { d: 0 });
+  draw(ch, tCh + .1, 1.2);
+  TG.push(tagAt(p, [870, 420], [1290, 330], 'chromosomes', tCh + .5, { color: CC.dna }));
+  TG.push(say(p, 'carry genes', 1300, 370, tCh + 1, { size: 22, fill: COL.dim, weight: 500, anchor: 'start' }));
+  // ribo: dots
+  const rp = []; for (let i = 0; i < 40; i++) { const a = i * 2.39, rr = .55 + .38 * wHash(i, 6); rp.push([280 * rr * Math.cos(a), 195 * rr * Math.sin(a)]); }
+  const rib = path(C, cDots(rp), { stroke: CC.ribo, 'stroke-width': 12 }, { o: 0 });
+  show(rib, tR + .1, .5);
+  TG.push(tagAt(p, [800 + rp[5][0], 450 + rp[5][1]], [1290, 600], 'ribosomes', tR + .4, { color: CC.ribo }));
+  TG.push(say(p, 'make proteins', 1300, 640, tR + .9, { size: 22, fill: COL.dim, weight: 500, anchor: 'start' }));
+  TG.forEach(e => hide(e, tS + .1, .4));
+  // so: two types
+  const sOut = G(p, { o: 0 }); show(sOut, tS + .9, .6);
+  tw(C, { s: .3, o: 0 }, tS + .2, .8);
+  const pk = prokaryote(sOut, { x: 380, y: 470, s: .42 });
+  const eu = cellMap(sOut, { x: 1120, y: 450, s: .5 });
+  void pk; void eu;
+  say(p, '?', 760, 490, tS + 1.4, { size: 90, fill: MC.hi, weight: 800 });
+  say(p, 'two types', 760, 300, tS + 1.6, { size: 34, weight: 700 });
+}],
+
+/* ---------- two ---------- */
+['two', 'Prokaryotic and eukaryotic', (m, D) => {
+  const p = panel(0), tPr = m('pro'), tEu = m('euk'), tSz = m('size'), tNu = m('nuc'), tNo = m('noenv'), tOr = m('org'), tCy = m('cyto');
+  const PX = 380, PY = 470, EXc = 1120, EYc = 450, ES = .5;
+  const pk = prokaryote(p, { x: PX, y: PY, s: .42 });
+  const eu = cellMap(p, { x: EXc, y: EYc, s: ES });
+  clockRun(t => pk.beat(t), D);
+  notToScale(p, 1570, 40, .3);
+  // the map's parts, dimmed or lit by holder opacity
+  const MP = mapParts(eu), HOLDERS = eu.order.map(n => [n, MP[n]]);
+  const light = (names, t0, dur = .6) => HOLDERS.forEach(([n, h]) => tw(h, { o: names === null || names.includes(n) ? 1 : (n === 'membrane' || n === 'cytoplasm' ? .45 : .16) }, t0, dur));
+  // pro
+  say(p, 'prokaryotic', PX, 160, tPr + .1, { size: 44, weight: 800 });
+  show(mChip(p, [['bacteria, archaea', COL.chalk]], { x: PX, y: 215, size: 26, o: 0 }), tPr + .8);
+  say(p, 'slide: “archaebacteria”', PX, 262, tPr + 4, { size: 22, fill: COL.dim, weight: 500 });
+  // euk
+  say(p, 'eukaryotic', EXc, 160, tEu + .1, { size: 44, weight: 800 });
+  show(mChip(p, [['protists, fungi, animals, plants', COL.chalk]], { x: EXc, y: 215, size: 26, o: 0 }), tEu + .8);
+  // size: eukaryotes are much larger; many prokaryotes fit inside one
+  light([], tSz + .1);
+  hide(say(p, 'much larger', EXc, 690, tSz + .4, { size: 32, weight: 700 }), tNu - .3, .3);
+  const slots = [[-170, -60], [-60, -95], [60, -100], [170, -50], [-150, 50], [-40, 85], [80, 80], [190, 50]];
+  const minis = slots.map(([dx, dy], i) => {
+    const e = prokaryote(p, { x: PX, y: PY, s: .13, fimbriae: false, flagella: 0, o: 0 });
+    const t0 = tSz + 1 + .22 * i;
+    tw(e, { o: 1 }, t0, .2); tw(e, { x: EXc + dx, y: EYc + dy }, t0, .9, io); hide(e, tNu - .4, .4);
+    return e;
+  });
+  void minis;
+  const fl = say(p, 'many prokaryotic cells could fit inside one', EXc, 732, tSz + 2.6, { size: 24, fill: COL.dim, weight: 500 });
+  hide(fl, tNu - .3, .3);
+  // nuc: the eukaryote's DNA is inside a nucleus
+  light(['nucleus'], tNu);
+  const nPt = eu.pt('nucleus');
+  const ln = tagAt(p, [nPt[0] - 40, nPt[1] + 60], [EXc - 120, 780], 'nucleus: DNA inside a membrane', tNu + .6, { color: CC.dna });
+  hide(ln, tOr - .3, .3);
+  // noenv: the prokaryote's DNA is in a nucleoid, no membrane
+  const [nx, ny] = pk.pt('nucleoid');
+  const dash = mk('ellipse', { cx: nx, cy: ny, rx: 70, ry: 34, fill: 'none', stroke: CC.dna, 'stroke-width': 3.5, 'stroke-dasharray': '9 7' }, p); put(dash, { o: 0 });
+  show(dash, tNo + .4, .4);
+  tagAt(p, [nx - 30, ny + 30], [PX + 50, 650], 'nucleoid: no membrane', tNo + 2.4, { color: CC.dna });
+  // org: membrane-bound organelles in the eukaryote; none in the prokaryote
+  light(['nucleus', 'roughER', 'smoothER', 'golgi', 'vesicles', 'mitochondria', 'lysosomes', 'peroxisomes'], tOr);
+  const lo = say(p, 'membrane-bound organelles', EXc, 690, tOr + .8, { size: 32, weight: 700, fill: CC.golgi });
+  const lo2 = say(p, 'small compartments, each with a job', EXc, 732, tOr + 2, { size: 24, fill: COL.dim, weight: 500 });
+  hide(lo, tCy - .3, .3); hide(lo2, tCy - .3, .3);
+  const none = G(p, { x: PX, y: 740, o: 0 }); show(none, tOr + 6.8, .4);
+  mk('circle', { cx: -190, r: 16, fill: 'none', stroke: COL.bad, 'stroke-width': 4 }, none);
+  path(none, 'M-201 11L-179 -11', { stroke: COL.bad, 'stroke-width': 4 });
+  wLabel(none, 'no membrane-bound organelles', { x: -162, y: 9, size: 24, fill: DIM_TXT, anchor: 'start', o: 1 });
+  // cyto: the cytoplasm is between the membrane and the nucleus
+  light(['cytoplasm', 'membrane', 'nucleus'], tCy);
+  const [mx, my] = eu.pt('cytoplasm');
+  const nuR = 150 * ES, NX = nPt[0], NY = nPt[1];
+  const ang = Math.atan2(my - NY, mx - NX), sx = NX + (nuR + 6) * Math.cos(ang), sy = NY + (nuR + 6) * Math.sin(ang);
+  const memEdge = [EXc + 540 * ES * .96 * Math.cos(Math.atan2((my - EYc) / (340 * ES), (mx - EXc) / (540 * ES))), EYc + 340 * ES * .96 * Math.sin(Math.atan2((my - EYc) / (340 * ES), (mx - EXc) / (540 * ES)))];
+  const ar = G(p, { o: 0 }); show(ar, tCy + .6, .4);
+  mArrow(ar, [sx, sy], memEdge, { color: MC.hi, w: 4, head: 14 }); mArrow(ar, memEdge, [sx, sy], { color: MC.hi, w: 4, head: 14 });
+  say(p, 'cytoplasm', EXc, 690, tCy + .9, { size: 32, weight: 700, fill: MC.hi });
+  say(p, 'everything between the membrane and the nucleus', EXc, 732, tCy + 1.6, { size: 24, fill: COL.dim, weight: 500 });
+}],
+
+/* ---------- ex ---------- */
+['ex', 'Two cases', (m, D) => {
+  const p = panel(0), tY = m('yeast'), tC = m('coli'), tS = m('same');
+  const A = G(p, { o: 0, x: -20 }), B = G(p, { o: 0, x: 20 });
+  slab(A, 80, 60, 700, 560); slab(B, 820, 60, 700, 560);
+  tw(A, { o: 1, x: 0 }, .1, .6, out); tw(B, { o: 1, x: 0 }, tC, .6, out);
+  wLabel(A, 'baker’s yeast', { x: 430, y: 120, size: 38, weight: 700, o: 1 });
+  A.appendChild(mChip(p, [['fungus', COL.chalk], [' → ', COL.dim], ['eukaryote', CC.golgi]], { x: 430, y: 168, size: 24 }));
+  const y = yeastCell(A, { x: 420, y: 370, s: .95 });
+  wLabel(B, 'E. coli', { x: 1170, y: 120, size: 38, weight: 700, o: 1 });
+  B.appendChild(mChip(p, [['bacterium', COL.chalk], [' → ', COL.dim], ['prokaryote', CC.dna]], { x: 1170, y: 168, size: 24 }));
+  const ec = prokaryote(B, { x: 1060, y: 380, s: .55 });
+  clockRun(t => ec.beat(t), D);
+  // yeast: the nucleus lights
+  const yn = mk('circle', { cx: 420 - 55 * .95, cy: 370 - 25 * .95, r: 62, fill: 'none', stroke: MC.hi, 'stroke-width': 4, 'stroke-dasharray': '10 7' }, p); put(yn, { o: 0 });
+  show(yn, tY + 3.8, .4); pulse(y.nuc, tY + 3.9, 1.12);
+  say(p, 'nucleus', 250, 230, tY + 4, { size: 26, fill: MC.hi });
+  // coli: the nucleoid, dashed
+  const [qx, qy] = ec.pt('nucleoid');
+  const dd = mk('ellipse', { cx: qx, cy: qy, rx: 104, ry: 50, fill: 'none', stroke: CC.dna, 'stroke-width': 3.5, 'stroke-dasharray': '9 7' }, p); put(dd, { o: 0 });
+  show(dd, tC + 4.2, .4);
+  say(p, 'nucleoid', qx, qy + 150, tC + 4.4, { size: 26, fill: CC.dna });
+  // same: both share four features; two things differ
+  const row = G(p, { o: 0 }); show(row, tS + .2, .6);
+  wLabel(row, 'both have', { x: 800, y: 690, size: 30, weight: 700, o: 1 });
+  const feats = [['plasma membrane', 410], ['cytosol', 650], ['DNA', 950], ['ribosomes', 1190]];
+  feats.forEach(([s, x], i) => {
+    const g = G(row, { x, y: 760 });
+    if (i === 0) mk('circle', { r: 22, fill: 'none', stroke: CC.membrane, 'stroke-width': 6 }, g);
+    if (i === 1) mk('circle', { r: 22, fill: CC.cyto, stroke: '#2a5280', 'stroke-width': 3 }, g);
+    if (i === 2) path(g, coilPath(20, 14, 1, 20), { stroke: CC.dna, 'stroke-width': 3 });
+    if (i === 3) path(g, cDots([[-12, -6], [8, -10], [-2, 10], [14, 8]]), { stroke: CC.ribo, 'stroke-width': 10 });
+    wLabel(g, s, { y: 56, size: 24, o: 1 });
+  });
+  path(row, 'M430 620L540 664M1170 620L1060 664', { stroke: COL.dim, 'stroke-width': 2.5 });
+  say(p, 'DNA in a nucleus · many compartments', 430, 596, tS + 4.6, { size: 24, fill: MC.hi });
+  say(p, 'DNA in a nucleoid · one compartment', 1170, 596, tS + 5.4, { size: 24, fill: MC.hi });
+}],
+
+/* ---------- bact ---------- */
+['bact', 'A rod-shaped bacterium', (m, D) => {
+  const p = panel(0), cam = camera(p, D, { x: 640, y: 440, z: .62 }), W = cam.world;
+  const tCh = m('chr'), tN = m('nuc'), tR = m('ribo'), tPm = m('pm'), tW = m('wall'), tCa = m('cap'), tF = m('fim'), tFl = m('flag'), tSc = m('scale');
+  cam.to({ x: 800, y: 450, z: 1 }, .3, 3.2);
+  const BX = 560, BY = 430;
+  const pk = prokaryote(W, { x: BX, y: BY, s: 1 });
+  clockRun(t => pk.beat(t), D);
+  const parts = ['capsule', 'wall', 'membrane', 'ribosomes', 'nucleoid', 'fimbriae', 'flagella'].map(n => [n, pkPart(pk, n)]);
+  parts.forEach(([, e]) => put(e, { o: .3 }));
+  const lit = (n, t0) => tw(pkPart(pk, n), { o: 1 }, t0, .5);
+  say(W, 'a typical rod-shaped bacterium', BX, 110, .6, { size: 34, weight: 700 });
+  // other shapes, small
+  const os = otherShapes(W, { x: 1430, y: 150, o: 0 }); show(os, 3, .5);
+  say(W, 'other shapes: spheres, spirals', 1400, 230, 3.4, { size: 22, fill: COL.dim, weight: 500 });
+  // chr: the chromosome
+  lit('nucleoid', tCh + .1);
+  const [nx, ny] = pk.pt('nucleoid');
+  tagAt(W, [nx - 40, ny + 20], [440, 720], 'bacterial chromosome', tCh + .6, { color: CC.dna });
+  // nuc: the region round it
+  const dash = mk('ellipse', { cx: nx, cy: ny, rx: 150, ry: 70, fill: 'none', stroke: CC.dna, 'stroke-width': 4, 'stroke-dasharray': '10 8' }, W); put(dash, { o: 0 });
+  show(dash, tN + .1, .4);
+  tagAt(W, [nx + 60, ny + 66], [700, 720], 'nucleoid', tN + .4, { color: CC.dna });
+  say(W, 'one region, two names', 570, 775, tN + 2.2, { size: 24, fill: COL.dim, weight: 500 });
+  // ribo
+  lit('ribosomes', tR + .1);
+  tagAt(W, pk.pt('ribosomes'), [880, 620], 'ribosomes', tR + .5, { color: CC.ribo });
+  // pm, wall, cap: from the inside out
+  lit('membrane', tPm + .1);
+  tagAt(W, pk.pt('membrane'), [760, 200], 'plasma membrane', tPm + .5, { color: CC.membrane });
+  lit('wall', tW + .1);
+  tagAt(W, pk.pt('wall'), [470, 170], 'cell wall', tW + .5, { color: CC.wall });
+  say(W, 'protection and support', 360, 210, tW + 1.2, { size: 22, fill: COL.dim, weight: 500 });
+  lit('capsule', tCa + .1);
+  tagAt(W, pk.pt('capsule'), [210, 250], 'capsule', tCa + .5, { color: CC.capsule });
+  say(W, 'sticky outer layer', 140, 290, tCa + 1.2, { size: 22, fill: COL.dim, weight: 500 });
+  // fim, flag
+  lit('fimbriae', tF + .1);
+  tagAt(W, pk.pt('fimbriae'), [200, 600], 'fimbriae', tF + .5);
+  say(W, 'help it attach to surfaces', 140, 640, tF + 1.2, { size: 22, fill: COL.dim, weight: 500 });
+  lit('flagella', tFl + .1);
+  tagAt(W, [1050, 445], [1060, 330], 'flagellum', tFl + .5);
+  say(W, 'whips that move the cell', 1060, 372, tFl + 1.2, { size: 22, fill: COL.dim, weight: 500, anchor: 'start' });
+  // the micrograph, grey as printed, and its scale bar
+  const TM = G(W, { o: 0 }); show(TM, 6, .6);
+  temTile(TM, { x: 1340, y: 670, w: 380, h: 240 });
+  wLabel(TM, 'electron micrograph (TEM)', { x: 1340, y: 532, size: 22, fill: COL.dim, weight: 500, o: 1 });
+  const bar = G(TM, { x: 1420, y: 735 });
+  const sb = scaleBar(bar, { x: 0, y: 0, len: 72, text: '0.5 µm', size: 20, color: '#ffffff' });
+  void sb;
+  pulse(bar, tSc + .2, 1.3); pulse(bar, tSc + .9, 1.3);
+  say(W, '0.5 µm: for this one species', 1340, 830, tSc + 1, { size: 24, fill: MC.hi, weight: 700 });
+  notToScale(p, 1570, 40, .3);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  prokaryote(p, { x: 400, y: 230, s: .42 });
+  wLabel(p, 'prokaryotic', { x: 400, y: 110, size: 32, weight: 700, o: 1 });
+  cellMap(p, { x: 400, y: 620, s: .4 });
+  wLabel(p, 'eukaryotic', { x: 400, y: 455, size: 32, weight: 700, o: 1 });
+  notToScale(p, 780, 880, .2);
+}, { ask: done => quiz({ x: 800, y: 60, w: 760, cls: 'side' }, [{
+  id: 'c-compare', prompt: ['Prokaryotic, eukaryotic, or both?'],
+  build: grid([
+    { parts: ['has a plasma membrane'], ans: ['b'], why: 'Both: every cell has a plasma membrane.' },
+    { parts: ['DNA in a nucleoid, with no membrane around it'], ans: ['p'], why: 'Prokaryotic: no nucleus, the DNA sits in the nucleoid.' },
+    { parts: ['membrane-bound organelles'], ans: ['e'], why: 'Eukaryotic: a prokaryote has none.' },
+    { parts: ['ribosomes'], ans: ['b'], why: 'Both: every cell makes proteins on ribosomes.' },
+    { parts: ['a nucleus wrapped in a membrane'], ans: ['e'], why: 'Eukaryotic: that is what the name means.' },
+    { parts: ['usually much larger'], ans: ['e'], why: 'Eukaryotic cells are much larger than prokaryotic cells.' },
+  ], [['p', 'prokaryotic', null, 'P'], ['e', 'eukaryotic', null, 'E'], ['b', 'both', null, 'B']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- map ---------- */
+['map', 'The tour ahead', (m, D) => {
+  const p = panel(0), cm = cellMap(p, { x: MAP_X, y: MAP_Y, s: MAP_S });
+  const MP = mapParts(cm), H = n => MP[n];
+  cm.order.forEach(n => put(H(n), { o: 0, y: -20 }));
+  const on = (names, t0) => names.forEach(n => tw(H(n), { o: 1, y: 0 }, t0, .7, out));
+  const tC = m('cell'), tM = m('mem'), tN = m('nuc'), tR = m('ribo'), tE = m('er'), tG = m('golgi'), tL = m('lyso'), tMi = m('mito'), tCy = m('cyto'), tNx = m('next');
+  say(p, 'a preview of the tour', 800, 52, .3, { size: 28, fill: COL.dim, weight: 500 });
+  // cell: the outline and cytoplasm
+  on(['cytoplasm'], .3);
+  tw(H('membrane'), { o: .5, y: 0 }, .3, .7);
+  say(p, 'eukaryotic cell (animal)', 800, 100, tC + .5, { size: 36, weight: 700 });
+  // one label per part, at a fixed place left or right of the cell, with its role underneath
+  const lab = (a, [tx, ty], str, role, color, t0) => {
+    const g = tagAt(p, a, [tx, ty], str, t0, { color });
+    const left = tx < a[0], w = uiW(str, 28);
+    say(p, role, left ? tx - w / 2 : tx + w / 2, ty + 34, t0 + .4, { size: 22, fill: COL.dim, weight: 500 });
+    return g;
+  };
+  tw(H('membrane'), { o: 1 }, tM + .1, .5);
+  lab(cm.pt('membrane'), [1170, 190], 'plasma membrane', 'bounds the cell', CC.membrane, tM + .3);
+  on(['nucleus'], tN + .1);
+  const nP = cm.pt('nucleus'), nu = [nP[0] - 150 * MAP_S * .7, nP[1] - 150 * MAP_S * .7];
+  lab(nu, [270, 220], 'nucleus', 'head office', CC.dna, tN + .5);
+  on(['ribosomes'], tR + .1);
+  let rb = cm.pt('ribosomes', 0);
+  for (let i = 1; i < 44; i++) { const q = cm.pt('ribosomes', i); if (q[0] < rb[0] && Math.abs(q[1] - 560) < 120) rb = q; }
+  lab(rb, [270, 560], 'ribosomes', 'workbenches', CC.ribo, tR + .5);
+  on(['roughER', 'smoothER'], tE + .1);
+  lab(cm.pt('smoothER'), [270, 380], 'ER', 'production line', CC.er, tE + .5);
+  on(['golgi', 'vesicles'], tG + .1);
+  lab(cm.pt('golgi'), [1170, 640], 'Golgi apparatus', 'shipping', CC.golgi, tG + .5);
+  on(['lysosomes'], tL + .1);
+  lab(cm.pt('lysosomes', 1), [1170, 460], 'lysosomes', 'recycling', CC.lyso, tL + .4);
+  on(['mitochondria', 'peroxisomes'], tMi + .1);
+  lab(cm.pt('mitochondria', 1), [1170, 320], 'mitochondria', 'power plants', CC.mito, tMi + .4);
+  on(['cytoskeleton', 'centrosome'], tCy + .1);
+  lab(cm.pt('cytoskeleton'), [270, 720], 'cytoskeleton', 'scaffolding and rails', CC.mt, tCy + .5);
+  // next: the nucleus and ribosomes, lesson 2
+  cm.order.forEach(n => { if (n !== 'nucleus' && n !== 'ribosomes' && n !== 'membrane' && n !== 'cytoplasm') tw(H(n), { o: .3 }, tNx + .1, .6); });
+  pulse(H('nucleus'), tNx + .6, 1.06);
+  const nb = G(p, { x: 640, y: 836, o: 0 }); show(nb, tNx + .8, .4);
+  nb.appendChild(mChip(p, [['next: ', COL.dim], ['lesson 2', MC.hi], [' · the nucleus and ribosomes', COL.chalk]], { size: 26 }));
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['Cells are the basic units of life.', 'Structure fits function; every cell comes from a cell.', g => { roundCell(g, { x: 170, y: 0, r: 52, seed: 2 }); }],
+    ['Microscopes show what cells look like.', 'Fractionation separates organelles to test them.', g => { const ms = microscope(g, { x: 120, y: 60, s: .26 }); void ms; centrifugeTube(g, { x: 230, y: 62, s: .3 }).spin(1); }],
+    ['All cells: plasma membrane, cytosol,', 'chromosomes and ribosomes.', g => { mk('ellipse', { cx: 170, rx: 70, ry: 50, fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 5 }, g); path(g, coilPath(34, 20, 2, 30), { stroke: CC.dna, 'stroke-width': 2.5, transform: 'translate(170 0)' }); path(g, cDots([[120, -20], [215, 18], [140, 28], [205, -24]]), { stroke: CC.ribo, 'stroke-width': 8 }); }],
+    ['Prokaryotes: a nucleoid, no membrane organelles.', 'Eukaryotes: a nucleus and organelles; much larger.', g => { prokaryote(g, { x: 148, y: 0, s: .15, fimbriae: false }); const c = G(g, { x: 262, y: 28 }); cIcon(c, 'animal', 96); }],
+  ];
+  const icons = [];
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: -16, y: 170 + i * 160, o: 0 });
+    const ic = G(g); icon(ic); icons.push(ic);
+    T(g, a, { x: 330, y: -6, size: 36, weight: 600 }); T(g, b, { x: 330, y: 40, size: 30, fill: COL.dim });
+    tw(g, { o: 1, x: 0 }, i ? m('w' + (i + 1)) : .1, .6);
+  });
+  say(p, 'Now try the practice.', 800, 830, m('end'), { size: 32, fill: WC.bond });
+  clockRun(t => icons.forEach((ic, i) => put(ic, { y: 4 * Math.sin(1.6 * t + 1.3 * i) })), D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('micro', g => {
+    miniPath(g, 960, 360, .76);
+    wLabel(g, '?', { x: 1280, y: 250, size: 80, fill: MC.hi, weight: 800, o: 1 });
+    wLabel(g, 'a light microscope', { x: 1270, y: 560, size: 30, o: 1 });
+  });
+  at('groups', g => {
+    prokaryote(g, { x: 1150, y: 300, s: .36 });
+    const c = G(g, { x: 1420, y: 360 }); cIcon(c, 'animal', 200);
+    wLabel(g, 'prokaryotic', { x: 1150, y: 450, size: 30, weight: 700, o: 1 });
+    wLabel(g, 'eukaryotic', { x: 1420, y: 450, size: 30, weight: 700, o: 1 });
+    notToScale(g, 1570, 860, 0);
+  });
+  at('dna', g => {
+    const pk = prokaryote(g, { x: 1230, y: 420, s: .55 }), [x, y] = pk.pt('nucleoid');
+    mk('ellipse', { cx: x, cy: y, rx: 86, ry: 40, fill: 'none', stroke: MC.hi, 'stroke-width': 4, 'stroke-dasharray': '10 7' }, g);
+    wLabel(g, '?', { x, y: y - 90, size: 70, fill: MC.hi, weight: 800, o: 1 });
+    wLabel(g, 'a prokaryotic cell', { x: 1270, y: 620, size: 30, o: 1 });
+  });
+  at('parts', g => {
+    const pk = prokaryote(g, { x: 1200, y: 420, s: .58 });
+    cLabel(g, pk.pt('capsule'), [1090, 220], 'capsule', { o: 1, color: CC.capsule });
+    cLabel(g, pk.pt('wall'), [1250, 220], 'cell wall', { o: 1, color: CC.wall });
+    cLabel(g, pk.pt('fimbriae'), [1070, 620], 'fimbriae', { o: 1 });
+    cLabel(g, [1400, 425], [1420, 620], 'flagellum', { o: 1 });
+  });
+  at('shared', g => {
+    prokaryote(g, { x: 1130, y: 300, s: .34, fimbriae: false });
+    cellMap(g, { x: 1270, y: 600, s: .4 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('micro');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-micro', prompt: ['How does a light microscope magnify a specimen?'],
+    build: withPic('micro', choice([['It spins the cells in a tube.'], ['Visible light passes through the specimen, then through glass lenses.'], ['A beam of electrons passes through it.'], ['Light bounces off the eye onto the specimen.']], 1,
+      'Right. Light shines through the specimen, and the glass lenses magnify the image that reaches the eye.',
+      ['Spinning cells is cell fractionation, in an ultracentrifuge.', null,
+       'That is an electron microscope, a different type. The light microscope uses visible light.',
+       'The eye is the end of the path, not its start: light goes lamp, specimen, lenses, eye.'])) },
+  { id: 'p-groups', prompt: ['Prokaryotic or eukaryotic?'],
+    build: withPic('groups', grid([
+      { parts: ['bacteria'], ans: ['p'], why: 'Prokaryotic.' },
+      { parts: ['archaea'], ans: ['p'], why: 'Prokaryotic (the slide’s “archaebacteria”).' },
+      { parts: ['fungi'], ans: ['e'], why: 'Eukaryotic: yeast has a nucleus.' },
+      { parts: ['plants'], ans: ['e'], why: 'Eukaryotic.' },
+      { parts: ['animals'], ans: ['e'], why: 'Eukaryotic.' },
+      { parts: ['protists'], ans: ['e'], why: 'Eukaryotic.' },
+    ], [['p', 'prokaryotic', null, 'P'], ['e', 'eukaryotic', null, 'E']], { multi: false, text: true })) },
+  { id: 'p-dna', prompt: ['Where is the DNA in a prokaryotic cell?'],
+    build: withPic('dna', choice([['Inside a membrane-bound nucleus.'], ['In the nucleoid, a region with no membrane around it.'], ['Inside the ribosomes.'], ['In the capsule.']], 1,
+      'Right. A prokaryote has no nucleus: its chromosome lies in the nucleoid, with no membrane around it.',
+      ['A membrane-bound nucleus is what makes a cell eukaryotic.', null,
+       'Ribosomes make proteins; they do not hold the DNA.',
+       'The capsule is the sticky outer protective layer.'])) },
+  { id: 'p-parts', prompt: ['Which part of a bacterium does each job?'],
+    build: withPic('parts', grid([
+      { parts: ['moves the cell'], ans: ['l'], why: 'Flagella: whip-like parts that move the cell.' },
+      { parts: ['a sticky outer protective layer'], ans: ['c'], why: 'The capsule.' },
+      { parts: ['helps the cell attach to surfaces'], ans: ['f'], why: 'Fimbriae: short hair-like parts.' },
+      { parts: ['protects and supports the cell, just outside the plasma membrane'], ans: ['w'], why: 'The cell wall.' },
+    ], [['c', 'capsule', null, 'C'], ['w', 'cell wall', null, 'W'], ['f', 'fimbriae', null, 'I'], ['l', 'flagella', null, 'L']], { multi: false, text: true })) },
+  { id: 'p-shared', prompt: ['Which of these is NOT found in every cell?'],
+    build: withPic('shared', choice([['A plasma membrane.'], ['Ribosomes.'], ['A membrane-bound nucleus.'], ['Chromosomes that carry genes.']], 2,
+      'Right. Only eukaryotic cells have a nucleus; a prokaryote keeps its DNA in a nucleoid.',
+      ['Every cell has a plasma membrane round it.', 'Every cell makes proteins, on ribosomes.', null,
+       'Every cell has chromosomes, even when they are not inside a nucleus.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>
