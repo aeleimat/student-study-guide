@@ -91,7 +91,8 @@ function mArrow(p, [x1, y1], [x2, y2], { color = COL.chalk, w = 6, head = 18, o 
 
 // A small dark pill with coloured letters: parts [[str, colour], …]; origin at its centre; .w its width.
 function mChip(p, parts, { x = 0, y = 0, size = 24, edge = COL.chalk, o = 1 } = {}) {
-  const g = G(p, { x, y, o }), w = Math.round(parts.reduce((a, [s]) => a + uiW(s, size), 0) + 18), h = size + 10;
+  // The width is measured at weight 600 but drawn at 700: widen it a little so long chips don't clip.
+  const g = G(p, { x, y, o }), w = Math.round(parts.reduce((a, [s]) => a + uiW(s, size), 0) * 1.06 + 24), h = size + 10;
   mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill: '#0b1626', stroke: edge, 'stroke-width': 2.5 }, g);
   const t = T(g, '', { y: size * .36, size, weight: 700, anchor: 'middle', o: 1 });
   for (const [s, c] of parts) { const ts = mk('tspan', { fill: c }, t); ts.textContent = s; }

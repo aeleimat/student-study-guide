@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 7, Lesson 7: Bulk Transport — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 7 (Membrane Structure and Function), lesson 7: an amoeba meets a bacterium too big for any gate,
+// then the shared membrane patch with its vesicles lit; bulk transport (large cargo rides in vesicles and costs energy);
+// exocytosis (move, fuse, release, membrane added, secretory cells); endocytosis as the reverse with three kinds;
+// phagocytosis (pseudopodia, food vacuole, lysosome), pinocytosis, receptor-mediated endocytosis (receptor, ligand,
+// coated pit, coated vesicle, some fluid too); a ladder of every route across the membrane; practice.
+// Plan, errata and storyboard: books/biology/chapters/chapter-07/lesson-07.md.
+const CHAPTER = { number: 707, label: '7, lesson 7', title: 'Bulk Transport: Exocytosis and Endocytosis', minutes: 7, language: 'en', lead: false };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${cF(a[0])} ${cF(a[1])}L${cF(b[0])} ${cF(b[1])}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+const ORANGE = MC.against, BACT = '#8fdc8f', PROTC = '#c9a0dc', DARK = '#0a1626';
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  if (ax !== null) { path(g, `M${cF(sx)} ${cF(sy)}L${cF(ax)} ${cF(ay)}`, { stroke: line, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g); }
+  if (t0 !== null) show(g, t0, .4);
+  return g;
+}
+// A dark pill with a line of text, centred on (x, y); fades in at t0 (null: o 0, not scheduled).
+function pill(p, str, x, y, t0, { size = 28, color = COL.chalk, edge = COL.faint, weight = 700 } = {}) {
+  const g = G(p, { x, y, o: 0 }), w = uiW(str, size) + 40, h = size + 24;
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill: DARK, stroke: edge, 'stroke-width': 2.5 }, g);
+  wLabel(g, str, { y: size * .36, size, fill: color, weight, o: 1 });
+  if (t0 !== null) { show(g, t0, .4); pulse(g, t0 + .1, 1.06); }
+  return g;
+}
+// A ring that pops in round a point.
+function ring(p, [x, y], r, t0, { color = COL.chalk, w = 4 } = {}) {
+  const g = G(p, { x, y, o: 0 });
+  mk('circle', { r, fill: 'none', stroke: color, 'stroke-width': w }, g);
+  if (t0 !== null) { show(g, t0, .3); pulse(g, t0 + .1, 1.12); }
+  return g;
+}
+// A numbered step badge; .t is its text.
+function badge(p, str, x, y, { o = 0, r = 24 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: '#3b8fd9', stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t });
+}
+// A red "no entry" sign (a too-big cargo meets a gate).
+function noGate(p, x, y, { r = 24, o = 0 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: DARK, stroke: COL.bad, 'stroke-width': 6 }, g);
+  path(g, `M${-r * .62} ${-r * .62}L${r * .62} ${r * .62}`, { stroke: COL.bad, 'stroke-width': 6 });
+  return g;
+}
+// A flat membrane strip in section (the kit's two-tone band): blue heads, gold core.
+function band(p, d, { w = 24, o = 1 } = {}) {
+  const g = G(p, { o });
+  path(g, d, { stroke: MC.head, 'stroke-width': w });
+  path(g, d, { stroke: MC.tail, 'stroke-width': Math.round(w * .4) });
+  return g;
+}
+// A bulk vesicle ring (membrane band round a lumen), centred on its origin; .rings draw on.
+function bulkVes(p, { x = 0, y = 0, r = 110, s = 1, o = 1, drawn = true } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('circle', { r, fill: '#14304f' }, g);
+  const a = path(g, cCircle(r), { stroke: MC.head, 'stroke-width': 24 }, drawn ? {} : { d: 0 });
+  const b = path(g, cCircle(r), { stroke: MC.tail, 'stroke-width': 10 }, drawn ? {} : { d: 0 });
+  return Object.assign(g, { rings: [a, b] });
+}
+// A large protein (a lumpy lavender-pink blob) and a polysaccharide (a chain of sugar hexagons), centred on their origins.
+function bigProtein(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, cBlob(46, 36, { seed: 6, wob: .16 }), { fill: PROTC, stroke: '#8a64a3', 'stroke-width': 3 });
+  path(g, 'M-24 -6Q-10 -20 4 -6T30 -4', { stroke: '#8a64a3', 'stroke-width': 3, 'stroke-opacity': .7 });
+  return g;
+}
+function polysaccharide(p, { x = 0, y = 0, s = 1, o = 1, n = 6 } = {}) {
+  const g = G(p, { x, y, s, o });
+  for (let i = 0; i < n; i++) solute(g, 'sugar', { x: (i - (n - 1) / 2) * 26, y: i % 2 ? 6 : -6, r: 13 });
+  return g;
+}
+// A rod bacterium, small (cell.js prokaryote without flagellum or fimbriae).
+const bacterium = (p, { x = 0, y = 0, s = .27, o = 1 } = {}) => prokaryote(p, { x, y, s, o, flagella: 0, fimbriae: false });
+// A small secretory cell releasing product dots upward; .play(t).
+function secretor(p, { x = 0, y = 0, color = MC.dye1, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  path(g, cBlob(84, 58, { seed: 4, wob: .08 }), { fill: MC.cyto, stroke: MC.head, 'stroke-width': 7 });
+  mk('circle', { cx: -26, cy: 12, r: 22, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 3 }, g);
+  const ves = [0, 1].map(i => { const v = G(g); mk('circle', { r: 13, fill: '#14304f', stroke: MC.head, 'stroke-width': 4 }, v); mk('circle', { r: 5, fill: color }, v); return v; });
+  const dots = Array.from({ length: 6 }, () => mk('circle', { r: 6, fill: color, stroke: mix(color, '#000000', .3), 'stroke-width': 1.5 }, g));
+  const sc = Object.assign(g, {
+    play(t) {
+      t = Math.round(t * 60) / 60;
+      ves.forEach((v, i) => { const u = cFrac(t * .45 + i * .5); cSet(v, { x: 22 + 14 * i, y: 40 - 80 * io(mRamp(u, 0, .7)), o: 1 - mRamp(u, .7, .8) }); });
+      dots.forEach((d, i) => { const u = cFrac(t * .35 + i / 6); cSet(d, { x: 30 + (i % 3 - 1) * 26 * u + 6 * (i % 2), y: -60 - 90 * u, o: mRamp(u, 0, .08) * (1 - mRamp(u, .75, 1)) }); });
+      return sc;
+    },
+  });
+  return sc.play(0);
+}
+
+/* ---------- the pond (intro backdrop) ---------- */
+function pond(p) {
+  const g = G(p);
+  mk('rect', { x: -400, y: 110, width: 2400, height: 1000, fill: '#12304f' }, g);
+  let d = 'M-400 110'; for (let i = 0; i <= 48; i++) d += `Q${-400 + i * 50 + 25} ${i % 2 ? 100 : 120} ${-400 + (i + 1) * 50} 110`;
+  path(g, d, { stroke: '#5fd3e8', 'stroke-width': 4, 'stroke-opacity': .55 });
+  [[60, 0], [100, 1], [140, 2], [190, 3]].forEach(([x, i]) => {
+    path(g, `M${x} 905Q${x + 12 - 8 * i} 480 ${x - 10 + 14 * i} ${40 + 22 * i}`, { stroke: '#4f9a5c', 'stroke-width': 9 });
+    path(g, `M${x - 4 + 14 * i} ${60 + 22 * i}c-14 30 -14 70 0 100c14 -30 14 -70 0 -100Z`, { fill: '#6fbf7a', transform: `translate(${-6 + 2 * i} 0)` });
+  });
+  [[330, 880, 50], [430, 892, 34], [1140, 885, 60], [1270, 893, 38], [1480, 884, 52]].forEach(([x, y, r]) => mk('ellipse', { cx: x, cy: y, rx: r, ry: r * .42, fill: '#2b3d55' }, g));
+  let dots = ''; for (let i = 0; i < 26; i++) dots += cCircle(2.5 + 2 * wHash(i, 2), 260 + 1300 * wHash(i, 3), 170 + 660 * wHash(i, 4));
+  path(g, dots, { fill: '#cfeefa', 'fill-opacity': .22 });
+  return g;
+}
+
+/* ---------- three kinds of endocytosis, as tiles (endo, q2) ---------- */
+const KINDS = [['phago', 'phagocytosis', 'cellular eating', '#f0b45a'], ['pino', 'pinocytosis', 'cellular drinking', MC.dye2], ['receptor', 'receptor-mediated', 'ligands bind receptors', MC.receptor]];
+function threeTiles(p, { y0 = 160, h = 560, s = .55, mem = 250, k = .6, size = 30, o = 1 } = {}) {
+  const tiles = KINDS.map(([kind, name, sub, col], i) => {
+    const g = G(p, { o }), x0 = 60 + i * 500;
+    mk('rect', { x: x0, y: y0, width: 480, height: h, rx: 22, fill: '#0b1828', stroke: col, 'stroke-opacity': .7, 'stroke-width': 3 }, g);
+    wLabel(g, name, { x: x0 + 240, y: y0 + size * 1.45, size, weight: 700, fill: col, o: 1 });
+    wLabel(g, sub, { x: x0 + 240, y: y0 + h - size * .75, size: size * .8, fill: COL.dim, weight: 500, o: 1 });
+    const en = endocytosis(g, { kind, x: x0 + 240, y: y0 + mem, s, w: 820, r: 56, depth: 300 });
+    en.set(k);
+    return { g, en, x0, col };
+  });
+  return tiles;
+}
+
+/* ---------- the ladder of routes (recap, practice) ---------- */
+const ROUTES = [
+  { title: 'Simple diffusion · osmosis', sub: 'O₂ through the bilayer; water by osmosis', short: 'bilayer', active: false },
+  { title: 'Facilitated diffusion', sub: 'ions and polar molecules: channels, carriers', short: 'channel or carrier', active: false },
+  { title: 'Active transport: a pump', sub: 'against the gradient, paid with ATP', short: 'pump (active)', active: true },
+  { title: 'Cotransport', sub: 'H⁺ flowing down drags sucrose up', short: 'cotransporter', active: true },
+  { title: 'Bulk transport: vesicles', sub: 'exocytosis out, endocytosis in; uses energy', short: 'vesicle', active: true },
+];
+// The mini picture of route i, centred on its origin (about 340 × 150); .play(t) animates it.
+function routePic(p, i, { x = 0, y = 0, o = 1, k = 1 } = {}) {
+  const g = G(p, { x, y, o }), S1 = .42 * k;
+  let play = () => {};
+  if (i < 4) {
+    const m = G(g, { s: S1 });
+    const gaps = i === 1 ? [[-170, 34], [170, 40]] : i === 0 ? [] : [[0, 46]];
+    bilayer(m, { w: 760, gaps, seed: 2 + i, fluid: .4 });
+    if (i === 0) {
+      const o2 = [0, 1].map(() => solute(m, 'O2', { r: 20 })), ws = [0, 1].map(() => solute(m, 'waterMol', { r: 34 }));
+      play = t => {
+        o2.forEach((e, j) => { const u = cFrac(t * .25 + j * .5); cSet(e, { x: -200 + 30 * j, y: -150 + 300 * u, o: mBump(u, 0, 1) }); });
+        ws.forEach((e, j) => { const u = cFrac(t * .2 + j * .5 + .25); cSet(e, { x: 150 + 40 * j, y: -150 + 300 * u, o: mBump(u, 0, 1) }); });
+      };
+      gradArrow(m, [-320, -120], [-320, 120], { w: 9, head: 26 });
+    } else if (i === 1) {
+      const ch = channelProtein(m, { x: -170, kind: 'K', n: 3 }); ch.gate(1);
+      const cr = carrierProtein(m, { x: 170 });
+      play = t => { ch.flow(t); cr.carry(cFrac(t / 3.4)); };
+    } else if (i === 2) {
+      const pm = naKPump(m, {});
+      play = t => pm.cycle(cFrac(t / 6));
+      gradArrow(m, [300, 120], [300, -120], { against: true, w: 9, head: 26 });
+    } else {
+      const ct = cotransporter(m, {});
+      play = t => ct.carry(cFrac(t / 3.6));
+    }
+  } else {
+    const ex = exocytosis(g, { x: -88 * k, y: -22 * k, s: .32 * k, w: 520, r: 50, n: 3, depth: 290 });
+    const en = endocytosis(g, { kind: 'pino', x: 88 * k, y: -22 * k, s: .32 * k, w: 520, r: 56, depth: 290 });
+    play = t => { ex.set(mRamp(cFrac(t / 4), 0, .85)); en.set(mRamp(cFrac(t / 4 + .5), 0, .85)); };
+  }
+  const rp = Object.assign(g, { play(t) { play(Math.round(t * 60) / 60); return rp; } });
+  return rp.play(0);
+}
+function routeRow(p, i, { x = 120, y = 0, o = 1, textX = 600, size = 32, short = false } = {}) {
+  const R = ROUTES[i], g = G(p, { x: 0, y, o });
+  const c = R.active ? ORANGE : COL.chalk;
+  if (!short) {
+    const cp = G(g, { x });
+    const w = uiW(R.active ? 'active' : 'passive', 22) + 26;
+    mk('rect', { x: -w / 2, y: -17, width: w, height: 34, rx: 17, fill: DARK, stroke: c, 'stroke-width': 2.5 }, cp);
+    wLabel(cp, R.active ? 'active' : 'passive', { y: 8, size: 22, fill: c, weight: 700, o: 1 });
+  }
+  const pic = routePic(g, i, { x: short ? x : x + 250 });
+  if (short) wLabel(g, R.short, { x: textX, y: 10, size, weight: 700, anchor: 'start', fill: c, o: 1 });
+  else {
+    wLabel(g, R.title, { x: textX, y: -8, size, weight: 700, anchor: 'start', o: 1 });
+    wLabel(g, R.sub, { x: textX, y: 30, size: size * .78, weight: 500, anchor: 'start', fill: COL.dim, o: 1 });
+  }
+  return Object.assign(g, { pic });
+}
+
+// A recap card for route i: the passive/active chip and the title on top, a big picture, the line under it.
+function routeCard(p, i, { x = 0, y = 0, w = 500, h = 340, o = 1, k = 1.3 } = {}) {
+  const R = ROUTES[i], g = G(p, { x, y, o }), c = R.active ? ORANGE : COL.chalk;
+  mk('rect', { x: -w / 2, y: 0, width: w, height: h, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+  const edge = mk('rect', { x: -w / 2, y: 0, width: w, height: h, rx: 22, fill: 'none', stroke: R.active ? ORANGE : MC.vesicle, 'stroke-width': 4 }, g);
+  put(edge, { o: 0 });
+  const cw = uiW(R.active ? 'active' : 'passive', 22) + 26, cp = G(g, { x: -w / 2 + 22 + cw / 2, y: 42 });
+  mk('rect', { x: -cw / 2, y: -17, width: cw, height: 34, rx: 17, fill: DARK, stroke: c, 'stroke-width': 2.5 }, cp);
+  wLabel(cp, R.active ? 'active' : 'passive', { y: 8, size: 22, fill: c, weight: 700, o: 1 });
+  wLabel(g, R.title, { x: (cw + 22) / 2, y: 52, size: 30, weight: 700, o: 1 });
+  const pic = routePic(g, i, { y: h / 2 + 8, k });
+  wLabel(g, R.sub, { y: h - 24, size: 22, weight: 500, fill: COL.dim, o: 1 });
+  return Object.assign(g, { pic, edge });
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Bulk transport', (m, D) => {
+  const p = panel(0), tA = m('amoeba'), tC = m('cell'), tP = m('patch');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  pond(W);
+  const am = amoebaCrawl(W, { x: 430, y: 540, R: 150, cycles: 1 });
+  const bx = 1010, by = 520, bc = bacterium(W, { x: bx, y: by, s: .32 });
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 7 · LESSON 7', { x: 1180, y: 230, size: 26, fill: COL.dim, o: 1 });
+  wLabel(ttl, 'Bulk transport', { x: 1180, y: 320, size: 66, o: 1 });
+  wLabel(ttl, 'exocytosis and endocytosis', { x: 1180, y: 380, size: 32, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tA - .3, .5);
+  // amoeba: it creeps toward the bacterium, which bobs in the water
+  prog(k => am.crawl(k), tA + .2, 5, io);
+  // the pond leaves the render tree once the patch has replaced it (a hidden, zoomed world still costs frames)
+  const vis = (e, on) => { const v = on ? '' : 'none'; if (e.style.display !== v) e.style.display = v; };
+  clockRun(t => { vis(cam.el, t < tP + .7); const u = Math.min(t, tP + .7); cSet(bc, { y: by + 8 * Math.sin(1.7 * u), r: 4 * Math.sin(1.1 * u) }); }, D);
+  const L1 = say(p, 'amoeba', 470, 760, tA + .3, { size: 32 }), L2 = say(p, 'bacterium', bx, 640, tA + 1.2, { size: 32, fill: BACT });
+  const L3 = say(p, 'too big for any channel or carrier', bx, 690, tA + 3.4, { size: 26, fill: COL.bad, weight: 600 });
+  // cell: a question mark over the meal, and the push to the amoeba's edge
+  const q = G(W, { x: bx, y: by - 110, o: 0 }); wLabel(q, '?', { y: 24, size: 80, weight: 800, fill: MC.atp, o: 1 });
+  show(q, tC, .3); pulse(q, tC + .1, 1.25);
+  [L1, L2, L3].forEach(e => hide(e, tC + .2, .3));
+  cam.to({ x: 860, y: 520, z: 2.6 }, tC + .3, 1.8);
+  // patch: the shared membrane patch, vesicles lit
+  hide(cam.el, tP, .6);
+  const PG = G(p, { o: 0 }); show(PG, tP, .5);
+  const mp = membranePatch(PG, {}); mp.build(0);
+  const v2 = vesicle(PG, { x: 1420, y: 610, r: 32, cargo: 'protein' }), v3 = vesicle(PG, { x: 845, y: 630, r: 30, cargo: 'protein' });
+  const extra = G(PG, { o: 0 }); [v2, v3].forEach(v => extra.appendChild(v));
+  show(extra, tP + 1.5, .5);
+  const arUp = mArrow(PG, [1420, 565], [1420, 520], { color: COL.chalk, w: 5, head: 16, o: 0 }), arDn = mArrow(PG, [845, 525], [845, 580], { color: COL.chalk, w: 5, head: 16, o: 0 });
+  show(arUp, tP + 2, .4); show(arDn, tP + 2.2, .4);
+  const sides = mp.sides(); show(sides, tP + 1.2, .5);
+  const SM = tP + 3.4, LG = tP + 7.1;
+  // the patch: built, focused and drifted only when its inputs change; the lipid drift steps at 12 per second
+  let bk = -1, fkey = '', dk = -1;
+  clockRun(t => {
+    vis(PG, t >= tP);
+    if (t < tP) return;
+    const b = Math.round(mRamp(t, tP + .1, tP + 1.6) * 200) / 200; if (b !== bk) { bk = b; mp.build(b); }
+    let names = ['vesicle'], k = io(mRamp(t, tP + 1.4, tP + 2.2)) * (1 - mRamp(t, SM - .3, SM));
+    if (t >= SM && t < LG) { names = ['bilayer', 'transport']; k = mRamp(t, SM, SM + .3) * (1 - mRamp(t, LG - .3, LG)); }
+    else if (t >= LG) k = mRamp(t, LG, LG + .3);
+    k = Math.round(k * 200) / 200; const key = names.join() + k; if (key !== fkey) { fkey = key; mp.focus(names, k); }
+    const d = Math.floor((t - tP) * 12) / 12; if (d !== dk) { dk = d; mp.drift(d); }
+    const vo = t < SM - .3 || t >= LG ? 1 : .2 + .8 * (mRamp(t, LG - .3, LG) + 1 - mRamp(t, SM - .3, SM));
+    mO(extra, t < tP + 1.5 ? mRamp(t, tP + 1.5, tP + 2) : vo); mO(arUp, t < tP + 2 ? 0 : vo); mO(arDn, t < tP + 2.2 ? 0 : vo);
+  }, D);
+  const sm = pill(p, 'small things: through the bilayer or through proteins', 800, 285, SM + .1, { size: 28 }); hide(sm, LG - .3, .3);
+  const lg = pill(p, 'large molecules and particles: in bulk, inside vesicles', 800, 285, LG + .2, { size: 28, color: MC.vesicle, edge: MC.vesicle });
+  const kv = mp.pt('vesicle');
+  const Lv = tag(p, 'vesicles', [1180, 840], [kv[0] + 30, kv[1] + 30], LG + .8, { size: 30, fill: MC.vesicle, line: MC.vesicle });
+  leader(Lv, [1130, 820], [870, 655], LG + 1); leader(Lv, [1235, 820], [1400, 640], LG + 1.1);
+}],
+
+/* ---------- bulk ---------- */
+['bulk', 'Small and large', (m, D) => {
+  const p = panel(0), tS = m('small'), tB = m('big'), tV = m('vesicle'), tE = m('energy');
+  // the membrane strip, left
+  mk('rect', { x: 40, y: 466, width: 900, height: 414, fill: MC.cyto }, p);
+  bilayer(p, { x: 490, y: 420, w: 900, gaps: [[-200, 34], [-20, 40]], seed: 4 });
+  const ch = channelProtein(p, { x: 290, y: 420, kind: 'K', n: 3 }); ch.gate(1);
+  const cr = carrierProtein(p, { x: 470, y: 420 });
+  const o2 = [0, 1, 2].map(() => solute(p, 'O2', { r: 17, o: 0 }));
+  clockRun(t => {
+    ch.flow(t, { speed: 60 }); cr.carry(cFrac(t / 3.4));
+    o2.forEach((e, i) => { const u = cFrac(t * .2 + i / 3); cSet(e, { x: 110 + 10 * Math.sin(3 * u + i), y: 270 + 360 * u, o: mBump(u, 0, 1) }); });
+  }, D);
+  wLabel(p, 'EXTRACELLULAR FLUID', { x: 60, y: 80, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(p, 'CYTOPLASM', { x: 60, y: 860, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  // the two cards, right
+  const cA = G(p, { o: 0 }), cB = G(p, { o: 0 }); show(cA, .2, .5); show(cB, .9, .5);
+  mk('rect', { x: 990, y: 110, width: 570, height: 330, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, cA);
+  mk('rect', { x: 990, y: 470, width: 570, height: 400, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, cB);
+  wLabel(cA, 'small: the checkpoint', { x: 1275, y: 170, size: 36, weight: 700, o: 1 });
+  wLabel(cB, 'large: the delivery truck', { x: 1275, y: 530, size: 36, weight: 700, fill: MC.vesicle, o: 1 });
+  // small: one at a time, by the routes of the last lessons
+  [['bilayer', 110], ['channel', 290], ['carrier', 470]].forEach(([s, x], i) => say(p, s, x, 225, tS + .3 + .4 * i, { size: 24, fill: COL.dim }));
+  say(cA, 'water, ions, small molecules', 1275, 228, tS + .3, { size: 27, fill: COL.chalk, weight: 500 });
+  say(cA, 'one at a time, through the bilayer', 1275, 270, tS + .9, { size: 27, fill: COL.dim, weight: 500 });
+  say(cA, 'or through a channel or carrier', 1275, 306, tS + 1.3, { size: 27, fill: COL.dim, weight: 500 });
+  const icons = G(cA, { o: 0 }); show(icons, tS + 1.8, .4);
+  solute(icons, 'O2', { x: 1150, y: 380, r: 18 }); solute(icons, 'K', { x: 1230, y: 380 }); solute(icons, 'Na', { x: 1300, y: 380 }); solute(icons, 'sugar', { x: 1380, y: 380, r: 18 });
+  const sm = pill(p, 'small, one at a time', 290, 150, tS + .5, { size: 28 }); hide(sm, tB, .3);
+  // big: a protein and a polysaccharide inside, a bacterium outside; the gates are shut to them
+  const VX = 760, VY = 650;
+  const VG = G(p, { x: VX, y: VY });
+  const ves = bulkVes(VG, { r: 125, drawn: false }); put(ves.firstChild, { o: 0 });
+  const prot = bigProtein(VG, { x: -80, y: -40, o: 0 }), poly = polysaccharide(VG, { x: 70, y: -30, o: 0 });
+  const bac = bacterium(p, { x: 760, y: 240, s: .22, o: 0 });
+  show(prot, tB + .2, .4); show(poly, tB + .9, .4); show(bac, tB + 1.6, .4);
+  const Lb = [say(p, 'a protein', 660, 545, tB + .4, { size: 24, fill: PROTC }), say(p, 'a polysaccharide', 840, 712, tB + 1.1, { size: 24, fill: MC.carb }), say(p, 'a bacterium', 760, 175, tB + 1.8, { size: 24, fill: BACT })];
+  tw(prot, { y: -95 }, tB + 2.3, .45, out); tw(prot, { y: -40 }, tB + 2.75, .6, io);
+  tw(bac, { y: 300 }, tB + 2.6, .45, out); tw(bac, { y: 240 }, tB + 3.05, .6, io);
+  const ng = [noGate(p, 290, 310), noGate(p, 470, 310), noGate(p, 760, 355)];
+  ng.forEach((e, i) => { show(e, tB + 2.6 + .2 * i, .25); pulse(e, tB + 2.7 + .2 * i, 1.2); });
+  say(cB, 'proteins, polysaccharides, bacteria', 1275, 590, tB + .3, { size: 27, weight: 500 });
+  say(cB, 'too big for any channel or carrier', 1275, 630, tB + 2.6, { size: 27, fill: COL.bad, weight: 600 });
+  // vesicle: the membrane closes round the cargo inside; the vesicle carries it
+  Lb.slice(0, 2).forEach(e => hide(e, tV, .3)); ng.forEach(e => hide(e, tV + 2.5, .4));
+  show(ves.firstChild, tV + .2, .6); ves.rings.forEach(e => draw(e, tV + .3, 1.2));
+  tw(prot, { x: -42, y: -30 }, tV + .1, 1, io); tw(poly, { x: 22, y: 34, s: .78 }, tV + .1, 1, io);
+  const Lv = tag(p, 'vesicle: a bubble of membrane', [560, 820], [VX - 100, VY + 80], tV + 1.5, { size: 26, fill: MC.vesicle, line: MC.vesicle });
+  tw(VG, { x: VX + 20, y: VY - 30 }, tV + 3, 2.4, io);
+  say(cB, 'carried in bulk, inside vesicles', 1275, 700, tV + .6, { size: 30, fill: MC.vesicle, weight: 700 });
+  // energy: an ATP spark pays for it; active transport
+  hide(Lv, tE, .3);
+  const sp = solute(p, 'ATP', { x: 250, y: 720, r: 22, o: 0 });
+  show(sp, tE + .2, .3); tw(sp, { x: 640, y: 690 }, tE + .4, 1.2, io); tw(sp, { s: 0, o: 0 }, tE + 1.6, .3);
+  pulse(VG, tE + 1.6, 1.05);
+  const ga = gradArrow(p, [930, 790], [930, 520], { against: true, o: 0 }); show(ga, tE + 1.8, .4);
+  pill(p, 'it takes energy (ATP): active transport', 540, 860, tE + 3, { size: 26, color: ORANGE, edge: ORANGE });
+  say(cB, 'uses energy (ATP): active', 1275, 760, tE + .8, { size: 30, fill: ORANGE, weight: 700 });
+  const sB = solute(cB, 'ATP', { x: 1275, y: 820, r: 20, o: 0 }); show(sB, tE + 1, .3); pulse(sB, tE + 1.1, 1.2);
+}],
+
+/* ---------- exo ---------- */
+['exo', 'Exocytosis', (m, D) => {
+  const p = panel(0), tM = m('move'), tF = m('fuse'), tR = m('release'), tG = m('grow'), tS = m('secrete');
+  // the picture at 1.2×, membrane low enough that the rising vesicle and the spilled cargo fill the left of the stage
+  const EX = 520, EY = 430, R = 64, K = 1.2;
+  const ex = exocytosis(p, { x: EX, y: EY, s: K, w: 800, r: R, n: 5, depth: 392 });
+  // the next loaded vesicles on their way up from below (they arrive after the beat)
+  const nxt = [[EX - 190, 1.4], [EX + 250, 0]].map(([x, dl]) => {
+    const g = G(p, { x, y: 960, o: 0 });
+    mk('circle', { r: 46, fill: '#14304f' }, g);
+    path(g, cCircle(46), { stroke: MC.head, 'stroke-width': 18 }); path(g, cCircle(46), { stroke: MC.tail, 'stroke-width': 7 });
+    [0, 1, 2].forEach(i => solute(g, 'dye1', { x: 16 * Math.cos(i * 2.1 + .4), y: 16 * Math.sin(i * 2.1 + .4), r: 10 }));
+    return { g, dl };
+  });
+  wLabel(p, 'EXTRACELLULAR FLUID', { x: 60, y: 80, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(p, 'CYTOPLASM', { x: 60, y: 870, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  say(p, 'plasma membrane', 990, EY - 34, .3, { size: 26, anchor: 'end', fill: MC.head });
+  say(p, 'out of the cell', 1310, 100, .2, { size: 34, weight: 700 });
+  // k on the beat clock: rise during "move", fuse and open during "fuse", spill during "release"
+  const kAt = t => t < tM + .3 ? 0 : t < tF ? .45 * io(mRamp(t, tM + .3, tF - .3)) : t < tR ? .45 + .15 * mRamp(t, tF, tF + 2.4) : .6 + .4 * io(mRamp(t, tR, tR + 2.2));
+  const vl = G(p, { o: 0 }); wLabel(vl, 'transport vesicle', { x: -R * K - 22, y: -4, size: 26, anchor: 'end', fill: MC.vesicle, o: 1 }); wLabel(vl, 'loaded with product', { x: -R * K - 22, y: 28, size: 22, anchor: 'end', fill: COL.dim, weight: 500, o: 1 });
+  show(vl, tM + .4, .4); hide(vl, tF - .2, .3);
+  // where it is heading: a faint dashed way out through the membrane, until the cargo takes it
+  const way = G(p, { o: 0 }); show(way, tM + 1, .5); hide(way, tR + .4, .4);
+  path(way, `M${EX} ${EY - 40}V${EY - 250}`, { stroke: COL.dim, 'stroke-width': 4, 'stroke-dasharray': '12 12' });
+  path(way, `M${EX - 16} ${EY - 232}L${EX} ${EY - 256}L${EX + 16} ${EY - 232}`, { stroke: COL.dim, 'stroke-width': 4 });
+  wLabel(way, 'out', { x: EX + 34, y: EY - 230, size: 26, anchor: 'start', fill: COL.dim, weight: 700, o: 1 });
+  clockRun(t => {
+    ex.set(kAt(t)); const [vx, vy] = ex.pt('vesicle'); cSet(vl, { x: vx, y: vy });
+    nxt.forEach(({ g, dl }, i) => { const u = mRamp(t, tG + .3 + dl, D); cSet(g, { y: 960 - (i ? 230 : 170) * io(u), r: 8 * Math.sin(1.3 * Math.round(t * 30) / 30 + i), o: mRamp(t, tG + .3 + dl, tG + 1 + dl) }); });
+  }, D);
+  say(p, 'more vesicles on the way', EX + 40, 884, tG + 2.4, { size: 24, fill: COL.dim, weight: 600 });
+  // the steps, listed on the right as they happen, with badges on the picture
+  const step = (i, str, t0) => { const b = badge(p, String(i + 1), 1090, 180 + i * 78); show(b, t0, .3); pulse(b, t0 + .05, 1.25); say(p, str, 1132, 190 + i * 78, t0 + .1, { size: 30, anchor: 'start' }); };
+  step(0, 'moves to the membrane', tM + .6); step(1, 'fuses with it', tF + .1); step(2, 'releases its contents', tR + .1);
+  const b1 = badge(p, '1', EX + K * (R + 40), EY + K * (R + 130), {}); show(b1, tM + .6, .3); hide(b1, tF, .3);
+  const b2 = badge(p, '2', EX + 200, EY + 60); show(b2, tF + .2, .3); pulse(b2, tF + .3, 1.2); hide(b2, tG, .3);
+  const b3 = badge(p, '3', EX + 250, EY - 170); show(b3, tR + .6, .3); pulse(b3, tR + .7, 1.2); hide(b3, tS, .3);
+  // grow: the vesicle's membrane is now part of the plasma membrane
+  const seg = path(p, `M${EX - 2.2 * R * K} ${EY}H${EX + 2.2 * R * K}`, { stroke: COL.chalk, 'stroke-width': 40, 'stroke-opacity': .35, 'stroke-linecap': 'round' }, { o: 0 });
+  show(seg, tG + .2, .4); pulse(seg, tG + .4, 1.04);
+  const arL = mArrow(p, [EX - 180, EY + 66], [EX - 270, EY + 66], { w: 5, head: 16, o: 0 }), arR = mArrow(p, [EX + 180, EY + 66], [EX + 270, EY + 66], { w: 5, head: 16, o: 0 });
+  show(arL, tG + .6, .3); show(arR, tG + .6, .3);
+  say(p, 'membrane added: the surface grows', EX, EY + 130, tG + .8, { size: 28, weight: 700 });
+  const b4 = G(p, { o: 0 }); show(b4, tG + .5, .3);
+  wLabel(b4, '+', { x: 1090, y: 194 + 3 * 78, size: 40, weight: 800, fill: COL.chalk, o: 1 });
+  wLabel(b4, 'its membrane joins the cell’s', { x: 1132, y: 190 + 3 * 78, size: 30, anchor: 'start', o: 1 });
+  // secrete: two secretory cells export their products
+  const sc = G(p, { o: 0 }); show(sc, tS + .2, .5);
+  wLabel(sc, 'secretory cells', { x: 1310, y: 480, size: 32, weight: 700, o: 1 });
+  [[1185, 'a pancreas cell', 'insulin', MC.dye1], [1435, 'a gland cell', 'digestive enzymes', MC.enzyme]].forEach(([x, a, b, c], i) => {
+    const g = G(sc, { o: 0 }); show(g, tS + .3 + 3.4 * i, .5);
+    mk('rect', { x: x - 118, y: 510, width: 236, height: 350, rx: 20, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+    const s1 = secretor(g, { x, y: 720, color: c });
+    clockRun(t => { if (t >= tS) s1.play(t - tS); }, D);
+    wLabel(g, b, { x, y: 548, size: 24, fill: c, weight: 700, o: 1 });
+    wLabel(g, a, { x, y: 838, size: 24, fill: COL.chalk, o: 1 });
+  });
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const EX = 380, EY = 380, R = 60;
+  const ex = exocytosis(p, { x: EX, y: EY, w: 700, r: R, n: 5, depth: 470 }); ex.set(.75);
+  wLabel(p, 'EXTRACELLULAR FLUID', { x: 60, y: 80, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(p, 'CYTOPLASM', { x: 60, y: 820, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  const gh = G(p, { x: EX, y: EY + R + 190 }); mk('circle', { r: R, fill: 'none', stroke: MC.vesicle, 'stroke-width': 4, 'stroke-dasharray': '10 9' }, gh);
+  mArrow(p, [EX, EY + 190 - 10], [EX, EY + R + 30], { color: COL.dim, w: 4, head: 14 });
+  S.qB = [badge(p, '?', EX + R + 50, EY + R + 190, { o: 1 }), badge(p, '?', EX + 190, EY + 50, { o: 1 }), badge(p, '?', EX + 210, EY - 140, { o: 1 })];
+}, { ask: done => quiz({ x: 760, y: 90, w: 800, cls: 'side' }, [{
+  id: 'c-exo-steps', prompt: ['Number the steps of exocytosis 1 to 3.'],
+  build: blanks([
+    { parts: ['The vesicle fuses with the membrane: step ', { box: '2' }], why: 'Step 2: once it has arrived, its membrane fuses with the plasma membrane.', hint: 'The vesicle must arrive before it can fuse.', fx: () => qBadge(1, '2') },
+    { parts: ['The contents are released outside: step ', { box: '3' }], why: 'Step 3: the open vesicle spills its contents out of the cell, last.', hint: 'Spilling out comes last, after the fusion opens the vesicle.', fx: () => qBadge(2, '3') },
+    { parts: ['The vesicle moves to the membrane: step ', { box: '1' }], why: 'Step 1: the loaded transport vesicle first migrates to the membrane.', hint: 'Nothing can fuse or spill until the vesicle reaches the membrane.', fx: () => qBadge(0, '1') },
+  ]),
+}], done) }],
+
+/* ---------- endo ---------- */
+['endo', 'Endocytosis', (m, D) => {
+  const p = panel(0), tI = m('in'), tR = m('rev'), tT = m('three');
+  const EX = 520, EY = 330;
+  const sc = G(p);
+  const en = endocytosis(sc, { kind: 'pino', x: EX, y: EY, w: 960, r: 64, depth: 560 });
+  wLabel(sc, 'EXTRACELLULAR FLUID', { x: 60, y: 80, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(sc, 'CYTOPLASM', { x: 60, y: 860, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(sc, 'plasma membrane', { x: 990, y: 300, size: 26, anchor: 'end', fill: MC.head, o: 1 });
+  prog(k => en.set(k), tI + .4, 6.6, lin);
+  const vp = [EX, EY + 64 + 190];
+  tag(sc, 'a vesicle made from the membrane', [EX, 820], [vp[0], vp[1] + 76], tI + 6, { size: 26, fill: MC.vesicle, line: MC.vesicle });
+  // in / rev: the right column compares the two directions
+  const col = G(sc);
+  pill(col, 'endocytosis: in', 1300, 140, tI + .4, { size: 34, color: MC.dye2, edge: MC.dye2 });
+  const ex = G(col, { o: 0 }); show(ex, tR + .2, .5);
+  mArrow(ex, [1170, 440], [1170, 270], { color: COL.chalk, w: 7, head: 22 });
+  wLabel(ex, 'exocytosis', { x: 1205, y: 340, size: 30, anchor: 'start', weight: 700, o: 1 });
+  wLabel(ex, 'out of the cell', { x: 1205, y: 376, size: 24, anchor: 'start', fill: COL.dim, weight: 500, o: 1 });
+  const ed = G(col, { o: 0 }); show(ed, tR + .7, .5);
+  mArrow(ed, [1170, 480], [1170, 650], { color: MC.dye2, w: 7, head: 22 });
+  wLabel(ed, 'endocytosis', { x: 1205, y: 560, size: 30, anchor: 'start', weight: 700, fill: MC.dye2, o: 1 });
+  wLabel(ed, 'into the cell', { x: 1205, y: 596, size: 24, anchor: 'start', fill: COL.dim, weight: 500, o: 1 });
+  pill(col, 'same idea, reversed', 1300, 730, tR + 1.4, { size: 28 });
+  pill(col, 'different proteins do it', 1300, 800, tR + 3, { size: 28, color: PROTC, edge: PROTC });
+  // three: three kinds, lit in turn
+  hide(sc, tT - .1, .5);
+  const tiles = threeTiles(p, { y0: 170, h: 580, s: .55, mem: 260, k: 0, o: 0 });
+  say(p, 'three kinds of endocytosis', 800, 110, tT + .2, { size: 38, weight: 700 });
+  const lit = [tT + 1.5, tT + 3.85, tT + 6.2];
+  tiles.forEach((tl, i) => {
+    tw(tl.g, { o: .35 }, tT + .3 + .15 * i, .5);
+    tw(tl.g, { o: 1 }, lit[i], .4); pulse(tl.g, lit[i] + .05, 1.03);
+    prog(k => tl.en.set(k), lit[i] + .2, 2.4, lin);
+  });
+}],
+
+/* ---------- phago ---------- */
+['phago', 'Phagocytosis', (m, D) => {
+  const p = panel(0), tR = m('reach'), tC = m('close'), tL = m('lyso');
+  const EX = 800, EY = 330, SC = 1.2, R = 60;
+  // the camera frames the membrane while the pseudopodia wrap, then follows the vacuole down into the cytoplasm
+  const cam = camera(p, D, { x: 800, y: 250, z: 1.7 }), W = cam.world;
+  cam.to({ x: 800, y: 560, z: 1.45 }, tC + .4, 3.2);
+  const en = endocytosis(W, { kind: 'phago', x: EX, y: EY, s: SC, w: 1500, r: R, depth: 700 });
+  put(en.lastElementChild, { o: 0 });   // the kit's generic food particle: the picture's particle is a bacterium
+  wLabel(p, 'EXTRACELLULAR FLUID', { x: 40, y: 60, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(p, 'CYTOPLASM OF THE AMOEBA', { x: 40, y: 880, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  // the inset: the whole amoeba, and where we are
+  const ins = G(p, { o: 0 }); show(ins, .2, .5);
+  mk('rect', { x: 1230, y: 40, width: 340, height: 230, rx: 18, fill: '#12304f', stroke: COL.faint, 'stroke-width': 3 }, ins);
+  amoebaCrawl(ins, { x: 1360, y: 158, R: 70, cycles: 1 }).crawl(.5);
+  bacterium(ins, { x: 1505, y: 150, s: .1 });
+  mk('rect', { x: 1438, y: 118, width: 62, height: 70, fill: 'none', stroke: MC.atp, 'stroke-width': 3 }, ins);
+  wLabel(ins, 'amoeba', { x: 1330, y: 256, size: 22, fill: COL.dim, o: 1 });
+  // the bacterium rides wherever the kit puts its particle
+  const bc = bacterium(W, { s: .27 });
+  const kAt = t => t < tR + .2 ? 0 : t < tC ? .6 * io(mRamp(t, tR + .2, tC - .2)) : .6 + .4 * mRamp(t, tC, tC + 3);
+  // lysosome: comes in from the right, fuses, the enzymes digest the bacterium, small molecules leave
+  const L0 = [1230, 800];
+  const ly = lysosome(W, { x: L0[0], y: L0[1], r: 56, n: 3, o: 0 });
+  const VC = [EX, EY + (R + 190) * SC], VR = (R + 26) * SC;
+  const tint = put(mk('circle', { cx: VC[0], cy: VC[1], r: VR - 14, fill: CC.lyso, 'fill-opacity': .35 }, W), { o: 0 });
+  const enz = [0, 1, 2].map(i => enzyme(W, { x: VC[0] + 62 * Math.cos(i * 2.1 + .5), y: VC[1] + 62 * Math.sin(i * 2.1 + .5), R: 16, dir: i * 120, o: 0 }));
+  const frags = Array.from({ length: 12 }, (_, i) => put(mk('circle', { r: 5 + 3 * wHash(i, 7), fill: i % 3 ? BACT : MC.food }, W), { o: 0 }));
+  const LA = tL + .1, LF = tL + 3.2, LD = tL + 3.6;
+  // the lysosome's name rides with it from the moment it appears until the digestion is under way
+  const Ll = G(W, { o: 0 }); show(Ll, tL + .2, .4); hide(Ll, LD + 2.6, .4);
+  wLabel(Ll, 'lysosome', { x: 0, y: 0, size: 24, fill: CC.lyso, weight: 700, o: 1 });
+  clockRun(t => {
+    en.set(kAt(t));
+    const [vx, vy] = en.pt('vesicle'), dg = mRamp(t, LD, LD + 3.5);
+    cSet(bc, { x: vx, y: vy, s: .27 * (1 - .7 * dg), o: 1 - mRamp(dg, .4, .9) });
+    if (t >= LA) {
+      const a = io(mRamp(t, LA, LF)), f = io(mRamp(t, LF, LF + 1.2));
+      const q = [mLerp(mLerp(L0[0], VC[0] + VR + 70, a), VC[0] + 40, f), mLerp(mLerp(L0[1], VC[1] + 40, a), VC[1] + 20, f) + 10 * Math.sin(Math.PI * a)];
+      cSet(ly, { x: q[0], y: q[1], s: 1 - .5 * f, o: mRamp(t, LA, LA + .3) * (1 - mRamp(t, LF + .6, LF + 1.2)) });
+      // the name rides above it, then settles beside the vacuole it has joined
+      ly.chomp(t); cSet(Ll, { x: mLerp(q[0], VC[0] + VR + 95, f), y: mLerp(q[1] - 80, VC[1] + 8, f) });
+    } else cSet(Ll, { x: L0[0], y: L0[1] - 80 });
+    mO(tint, mRamp(t, LF + .5, LF + 1.2));
+    enz.forEach((e, i) => { mO(e, mRamp(t, LF + .7 + .15 * i, LF + 1.1 + .15 * i)); if (t >= LF) e.bite(.55 + .45 * Math.sin(Math.round(t * 30) / 30 * 5 + i * 2.1)); });
+    frags.forEach((e, i) => {
+      const a = i / 12 * 2 * Math.PI + .3, sp = io(mRamp(t, LD + 1.5 + .1 * i, LD + 5 + .1 * i)), rr = 20 + 60 * mRamp(t, LD + .5, LD + 1.5) + 230 * sp;
+      const yy = VC[1] + rr * .75 * Math.sin(a);
+      cSet(e, { x: VC[0] + rr * Math.cos(a), y: Math.max(EY + 40, yy), o: mRamp(t, LD + .6, LD + 1.2) * (1 - mRamp(t, LD + 7, LD + 8)) });
+    });
+  }, D);
+  const Lb = tag(W, 'bacterium', [EX + 200, 190], [EX + 70, EY - 100], .4, { size: 22, fill: BACT, line: BACT });
+  hide(Lb, tC, .3);
+  const Lp = tag(W, 'pseudopodia', [450, 150], [EX - VR - 6, EY - 120], tR + 2.4, { size: 22, fill: MC.head, line: MC.head });
+  leader(Lp, [500, 160], [EX + VR - 30, EY - 200], tR + 2.6, MC.head);
+  hide(Lp, tC + .4, .3);
+  const Lv = tag(W, 'food vacuole', [EX + 270, VC[1] - 120], [VC[0] + VR + 6, VC[1] - 20], tC + 3, { size: 22, fill: CC.vacEdge, line: CC.vacEdge });
+  hide(Lv, tL + 1.2, .3);
+  pill(p, 'its enzymes digest the bacterium', 1240, 400, LD, { size: 28, color: CC.enzyme, edge: CC.enzyme });
+  pill(p, 'small molecules leave into the cytoplasm', 1260, 860, LD + 3.6, { size: 28, color: COL.chalk });
+}],
+
+/* ---------- pino ---------- */
+['pino', 'Pinocytosis', (m, D) => {
+  const p = panel(0), tD = m('dimple'), tG = m('gulp'), tT = m('take');
+  // once the vesicles are in, the camera eases in on them while the voice says what came along
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  cam.to({ x: 800, y: 540, z: 1.22 }, tT + .8, D - tT - .8, lin);
+  const XS = [267, 800, 1333], EY = 380;
+  const ens = XS.map((x, i) => endocytosis(W, { kind: 'pino', x, y: EY, w: 534, r: 52, depth: 620, seed: 5 + 3 * i }));
+  wLabel(p, 'EXTRACELLULAR FLUID', { x: 40, y: 130, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(p, 'CYTOPLASM', { x: 40, y: 880, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  pill(p, 'pinocytosis: cellular drinking', 800, 66, .2, { size: 32, color: MC.dye2, edge: MC.dye2 });
+  // k: a droplet of fluid gathers over each site before the mark (kit .25), the dimples start on "dimple" (.25–.62),
+  // the vesicles pinch off and sink on "gulp"
+  const kAt = (t, i) => t < tD ? .25 * io(mRamp(t, .9 + .4 * i, tD - .1)) : t < tG + .2 + .45 * i ? .25 + .37 * out(mRamp(t, tD + .3 * i, tD + .3 * i + 2.6)) : .62 + .38 * mRamp(t, tG + .2 + .45 * i, tG + 2.8 + .45 * i);
+  clockRun(t => ens.forEach((en, i) => en.set(kAt(t, i))), D);
+  const vy = EY + 52 + 190;
+  const Lv = G(W, { o: 0 }); show(Lv, tG + 3, .4);
+  wLabel(Lv, 'tiny vesicles of extracellular fluid', { x: 800, y: 760, size: 30, weight: 700, fill: MC.vesicle, o: 1 });
+  XS.forEach(x => path(Lv, `M${x} ${vy + 64}L${x === 800 ? 800 : x < 800 ? 560 : 1040} 728`, { stroke: MC.vesicle, 'stroke-width': 2.5 }));
+  XS.forEach((x, i) => ring(W, [x, vy], 74, tT + .3 + .3 * i, { color: MC.atp, w: 3 }));
+  pill(W, 'whatever is dissolved comes along: not chosen', 800, 836, tT + 1, { size: 28, color: MC.atp, edge: MC.atp });
+}],
+
+/* ---------- rme ---------- */
+['rme', 'Receptor-mediated endocytosis', (m, D) => {
+  const p = panel(0), tR = m('rec'), tB = m('bind'), tP = m('pit'), tV = m('ves'), tF = m('fluid');
+  const EX = 560, EY = 380, SC = 1.3, W0 = 760, R = 56, seed = 5;
+  // the camera: a slow look closer at the receptors before they bind, and in on the coated vesicle at the end
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const VY = EY + (R + 190) * SC;
+  cam.to({ x: 778, y: 444, z: 1.1 }, tR + 9.6, tB - tR - 9.9);
+  cam.to({ x: 745, y: 554, z: 1.3 }, tF + .8, D - tF - .8, lin);
+  const en = endocytosis(W, { kind: 'receptor', x: EX, y: EY, s: SC, w: W0, r: R, depth: 400, seed });
+  wLabel(p, 'EXTRACELLULAR FLUID', { x: 40, y: 60, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(p, 'CYTOPLASM', { x: 40, y: 880, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  const kAt = t => t < tB ? 0 : t < tP ? .25 * mRamp(t, tB, tP - .1) : t < tV ? .25 + .47 * io(mRamp(t, tP, tV - .6)) : .72 + .28 * mRamp(t, tV, tV + 2.6);
+  clockRun(t => en.set(kAt(t)), D);
+  // where the kit puts receptor 0 and ligand 1 at the start (its own formulas)
+  const spreadX = i => (i - 2) * (W0 * .8 / 4);
+  const rec0 = [EX + SC * spreadX(0), EY - SC * 40], lig1 = [EX + SC * (spreadX(1) + 30 * (wHash(1, seed) - .5)), EY + SC * (-110 - 70 * wHash(1, seed + 1))];
+  const Lr = tag(W, 'receptors', [170, 220], rec0, tR + .4, { size: 30, fill: MC.receptor, line: MC.receptor });
+  const Lg = tag(W, 'ligand', [lig1[0] + 150, lig1[1] - 40], [lig1[0] + 14, lig1[1] - 4], tR + 8.2, { size: 30, fill: MC.ligand, line: MC.ligand });
+  [Lr, Lg].forEach(e => hide(e, tB - .2, .3));
+  // the side panel: a receptor fits one particular molecule; that molecule is its ligand
+  const sp = G(p, { o: 0 }); show(sp, tR + .3, .5);
+  mk('rect', { x: 1110, y: 90, width: 460, height: 600, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, sp);
+  wLabel(sp, 'a receptor fits', { x: 1340, y: 150, size: 30, weight: 700, fill: MC.receptor, o: 1 });
+  wLabel(sp, 'one particular molecule', { x: 1340, y: 188, size: 30, weight: 700, fill: MC.receptor, o: 1 });
+  band(sp, 'M1150 470H1530');
+  const BIG = G(sp, { x: 1340, y: 458 });
+  path(BIG, 'M0 0V-56M0 -56L-40 -110M0 -56L40 -110', { stroke: MC.receptor, 'stroke-width': 18 });
+  const lg = solute(sp, 'ligand', { x: 1340, y: 250, r: 30 });
+  const bad = solute(sp, 'dye2', { x: 1520, y: 270, r: 46 });
+  const nb = noGate(sp, 1460, 330, { r: 20 });
+  tw(lg, { x: 1340, y: 382 }, tR + 2.6, 1.2, io);
+  tw(bad, { x: 1395, y: 360 }, tR + 4.2, .8, io); show(nb, tR + 5, .2); tw(bad, { x: 1500, y: 260 }, tR + 5.1, .8, io); hide(nb, tR + 6.6, .3);
+  const df = G(sp, { o: 0 }); show(df, tR + 8.1, .5);
+  wLabel(df, 'ligand: any molecule that binds', { x: 1340, y: 560, size: 26, weight: 700, fill: MC.ligand, o: 1 });
+  wLabel(df, 'specifically to a receptor site', { x: 1340, y: 596, size: 26, weight: 700, fill: MC.ligand, o: 1 });
+  wLabel(df, 'of another molecule', { x: 1340, y: 632, size: 26, weight: 500, fill: COL.dim, o: 1 });
+  pulse(BIG, tR + 3.7, 1.08);
+  // the ligand lets go and docks again while the voice defines it: it fits this site and no other
+  tw(lg, { y: 300 }, tR + 9.3, .9, io); tw(lg, { y: 382 }, tR + 10.9, .9, io); pulse(BIG, tR + 11.8, 1.08);
+  tw(bad, { x: 1420, y: 330 }, tR + 12.6, .9, io); show(nb, tR + 13.4, .2); tw(bad, { x: 1500, y: 260 }, tR + 13.6, .9, io); hide(nb, tR + 14.8, .3);
+  // bind / pit / ves: ligands dock, the coated pit sinks, the coated vesicle pinches off
+  hide(pill(W, 'ligands bind, receptors cluster', EX, 160, tB + .3, { size: 28, color: MC.ligand, edge: MC.ligand }), tV, .4);
+  const Lc = tag(W, 'coat protein', [EX + 330, EY + 200], [EX + 2.0 * R * SC * .55 + 10, EY + R * SC * 1.25], tP + 2, { size: 28, fill: MC.coat, line: MC.coat });
+  const Lpit = tag(W, 'coated pit', [EX - 330, EY + 200], [EX - R * SC * .9, EY + R * SC], tP + 4.3, { size: 30, fill: MC.coat, line: MC.coat });
+  [Lc, Lpit].forEach(e => hide(e, tV + .2, .3));
+  tag(W, 'coated vesicle', [EX - 290, VY + 20], [EX - R * SC - 18, VY], tV + 2, { size: 30, fill: MC.coat, line: MC.coat, sub: 'with the ligands inside', subFill: MC.ligand });
+  ring(W, [EX, VY], R * SC + 30, tF + .3, { color: MC.dye2, w: 3 });
+  pill(W, 'some fluid comes along too: not perfectly selective', EX + 40, 540, tF + .6, { size: 26, color: MC.dye2, edge: MC.dye2 });
+  const fin = G(p, { o: 0 }); show(fin, tF + 5, .5);
+  wLabel(fin, 'but the chosen molecules', { x: 1340, y: 760, size: 28, weight: 700, o: 1 });
+  wLabel(fin, 'come in large amounts', { x: 1340, y: 798, size: 28, weight: 700, o: 1 });
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  threeTiles(p, { y0: 30, h: 330, s: .36, mem: 150, k: .62, size: 26 });
+}, { ask: done => quiz({ x: 160, y: 390, w: 1280, cls: 'side' }, [{
+  id: 'c-endo-kind', prompt: ['Which kind of endocytosis is it?'],
+  build: grid([
+    { parts: ['A cell engulfs a bacterium with pseudopodia.'], ans: ['f'], why: 'Phagocytosis: a whole particle, wrapped by pseudopodia into a food vacuole, is cellular eating.' },
+    { parts: ['A cell gulps extracellular fluid and whatever is dissolved in it.'], ans: ['p'], why: 'Pinocytosis: unchosen fluid in tiny vesicles is cellular drinking.' },
+    { parts: ['Ligands bind receptors, and a coated pit forms.'], ans: ['r'], why: 'Receptor-mediated endocytosis: ligand binding triggers the coated pit and vesicle.' },
+  ], [['f', 'phagocytosis', null, 'F'], ['p', 'pinocytosis', null, 'P'], ['r', 'receptor-mediated', null, 'R']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- recap ---------- */
+['recap', 'Every way across', (m, D) => {
+  const p = panel(0), tE = m('end');
+  const ttl = G(p, { o: 0 }); show(ttl, 0, .4);
+  wLabel(ttl, 'Every way across the membrane', { x: 800, y: 58, size: 40, weight: 700, o: 1 });
+  wLabel(ttl, 'chapter 7', { x: 800, y: 94, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  const marks = ['w1', 'w2', 'w3', 'w4', 'w5'].map(k => m(k));
+  // five cards: three on top, two wider ones below, each with its picture large
+  const SPOT = [[287, 118, 510], [800, 118, 500], [1313, 118, 510], [415, 480, 760], [1185, 480, 760]];
+  const rows = ROUTES.map((_, i) => { const [x, y, w] = SPOT[i]; return routeCard(p, i, { x, y, w, h: 340, o: 0, k: i === 4 ? 1.55 : i === 3 ? 1.5 : 1.25 }); });
+  rows.forEach((r, i) => {
+    tw(r, { o: 1 }, marks[i], .5); pulse(r.pic, marks[i] + .3, 1.06);
+    show(r.edge, marks[i], .3);
+    if (i < 4) { tw(r, { o: .55 }, marks[i + 1] - .2, .4); hide(r.edge, marks[i + 1] - .2, .3); }
+    tw(r, { o: 1 }, tE, .4); show(r.edge, tE + .1, .4);
+  });
+  clockRun(t => rows.forEach((r, i) => { if (t >= marks[i]) r.pic.play(t - marks[i]); }), D);
+  say(p, 'Now try the chapter practice.', 800, 868, tE + .2, { size: 30, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const PCX = 1270;
+  at('energy', g => {
+    mk('rect', { x: 980, y: 290, width: 580, height: 520, fill: MC.cyto }, g);
+    band(g, 'M980 290H1560');
+    wLabel(g, 'outside', { x: 1000, y: 260, size: 24, fill: COL.dim, anchor: 'start', o: 1 });
+    const v = bulkVes(g, { x: PCX - 40, y: 560, r: 105 });
+    bigProtein(v, { x: -30, y: -20, s: .9 }); polysaccharide(v, { x: 20, y: 40, s: .7 });
+    mArrow(g, [PCX + 120, 640], [PCX + 120, 360], { color: ORANGE, w: 7, head: 22 });
+    solute(g, 'ATP', { x: PCX + 190, y: 500, r: 26 });
+    wLabel(g, 'vesicle', { x: PCX - 40, y: 710, size: 26, fill: MC.vesicle, o: 1 });
+  });
+  at('secrete', g => {
+    exocytosis(g, { x: PCX, y: 360, w: 580, r: 60, n: 5, depth: 440 }).set(.5);
+    wLabel(g, 'outside', { x: 1000, y: 120, size: 24, fill: COL.dim, anchor: 'start', o: 1 });
+    wLabel(g, 'a secretory cell', { x: PCX, y: 760, size: 28, o: 1 });
+    wLabel(g, 'exports a protein: how?', { x: PCX, y: 800, size: 26, fill: COL.dim, o: 1 });
+  });
+  at('lyso', g => {
+    mk('rect', { x: 980, y: 120, width: 580, height: 700, rx: 26, fill: MC.cyto }, g);
+    mk('circle', { cx: 1200, cy: 420, r: 120, fill: CC.foodFill, stroke: CC.vacEdge, 'stroke-width': 6 }, g);
+    bacterium(g, { x: 1200, y: 420, s: .3 });
+    wLabel(g, 'food vacuole', { x: 1200, y: 584, size: 26, fill: CC.vacEdge, o: 1 });
+    lysosome(g, { x: 1440, y: 680, r: 62 });
+    mArrow(g, [1395, 630], [1320, 520], { color: COL.dim, w: 5, head: 16 });
+    wLabel(g, '?', { x: 1500, y: 600, size: 64, weight: 800, fill: MC.atp, o: 1 });
+  });
+  at('ligand', g => {
+    mk('rect', { x: 980, y: 480, width: 580, height: 330, fill: MC.cyto }, g);
+    bilayer(g, { x: PCX, y: 470, w: 580, s: .9, gaps: [[0, 46]], seed: 8 });
+    receptorProtein(g, { x: PCX, y: 470, s: .9 }).bind(.6);
+    solute(g, 'dye2', { x: 1080, y: 230, r: 36 }); solute(g, 'dye2', { x: 1460, y: 200, r: 30 }); solute(g, 'sugar', { x: 1430, y: 310, r: 20 });
+    wLabel(g, 'receptor', { x: PCX + 90, y: 560, size: 26, fill: MC.receptor, anchor: 'start', o: 1 });
+    wLabel(g, '?', { x: PCX + 70, y: 300, size: 64, weight: 800, fill: MC.atp, o: 1 });
+  });
+  at('route', g => { [0, 1, 2, 4].forEach((i, j) => routeRow(g, i, { x: 1110, y: 180 + j * 170, short: true, textX: 1300, size: 28 })); });
+  at('osm', g => {
+    [0, 1].forEach((i, j) => routeRow(g, i, { x: 1110, y: 290 + j * 260, short: true, textX: 1300, size: 28 }));
+    wLabel(g, 'osmosis', { x: 1300, y: 330, size: 24, fill: COL.dim, anchor: 'start', o: 1 });
+    wLabel(g, 'facilitated diffusion', { x: 1300, y: 590, size: 24, fill: COL.dim, anchor: 'start', o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('energy');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-energy', prompt: ['Why does bulk transport count as active transport?'],
+    build: withPic('energy', choice([['It moves solutes against a gradient with a pump protein.'], ['It uses energy (ATP) to move vesicles and bend and fuse membrane.'], ['It never uses any membrane.'], ['It only moves water.']], 1,
+      'Right. Moving vesicles and bending and fusing membrane costs the cell ATP, so bulk transport is active.',
+      ['No pump carries a vesicle. Pumps move small ions one at a time; bulk cargo rides in vesicles.', null,
+       'The vesicle is itself a bubble of membrane, made from or fused with the plasma membrane.',
+       'Water crosses by osmosis. Bulk transport moves large molecules and particles.'])) },
+  { id: 'p-secrete', prompt: ['A secretory cell exports a protein. What happens at the plasma membrane?'],
+    build: withPic('secrete', choice([['A channel protein opens.'], ['A carrier protein changes shape.'], ['A vesicle fuses with it and releases the protein.'], ['A coated pit forms.']], 2,
+      'Right. That is exocytosis: the vesicle moves to the membrane, fuses, and its contents spill outside.',
+      ['A protein is far too large for any channel.', 'A protein is far too large for any carrier.', null,
+       'A coated pit takes things in (receptor-mediated endocytosis). Exporting is the other way.'])) },
+  { id: 'p-lyso', prompt: ['After phagocytosis, what fuses with the food vacuole to digest it?'],
+    build: withPic('lyso', choice([['The nucleus'], ['A ribosome'], ['A lysosome'], ['A pseudopodium']], 2,
+      'Right. A lysosome fuses with the food vacuole, and its enzymes digest the particle.',
+      ['The nucleus holds the DNA; it does not fuse with vacuoles.', 'A ribosome builds proteins; it does not digest food.', null,
+       'The pseudopodia were the arms that wrapped the particle. They make the vacuole; they do not digest it.'])) },
+  { id: 'p-ligand', prompt: ['What is a ligand?'],
+    build: withPic('ligand', choice([['The protein coat on a vesicle'], ['Any molecule that binds specifically to a receptor site of another molecule'], ['The vesicle itself'], ['Any particle dissolved in the extracellular fluid']], 1,
+      'Right. A ligand is any molecule that binds specifically to a receptor site of another molecule.',
+      ['That is the coat protein, which lines the coated pit and the coated vesicle.', null,
+       'The vesicle carries the ligands; it is not one.',
+       'Only the molecules that bind the receptor specifically are its ligands; the rest is just fluid.'])) },
+  { id: 'p-route', prompt: ['Which route does each one take?'],
+    build: withPic('route', grid([
+      { parts: ['oxygen moves into the cell'], ans: ['b'], why: 'Bilayer: small nonpolar oxygen slips straight through by simple diffusion.' },
+      { parts: ['glucose enters down its gradient on a carrier'], ans: ['c'], why: 'Channel or carrier: facilitated diffusion, still passive.' },
+      { parts: ['sodium ions leave against their gradient'], ans: ['p'], why: 'A pump: against the gradient, paid with ATP (the sodium-potassium pump).' },
+      { parts: ['a protein hormone leaves a secretory cell'], ans: ['v'], why: 'A vesicle: large molecules leave by exocytosis.' },
+    ], [['b', 'bilayer', null, 'B'], ['c', 'channel or carrier', null, 'C'], ['p', 'pump (active)', null, 'P'], ['v', 'vesicle', null, 'V']], { multi: false, text: true })) },
+  { id: 'p-osm', prompt: ['Which is true of both osmosis and facilitated diffusion?'],
+    build: withPic('osm', choice([['Both need ATP.'], ['Both move substances against the gradient.'], ['Both are passive: down a gradient, with no ATP.'], ['Both use vesicles.']], 2,
+      'Right. Both are passive transport: things move down their gradient and the cell spends no ATP.',
+      ['Neither needs ATP: that is what makes them passive.', 'Both run down the gradient. Moving against it needs a pump and ATP.', null,
+       'Vesicles are bulk transport. Water and small solutes cross by the bilayer, channels and carriers.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+function qBadge(i, str) { const b = S.qB?.[i]; if (!b) return; fxp(q => { b.t.textContent = q > 0 ? str : '?'; }, 0, .2); pulseFx(b, 1.4); }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>

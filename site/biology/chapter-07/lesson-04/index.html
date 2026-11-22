@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 7, Lesson 4: Tonicity and Water Balance — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 7 (Membrane Structure and Function), lesson 4: a salad leaf goes limp in its dressing; push in to its
+// cells and to the membrane patch with the water channel lit; tonicity (iso, hyper, hypo, always against the inside of
+// the cell) in three beakers; a red blood cell normal, lysed, shriveled; Paramecium in pond water and its contractile
+// vacuole (osmoregulation); a plant cell turgid, flaccid, plasmolyzed, and the leaf again; both cell types in the
+// three solutions; summary; practice. Plan, errata and beats: books/biology/chapters/chapter-07/lesson-04.md.
+const CHAPTER = { number: 704, label: '7, lesson 4', title: 'Tonicity and Water Balance', minutes: 7, language: 'en', lead: false, next: '../lesson-05/' };
+
+/* ---------- colours: the three solutions ---------- */
+// hypotonic light blue (more water), isotonic cream, hypertonic gold (more solute: the solute dots are gold too)
+const HYPO = '#8fc8ff', ISO = COL.chalk, HYPER = '#f3c95c', SOL = MC.sugar, H2O = MC.water;
+const BATH = '#132a48', BATH_EDGE = '#2b4a70', POND = '#174463', CELLF = '#24466f', WARN = '#f39a2b', LETHAL = '#ff6b5b';
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim, back = false } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  if (back) mk('rect', { x: tx - w / 2 - 14, y: ty - size * .85, width: w + 28, height: size * 1.35, rx: 10, fill: '#0b1626', opacity: .88 }, g);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  if (ax !== null) { path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g); }
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A ring that pops in round a point; returns it (o 0 before t0; t0 null: stays hidden).
+function ring(p, [x, y], r, t0, { color = COL.chalk, w = 4, ry } = {}) {
+  const g = G(p, { x, y, o: 0 });
+  mk('ellipse', { rx: r, ry: ry ?? r, fill: 'none', stroke: color, 'stroke-width': w }, g);
+  if (t0 !== null) { show(g, t0, .3); pulse(g, t0 + .1, 1.12); }
+  return g;
+}
+// Points scattered in a box [x0, y0, x1, y1], kept where keep(x, y) holds and at least gap apart; pure in seed.
+function scatter(n, [x0, y0, x1, y1], seed, keep = () => true, gap = 30) {
+  const pts = [];
+  for (let i = 0; pts.length < n && i < n * 60; i++) {
+    const x = x0 + (x1 - x0) * wHash(i, seed), y = y0 + (y1 - y0) * wHash(i, seed + 7.3);
+    if (!keep(x, y) || pts.some(q => Math.hypot(q[0] - x, q[1] - y) < gap)) continue;
+    pts.push([Math.round(x), Math.round(y)]);
+  }
+  return pts;
+}
+// Solute particles as gold dots, one path.
+function soluteDots(p, pts, { r = 6, o = 1 } = {}) {
+  const g = G(p, { o });
+  path(g, cDots(pts), { stroke: SOL, 'stroke-width': 2 * r, 'stroke-linecap': 'round' });
+  return g;
+}
+// A water arrow (cyan-white) from a to b, labelled H₂O beside its middle (side: which side of a vertical arrow).
+function h2oArrow(p, a, b, { o = 0, label = true, side = 1, w = 6, head = 18, size = 22 } = {}) {
+  const g = G(p, { o });
+  mArrow(g, a, b, { color: H2O, w, head });
+  if (label) {
+    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, vert = Math.abs(b[1] - a[1]) > Math.abs(b[0] - a[0]);
+    wLabel(g, 'H₂O', { x: vert ? mx + side * (size * 1.6) : mx, y: vert ? my + size * .36 : my - size * .8, size, fill: H2O, weight: 700, o: 1 });
+  }
+  return g;
+}
+// Two opposite water arrows side by side (no net movement), labelled once.
+function h2oBoth(p, a, b, { o = 0, gap = 14, size = 22, w = 6, head = 18, side = 1 } = {}) {
+  const g = G(p, { o }), vert = Math.abs(b[1] - a[1]) > Math.abs(b[0] - a[0]), dx = vert ? gap : 0, dy = vert ? 0 : gap;
+  mArrow(g, [a[0] - dx, a[1] - dy], [b[0] - dx, b[1] - dy], { color: H2O, w, head });
+  mArrow(g, [b[0] + dx, b[1] + dy], [a[0] + dx, a[1] + dy], { color: H2O, w, head });
+  const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+  wLabel(g, 'H₂O', { x: vert ? mx + side * (gap + size * 1.6) : mx, y: vert ? my + size * .36 : my - gap - size * .7, size, fill: H2O, weight: 700, o: 1 });
+  return g;
+}
+// Water dots crossing a closed outline round (x, y): in (dir 1), out (−1) or both ways (0); .set(dir, t) pure in t.
+function flowDots(p, { x = 0, y = 0, n = 6, rIn = 30, rOut = 120, ry = 1, o = 1, r = 9 } = {}) {
+  const g = G(p, { x, y, o }), dots = Array.from({ length: n }, () => solute(g, 'water', { r }));
+  return Object.assign(g, {
+    set(dir, t) {
+      t = Math.round(t * 120) / 120;
+      dots.forEach((d, i) => {
+        const a = i / n * 2 * Math.PI + .5, u = cFrac(t * .45 + i / n), di = dir === 0 ? (i % 2 ? 1 : -1) : dir;
+        const rr = di > 0 ? mLerp(rOut, rIn, u) : mLerp(rIn, rOut, u);
+        cSet(d, { x: rr * Math.cos(a), y: rr * ry * Math.sin(a), o: Math.sin(Math.PI * u) });
+      });
+      return g;
+    },
+  });
+}
+// A round cell (membrane blue) with solute dots inside, for the beakers.
+function bathCell(p, { x = 0, y = 0, r = 60, n = 5, seed = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: CELLF, stroke: MC.head, 'stroke-width': 5 }, g);
+  soluteDots(g, scatter(n, [-r, -r, r, r], seed, (a, b) => Math.hypot(a, b) < r - 14, r * .5));
+  return g;
+}
+// A step badge; .t is its text.
+function badge(p, str, x, y, { o = 0, r = 24 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: '#3b8fd9', stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t });
+}
+
+/* ---------- backdrops ---------- */
+// A lettuce leaf rising from its base (origin) and drooping as it wilts: .bend(k) 0 crisp and upright, 1 limp.
+function saladLeaf(p, { x = 0, y = 0, L = 280, W = 130, s = 1, o = 1, flip = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const blade = path(g, '', { fill: WC.leaf, stroke: WC.leafDk, 'stroke-width': 4, 'stroke-linejoin': 'round' });
+  const rib = path(g, '', { stroke: '#a9d8b0', 'stroke-width': 4 });
+  let sp = [];
+  const lf = Object.assign(g, {
+    k: -1,
+    bend(k) {
+      k = Math.round(mClamp(k) * 400) / 400; if (k === lf.k) return lf; lf.k = k;
+      const N = 20; let px = 0, py = 0, th = -Math.PI / 2 + flip * .12; sp = [];
+      for (let i = 0; i <= N; i++) { sp.push([px, py]); th += flip * (.012 + .1 * k) * (.4 + 1.2 * i / N); px += L / N * Math.cos(th); py += L / N * Math.sin(th); }
+      const left = [], right = [];
+      sp.forEach((q, i) => {
+        const u = i / N, a = sp[Math.min(N, i + 1)], b = sp[Math.max(0, i - 1)], dx = a[0] - b[0], dy = a[1] - b[1], dl = Math.hypot(dx, dy) || 1;
+        const hw = W / 2 * Math.pow(Math.sin(Math.PI * Math.min(1, u * 1.05)), .7) * (1 + .07 * Math.sin(u * 46)) * (1 - .25 * k * u);
+        left.push([q[0] - dy / dl * hw, q[1] + dx / dl * hw]); right.push([q[0] + dy / dl * hw, q[1] - dx / dl * hw]);
+      });
+      mD(blade, cSmooth([...left, ...right.reverse()], true)); mD(rib, cSmooth(sp.slice(0, N - 2)));
+      cAttr(blade, 'fill', mix(WC.leaf, '#8a9a52', Math.round(k * 20) / 20));
+      return lf;
+    },
+    mid(u = .5) { const q = sp[Math.round(u * (sp.length - 1))]; return [q[0], q[1]]; },
+  });
+  return lf.bend(0);
+}
+// A salad bowl (origin at the rim centre) with its leaves; .leaf is the one that wilts.
+function saladBowl(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  [[-160, -24, 72, 38, '#5fae62'], [-70, -50, 64, 44, '#4f9a5c'], [90, -46, 70, 40, '#5fae62'], [175, -18, 62, 36, '#4f9a5c'], [10, -30, 80, 34, '#6cbb6a']]
+    .forEach(([cx, cy, rx, ry, c], i) => path(g, cBlob(rx, ry, { seed: i + 2, wob: .14, cx, cy }), { fill: c, stroke: WC.leafDk, 'stroke-width': 4 }));
+  const leaf = saladLeaf(g, { x: 30, y: -20 });
+  path(g, 'M-262 -8Q-250 170 0 176Q250 170 262 -8Z', { fill: '#e9e4d6', stroke: '#b9b2a0', 'stroke-width': 5 });
+  path(g, 'M-262 -8Q0 26 262 -8', { stroke: '#f6f2e8', 'stroke-width': 6 });
+  path(g, 'M-90 176L-70 200H70L90 176', { fill: '#d6cfbd', stroke: '#b9b2a0', 'stroke-width': 4 });
+  return Object.assign(g, { leaf });
+}
+// A dressing bottle, pouring (origin at its mouth).
+function dressingBottle(p, { x = 0, y = 0, o = 1, r = 130 } = {}) {
+  const g = G(p, { x, y, o, r });
+  path(g, 'M-14 0V40Q-46 60 -46 100V210Q-46 228 -28 228H28Q46 228 46 210V100Q46 60 14 40V0Z', { fill: '#f4e7b8', 'fill-opacity': .3, stroke: '#e9e2c8', 'stroke-width': 4 });
+  path(g, 'M-44 130V210Q-44 226 -28 226H28Q44 226 44 210V130Z', { fill: '#d9b44a' });
+  mk('rect', { x: -16, y: -8, width: 32, height: 12, rx: 4, fill: '#b9b2a0' }, g);
+  return g;
+}
+// Leaf cells seen through a lens, drawn round (0, 0): walled bricks with chloroplasts; the centre cell is drawn
+// finely (wall, membrane just inside it, water on both sides) to be seen at a big zoom.
+function leafLens(p, { x = 0, y = 0, R = 190, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('circle', { r: R, fill: '#0b1828', stroke: COL.chalk, 'stroke-width': 6 }, g);
+  let d = '', nd = '';
+  for (let row = -4; row <= 4; row++) for (let col = -4; col <= 4; col++) {
+    const cx = col * 64 + (row % 2 ? 32 : 0), cy = row * 42;
+    if (Math.hypot(cx, cy) > R - 30 || (!row && !col)) continue;
+    d += `M${cx - 26} ${cy - 16}h52v32h-52Z`;
+    for (let k = 0; k < 3; k++) nd += cCircle(4.5, cx - 14 + 14 * k, cy + (k % 2 ? 7 : -6));
+  }
+  path(g, d, { fill: CC.cyto, stroke: CC.wall, 'stroke-width': 5 });
+  path(g, nd, { fill: CC.chloro });
+  const c = G(g);
+  mk('rect', { x: -26, y: -16, width: 52, height: 32, fill: CC.cyto, stroke: CC.wall, 'stroke-width': 3 }, c);
+  mk('rect', { x: -23.6, y: -13.6, width: 47.2, height: 27.2, rx: 2, fill: 'none', stroke: MC.head, 'stroke-width': 1.1 }, c);
+  path(c, cBlob(12, 7.5, { seed: 4, wob: .06, cx: 3, cy: 1 }), { fill: MC.vac, stroke: MC.vacEdge, 'stroke-width': .6 });
+  path(c, cCircle(2.6, -15, -6) + cCircle(2.6, 17, 8) + cCircle(2.6, -14, 8), { fill: CC.chloro });
+  const win = [[-19, -8], [-9, 9], [16, -6], [-18, 3], [8, 10], [-3, -9]], wout = [[-29.6, -4], [-29.6, 8], [29.6, 2], [29.6, -10], [-10, -19.4], [12, -19.4], [0, 19.4], [-20, 19.4], [22, 19.4]];
+  path(c, cDots(win.concat(wout)), { stroke: H2O, 'stroke-width': 1.8, 'stroke-linecap': 'round' });
+  return g;
+}
+// A pond in its bank, as seen from the shore (world coordinates of the stage).
+function pondArt(p, { o = 1 } = {}) {
+  const g = G(p, { o });
+  mk('rect', { x: -400, y: -400, width: 2400, height: 700, fill: '#1a3550' }, g);
+  mk('rect', { x: -400, y: 300, width: 2400, height: 900, fill: '#23402f' }, g);
+  mk('ellipse', { cx: 820, cy: 600, rx: 720, ry: 260, fill: POND, stroke: '#2f6a8a', 'stroke-width': 8 }, g);
+  path(g, 'M300 560Q420 545 540 560M980 700Q1120 690 1260 705M700 480Q800 470 900 482', { stroke: '#3f7fa3', 'stroke-width': 4 });
+  [[430, 650, 46], [1240, 560, 38], [620, 740, 30]].forEach(([cx, cy, r]) => path(g, `M${cx} ${cy}L${cx + r} ${cy - 8}A${r} ${r * .45} 0 1 1 ${cx + r} ${cy + 8}Z`, { fill: '#4f9a5c', stroke: '#357746', 'stroke-width': 3 }));
+  let reeds = '';
+  for (let i = 0; i < 14; i++) { const bx = (i < 7 ? 80 + i * 22 : 1380 + (i - 7) * 24), h = 120 + 50 * wHash(i, 5); reeds += `M${bx} 600Q${bx + 6} ${600 - h * .6} ${bx + 14 * (wHash(i, 6) - .3)} ${600 - h}`; }
+  path(g, reeds, { stroke: '#7fae5a', 'stroke-width': 6 });
+  [[96, 470], [1420, 455], [1490, 480]].forEach(([x, y]) => mk('ellipse', { cx: x, cy: y, rx: 7, ry: 22, fill: '#8a5a3a' }, g));
+  return g;
+}
+// A potted plant (origin at the pot's base); .wilt(k) 0 upright, 1 drooping.
+function pottedPlant(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const stem = path(g, '', { stroke: '#4f9a5c', 'stroke-width': 8 });
+  const leaves = [0, 1, 2, 3].map(i => { const lg = G(g); mk('ellipse', { cx: 42, cy: 0, rx: 42, ry: 15, fill: i % 2 ? '#5fae62' : '#4f9a5c', stroke: WC.leafDk, 'stroke-width': 3 }, lg); return lg; });
+  path(g, 'M-62 -78H62L48 0H-48Z', { fill: '#b8653a', stroke: '#7d4122', 'stroke-width': 4 });
+  mk('rect', { x: -70, y: -92, width: 140, height: 18, rx: 6, fill: '#c97848', stroke: '#7d4122', 'stroke-width': 3 }, g);
+  const pp = Object.assign(g, {
+    k: -1,
+    wilt(k) {
+      k = Math.round(mClamp(k) * 400) / 400; if (k === pp.k) return pp; pp.k = k;
+      const P0 = [0, -90], P2 = [70 * k, -250 + 120 * k], P1 = [6 * k, -190 + 10 * k];
+      const B = u => [(1 - u) ** 2 * P0[0] + 2 * u * (1 - u) * P1[0] + u * u * P2[0], (1 - u) ** 2 * P0[1] + 2 * u * (1 - u) * P1[1] + u * u * P2[1]];
+      mD(stem, `M${cP(P0)}Q${cP(P1)} ${cP(P2)}`);
+      [[.45, 1], [.45, -1], [.85, 1], [.85, -1]].forEach(([u, sd], i) => {
+        const q = B(u), a = mLerp(-28, 62, k) + (u > .6 ? -8 : 0);
+        cSet(leaves[i], { x: q[0], y: q[1], r: sd > 0 ? a : 180 - a });
+      });
+      return pp;
+    },
+  });
+  return pp.wilt(0);
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Tonicity and water balance', (m, D) => {
+  const p = panel(0), tL = m('leaf'), tC = m('cells'), tP = m('patch'), tLit = m('lit');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const BX = 520, BY = 640;
+  const bowl = saladBowl(W, { x: BX, y: BY, o: 0 }); show(bowl, .2, .6);
+  const bottle = dressingBottle(W, { x: 760, y: 300, o: 0 }); show(bottle, tL - .2, .5); hide(bottle, tC + .4, .4);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 7 · LESSON 4', { x: 1240, y: 220, size: 26, fill: COL.dim, o: 1 });
+  ['Tonicity and', 'water balance'].forEach((s, i) => wLabel(ttl, s, { x: 1240, y: 310 + i * 78, size: 66, o: 1 }));
+  wLabel(ttl, 'why cells swell, shrink or hold firm', { x: 1240, y: 482, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .2, .5);
+  // leaf: dressing drips onto the leaf, and the crisp leaf goes limp
+  const drops = [0, 1, 2, 3, 4].map(() => put(mk('ellipse', { rx: 6, ry: 9, fill: '#d9b44a' }, W), { o: 0 }));
+  const mouth = [760, 300], hit = [BX + 60, BY - 220];
+  clockRun(t => drops.forEach((e, i) => {
+    const on = t > tL && t < tL + 4.2, u = cFrac((t - tL) * .9 + i / 5);
+    if (on) mPose(e, mLerp(mouth[0], hit[0], u), mouth[1] + (hit[1] - mouth[1]) * u * u, mBump(u, 0, 1)); else mPose(e, mouth[0], mouth[1], 0);
+  }), D);
+  prog(k => bowl.leaf.bend(k), tL + 1.2, 2.6, io);
+  const lL = say(p, 'crisp …', 920, 330, tL + .4, { size: 34, fill: '#a9d8b0' }); hide(lL, tL + 2.4, .3);
+  const lL2 = say(p, '… limp', 880, 560, tL + 2.6, { size: 34, fill: '#c9cf8a' }); hide(lL2, tC + .1, .3);
+  // cells: a lens opens on the leaf; push into one cell: wall, membrane, water on both sides
+  bowl.leaf.bend(1); const lm = bowl.leaf.mid(.55); bowl.leaf.bend(0);
+  const LX = BX + 30 + lm[0], LY = BY - 20 + lm[1];
+  const lens = leafLens(W, { x: LX, y: LY, s: .2, o: 0 });
+  tw(lens, { s: 1, o: 1 }, tC + .2, .9, out);
+  const cap = say(p, 'a leaf is made of cells', 800, 60, tC + .8, { size: 34 }); hide(cap, tC + 3.2, .3);
+  cam.to({ x: LX, y: LY, z: 10 }, tC + 1.4, 3.2);
+  hide(bowl, tC + 4.2, .05);
+  const Lc = G(p, { o: 0 }); show(Lc, tC + 4.6, .5); hide(Lc, tP, .4);
+  tag(Lc, 'cell wall', [1250, 170], [1062, 300], null, { size: 30, back: true, fill: CC.wall, line: CC.wall });
+  tag(Lc, 'membrane', [1250, 790], [1035, 560], null, { size: 30, back: true, fill: MC.head, line: MC.head });
+  tag(Lc, 'water outside', [330, 170], [504, 410], null, { size: 28, back: true, fill: H2O, line: H2O });
+  tag(Lc, 'water inside', [330, 790], [610, 370], null, { size: 28, back: true, fill: H2O, line: H2O });
+  // patch: the membrane patch builds; lit: the water channel lights and passes water
+  hide(cam.el, tP, .6);
+  const mp = membranePatch(p, { x: 800, y: 450, o: 0 }); mp.build(0); show(mp, tP, .5);
+  put(mp.channel, { o: 0 });
+  const aq = aquaporin(mp.channel.parentNode, {});
+  prog(k => mp.build(k), tP + .2, 1.6, lin);
+  show(mp.sides(), tP + 1.2, .5);
+  const wd = G(p, { o: 0 }); show(wd, tLit + .6, .6);
+  path(wd, cDots(scatter(16, [60, 230, 1540, 370], 61, () => true, 70).concat(scatter(14, [60, 540, 1540, 800], 62, () => true, 80))), { stroke: H2O, 'stroke-width': 16, 'stroke-linecap': 'round' });
+  prog(k => mp.focus('aquaporin', k), tLit + .1, .9, io);
+  clockRun(t => { mp.drift(t); aq.flow(t, { speed: 80 }); }, D);
+  const top = mp.pt('channel');
+  tag(p, 'water channel', [300, 300], [top[0] - 10, top[1] - 50], tLit + .7, { size: 34, weight: 700, fill: MC.channel, line: MC.channel, sub: 'an aquaporin', subFill: '#9fd6d6' });
+  const q = say(p, 'which way, and what happens to the cell?', 1060, 300, tLit + 4.8, { size: 30, fill: COL.chalk, weight: 600 });
+  pulse(q, tLit + 5, 1.05);
+}],
+
+/* ---------- tonic ---------- */
+['tonic', 'Tonicity: iso, hyper, hypo', (m, D) => {
+  const p = panel(0), tDef = m('def'), tCe = m('cell'), tI = m('iso'), tHr = m('hyper'), tHo = m('hypo'), tT = m('tip');
+  const RX = 190, RY = 470, RR = 86;
+  const ref = bathCell(p, { x: RX, y: RY, r: RR, n: 9, seed: 3, o: 0 }); show(ref, .3, .6);
+  say(p, 'inside the cell', RX, 600, .6, { size: 28, fill: COL.dim, weight: 500 });
+  const BXs = [600, 980, 1360], BY = 640, CR = 60, CY = 505, LV = .86;
+  const kinds = [['iso', 28, 34], ['hyper', 66, 22], ['hypo', 9, 40]];
+  const B = kinds.map(([k, n, gap], i) => {
+    const g = G(p, { x: BXs[i], o: 0 }); show(g, .5 + .15 * i, .6);
+    beaker(g, { y: BY, w: 300, h: 340, level: LV });
+    soluteDots(g, scatter(n, [-134, BY - 340 * LV + 14, 134, BY - 18], 10 + i, (x, y) => Math.hypot(x, y - CY) > CR + 22 && !(x > 60 && Math.abs(y - CY) < 34), gap));
+    const cell = bathCell(g, { y: CY, r: CR, n: 5, seed: 20 + i });
+    const fl = flowDots(g, { y: CY, n: 6, rIn: 26, rOut: 126, o: 0 });
+    return { g, cell, fl };
+  });
+  // def: the word and what it means
+  const T1 = G(p, { o: 0 }); show(T1, tDef + .1, .5);
+  wLabel(T1, 'tonicity', { x: 800, y: 96, size: 50, weight: 700, o: 1 });
+  wLabel(T1, 'a solution’s ability to make a cell gain or lose water', { x: 800, y: 146, size: 30, fill: COL.dim, weight: 500, o: 1 });
+  // cell: always compare the solution with the inside of the cell
+  pulse(ref, tCe + .2, 1.08);
+  const arcs = G(p, { o: 0 }); show(arcs, tCe + .4, .5); hide(arcs, tI, .4);
+  BXs.forEach(bx => path(arcs, `M${RX + 30} ${RY - RR - 12}Q${(RX + bx) / 2} ${200} ${bx} ${BY - 340 - 16}`, { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '10 9' }));
+  const cmp = say(p, 'compare the solution with the inside', 760, 232, tCe + .6, { size: 26, fill: COL.chalk, weight: 600 }); hide(cmp, tI, .4);
+  // iso, hyper, hypo: each beaker in turn
+  const lab = (i, a, sub, col, t0) => {
+    const g = G(p, { o: 0 }); show(g, t0, .4);
+    wLabel(g, a, { x: BXs[i], y: 704, size: 36, weight: 700, fill: col, o: 1 });
+    sub.forEach((s, j) => wLabel(g, s, { x: BXs[i], y: 744 + 32 * j, size: 25, fill: COL.chalk, weight: 500, o: 1 }));
+    return g;
+  };
+  const ax = 70, bx2 = 136;
+  // iso
+  pulse(B[0].g, tI + .1, 1.03); show(B[0].fl, tI + .8, .4);
+  const A0 = G(B[0].g, { o: 0 }); h2oBoth(A0, [ax, CY], [bx2, CY], { o: 1, gap: 13 }); show(A0, tI + 1.2, .4);
+  lab(0, 'isotonic', ['same solute as inside', 'no net movement'], ISO, tI + 1);
+  // hyper
+  pulse(B[1].g, tHr + .1, 1.03); show(B[1].fl, tHr + .6, .4);
+  const A1 = h2oArrow(B[1].g, [ax, CY], [bx2, CY]); show(A1, tHr + 4.2, .4);
+  tw(B[1].cell, { s: .8 }, tHr + 4.2, 3.2, io);
+  lab(1, 'hypertonic', ['more solute outside', 'the cell loses water'], HYPER, tHr + .5);
+  // hypo
+  pulse(B[2].g, tHo + .1, 1.03); show(B[2].fl, tHo + .6, .4);
+  const A2 = h2oArrow(B[2].g, [bx2, CY], [ax + 6, CY]); show(A2, tHo + 4, .4);
+  tw(B[2].cell, { s: 1.15 }, tHo + 4, 2.4, io);
+  lab(2, 'hypotonic', ['less solute outside', 'the cell gains water'], HYPO, tHo + .5);
+  clockRun(t => { B[0].fl.set(0, t); B[1].fl.set(-1, t); B[2].fl.set(1, t); }, D);
+  // tip
+  const c1 = mChip(p, [['hyper', HYPER], [': more solute outside, water out', COL.chalk]], { x: 520, y: 856, size: 26, edge: HYPER, o: 0 });
+  const c2 = mChip(p, [['hypo', HYPO], [': less solute outside, water in', COL.chalk]], { x: 1120, y: 856, size: 26, edge: HYPO, o: 0 });
+  show(c1, tT + .3, .4); pulse(c1, tT + .4, 1.08); pulse(B[1].g, tT + .4, 1.03);
+  show(c2, tT + 5.8, .4); pulse(c2, tT + 5.9, 1.08); pulse(B[2].g, tT + 5.9, 1.03);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0), BXq = 330, BYq = 660, CYq = 500;
+  const g = G(p, { x: BXq });
+  beaker(g, { y: BYq, w: 340, h: 380, level: .86 });
+  soluteDots(g, scatter(30, [-150, BYq - 380 * .86 + 14, 150, BYq - 18], 70, (x, y) => Math.hypot(x, y - CYq) > 96, 34), { o: .35 });
+  bathCell(g, { y: CYq, r: 74, n: 6, seed: 71 });
+  [[86, 150], [-86, -150]].forEach(([a, b], i) => { mArrow(g, [a, CYq + (i ? 30 : -30)], [b, CYq + (i ? 30 : -30)], { color: H2O, w: 6, head: 18, o: .7 }); });
+  wLabel(g, '?', { x: 0, y: CYq - 110, size: 64, fill: COL.chalk, weight: 800, o: 1 });
+  wLabel(p, 'water moves toward more solute', { x: BXq, y: 740, size: 26, fill: COL.dim, weight: 500, o: 1 });
+}, { ask: done => quiz({ x: 640, y: 110, w: 900, cls: 'side' }, [{
+  id: 'c-tonic', prompt: ['Which way does the water go? Compare the solution with the inside of the cell.'],
+  build: grid([
+    { parts: ['The solution has more solute than the cell.'], ans: ['out'], why: 'Out: the solution is hypertonic. Water moves toward the side with more solute, so the cell loses water.' },
+    { parts: ['The solution has less solute than the cell.'], ans: ['in'], why: 'In: the solution is hypotonic. The cell has more solute, so water moves into it.' },
+    { parts: ['The solution has the same solute concentration as the cell.'], ans: ['none'], why: 'No net movement: the solution is isotonic. Water still crosses, at the same rate both ways.' },
+  ], [['in', 'water in', null, 'I'], ['out', 'water out', null, 'O'], ['none', 'no net movement', null, 'N']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- rbc ---------- */
+['rbc', 'A red blood cell', (m, D) => {
+  const p = panel(0), tI = m('iso'), tHo = m('hypo'), tHr = m('hyper'), tW = m('why'), tR = m('ref');
+  const CX = [330, 800, 1270], CY = 450, R = 112;
+  const cols = [['hypotonic', HYPO, 7, 44], ['isotonic', ISO, 22, 34], ['hypertonic', HYPER, 48, 24]], starts = [tHo, tI, tHr];
+  const pans = [], cells = [];
+  cols.forEach(([nm, col, n, gap], i) => {
+    const pan = G(p, { o: 0 }); tw(pan, { o: .45 }, .2 + .1 * i, .5);
+    mk('rect', { x: CX[i] - 215, y: 190, width: 430, height: 560, rx: 28, fill: BATH, stroke: BATH_EDGE, 'stroke-width': 3 }, pan);
+    soluteDots(pan, scatter(n, [CX[i] - 198, 208, CX[i] + 198, 732], 40 + i, (x, y) => ((x - CX[i]) / (R * 1.3)) ** 2 + ((y - CY) / (R * 1.2)) ** 2 > 1 && !(Math.abs(x - CX[i]) < 70 && y > 650) && !(Math.abs(x - CX[i]) < 80 && y < 330), gap));
+    pans.push(pan);
+    say(p, nm, CX[i], 165, starts[i] + .2, { size: 34, weight: 700, fill: col });
+    tw(pan, { o: 1 }, starts[i] + .1, .5); pulse(pan, starts[i] + .1, 1.02);
+    const rc = redCell(p, { x: CX[i], y: CY, R, o: 0 }); tw(rc, { o: .4 }, .3 + .1 * i, .5); tw(rc, { o: 1 }, starts[i] + .1, .5);
+    const wdots = rc.lastChild; put(wdots, { o: 0 }); show(wdots, starts[i] + .6, .4);
+    cells.push(rc);
+  });
+  const vHypo = t => .8 * io(mRamp(t, tHo + .8, tHo + 5)) + .2 * mRamp(t, tHo + 5.3, tHo + 6.6);
+  const vHyper = t => -io(mRamp(t, tHr + 2, tHr + 5.6));
+  clockRun(t => { cells[0].set(vHypo(t), t); cells[1].set(0, t); cells[2].set(vHyper(t), t); }, D);
+  // water arrows above each cell
+  show(h2oArrow(p, [CX[0], 236], [CX[0], 310], { side: -1 }), tHo + 3.6, .4);
+  show(h2oBoth(p, [CX[1], 236], [CX[1], 310], { gap: 13, side: -1 }), tI + 1.2, .4);
+  show(h2oArrow(p, [CX[2], 310], [CX[2], 236], { side: -1 }), tHr + 2.1, .4);
+  const Ls = [say(p, 'lysed', CX[0], 700, tHo + 7.4, { size: 38, weight: 700, fill: HYPO }), say(p, 'normal', CX[1], 700, tI + 4.6, { size: 38, weight: 700 }), say(p, 'shriveled', CX[2], 700, tHr + 3.4, { size: 38, weight: 700, fill: HYPER })];
+  const sub0 = say(p, 'it bursts', CX[0], 734, tHo + 7.6, { size: 24, fill: COL.dim, weight: 500 });
+  const sub1 = say(p, 'a disc with a dip on each side', CX[1], 734, tI + 5, { size: 24, fill: COL.dim, weight: 500 });
+  const sub2 = say(p, 'a spiky edge', CX[2], 734, tHr + 4.6, { size: 24, fill: COL.dim, weight: 500 });
+  // why: no wall
+  const wy = say(p, 'no wall: nothing pushes back', 800, 812, tW + .3, { size: 34, weight: 700, fill: WARN }); hide(wy, tR - .1, .3);
+  // ref: a capillary, the cells in isotonic plasma
+  const cap = G(p, { o: 0 }); show(cap, tR + .2, .5);
+  mk('rect', { x: 120, y: 786, width: 820, height: 70, rx: 35, fill: '#3a1f2b', stroke: '#e5533d', 'stroke-width': 4, 'stroke-opacity': .7 }, cap);
+  const mini = [0, 1, 2, 3, 4].map(() => redCell(cap, { R: 22, water: false }));
+  clockRun(t => mini.forEach((e, i) => { const u = cFrac(t * .07 + i / 5); mPose(e, 150 + 760 * u, 821, mRamp(u, 0, .06) * mRamp(1 - u, 0, .06)); }), D);
+  wLabel(cap, 'a capillary', { x: 530, y: 882, size: 22, fill: COL.dim, weight: 500, o: 1 });
+  say(p, 'body fluid: kept isotonic to the cells', 1260, 830, tR + .8, { size: 30, weight: 700 });
+  [0, 1, 2].forEach(i => pulse(Ls[i], tR + [6.8, 7.6, 8.5][i], 1.15));
+  void sub0; void sub1; void sub2;
+}],
+
+/* ---------- para ---------- */
+['para', 'Paramecium in pond water', (m, D) => {
+  const p = panel(0), tP = m('pond'), tIn = m('inside'), tL = m('leak'), tV = m('vac'), tO = m('osmo'), tLa = m('later');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const pond = pondArt(W, { o: 0 }); show(pond, .2, .6);
+  const PX = 930, PY = 600, Z = 8, PS = 640 / 440, PW = PS / Z;
+  const pw = paramecium(W, { x: PX, y: PY, s: PW });
+  const l0 = say(p, 'pond water', 820, 450, .8, { size: 32, fill: '#9fc7e0' }); hide(l0, tP + .5, .3);
+  hide(ring(p, [PX, PY], 64, tP + .3, { color: COL.chalk, w: 3, ry: 34 }), tP + 1, .3);
+  const lP = say(p, 'Paramecium: one cell', PX, PY - 60, tP + .5, { size: 30, weight: 700 }); hide(lP, tP + 1.1, .3);
+  cam.to({ x: PX, y: PY, z: Z }, tP + 1, 2.6);
+  // the cut: the same cell in screen space, over pond-coloured water
+  const bg = put(mk('rect', { x: 0, y: 0, width: 1600, height: 900, fill: POND }, p), { o: 0 }); show(bg, tP + 3.6, .02);
+  const PCX = 800, PCY = 450;
+  const pm = paramecium(p, { x: PCX, y: PCY, s: PS, o: 0 }); show(pm, tP + 3.6, .02);
+  hide(cam.el, tP + 3.7, .05);
+  // each cell moves only while it is on screen: the world one until the cut, the screen one from it (pure in t)
+  clockRun(t => { pw.beat(Math.min(t, tP + 3.8)); pm.beat(Math.max(t, tP + 3.5)); }, D);   // a held pose writes nothing
+  // inside: more solute in the cytoplasm than in the pond
+  const a = 220, b = 88, cvl = [[-.62 * a, -.1 * b], [.68 * a, -.12 * b]];
+  const inPts = scatter(20, [-a, -b, a, b], 81, (x, y) => (x / (a * .86)) ** 2 + (y / (b * .7)) ** 2 < 1 && cvl.every(([cx, cy]) => Math.hypot(x - cx, y - cy) > 30) && ((x + .05 * a) / (a * .24)) ** 2 + ((y - .05 * b) / (b * .38)) ** 2 > 1, 22);
+  const inD = soluteDots(pm, inPts, { r: 4, o: 0 }); show(inD, tIn + 4.3, .5);
+  const outD = soluteDots(p, scatter(11, [60, 160, 1540, 780], 82, (x, y) => ((x - PCX) / 400) ** 2 + ((y - PCY) / 200) ** 2 > 1 && !(x < 620 && y > 700) && !(x < 640 && y < 250), 120), { o: 0 }); show(outD, tIn + 6.3, .5);
+  const quote = say(p, 'the slide: “Paramecium is hypertonic to its pond water”', 800, 96, tIn + .2, { size: 28, fill: COL.dim, weight: 500 }); hide(quote, tL, .4);
+  const scr = ([lx, ly]) => [PCX + PS * lx, PCY + PS * ly];
+  const Lc = tag(p, 'cytoplasm: more solute', [1230, 200], scr([120, -40]), tIn + 4.3, { size: 30, fill: SOL, line: SOL }); hide(Lc, tV - .2, .4);
+  const Lp = say(p, 'pond water: less solute', 330, 760, tIn + 6.3, { size: 30, weight: 700, fill: '#9fc7e0' });
+  const chip = mChip(p, [['so the pond water is ', COL.chalk], ['hypotonic', HYPO], [' to the cell', COL.chalk]], { x: 800, y: 850, size: 28, edge: HYPO, o: 0 });
+  show(chip, tIn + 8.4, .4); hide(chip, tL, .3);
+  // leak: water keeps flowing in; left alone the cell would swell and burst
+  const fl = flowDots(p, { x: PCX, y: PCY, n: 12, rIn: 150, rOut: 470, ry: .4, o: 0 }); show(fl, tL + .2, .5);
+  const ccl = say(p, 'water keeps flowing in', 800, 850, tL + .3, { size: 32, weight: 700, fill: H2O }); hide(ccl, tL + 2.8, .3);
+  const warn = say(p, 'left alone: it would swell and burst', 800, 850, tL + 2.9, { size: 32, weight: 700, fill: WARN }); hide(warn, tV, .3);
+  tw(pm, { s: PS * 1.07 }, tL + .6, 5.4, io); tw(pm, { s: PS }, tV + 2.8, 2, io);
+  const glow = ring(p, [PCX, PCY], 345, null, { color: WARN, w: 6, ry: 150 }); show(glow, tL + 2.9, .3); pulse(glow, tL + 3.3, 1.04); pulse(glow, tL + 4.6, 1.04); hide(glow, tV + .4, .4);
+  // vac: the contractile vacuoles fill and squeeze the water out, over and over
+  const sq = [0, 1].map(() => [0, 1, 2].map(() => put(mk('circle', { r: 9, fill: H2O }, p), { o: 0 })));
+  const pores = pm.cvs.map(cv => { const q = cv.pt('pore'); return scr(q); });
+  clockRun(t => {
+    const k = t < tV + .4 ? 0 : cFrac((t - tV - .4) / 2.4);
+    pm.pump(k);
+    sq.forEach((row, j) => row.forEach((e, i) => {
+      const kk = j ? cFrac(k + .5) : k, u = mRamp(kk, .62 + i * .03, .95), on = t > tV + .4 && u > 0 && u < 1;
+      if (on) mPose(e, pores[j][0] + (i - 1) * 16 * u, pores[j][1] - 150 * u, Math.sin(Math.PI * u)); else mPose(e, pores[j][0], pores[j][1], 0);
+    }));
+    fl.set(1, t);
+  }, D);
+  pm.cvs.forEach((cv, i) => ring(p, scr([cvl[i][0], cvl[i][1]]), 44, tV + .3 + .3 * i, { color: H2O, w: 4 }));
+  tag(p, 'contractile vacuole', [340, 150], scr([cvl[0][0] - 20, cvl[0][1] - 20]), tV + .5, { size: 32, weight: 700, fill: H2O, line: H2O, sub: 'collects water and pumps it out', subFill: '#bfe6f2' });
+  // osmo: the word for it
+  const ban = G(p, { o: 0 }); show(ban, tO + .3, .5);
+  mk('rect', { x: 230, y: 774, width: 1140, height: 104, rx: 22, fill: '#0a1626', stroke: COL.chalk, 'stroke-opacity': .55, 'stroke-width': 3 }, ban);
+  wLabel(ban, 'osmoregulation', { x: 800, y: 816, size: 38, weight: 700, fill: H2O, o: 1 });
+  wLabel(ban, 'the control of solute concentration and water balance', { x: 800, y: 856, size: 27, o: 1 });
+  hide(Lp, tO, .3);
+  say(p, 'an adaptation for life in hypotonic or hypertonic surroundings', 1000, 712, tO + 6, { size: 26, fill: COL.chalk, weight: 500 });
+  // later: the energy is for lesson 5
+  say(p, 'how it is powered: lesson 5', 190, 252, tLa + .3, { size: 24, fill: COL.dim, weight: 500 });
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0), X = 420, Y = 430, s = 1.3;
+  mk('rect', { x: 0, y: 0, width: 1600, height: 900, fill: POND, 'fill-opacity': .55 }, p);
+  const pm = paramecium(p, { x: X, y: Y, s });
+  const cvl = [[-.62 * 220, -.1 * 88], [.68 * 220, -.12 * 88]];
+  cvl.forEach(([lx, ly]) => put(ring(p, [X + s * lx, Y + s * ly], 38, null, { color: H2O, w: 4 }), { o: 1 }));
+  tag(p, 'contractile vacuole', [300, 210], [X + s * (cvl[0][0] - 10), Y + s * (cvl[0][1] - 24)], 0, { size: 30, weight: 700, fill: H2O, line: H2O });
+  wLabel(p, 'Paramecium in pond water', { x: X, y: 640, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  void pm;
+}, { ask: done => quiz({ x: 820, y: 110, w: 740, cls: 'side' }, [{
+  id: 'c-vacuole', prompt: ['What does the contractile vacuole do for Paramecium?'],
+  build: choice([['It takes up water so the cell can grow.'], ['It pumps out the water that keeps flowing in.'], ['It builds a cell wall round the cell.'], ['It digests food.']], 1,
+    'Right. Its cytoplasm has more solute than the pond, so water keeps entering by osmosis; the vacuole collects it and squeezes it out.',
+    ['The opposite: the pond is hypotonic to the cell, so water already floods in. Taking up more would burst it.', null,
+     'Paramecium has no cell wall. The vacuole deals with the water instead.',
+     'Digesting food is the job of food vacuoles, with lysosomes. The contractile vacuole handles water.']),
+}], done) }],
+
+/* ---------- plant ---------- */
+['plant', 'A plant cell', (m, D) => {
+  const p = panel(0), tW = m('wall'), tHo = m('hypo'), tI = m('iso'), tHr = m('hyper'), tL = m('leaf');
+  const CX = 560, CY = 450, PW = 560, PH = 400, RC = 1290;
+  const bath = G(p, { o: 0 }); show(bath, .2, .5);
+  mk('rect', { x: 100, y: 128, width: 920, height: 644, rx: 30, fill: BATH, stroke: BATH_EDGE, 'stroke-width': 3 }, bath);
+  const frame = (x, y) => !(Math.abs(x - CX) < PW / 2 + 26 && Math.abs(y - CY) < PH / 2 + 26) && !(x < 300 && Math.abs(y - CY) < 50) && !(Math.abs(x - CX) < 200 && y < 228);
+  const lay = [[14, 80, 91], [38, 46, 92], [84, 28, 93]].map(([n, gap, sd]) => soluteDots(p, scatter(n, [118, 146, 1002, 754], sd, frame, gap), { o: 0 }));
+  show(lay[0], tHo + .3, .5); hide(lay[0], tI + .1, .4); show(lay[1], tI + .1, .5); hide(lay[1], tHr + .1, .4); show(lay[2], tHr + .1, .5);
+  const pc = plantCell(p, { x: CX, y: CY, w: PW, h: PH, o: 0 }); show(pc, .3, .6);
+  const wdots = pc.lastChild; put(wdots, { o: 0 }); show(wdots, tHo + .6, .4);
+  const v = t => t < tI ? io(mRamp(t, tHo + .8, tHo + 6.2)) : t < tHr ? 1 - io(mRamp(t, tI + .4, tI + 1.6)) : -io(mRamp(t, tHr + .6, tHr + 4.2));
+  clockRun(t => { pc.set(v(t), t); mO(wdots, t < tHo + .6 ? 0 : t < tHo + 1 ? mRamp(t, tHo + .6, tHo + 1) : t > tI + .2 && t < tI + 1.7 ? 0 : 1); }, D);
+  // wall: the wall lights
+  const glow = put(mk('rect', { x: CX - PW / 2 - 4, y: CY - PH / 2 - 4, width: PW + 8, height: PH + 8, rx: 60, fill: 'none', stroke: MC.wall, 'stroke-width': 30, 'stroke-opacity': .45 }, p), { o: 0 });
+  show(glow, tW + .1, .3); hide(glow, tW + 2.6, .5);
+  const Lw = tag(p, 'cell wall', [RC, 200], [CX + PW / 2 + 6, CY - PH * .3], tW + .2, { size: 40, weight: 700, fill: MC.wall, line: MC.wall, sub: 'helps keep the water balance' });
+  hide(Lw, tHo - .2, .4);
+  // the right column: the solution, the state, a note, a potted plant
+  const col = (chipParts, edge, word, sub, t0, t1) => {
+    const g = G(p, { o: 0 }); show(g, t0, .4); if (t1 !== null) hide(g, t1, .3);
+    mChip(g, chipParts, { x: RC, y: 170, size: 28, edge });
+    wLabel(g, word, { x: RC, y: 280, size: 54, weight: 700, fill: edge, o: 1 });
+    if (sub) wLabel(g, sub, { x: RC, y: 328, size: 30, fill: COL.chalk, weight: 500, o: 1 });
+    return g;
+  };
+  col([['hypotonic', HYPO], [' solution', COL.chalk]], HYPO, 'turgid', '(firm)', tHo + .3, tI - .1);
+  const nH = G(p); hide(nH, tI - .1, .3);
+  say(nH, 'water enters; the wall pushes back', RC, 400, tHo + 3, { size: 26, weight: 500 }); say(nH, 'it does not burst', RC, 440, tHo + 13.6, { size: 26, weight: 700, fill: MC.wall });
+  col([['isotonic', ISO], [' solution', COL.chalk]], ISO, 'flaccid', '(limp)', tI + .2, tHr - .1);
+  const nI = G(p); hide(nI, tHr - .1, .3);
+  say(nI, 'no net movement of water', RC, 400, tI + .6, { size: 26, weight: 500 }); say(nI, 'the plant may wilt', RC, 440, tI + 4.4, { size: 26, weight: 700, fill: '#c9cf8a' });
+  col([['hypertonic', HYPER], [' solution', COL.chalk]], HYPER, 'plasmolysis', '(plasmolyzed)', tHr + 5.6, tL - .1);
+  const nX = G(p); hide(nX, tL - .1, .3);
+  const chipX = G(p, { o: 0 }); show(chipX, tHr + .3, .4); hide(chipX, tHr + 5.5, .2);
+  mChip(chipX, [['hypertonic', HYPER], [' solution', COL.chalk]], { x: RC, y: 170, size: 28, edge: HYPER });
+  say(nX, 'the cell loses water', RC, 400, tHr + .8, { size: 26, weight: 500 });
+  say(nX, 'usually lethal', RC, 440, tHr + 6, { size: 28, weight: 700, fill: LETHAL });
+  // the wall pushes back (hypo)
+  const push = G(p, { o: 0 }); show(push, tHo + 3.2, .4); hide(push, tI, .3);
+  [CX - 130, CX + 130].forEach(x => { mArrow(push, [x, CY - PH / 2 - 62], [x, CY - PH / 2 - 14], { color: MC.wall, w: 6, head: 16 }); mArrow(push, [x, CY + PH / 2 + 62], [x, CY + PH / 2 + 14], { color: MC.wall, w: 6, head: 16 }); });
+  // water arrows at the left of the cell
+  const aA = h2oArrow(p, [150, CY], [252, CY]); show(aA, tHo + 1, .4); hide(aA, tI, .3);
+  const aB = h2oBoth(p, [150, CY], [252, CY], { gap: 13 }); show(aB, tI + 1.7, .4); hide(aB, tHr, .3);
+  const aC = h2oArrow(p, [252, CY], [150, CY]); show(aC, tHr + .7, .4);
+  // hyper: the membrane pulls away from the wall
+  const mTop = [CX + .1 * 162, CY - (PH / 2 - 10) * .64];
+  tag(p, 'plasma membrane', [CX, 196], [mTop[0], mTop[1] + 4], tHr + 3.6, { size: 28, fill: MC.head, line: MC.head });
+  const mR = [CX + 162 * .96, CY + 22];
+  const Lwall = tag(p, 'cell wall', [900, 735], [CX + PW / 2 + 2, CY + PH * .3], tHr + 3.9, { size: 26, fill: MC.wall, line: MC.wall }); hide(Lwall, tL - .1, .3);
+  ring(p, mR, 30, tHr + 3.8, { color: MC.head, w: 3 });
+  // the potted plant: firm, then wilting
+  const pot = pottedPlant(p, { x: RC, y: 760, o: 0 }); show(pot, tHo + 6, .5); hide(pot, tL, .4);
+  prog(k => pot.wilt(.55 * k), tI + 4.4, 2.2, io); prog(k => pot.wilt(.55 + .45 * k), tHr + 2, 2.4, io);
+  // leaf: our salad leaf: the salty dressing is hypertonic
+  const bowl = saladBowl(p, { x: RC, y: 640, s: .6, o: 0 }); show(bowl, tL + .1, .5);
+  const sl = G(p, { o: 0 }); show(sl, tL + .2, .4);
+  mChip(sl, [['salty dressing: ', COL.chalk], ['hypertonic', HYPER]], { x: RC, y: 170, size: 30, edge: HYPER });
+  say(sl, 'the leaf’s cells lose water', RC, 280, tL + 2.4, { size: 32, weight: 700 });
+  say(sl, 'the leaf goes limp', RC, 330, tL + 4.4, { size: 30, fill: '#c9cf8a', weight: 600 });
+  prog(k => bowl.leaf.bend(k), tL + 2.6, 3, io);
+}],
+
+/* ---------- compare ---------- */
+['compare', 'Both cells, three solutions', (m, D) => {
+  const p = panel(0), t1 = m('row1'), t2 = m('row2'), t3 = m('row3'), tR = m('rule');
+  const CX = [560, 940, 1320], RY = 335, PY = 610, R = 72, PW = 200, PH = 150;
+  const heads = [['hypotonic', HYPO, 6, 46], ['isotonic', ISO, 16, 34], ['hypertonic', HYPER, 34, 26]], starts = [t1, t2, t3];
+  wLabel(p, 'animal cell', { x: 200, y: RY + 6, size: 32, weight: 700, o: 1 });
+  wLabel(p, '(red blood cell)', { x: 200, y: RY + 44, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(p, 'plant cell', { x: 200, y: PY + 6, size: 32, weight: 700, o: 1 });
+  const reds = [], plants = [], dots = [];
+  heads.forEach(([nm, col, n, gap], i) => {
+    const pan = G(p, { o: .4 });
+    mk('rect', { x: CX[i] - 175, y: 150, width: 350, height: 655, rx: 26, fill: BATH, stroke: BATH_EDGE, 'stroke-width': 3 }, pan);
+    soluteDots(pan, scatter(n, [CX[i] - 160, 230, CX[i] + 160, 790], 50 + i, (x, y) => ((x - CX[i]) / 110) ** 2 + ((y - RY) / 92) ** 2 > 1 && (Math.abs(x - CX[i]) > PW / 2 + 22 || Math.abs(y - PY) > PH / 2 + 22) && Math.abs(y - 470) > 26 && Math.abs(y - 755) > 26, gap), { r: 5 });
+    wLabel(pan, nm, { x: CX[i], y: 200, size: 32, weight: 700, fill: col, o: 1 });
+    tw(pan, { o: 1 }, starts[i] + .1, .5); pulse(pan, starts[i] + .1, 1.02);
+    const rc = redCell(p, { x: CX[i], y: RY, R, o: .35 }), pc = plantCell(p, { x: CX[i], y: PY, w: PW, h: PH, o: .35 });
+    pc.set(0, 0);
+    tw(rc, { o: 1 }, starts[i] + .2, .4); tw(pc, { o: 1 }, starts[i] + .2, .4);
+    [rc.lastChild, pc.lastChild].forEach(e => { put(e, { o: 0 }); show(e, starts[i] + .4, .4); });
+    reds.push(rc); plants.push(pc); dots.push(pan);
+  });
+  const vR = [t => .8 * io(mRamp(t, t1 + .5, t1 + 2.6)) + .2 * mRamp(t, t1 + 2.8, t1 + 3.6), () => 0, t => -io(mRamp(t, t3 + .5, t3 + 3))];
+  const vP = [t => io(mRamp(t, t1 + 3.6, t1 + 6)), () => 0, t => -io(mRamp(t, t3 + 2.6, t3 + 5.4))];
+  clockRun(t => [0, 1, 2].forEach(i => { reds[i].set(vR[i](t), t); plants[i].set(vP[i](t), t); }), D);
+  // labels under each cell
+  const L = (i, y, s, t0, col = COL.chalk) => say(p, s, CX[i], y, t0, { size: 30, weight: 700, fill: col });
+  const labs = [L(0, 470, 'lysed', t1 + 3.2), L(0, 755, 'turgid', t1 + 5.6), L(1, 470, 'normal', t2 + 2.4), L(1, 755, 'flaccid', t2 + 4.6), L(2, 470, 'shriveled', t3 + 2.4), L(2, 755, 'plasmolyzed', t3 + 5)];
+  // the wall is the difference
+  ring(p, [CX[0], PY], 128, t1 + 6.8, { color: MC.wall, w: 4, ry: 98 });
+  const wd = tag(p, 'the wall', [CX[0] - 215, PY - 70], [CX[0] - 128, PY - 12], t1 + 6.9, { size: 26, weight: 700, fill: MC.wall, line: MC.wall });
+  hide(wd, t2, .3);
+  // a plant cell's normal is turgid
+  const nt = mChip(p, [['a plant cell’s ', COL.chalk], ['normal', HYPO], [' = turgid, not flaccid', COL.chalk]], { x: 750, y: 856, size: 26, edge: HYPO, o: 0 });
+  show(nt, t2 + 5.7, .4); pulse(labs[1], t2 + 6, 1.15); hide(nt, t3, .3);
+  // water arrows beside each cell: in, both ways, out
+  const arr = G(p, { o: 0 });
+  [RY, PY].forEach((y, row) => {
+    const ax = row ? PW / 2 + 16 : R + 22, bx = 168;
+    h2oArrow(arr, [CX[0] - bx, y], [CX[0] - ax - 4, y], { o: 1, w: 5, head: 14, size: 18 });
+    h2oBoth(arr, [CX[1] - bx, y], [CX[1] - ax, y], { o: 1, gap: 10, w: 5, head: 14, size: 18 });
+    h2oArrow(arr, [CX[2] - ax, y], [CX[2] - bx, y], { o: 1, w: 5, head: 14, size: 18 });
+  });
+  show(arr, tR - 6.2, .5);
+  say(p, 'water moves toward the side with more solute', 800, 862, m('rule') - 2.6, { size: 32, weight: 700, fill: H2O });
+  pulse(arr, tR + .2, 1.02);
+  dots.forEach((d, i) => pulse(d, tR + .3 + .25 * i, 1.02));
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  // Each icon acts once as its words are said (t0: the row's mark; the offsets follow the voice).
+  const rows = [
+    ['Tonicity: a solution’s ability to make a cell gain or lose water.', 'iso: no net movement · hyper: water out · hypo: water in', (g, t0) => {
+      [70, 190, 310].forEach((x, i) => {
+        beaker(g, { x, y: 46, w: 92, h: 96, level: .82 }); soluteDots(g, [[x - 26, 10], [x + 22, 24], [x - 4, -10], [x + 26, -16], [x - 22, 30], [x + 4, 34]].slice(0, [3, 6, 1][i]), { r: 4 });
+        const c = bathCell(g, { x, y: 10, r: 18, n: 0 }), at = t0 + [5, 7.4, 10.4][i];
+        if (i) tw(c, { s: [1, .72, 1.3][i] }, at, 1.2, io); else pulse(c, at, 1.15);
+      });
+    }],
+    ['An animal cell lyses in hypotonic solution', 'and shrivels in hypertonic solution (normal in isotonic).', (g, t0) => {
+      // drawn at half size inside a holder (the burst's spill stays near it; the pulse scales the holder)
+      const hs = [70, 190, 310].map(x => G(g, { x })), cs = hs.map(h => redCell(h, { R: 84, s: .5, water: false }));
+      prog(k => cs[0].set(k), t0 + 1, 1.4, io); prog(k => cs[2].set(-k), t0 + 3, 1.4, io); pulse(hs[1], t0 + 4.4, 1.08);
+    }],
+    ['Paramecium pumps out excess water', 'with its contractile vacuole: osmoregulation.', (g, t0) => {
+      const pm = paramecium(g, { x: 190, y: 0, s: .62 });
+      prog(k => { pm.pump(cFrac(2 * k)); pm.beat(4.8 * k); }, t0 + 1.2, 4.8, lin);
+    }],
+    ['A plant cell: turgid in hypotonic, flaccid in isotonic,', 'plasmolyzed in hypertonic solution.', (g, t0) => {
+      const cs = [70, 190, 310].map(x => plantCell(g, { x, y: 0, w: 100, h: 74, water: false }).set(0));
+      prog(k => cs[0].set(k), t0 + 1, 1.4, io); pulse(cs[1], t0 + 3.4, 1.08); prog(k => cs[2].set(-k), t0 + 5.4, 1.8, io);
+    }],
+  ];
+  const ttl = G(p, { o: 0 }); show(ttl, 0, .3);
+  wLabel(ttl, 'Summary', { x: 800, y: 86, size: 40, weight: 700, o: 1 });
+  wLabel(ttl, 'tonicity and water balance', { x: 800, y: 124, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const X0 = 110;
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: X0 - 16, y: 215 + i * 165, o: 0 }), t0 = m('w' + (i + 1));
+    const ic = G(g); icon(ic, t0);
+    T(g, a, { x: 430, y: -6, size: 33, weight: 600 }); T(g, b, { x: 430, y: 36, size: 28, fill: COL.dim });
+    tw(g, { o: 1, x: X0 }, t0, .6);
+  });
+  say(p, 'Now try the chapter practice.', 800, 868, m('end'), { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const PCX = 1270;
+  const panelBox = (g, y0 = 120, h = 640) => mk('rect', { x: 990, y: y0, width: 560, height: h, rx: 26, fill: BATH, stroke: BATH_EDGE, 'stroke-width': 3 }, g);
+  at('rbc', g => {
+    panelBox(g);
+    soluteDots(g, scatter(46, [1006, 190, 1534, 744], 101, (x, y) => ((x - PCX) / 170) ** 2 + ((y - 440) / 130) ** 2 > 1, 26));
+    wLabel(g, 'hypertonic solution', { x: PCX, y: 170, size: 30, weight: 700, fill: HYPER, o: 1 });
+    redCell(g, { x: PCX, y: 440, R: 130, water: false }).set(-1);
+    wLabel(g, '?', { x: PCX, y: 680, size: 56, weight: 800, o: 1 });
+  });
+  at('lyse', g => {
+    panelBox(g);
+    wLabel(g, 'pure water', { x: PCX, y: 170, size: 30, weight: 700, fill: HYPO, o: 1 });
+    redCell(g, { x: PCX, y: 430, R: 130, water: false }).set(1);
+    wLabel(g, 'it burst. why?', { x: PCX, y: 690, size: 30, weight: 700, o: 1 });
+  });
+  at('wall', g => {
+    panelBox(g);
+    wLabel(g, 'pure water', { x: PCX, y: 170, size: 30, weight: 700, fill: HYPO, o: 1 });
+    plantCell(g, { x: PCX, y: 440, w: 400, h: 290, water: false }).set(1);
+    mk('rect', { x: PCX - 204, y: 440 - 149, width: 408, height: 298, rx: 50, fill: 'none', stroke: MC.wall, 'stroke-width': 24, 'stroke-opacity': .35 }, g);
+    wLabel(g, 'it did not burst. why?', { x: PCX, y: 690, size: 30, weight: 700, o: 1 });
+  });
+  at('plant', g => {
+    [['hypotonic', HYPO, 2], ['isotonic', ISO, 8], ['hypertonic', HYPER, 18]].forEach(([nm, c, n], i) => {
+      const y = 200 + i * 230;
+      mk('rect', { x: 990, y: y - 100, width: 560, height: 200, rx: 22, fill: BATH, stroke: BATH_EDGE, 'stroke-width': 3 }, g);
+      soluteDots(g, scatter(n * 2, [1006, y - 88, 1334, y + 88], 110 + i, (x, yy) => Math.abs(x - 1140) > 102 || Math.abs(yy - y) > 78, 26), { r: 5 });
+      plantCell(g, { x: 1140, y, w: 170, h: 130, water: false }).set([1, 0, -1][i]);
+      wLabel(g, nm, { x: 1440, y: y + 10, size: 30, weight: 700, fill: c, o: 1 });
+    });
+  });
+  at('osmo', g => {
+    mk('rect', { x: 990, y: 120, width: 560, height: 640, rx: 26, fill: POND, stroke: BATH_EDGE, 'stroke-width': 3 }, g);
+    const s = 1.1; paramecium(g, { x: PCX, y: 420, s });
+    put(ring(g, [PCX + s * -.62 * 220, 420 + s * -.1 * 88], 34, null, { color: H2O, w: 4 }), { o: 1 });
+    wLabel(g, 'pond water', { x: PCX, y: 170, size: 28, fill: '#9fc7e0', weight: 700, o: 1 });
+    wLabel(g, 'it keeps its water balance', { x: PCX, y: 690, size: 28, weight: 600, o: 1 });
+  });
+  at('order', g => {
+    panelBox(g);
+    wLabel(g, 'most water → least water?', { x: PCX, y: 180, size: 28, weight: 700, o: 1 });
+    const xs = [1090, 1260, 1430], states = [['flaccid', 0], ['plasmolyzed', -1], ['turgid', 1]];
+    S.ordB = {};
+    states.forEach(([nm, v], i) => {
+      plantCell(g, { x: xs[i], y: 450, w: 160, h: 120, water: false }).set(v);
+      wLabel(g, nm, { x: xs[i], y: 560, size: 26, weight: 700, o: 1 });
+      S.ordB[nm] = badge(g, '?', xs[i], 340, { o: 1 });
+    });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('rbc');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-rbc', prompt: ['A red blood cell is placed in a hypertonic solution. What happens?'],
+    build: withPic('rbc', choice([['It swells and lyses.'], ['It loses water and shrivels.'], ['Nothing: no net movement.'], ['It becomes turgid.']], 1,
+      'Right. The solution has more solute than the cell, so water leaves it and the cell shrivels.',
+      ['Swelling and bursting happen in a hypotonic solution, where water flows in.', null,
+       'No net movement means isotonic: the same solute concentration inside and out.',
+       'Turgid is a plant-cell word: it needs a wall to push back. A red blood cell has none.'])) },
+  { id: 'p-lyse', prompt: ['A red blood cell bursts in pure water. Why?'],
+    build: withPic('lyse', choice([['Pure water is hypertonic to the cell.'], ['Pure water is isotonic to the cell.'], ['Pure water is hypotonic to the cell: water floods in and nothing resists.'], ['Water dissolves its membrane.']], 2,
+      'Right. Pure water has less solute than the cell, so water enters by osmosis; with no wall, the cell swells until it lyses.',
+      ['A hypertonic solution would draw water out and shrivel the cell, not burst it.',
+       'In an isotonic solution there is no net movement, so the cell keeps its normal shape.', null,
+       'The membrane stays. Water crosses it by osmosis, toward the cell, which has more solute.'])) },
+  { id: 'p-wall', prompt: ['Why does a plant cell in pure water become turgid and not burst?'],
+    build: withPic('wall', choice([['Water cannot cross a plant cell membrane.'], ['A plant cell has no membrane.'], ['Pure water is isotonic to a plant cell.'], ['Its wall pushes back against the water uptake.']], 3,
+      'Right. Water enters until the wall pushes back; the cell is turgid, firm, the healthy state for most plants.',
+      ['Water does cross it, by osmosis, and that is why the cell swells.',
+       'It has one: the plasma membrane lies just inside the wall.',
+       'Pure water has less solute than the cell, so it is hypotonic, and water flows in.', null])) },
+  { id: 'p-plant', prompt: ['Name the state of each plant cell.'],
+    build: withPic('plant', grid([
+      { parts: ['hypo'], ans: ['t'], why: 'Turgid: water enters until the wall pushes back.' },
+      { parts: ['iso'], ans: ['f'], why: 'Flaccid: no net movement of water, so the cell is limp and the plant may wilt.' },
+      { parts: ['hyper'], ans: ['p'], why: 'Plasmolyzed: the cell loses water and its membrane pulls away from the wall.' },
+    ], [['t', 'turgid', null, 'T'], ['f', 'flaccid', null, 'F'], ['p', 'plasmolyzed', null, 'P']], { multi: false, text: true })) },
+  { id: 'p-osmo', prompt: ['What is osmoregulation?'],
+    build: withPic('osmo', choice([['The movement of water across a membrane.'], ['Pumping ions with ATP.'], ['The control of solute concentration and water balance.'], ['The growth of a cell.']], 2,
+      'Right. Osmoregulation controls solute concentration and water balance: an adaptation for life in hypotonic or hypertonic surroundings, like Paramecium’s vacuole.',
+      ['That is osmosis, the movement osmoregulation has to deal with.',
+       'Pumping with ATP is active transport, the subject of lesson 5.', null,
+       'Growth is something else. Osmoregulation keeps the water in balance.'])) },
+  { id: 'p-order', prompt: ['Number these plant cells from most water inside (1) to least (3).'],
+    build: withPic('order', blanks([
+      { parts: ['turgid: ', { box: '1' }], why: '1: turgid is full, pressed against its wall.', hint: 'Which one is pressed against its wall?', fx: () => ordFx('turgid', '1') },
+      { parts: ['flaccid: ', { box: '2' }], why: '2: flaccid is in balance, neither full nor shrunken.', hint: 'It is in between the other two.', fx: () => ordFx('flaccid', '2') },
+      { parts: ['plasmolyzed: ', { box: '3' }], why: '3: plasmolyzed has lost water, its membrane pulled from the wall.', hint: 'Which one has lost water?', fx: () => ordFx('plasmolyzed', '3') },
+    ])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+function ordFx(nm, str) { const b = S.ordB?.[nm]; if (!b) return; fxp(q => { b.t.textContent = q > 0 ? str : '?'; }, 0, .2); pulseFx(b, 1.4); }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>

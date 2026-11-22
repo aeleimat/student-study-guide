@@ -37,3 +37,17 @@ Slides cover concept 5.1 (polymers) and concept 5.5 (nucleic acids) only. Slide 
 | chapter-06/lesson-06 | Microtubules, cilia and flagella | 34–46 | 7 | ready |
 | chapter-06/lesson-07 | Microfilaments and intermediate filaments | 47–52 | 7 | ready |
 | chapter-06/lesson-08 | Cell walls, the ECM and cell junctions | 53–63 | 8 | ready |
+
+## Unit 7: Chapter 7: Membrane Structure and Function (source/chapter-07-membrane-structure-and-function.pdf, slides)
+
+48 slides, concepts 7.1–7.5. No question slides: each lesson writes its own checks and practice. The student's highlighter and handwritten notes were checked; the wrong or loose ones are listed per lesson (e.g. slide 6 "lateral movement: right and left", slide 20 "until equal rate"). Slide 23's "same concentration" end panel is taught as water moving until the taller column pushes back, since sugar cannot cross. Every lesson after the first opens on the same fluid-mosaic patch with its parts lit (the membrane thread); lesson 1 pushes into it from Chapter 6's cell map. Shared kit: site/biology/lib/membrane.js. Team brief: chapters/chapter-07/BRIEF.md.
+
+| Lesson | Title | Pages | Minutes | Status |
+|---|---|---|---|---|
+| chapter-07/lesson-01 | Phospholipids and the fluid mosaic | 1–8 | 7 | ready |
+| chapter-07/lesson-02 | Membrane proteins and carbohydrates | 9–14 | 7 | ready |
+| chapter-07/lesson-03 | Selective permeability, diffusion and osmosis | 15–23 | 7 | ready |
+| chapter-07/lesson-04 | Tonicity and water balance | 24–28 | 7 | ready |
+| chapter-07/lesson-05 | Facilitated diffusion and active transport | 29–35 | 7 | ready |
+| chapter-07/lesson-06 | Membrane potential, ion pumps and cotransport | 36–41 | 7 | ready |
+| chapter-07/lesson-07 | Bulk transport: exocytosis and endocytosis | 42–48 | 7 | ready |

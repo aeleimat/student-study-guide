@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 7, Lesson 2: Membrane Proteins and Carbohydrates — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.grid.text .row { grid-template-columns: minmax(280px, 1fr) auto 34px; } .grid.text .opt { padding: 3px 11px; }
+.screen .grid.text .row { grid-template-columns: minmax(150px, 1fr) auto 36px; gap: 10px; }
+.side .grid.text .row { grid-template-columns: minmax(200px, 1fr) auto 34px; gap: 10px; } .side .grid.text .opts { flex-wrap: nowrap; gap: 6px; } .side .grid.text .opt { padding: 3px 9px; white-space: nowrap; } .screen .grid.text .opts { flex-wrap: nowrap; gap: 6px; } .screen .grid.text .opt { font-size: 18px; padding: 3px 9px; min-height: 44px; } .screen .grid.text .num { font-size: 24px; }</style>
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 7 (Membrane Structure and Function), lesson 2: a border crossing, pushed in to a cell's edge and the
+// shared membrane patch with its proteins and sugar chains lit; the Fig 7-7 tour; peripheral, integral and
+// transmembrane proteins and the alpha helix of nonpolar amino acids; the six functions, one panel each; carbohydrates
+// (covalent, outer face only, they vary, identity badges); one cell doing all six jobs; summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-07/lesson-02.md.
+const CHAPTER = { number: 702, label: '7, lesson 2', title: 'Membrane Proteins and Carbohydrates', minutes: 7, language: 'en', lead: false, next: '../lesson-03/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${cF(a[0])} ${cF(a[1])}L${cF(b[0])} ${cF(b[1])}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+const GOLD = MC.tail, CREAM = COL.chalk;
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0; null: shown at once).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  path(g, `M${cF(sx)} ${cF(sy)}L${cF(ax)} ${cF(ay)}`, { stroke: line, 'stroke-width': 2.5 });
+  mk('circle', { cx: cF(ax), cy: cF(ay), r: 4.5, fill: line }, g);
+  if (t0 === null) put(g, { o: 1 }); else show(g, t0, .4);
+  return g;
+}
+// A ring that pops in round a point; returns it (o 0 before t0; null: no tween).
+function ring(p, [x, y], r, t0, { color = COL.chalk, w = 4, dash = null, ry } = {}) {
+  const g = G(p, { x, y, o: 0 });
+  mk('ellipse', { rx: r, ry: ry ?? r, fill: 'none', stroke: color, 'stroke-width': w, ...(dash ? { 'stroke-dasharray': dash } : {}) }, g);
+  if (t0 !== null) { show(g, t0, .3); pulse(g, t0 + .1, 1.12); }
+  return g;
+}
+// A point on a cubic Bézier.
+function bez([a, b, c, d], u) { const v = 1 - u; return [0, 1].map(i => v * v * v * a[i] + 3 * v * v * u * b[i] + 3 * v * u * u * c[i] + u * u * u * d[i]); }
+// A cream tick mark, centred on its origin.
+function tickMark(p, x, y, { s = 1, o = 0, color = COL.good } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-14 0L-4 11L16 -12', { stroke: color, 'stroke-width': 7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  return g;
+}
+// An identity badge card (a lanyard card with a small sugar chain printed on it), centred on its origin.
+function idBadge(p, { x = 0, y = 0, s = 1, o = 1, n = 3, branch = 1, seed = 1, label = '' } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -46, y: -34, width: 92, height: 68, rx: 9, fill: '#f2efe6', stroke: '#9d957a', 'stroke-width': 3 }, g);
+  mk('rect', { x: -12, y: -30, width: 24, height: 6, rx: 3, fill: '#9d957a' }, g);
+  const ch = carbChain(g, { x: -22, y: 26, n, branch, seed, a: 6 });
+  path(g, 'M2 -6H34M2 6H30M2 18H24', { stroke: '#7a8494', 'stroke-width': 4, 'stroke-linecap': 'round' });
+  if (label) wLabel(g, label, { y: 60, size: 22, fill: COL.dim, o: 1 });
+  return Object.assign(g, { chain: ch });
+}
+
+/* ---------- the shared membrane patch ---------- */
+const PX = 800, PY = 440, PS = .85;
+const LIT = ['proteins', 'carbohydrate', 'glycolipid'];
+const patchAt = (p, o = {}) => membranePatch(p, { x: PX, y: PY, s: PS, ...o });
+// Drive a patch's focus through phases [t0, names, fadeIn = .6, t1]: each set lights over fadeIn from t0 and lets go
+// over .4 s before t1 (default: the next phase's start); between phases everything is lit. Lipids drift all along.
+function focusRun(mp, phases, D, drift = true) {
+  clockRun(t => {
+    if (drift) mp.drift(t);
+    let names = [], k = 0;
+    phases.forEach(([t0, nm, din = .6, t1], j) => {
+      const end = t1 ?? (phases[j + 1] ? phases[j + 1][0] : 1e9);
+      if (t >= t0 && t < end) { names = nm; k = (din ? io(mRamp(t, t0, t0 + din)) : 1) * (1 - mRamp(t, end - .4, end)); }
+    });
+    mp.focus(names, k);
+  }, D);
+}
+
+/* ---------- the border crossing (intro backdrop) ---------- */
+function borderArt(p, { o = 1 } = {}) {
+  const g = G(p, { o });
+  mk('rect', { x: 0, y: 700, width: 1600, height: 200, fill: '#142a44' }, g);
+  path(g, 'M0 700H1600', { stroke: '#2c4a6e', 'stroke-width': 4 });
+  path(g, 'M600 900L640 700H890L930 900Z', { fill: '#1b3554' });
+  path(g, 'M765 712V740M765 770V805M765 840V880', { stroke: '#8fa3bd', 'stroke-width': 5, 'stroke-opacity': .5 });
+  // the fence: posts, wires and a light mesh, two runs either side of the gate and booth
+  const fence = G(g);
+  let posts = '', wires = '', mesh = '';
+  [[20, 560], [1100, 1580]].forEach(([a, b]) => {
+    const n = Math.round((b - a) / 78);
+    for (let i = 0; i <= n; i++) posts += `M${cF(a + (b - a) * i / n)} 520V700`;
+    for (const y of [540, 580, 620, 660]) wires += `M${a} ${y}H${b}`;
+    for (let x = a; x < b - 1; x += 26) mesh += `M${x} 540L${x + 26} 690M${x + 26} 540L${x} 690`;
+  });
+  const meshE = path(fence, mesh, { stroke: '#8fb0d6', 'stroke-width': 1.5, 'stroke-opacity': .28 });
+  const wireE = path(fence, wires, { stroke: '#a9bdd6', 'stroke-width': 3 }, { d: 0 });
+  const postE = path(fence, posts, { stroke: '#c9d3e0', 'stroke-width': 11, 'stroke-linecap': 'round' }, { d: 0 });
+  put(meshE, { o: 0 });
+  // the gate: a post and a striped boom (pivot at 600, 596), with a rest post at the far end
+  const gate = G(g);
+  mk('rect', { x: 884, y: 604, width: 12, height: 96, fill: '#5b6472' }, gate);
+  mk('rect', { x: 578, y: 580, width: 34, height: 120, rx: 6, fill: '#3a5a80', stroke: '#c9d3e0', 'stroke-width': 3 }, gate);
+  const arm = G(gate, { x: 600, y: 594, r: 0 });
+  mk('rect', { x: 0, y: -10, width: 300, height: 20, rx: 10, fill: '#f2efe6', stroke: '#c9d3e0', 'stroke-width': 2 }, arm);
+  path(arm, 'M40 -10h34v20h-34zM114 -10h34v20h-34zM188 -10h34v20h-34zM262 -10h30v20h-30z', { fill: '#e5533d' });
+  mk('circle', { r: 13, fill: '#c9d3e0', stroke: '#3a5a80', 'stroke-width': 3 }, arm);
+  // the guard booth
+  const booth = G(g);
+  mk('rect', { x: 930, y: 522, width: 140, height: 178, fill: '#2b4a70', stroke: '#c9d3e0', 'stroke-width': 3 }, booth);
+  path(booth, 'M912 524L1000 476L1088 524Z', { fill: '#e5533d', stroke: '#c9d3e0', 'stroke-width': 3, 'stroke-linejoin': 'round' });
+  mk('rect', { x: 948, y: 545, width: 104, height: 56, rx: 6, fill: '#5fd3e8', 'fill-opacity': .35, stroke: '#c9d3e0', 'stroke-width': 2 }, booth);
+  mk('rect', { x: 983, y: 622, width: 34, height: 78, fill: '#1d3858', stroke: '#c9d3e0', 'stroke-width': 2 }, booth);
+  // the scanner, in front of the fence
+  const scan = G(g);
+  mk('rect', { x: 493, y: 604, width: 14, height: 166, fill: '#5b6472' }, scan);
+  mk('rect', { x: 464, y: 548, width: 72, height: 62, rx: 10, fill: '#33506f', stroke: '#c9d3e0', 'stroke-width': 3 }, scan);
+  const scr = mk('rect', { x: 476, y: 560, width: 48, height: 30, rx: 5, fill: '#8fd6b0', 'fill-opacity': .35 }, scan);
+  const ok = put(mk('rect', { x: 476, y: 560, width: 48, height: 30, rx: 5, fill: '#5bd17a' }, scan), { o: 0 });
+  // the badge
+  const bdg = idBadge(g, { x: 390, y: 470, n: 4, branch: 1, seed: 2 });
+  return Object.assign(g, { meshE, wireE, postE, gate, arm, booth, scan, scr, ok, bdg });
+}
+
+// A simple cell for the push-in: membrane, cytoplasm, nucleus and a few organelles; drawn round (cx, cy).
+function simpleCell(p, { x = 800, y = 520, o = 1 } = {}) {
+  const g = G(p, { o });
+  path(g, cBlob(380, 300, { seed: 4, wob: .03, cx: x, cy: y }), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 12 });
+  mk('circle', { cx: x - 40, cy: y + 30, r: 105, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 6 }, g);
+  mk('circle', { cx: x - 20, cy: y + 20, r: 32, fill: CC.nucleolus }, g);
+  path(g, `M${x - 170} ${y - 60}A150 150 0 0 1 ${x + 40} ${y - 120}M${x - 190} ${y - 30}A180 180 0 0 1 ${x + 60} ${y - 150}`, { stroke: CC.er, 'stroke-width': 9 });
+  path(g, cStadium(100, 44), { fill: CC.mito, transform: `translate(${x + 200} ${y - 40}) rotate(20)` });
+  path(g, cStadium(90, 40), { fill: CC.mito, transform: `translate(${x - 230} ${y + 160}) rotate(-15)` });
+  path(g, `M${x + 150} ${y + 120}q30 14 60 0M${x + 152} ${y + 138}q28 12 56 0M${x + 156} ${y + 156}q24 10 48 0`, { stroke: CC.golgi, 'stroke-width': 7 });
+  return g;
+}
+
+/* ---------- a membrane cutaway: peripheral, half-way integral, transmembrane (and a glycolipid) ---------- */
+// Bilayer centred on its origin, cytoplasm below; at = local x of each piece. .pt(name) in parent: 'peri', 'half',
+// 'trans', 'gl', 'periBottom', 'halfTop', 'halfBottom', 'transTop', 'core'.
+function cutaway(p, { x = 800, y = 430, s = 1, o = 1, w = 1100, depth = 200, at = {}, glyco = false, helix = false } = {}) {
+  const g = G(p, { x, y, s, o }), A = { peri: -360, half: -120, trans: 160, gl: 400, ...at };
+  mk('rect', { x: -w / 2, y: 46, width: w, height: depth, fill: MC.cyto }, g);
+  const gaps = [[A.half, 40], [A.trans, 50]];
+  if (glyco) gaps.push([A.gl, 12]);
+  const bl = bilayer(g, { w, gaps, chol: 0, fluid: .3, seed: 5, unsat: .25 });
+  const core = put(mk('rect', { x: -w / 2, y: -40, width: w, height: 80, fill: GOLD, 'fill-opacity': .2 }, g), { o: 0 });
+  // under the half-way protein the inner leaflet carries on
+  const under = G(g);
+  [-25, 0, 25].forEach((dx, i) => phospholipid(under, { x: A.half + dx, y: bl.yH, r: 180, seed: 3 + i }));
+  const half = integralProtein(g, { x: A.half, y: -26, w: 74, h: 104, seed: 3 });
+  const trans = integralProtein(g, { x: A.trans, y: 0, w: 84, h: 172, seed: 7 });
+  const peri = peripheralProtein(g, { x: A.peri, y: bl.face + 22, w: 100, h: 46 });
+  let gl = null;
+  if (glyco) { gl = G(g); phospholipid(gl, { x: A.gl, y: -bl.yH, color: '#a9c4e4', seed: 21 }); carbChain(gl, { x: A.gl, y: -bl.yH - 11, n: 4, seed: 2, branch: 1 }); }
+  const hx = helix ? helixProtein(g, { x: A.trans, n: 1, mem: 84, o: 0 }) : null;
+  const L = {
+    peri: [A.peri, bl.face + 22], periBottom: [A.peri, bl.face + 45], half: [A.half, -26], halfTop: [A.half, -78], halfBottom: [A.half, 26],
+    trans: [A.trans, 0], transTop: [A.trans, -86], gl: [A.gl, -bl.yH - 40], core: [0, 0],
+  };
+  return Object.assign(g, { bl, core, half, trans, peri, gl, hx, A, pt(name) { return cOut(g, L[name] || [0, 0]); } });
+}
+
+// A pump whose ATP is gone before its ADP shows: the kit cross-fades the two coins on one spot, so their labels
+// overlap for a moment; here the ATP fades out as the ADP starts to show. Returns the pump.
+function crispCoins(pu) {
+  const coins = str => [...pu.querySelectorAll('text')].filter(e => e.textContent === str).map(e => e.parentNode);
+  const atp = coins('ATP'), adp = coins('ADP'), run = pu.run;
+  pu.run = k => {
+    run.call(pu, k);
+    atp.forEach((a, i) => { const d = st(adp[i]).o; if (d > 0) cSet(a, { o: st(a).o * Math.max(0, 1 - d / .14) }); });
+    return pu;
+  };
+  return pu;
+}
+
+/* ---------- the six functions: one panel each ---------- */
+const FN = [
+  ['transport', '(a) Transport', 280, 235], ['enzyme', '(b) Enzymatic activity', 800, 235], ['signal', '(c) Signal transduction', 1320, 235],
+  ['recognition', '(d) Cell-cell recognition', 280, 665], ['joining', '(e) Intercellular joining', 800, 665], ['attachment', '(f) Attachment', 1320, 665],
+];
+// Panel (a): a passage with no ATP (a teal channel, substances cross) and a protein that uses ATP (indigo, H⁺ pushed out).
+function panelA(p, { x = 0, y = 0, s = 1, o = 1, captions = true } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -280, y: 46, width: 560, height: 170, fill: MC.cyto }, g);
+  bilayer(g, { w: 560, gaps: [[-130, 66], [130, 72]], chol: 0, fluid: .3, seed: 2 });
+  const ch = channelProtein(g, { x: -130, gated: false, kind: 'dye2', n: 4 });
+  const pu = crispCoins(protonPump(g, { x: 130, n: 3 }));
+  const capA = captions ? wLabel(g, 'a passage: no ATP', { x: -130, y: 262, size: 34, fill: MC.channel, weight: 700, o: 0 }) : null;
+  const capB = captions ? wLabel(g, 'uses ATP', { x: 130, y: 262, size: 34, fill: MC.atp, weight: 700, o: 0 }) : null;
+  return Object.assign(g, { ch, pu, capA, capB });
+}
+// The six panels laid out on the 1600 × 900 world (frames, titles and pieces); .play(i, k) poses panel i.
+function sixPanels(p, { x = 0, y = 0, s = 1, o = 1, captions = true } = {}) {
+  const g = G(p, { x, y, s, o }), panels = [];
+  FN.forEach(([kind, title, cx, cy], i) => {
+    const f = G(g, { x: cx, y: cy, o: 1 });
+    const frame = mk('rect', { x: -245, y: -205, width: 490, height: 410, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, f);
+    const ttl = wLabel(f, title, { y: -160, size: 30, weight: 700, o: 1 });
+    const body = G(f), caps = [];
+    let piece, play;
+    const cap = (str, yy, fill = COL.chalk, xx = 0) => { const e = wLabel(f, str, { x: xx, y: yy, size: 22, fill, weight: 600, o: 0 }); caps.push(e); return e; };
+    if (kind === 'transport') {
+      piece = panelA(body, { y: 0, s: .6, captions: false });
+      if (captions) { cap('a passage: no ATP', 150, MC.channel, -90); cap('uses ATP', 150, MC.atp, 100); cap('lesson 5 names them', 186, COL.dim); }
+      play = t => { piece.ch.flow(t, { speed: 55 }); };
+    } else if (kind === 'enzyme') {
+      piece = proteinFunction(body, { kind, y: 30, s: .78, w: 420 }); play = k => piece.play(k);
+      if (captions) cap('speeds up a reaction on the membrane', 180, MC.enzyme);
+    } else if (kind === 'signal') {
+      piece = proteinFunction(body, { kind, y: 40, s: .72, w: 420 }); play = k => piece.play(k);
+      if (captions) cap('the message is passed inside', 190, MC.receptor);
+    } else if (kind === 'recognition') {
+      piece = proteinFunction(body, { kind, y: 80, s: .46, w: 600 }); play = k => piece.play(k);
+      if (captions) cap('a sugar chain read like a badge', 180, MC.carb);
+    } else if (kind === 'joining') {
+      piece = proteinFunction(body, { kind, y: 80, s: .46, w: 600 }); play = k => piece.play(k);
+      if (captions) cap('two cells hooked together', 180, MC.integral);
+    } else {
+      piece = proteinFunction(body, { kind, y: 30, s: .74, w: 420 }); play = k => piece.play(k);
+      if (captions) { cap('ECM fibre', -122, MC.ecm); cap('microfilament', 180, MC.actin); }
+    }
+    panels.push({ f, frame, ttl, body, piece, play, caps, kind, cx, cy });
+  });
+  return Object.assign(g, { panels });
+}
+
+/* ---------- three pairs of cells whose chains differ (carbs: vary and badge) ---------- */
+const VARY = [
+  ['two species', 290, [[3, 1, 1], [5, 2, 4]]],
+  ['two individuals', 800, [[4, 1, 3], [4, 2, 6]]],
+  ['two cell types', 1310, [[5, 1, 2], [3, 0, 5]]],
+];
+function stripCell(p, { x = 0, y = 0, s = 1, chain: [n, branch, seed] }) {
+  const g = G(p, { x, y, s });
+  mk('rect', { x: -95, y: 46, width: 190, height: 90, rx: 8, fill: MC.cyto }, g);
+  bilayer(g, { w: 190, gaps: [[-40, 36], [45, 12]], chol: 0, fluid: .3, seed: seed + 1 });
+  integralProtein(g, { x: -40, w: 62, h: 140, seed: seed + 2 });
+  carbChain(g, { x: -40, y: -68, n, branch, seed });
+  phospholipid(g, { x: 45, y: -46.6, color: '#a9c4e4', seed: seed + 9 });
+  carbChain(g, { x: 45, y: -57.6, n: Math.max(2, n - 1), branch: branch ? 1 : 0, seed: seed + 1 });
+  return g;
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Membrane proteins and carbohydrates', (m, D) => {
+  const p = panel(0), tG = m('gate'), tC = m('cell'), tP = m('patch'), tL = m('lit');
+  const bd = borderArt(p, { o: 0 }); show(bd, .1, .6);
+  draw(bd.postE, .2, .8); draw(bd.wireE, .5, .9);
+  // title
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 7 · LESSON 2', { x: 1230, y: 160, size: 26, fill: COL.dim, o: 1 });
+  ['Membrane proteins', 'and carbohydrates'].forEach((s, i) => wLabel(ttl, s, { x: 1230, y: 250 + i * 74, size: 62, o: 1 }));
+  wLabel(ttl, 'the working parts of the cell’s border', { x: 1230, y: 410, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tG - .2, .5);
+  // gate: the fence does little; the gate, booth, scanner and badge do the work
+  show(bd.meshE, tG + .2, .6);
+  const lf = say(p, 'fence', 250, 790, tG + 1.6, { size: 32 });
+  const lf2 = say(p, 'on its own, it does very little', 250, 830, tG + 2.4, { size: 24, fill: COL.dim, weight: 500 });
+  const tGt = tC - 4.4, tBo = tC - 3.5, tSc = tC - 2.4, tBa = tC - 1.4;
+  const rings = [ring(p, [745, 630], 150, tGt, { color: '#ffb3a6', w: 3, ry: 90 }), ring(p, [1000, 590], 110, tBo, { color: '#ffb3a6', w: 3, ry: 130 }),
+    ring(p, [500, 640], 64, tSc, { color: '#8fd6b0', w: 3, ry: 120 })];
+  pulse(bd.bdg, tBa, 1.15);
+  const lg = say(p, 'gate', 745, 790, tGt, { size: 32, fill: '#ffb3a6' });
+  const lb = say(p, 'guard booth', 1000, 470 - 14, tBo, { size: 30, fill: '#ffb3a6' });
+  const ls = say(p, 'scanner', 500, 820, tSc, { size: 30, fill: '#8fd6b0' });
+  const lbd = say(p, 'badge', 390, 418, tBa, { size: 30, fill: MC.carb });
+  tw(bd.bdg, { x: 470, y: 590 }, tBa + .3, .7, io); tw(bd.bdg, { s: .5 }, tBa + .3, .7, io);
+  show(bd.ok, tBa + .95, .15); tw(bd.arm, { r: -72 }, tBa + 1.05, .8, io);
+  hide(lbd, tBa + .3, .3);
+  // cell: the border scene gives way to a cell; the camera pushes into its edge
+  [lf, lf2, lg, lb, ls, ...rings].forEach(e => hide(e, tC - .1, .4));
+  hide(bd, tC, .6);
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const cell = simpleCell(W, { x: 800, y: 520, o: 0 }); show(cell, tC + .1, .6);
+  const lc = say(p, 'a cell’s border: the plasma membrane', 800, 110, tC + .4, { size: 34 });
+  cam.to({ x: 800, y: 222, z: 6 }, tC + .8, 1.9);
+  hide(lc, tP - .3, .3);
+  // patch: the membrane patch of lesson 1 (lipids lit); lit: proteins and sugar chains light, lipids dim
+  hide(cam.el, tP + .1, .6);
+  const mp = patchAt(p, { o: 0 }); show(mp, tP, .7);
+  const sd = mp.sides(); show(sd, tP + .9, .5);
+  focusRun(mp, [[0, ['bilayer', 'cholesterol'], 0, tL], [tL + .1, LIT, .9]], D);
+  const l1 = say(p, 'a fluid sheet of phospholipids (lesson 1)', 800, 62, tP + 1.2, { size: 30, fill: MC.head });
+  hide(l1, tL, .4);
+  say(p, 'proteins: most of the membrane’s specific functions', 800, 62, tL + 4.3, { size: 32, weight: 700, fill: MC.integral });
+}],
+
+/* ---------- tour ---------- */
+['tour', 'A tour of the membrane', (m, D) => {
+  const p = panel(0), tS = m('sides'), tLi = m('lipids'), tPr = m('prot'), tI = m('integral'), tPe = m('periph'), tGl = m('glyco');
+  const mp = patchAt(p); put(mp.sides(), { o: 1 });
+  focusRun(mp, [[0, LIT, 0, 1.4], [tS, ['ecm', 'microfilaments']], [tLi, ['bilayer', 'cholesterol']], [tPr, ['proteins']],
+    [tI, ['integral'], .5], [tPe, ['peripheral'], .5], [tGl, ['glycoprotein', 'glycolipid'], .5]], D);
+  const hd = say(p, 'Figure 7.7: the parts of a plasma membrane', 800, 62, .2, { size: 30, fill: COL.dim, weight: 500 });
+  hide(hd, tS + 3, .4);
+  const dimAt = (e, t) => tw(e, { o: .5 }, t, .4);
+  // sides: ECM fibres outside, microfilaments inside
+  const lo = say(p, 'outer face', 1452, 400, tS + .3, { size: 24, anchor: 'start', fill: MC.head });
+  const lE = say(p, 'fibres of the extracellular matrix (ECM)', 1110, 126, tS + 3.6, { size: 26, fill: MC.ecm });
+  const li = say(p, 'inner face', 1452, 498, tS + 7.4, { size: 24, anchor: 'start', fill: MC.head });
+  const lM = say(p, 'microfilaments of the cytoskeleton', 470, 704, tS + 7.6, { size: 26, fill: MC.actin });
+  [lo, lE, li, lM].forEach(e => dimAt(e, tLi));
+  // lipids: the bilayer, cholesterol between the tails
+  const cp = mp.pt('cholesterol');
+  const lC = tag(p, 'cholesterol', [110, 282], cp, tLi + 1.8, { size: 26, fill: MC.chol, line: MC.chol, sub: '(lesson 1)' });
+  dimAt(lC, tPr);
+  // prot: a mosaic of proteins
+  const lMo = say(p, 'a mosaic of proteins', 1250, 722, tPr + .4, { size: 30, weight: 700, fill: MC.integral });
+  const lMo2 = say(p, 'a collage of different proteins in a fluid bilayer', 1250, 760, tPr + 4.4, { size: 22, fill: COL.dim, weight: 500 });
+  hide(lMo, tI - .3, .4); hide(lMo2, tI - .3, .4);
+  // integral: into the core
+  const ip = mp.pt('integral');
+  const lI = tag(p, 'integral protein', [ip[0], 292], [ip[0], PY - 80 * PS], tI + .3, { size: 28, fill: MC.integral, line: MC.integral });
+  dimAt(lI, tPe);
+  // periph: on the cytoplasmic surface
+  const pp = mp.pt('peripheral'), pp1 = [ip[0] + 14 * PS, PY + 122 * PS];
+  const lP = tag(p, 'peripheral proteins', [850, 770], [pp[0], pp[1] + 20 * PS], tPe + .4, { size: 28, fill: MC.peripheral, line: MC.peripheral });
+  const lP2 = G(p, { o: 0 }); show(lP2, tPe + .5, .4); leader(lP2, [800, 742], pp1, tPe + .5, MC.peripheral);
+  dimAt(lP, tGl); dimAt(lP2, tGl);
+  // glyco: sugar chains on a protein and on a lipid
+  const gp = mp.pt('glycoprotein'), cb = mp.pt('carbohydrate');
+  tag(p, 'carbohydrate', [420, 268], [cb[0], cb[1] - 26 * PS], tGl + .3, { size: 28, fill: MC.carb, line: MC.carb });
+  // the second glycoprotein and glycolipid sit at x 0.87 and 0.74 of the half width
+  const gp2 = [PX + .87 * 750 * PS, PY - 70 * PS], gl2 = [PX + .74 * 750 * PS, PY - 47.6 * PS];
+  tag(p, 'glycoprotein', [1478, 300], [gp2[0] + 26, gp2[1] + 14], tGl + 3.1, { size: 28, fill: MC.carb, line: MC.carb, sub: 'chain on a protein' });
+  tag(p, 'glycolipid', [1180, 292], gl2, tGl + 6.0, { size: 28, fill: MC.carb, line: MC.carb, sub: 'chain on a lipid' });
+  ring(p, [gp[0], gp[1] - 10], 52, tGl + 3.2, { color: MC.carb, w: 3, ry: 90 });
+}],
+
+/* ---------- kinds ---------- */
+['kinds', 'Where proteins sit', (m, D) => {
+  const p = panel(0), tPe = m('periph'), tI = m('integral'), tT = m('trans'), tH = m('helix'), tW = m('why');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const ca = cutaway(W, { x: 800, y: 420, s: 1.45, w: 1100, depth: 240, helix: true });
+  const cp = n => ca.pt(n);
+  const Lout = say(p, 'EXTRACELLULAR FLUID', 40, 80, .2, { size: 24, anchor: 'start', fill: COL.dim, weight: 700 });
+  const Lin = say(p, 'CYTOPLASM', 40, 770, .2, { size: 24, anchor: 'start', fill: COL.dim, weight: 700 });
+  const L = [];
+  // periph: stops at the surface
+  pulse(ca.peri, tPe + .1, 1.08);
+  L.push(tag(p, 'peripheral protein', [300, 690], cp('periBottom'), tPe + .3, { size: 28, fill: MC.peripheral, line: MC.peripheral }));
+  const fy = 420 + ca.bl.face * 1.45, px0 = cp('peri')[0];
+  const fl = G(p, { o: 0 }); show(fl, tPe + 3.6, .3); L.push(fl);
+  draw(path(fl, `M${px0 - 95} ${cF(fy)}H${px0 + 95}`, { stroke: CREAM, 'stroke-width': 4, 'stroke-dasharray': '10 8' }, { d: 0 }), tPe + 3.6, .6);
+  L.push(say(p, 'never enters the core', 300, 735, tPe + 3.8, { size: 24, fill: CREAM, weight: 500 }));
+  // integral: the core shaded; a protein reaches into it
+  show(ca.core, tI + .2, .6);
+  L.push(tag(p, 'hydrophobic core', [180, 290], [180, 420], tI + .4, { size: 28, fill: GOLD, line: GOLD, sub: 'water-avoiding: the tails' }));
+  pulse(ca.half, tI + 1.4, 1.08);
+  L.push(tag(p, 'integral protein', [cp('halfTop')[0], 220], cp('halfTop'), tI + 1.5, { size: 28, fill: MC.integral, line: MC.integral }));
+  // trans: all the way through
+  pulse(ca.trans, tT + .2, 1.06);
+  const ar = G(p, { o: 0 }); show(ar, tT + .5, .4); L.push(ar);
+  const tx = cp('trans')[0] + 90;
+  mArrow(ar, [tx, 330], [tx, 520], { color: CREAM, w: 5, head: 16 }); mArrow(ar, [tx, 520], [tx, 330], { color: CREAM, w: 5, head: 16 });
+  L.push(say(p, 'side to side', tx, 566, tT + .8, { size: 24, fill: CREAM, weight: 500 }));
+  L.push(tag(p, 'transmembrane protein', [cp('transTop')[0], 220], cp('transTop'), tT + 4.3, { size: 30, fill: MC.integral, line: MC.integral, weight: 700 }));
+  L.push(tag(p, 'integral, but not all the way through', [640, 640], cp('halfBottom'), tT + 5.6, { size: 24, fill: COL.dim, weight: 500 }));
+  // helix: push into the transmembrane protein; its span is an alpha helix of nonpolar amino acids
+  L.forEach(e => hide(e, tH, .4)); hide(Lout, tH, .4); hide(Lin, tH, .4);
+  const [cx, cy] = cp('trans'), Z = 2.1;
+  cam.to({ x: cx, y: cy, z: Z }, tH + .1, 1.5);
+  hide(ca.trans, tH + 1.1, .6); show(ca.hx, tH + 1.1, .6);
+  const sc = ([wx, wy]) => [800 + (wx - cx) * Z, 450 + (wy - cy) * Z];
+  const inC = lp => sc(cOut(ca, lp));
+  const A0 = ca.A.trans;
+  tag(p, 'α helix', [1040, 150], inC([A0 + 14, -30]), tH + 2.0, { size: 40, fill: MC.integral, line: MC.integral, weight: 700, sub: 'stretches of nonpolar amino acids', subFill: GOLD });
+  prog(k => ca.hx.hydro(k), tH + 2.4, 1.4, io);
+  tag(p, 'hydrophobic core', [1440, 250], [1440, 450], tH + 3, { size: 26, fill: GOLD, line: GOLD });
+  // why: nonpolar side chains (gold) face the nonpolar tails; the polar ends (blue) sit in the water
+  const side = G(ca, { o: 0 }), polar = G(ca, { o: 0 });
+  for (let j = 0; j < 7; j++) { const yy = -36 + 12 * j, sd = j % 2 ? 1 : -1; mk('circle', { cx: A0 + sd * 24, cy: yy, r: 5.5, fill: GOLD, stroke: '#8a6a1c', 'stroke-width': 1.6 }, side); }
+  const H2 = 42, nL = [[-46, -H2 - 80], [-46, -H2 - 30], [0, -H2 - 40], [0, -H2 + 2]], cL = [[0, H2], [0, H2 + 40], [46, H2 + 30], [46, H2 + 80]];
+  [nL, cL].forEach(cv => [.12, .45, .8].forEach(u => { const q = bez(cv, u); mk('circle', { cx: A0 + q[0], cy: q[1], r: 5.5, fill: MC.minus, stroke: '#2f45a0', 'stroke-width': 1.6 }, polar); }));
+  show(side, tW + 1.2, .5); show(polar, tW + 2.6, .5);
+  const tl = inC([A0 - 70, -18]);
+  const Lt = tag(p, 'fatty acid tails avoid water', [330, 230], tl, tW + 1.4, { size: 28, fill: GOLD, line: GOLD });
+  const Lp = tag(p, 'polar ends, in the water', [1300, 780], inC(bez(cL, .8).map((v, i) => v + (i ? 0 : A0))), tW + 2.8, { size: 26, fill: MC.minus, line: MC.minus });
+  const fit = G(p, { o: 0 }); show(fit, tW + 5.6, .4);
+  [inC([A0 - 34, -12]), inC([A0 + 34, 12])].forEach(([qx, qy]) => tickMark(fit, qx, qy, { o: 1, s: .9 }));
+  const box = G(p, { o: 0 }); show(box, tW + 5.8, .5);
+  mk('rect', { x: 40, y: 800, width: 640, height: 70, rx: 16, fill: '#0a1626', stroke: COL.good, 'stroke-opacity': .6, 'stroke-width': 3 }, box);
+  wLabel(box, 'nonpolar meets nonpolar: the protein stays put', { x: 360, y: 845, size: 26, fill: COL.chalk, o: 1 });
+  
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const ca = cutaway(p, { x: 800, y: 330, s: 1.15, w: 1300, depth: 160, glyco: true, at: { peri: -450, trans: -150, half: 150, gl: 450 } });
+  wLabel(p, 'EXTRACELLULAR FLUID', { x: 60, y: 90, size: 22, anchor: 'start', fill: COL.dim, weight: 700, o: 1 });
+  wLabel(p, 'CYTOPLASM', { x: 60, y: 540, size: 22, anchor: 'start', fill: COL.dim, weight: 700, o: 1 });
+  const c = n => ca.pt(n);
+  const [tx, ty] = c('trans'), [px, py] = c('peri'), [hx, hy] = c('half'), [gx] = c('gl');
+  S.q1 = [
+    { el: ca.trans, box: [tx - 64, ty - 115, 128, 230], label: 'the protein at the left of centre' },
+    { el: ca.peri, box: [px - 75, py - 38, 150, 76], label: 'the protein under the membrane' },
+    { el: ca.half, box: [hx - 58, hy - 72, 116, 144], label: 'the protein right of centre' },
+    { el: ca.gl, box: [gx - 42, 190, 84, 142], label: 'the molecule with a sugar chain' },
+  ];
+}, { ask: done => quiz(BAND, [{
+  id: 'c-span', prompt: ['Click the protein that spans the whole membrane.'],
+  build: pickEls(S.q1, 0, 'Right. It reaches from the outer face to the inner face: a transmembrane protein.',
+    i => [null, 'This one is only bound to the surface: a peripheral protein. It never enters the core.',
+      'This one enters the core but stops part way. It is integral, not transmembrane.',
+      'This is a glycolipid: a lipid carrying a sugar chain, not a protein.'][i]),
+}], done) }],
+
+/* ---------- funcs ---------- */
+['funcs', 'Six jobs of membrane proteins', (m, D) => {
+  const p = panel(0), tL = m('list');
+  const tm = ['a', 'b', 'c', 'd', 'e', 'f'].map(k => m(k));
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const six = sixPanels(W);
+  const P6 = six.panels;
+  // the frames are there from the start; each title and picture comes in as it is named
+  const named = [0, 1.01, 2.57, 4.21, 6.0, 7.49];
+  P6.forEach((q, i) => {
+    put(q.frame, { o: 1 }); put(q.ttl, { o: 0 }); put(q.body, { o: 0 });
+    show(q.ttl, tL + named[i], .3); show(q.body, tL + named[i] + .1, .5); pulse(q.f, tL + named[i] + .1, 1.03);
+  });
+  // a: the passage needs no ATP; the other protein spends ATP to push H⁺ across
+  const A = P6[0].piece;
+  clockRun(t => A.ch.flow(t < tm[0] + 1.6 ? 0 : t - tm[0] - 1.6, { speed: 55 }), D);
+  prog(k => A.pu.run(k), tm[0] + 7.2, 4.4, lin);
+  // b–f: each panel acts on its own mark
+  const plays = [null, [tm[1] + 2.3, 3.4], [tm[2] + 2.2, 4.4], [tm[3] + 2.4, 3.6], [tm[4] + 2.0, 3.0], [tm[5] + 1.8, 3.2]];
+  plays.forEach((pl, i) => { if (pl) prog(k => P6[i].play(k), pl[0], pl[1], lin); });
+  P6.forEach((q, i) => q.caps.forEach((c, j) => show(c, i ? plays[i][0] + .4 + j * 1.2 : tm[0] + [3.4, 7.6, 11.6][j], .4)));
+  // c: an arrow down from the relay, into the cell
+  const C = P6[2];
+  const arC = G(C.f, { o: 0 }); show(arC, tm[2] + 6.8, .3); mArrow(arC, [40, 128], [40, 168], { color: CREAM, w: 4, head: 12 });
+  const stay = say(C.f, 'the signal stays outside', -110, -120, tm[2] + 11.3, { size: 20, fill: MC.ligand, weight: 600 });
+  // the active panel brightens; the camera visits each in turn and pulls back at the end
+  P6.forEach((q, i) => {
+    tw(q.frame, { c_stroke: COL.chalk }, tm[i], .4);
+    tw(q.frame, { c_stroke: '#3a4a60' }, i < 5 ? tm[i + 1] : D - 1.6, .4);
+  });
+  // while the camera is on one panel its neighbours fade out, so no panel is ever shown half cut
+  P6.forEach((q, i) => {
+    if (i) tw(q.f, { o: 0 }, tm[0] - .1, .3);
+    tw(q.f, { o: 1 }, tm[i] + .05, .4);
+    if (i < 5) tw(q.f, { o: 0 }, tm[i + 1] - .1, .3);
+  });
+  P6.forEach((q, i) => tw(q.f, { o: 1 }, D - 1.7, .6));
+  P6.forEach((q, i) => cam.to({ x: q.cx, y: q.cy, z: 1.85 }, tm[i] + .05, 1.2));
+  cam.to({ x: 800, y: 450, z: 1 }, D - 1.7, 1.6);
+
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const six = sixPanels(p, { x: 0, y: 200, s: .385 });
+  six.panels.forEach((q, i) => { q.play(i ? 1 : 3); q.caps.forEach(c => put(c, { o: 0 })); put(q.frame, { c_stroke: '#3a4a60' }); });
+  six.panels[0].piece.pu.run(.6);
+  wLabel(p, 'the six jobs', { x: 308, y: 180, size: 28, fill: COL.dim, weight: 600, o: 1 });
+  S.q2 = six.panels;
+}, { ask: done => quiz({ x: 640, y: 60, w: 940, cls: 'side' }, [{
+  id: 'c-jobs', prompt: ['Match each job to the kind of membrane-protein function.'],
+  build: grid([
+    { parts: ['spends ATP to move a substance across'], ans: ['t'], why: 'Transport: here a protein uses ATP to move a substance across the membrane.', fx: () => q2Fx(0) },
+    { parts: ['relays a message from outside to inside'], ans: ['s'], why: 'Signal transduction: the receptor relays the message; the signaling molecule stays outside.', fx: () => q2Fx(2) },
+    { parts: ['speeds up a reaction on the membrane'], ans: ['e'], why: 'Enzymatic activity: a membrane enzyme speeds up a reaction at the surface.', fx: () => q2Fx(1) },
+    { parts: ['ties the cytoskeleton to the ECM'], ans: ['a'], why: 'Attachment: a protein anchors microfilaments inside to ECM fibres outside.', fx: () => q2Fx(5) },
+  ], [['t', 'transport', null, 'T'], ['e', 'enzyme', null, 'E'], ['s', 'signal', null, 'S'], ['a', 'attachment', null, 'A']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- carbs ---------- */
+['carbs', 'Membrane carbohydrates', (m, D) => {
+  const p = panel(0), tCh = m('chains'), tB = m('bond'), tF = m('face'), tV = m('vary'), tBd = m('badge');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const mp = patchAt(W);
+  focusRun(mp, [[0, ['glycoprotein', 'glycolipid'], .8]], D);
+  // push to the outer face, on the second glycolipid and glycoprotein
+  const CX = 1300, CY = 330, Z = 2.3;
+  cam.to({ x: CX, y: CY, z: Z }, .3, 2.4);
+  const sc = ([wx, wy]) => [800 + (wx - CX) * Z, 450 + (wy - CY) * Z];
+  const gpW = [PX + .87 * 750 * PS, PY], glW = [PX + .74 * 750 * PS, PY];
+  const gpTip = sc([gpW[0], PY + (-72 - 66) * PS]), glTip = sc([glW[0], PY + (-57.6 - 50) * PS]);
+  const gpRoot = sc([gpW[0], PY - 72 * PS]), glRoot = sc([glW[0], PY - 57.6 * PS]), glHead = sc([glW[0], PY - 47.6 * PS]), gpBody = sc([gpW[0] + 30 * PS, PY - 30 * PS]);
+  const L = [];
+  // chains: the recognition molecules
+  L.push(ring(p, [gpTip[0], gpTip[1] + 60], 58, tCh + .2, { color: MC.carb, w: 4, ry: 96 }), ring(p, [glTip[0], glTip[1] + 50], 52, tCh + .4, { color: MC.carb, w: 4, ry: 80 }));
+  const lc = G(p, { o: 0 }); show(lc, tCh + .6, .4); L.push(lc);
+  wLabel(lc, 'carbohydrate chains', { x: 830, y: 270, size: 34, fill: MC.carb, weight: 700, o: 1 });
+  wLabel(lc, 'often the molecules cells recognise', { x: 830, y: 310, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  // bond: each chain is covalently bonded, to a lipid or to a protein
+  const bonds = G(p, { o: 0 }); show(bonds, tB + .3, .3); L.push(bonds);
+  [gpRoot, glRoot].forEach(([bx, by]) => { mk('circle', { cx: bx, cy: by, r: 13, fill: 'none', stroke: CREAM, 'stroke-width': 4 }, bonds); });
+  L.push(tag(p, 'covalent bonds', [470, 400], glRoot, tB + .5, { size: 28, fill: CREAM, line: CREAM, weight: 700 }));
+  const lb2 = G(p, { o: 0 }); show(lb2, tB + .6, .3); leader(lb2, [470, 410], gpRoot, tB + .6, CREAM); L.push(lb2);
+  L.push(tag(p, 'glycolipid', [430, 700], glHead, tB + 4.2, { size: 32, fill: MC.carb, line: MC.carb, weight: 700, sub: 'chain on a lipid' }));
+  L.push(tag(p, 'glycoprotein', [1300, 690], gpBody, tB + 7.6, { size: 32, fill: MC.carb, line: MC.carb, weight: 700, sub: 'chain on a protein' }));
+  L.push(say(p, 'the more common kind', 1300, 790, tB + 9.6, { size: 26, fill: CREAM, weight: 600 }));
+  // face: pull back; the chains sit on the outer face only
+  L.forEach(e => hide(e, tF - .1, .4));
+  const CX2 = 1150, CY2 = 470, Z2 = 1.5;
+  cam.to({ x: CX2, y: CY2, z: Z2 }, tF, 1.4);
+  const sc2 = ([wx, wy]) => [800 + (wx - CX2) * Z2, 450 + (wy - CY2) * Z2];
+  const oy = sc2([0, PY - 62 * PS])[1], iy = sc2([0, PY + 62 * PS])[1], xr = sc2([PX + 750 * PS, 0])[0];
+  const fc = G(p, { o: 0 }); show(fc, tF + 1.4, .4);
+  draw(path(fc, `M150 ${cF(oy - 30)}H${cF(xr)}`, { stroke: MC.carb, 'stroke-width': 5, 'stroke-dasharray': '14 10' }, { d: 0 }), tF + 1.4, .8);
+  mArrow(fc, [xr + 70, oy + 10], [xr + 70, oy - 90], { color: MC.carb, w: 6, head: 18 });
+  wLabel(fc, 'outer face:', { x: xr + 26, y: oy - 130, size: 26, fill: MC.carb, anchor: 'start', weight: 700, o: 1 });
+  wLabel(fc, 'the chains', { x: xr + 26, y: oy - 100, size: 26, fill: MC.carb, anchor: 'start', weight: 700, o: 1 });
+  const fi = G(p, { o: 0 }); show(fi, tF + 3.4, .4);
+  path(fi, `M150 ${cF(iy + 30)}H${cF(xr)}`, { stroke: COL.dim, 'stroke-width': 4, 'stroke-dasharray': '6 10' });
+  wLabel(fi, 'inner face:', { x: xr + 26, y: iy + 20, size: 26, fill: COL.dim, anchor: 'start', weight: 600, o: 1 });
+  wLabel(fi, 'no chains', { x: xr + 26, y: iy + 52, size: 26, fill: COL.dim, anchor: 'start', weight: 600, o: 1 });
+  hide(fc, tV - .1, .4); hide(fi, tV - .1, .4);
+  // vary: three pairs whose chains differ
+  hide(cam.el, tV + .5, .5);
+  const vt = [.6, 3.0, 5.4];
+  const cards = [];
+  VARY.forEach(([title, cx, pair], i) => {
+    const g = G(p, { o: 0 }); show(g, tV + vt[i], .5);
+    wLabel(g, title, { x: cx, y: 250, size: 32, weight: 700, o: 1 });
+    pair.forEach((ch, j) => stripCell(g, { x: cx + (j ? 105 : -105), y: 520, s: .9, chain: ch }));
+    wLabel(g, 'different chains', { x: cx, y: 690, size: 22, fill: COL.dim, weight: 500, o: 1 });
+    // badge: each chain becomes the cell's ID badge
+    pair.forEach((ch, j) => {
+      const b = idBadge(p, { x: cx + (j ? 105 : -105), y: 340, s: .9, o: 0, n: ch[0], branch: ch[1], seed: ch[2] });
+      show(b, tBd + .3 + .15 * (2 * i + j), .4); pulse(b, tBd + .4 + .15 * (2 * i + j), 1.12); cards.push(b);
+    });
+  });
+  // a reader checks one badge
+  const rd = G(p, { x: 1600, y: 780, o: 0 });
+  mk('rect', { x: -8, y: -10, width: 16, height: 120, fill: '#5b6472' }, rd);
+  mk('rect', { x: -40, y: -60, width: 80, height: 56, rx: 10, fill: '#33506f', stroke: '#c9d3e0', 'stroke-width': 3 }, rd);
+  const okR = put(mk('rect', { x: -28, y: -48, width: 56, height: 30, rx: 5, fill: '#5bd17a' }, rd), { o: 0 });
+  show(rd, tBd + 1.9, .3); tw(rd, { x: 1500 }, tBd + 1.9, .8, out);
+  const beam = path(p, 'M1470 730L1420 380', { stroke: '#8fd6b0', 'stroke-width': 4, 'stroke-dasharray': '8 8' }, { d: 0 });
+  draw(beam, tBd + 2.8, .4); hide(beam, tBd + 3.9, .3); show(okR, tBd + 3.3, .15);
+  say(p, 'cells tell who is who', 800, 820, tBd + 3.3, { size: 32, weight: 700, fill: '#8fd6b0' });
+}],
+
+/* ---------- example ---------- */
+['example', 'Six jobs on one cell', (m, D) => {
+  const p = panel(0), tR = m('cellrow'), tM = m('msg'), tPa = m('pass'), tE = m('enz'), tN = m('neigh'), tH = m('hold'), tNo = m('note');
+  const M = 480;
+  const cell = G(p, { o: 0 }); show(cell, tR - 2.2, .6);
+  mk('rect', { x: 20, y: M + 46, width: 1560, height: 360, fill: MC.cyto }, cell);
+  // ECM above the left part, microfilaments below
+  const ecm = G(cell);
+  [[250, 0], [292, 1.7]].forEach(([yy, ph]) => { const pts = []; for (let i = 0; i <= 8; i++) pts.push([20 + 320 * i / 8, yy + 12 * Math.sin(i * .9 + ph)]); path(ecm, cSmooth(pts), { stroke: MC.ecm, 'stroke-width': 14 }); });
+  const mf = microfilament(cell, { x: 20, y: 810, len: 560, nm: 2 });
+  const X = { att: 170, rec: 400, ch: 600, pu: 770, en: 960, gp: 1170, jn: 1380 };
+  bilayer(cell, { x: 800, y: M, w: 1560, gaps: [[X.att - 800, 40], [X.rec - 800, 26], [X.ch - 800, 66], [X.pu - 800, 72], [X.en - 800, 46], [X.gp - 800, 38], [X.jn - 800, 36]], chol: .1, fluid: .4, seed: 8 });
+  integralProtein(cell, { x: X.att, y: M, w: 70, h: 150, seed: 2 });
+  const rc = receptorProtein(cell, { x: X.rec, y: M });
+  const ch = channelProtein(cell, { x: X.ch, y: M, gated: true, kind: 'dye2', n: 4 });
+  const pu = crispCoins(protonPump(cell, { x: X.pu, y: M, n: 3 }));
+  const ez = enzymeProtein(cell, { x: X.en, y: M }); put(ez, { r: 180 });
+  integralProtein(cell, { x: X.gp, y: M, w: 64, h: 140, seed: 3 }); carbChain(cell, { x: X.gp, y: M - 68, n: 3, branch: 1, seed: 1 });
+  integralProtein(cell, { x: X.jn, y: M, w: 64, h: 140, seed: 5 });
+  const hookA = path(cell, `M${X.jn - 14} ${M - 60}V${M - 116}H${X.jn + 14}V${M - 102}`, { stroke: MC.integral, 'stroke-width': 10 }, { d: 0 });
+  say(cell, 'outside the cell', 40, 190, 0, { size: 24, anchor: 'start', fill: COL.dim, weight: 700 });
+  say(cell, 'cytoplasm', 1560, 880, 0, { size: 24, anchor: 'end', fill: COL.dim, weight: 700 });
+  // the neighbour, upside down above the right part
+  const NY = M - 220;
+  const nb = G(p, { x: 1280, y: -120, r: 180, o: 0 });
+  mk('rect', { x: -250, y: 46, width: 500, height: 360, fill: '#1d3d63' }, nb);
+  bilayer(nb, { w: 500, gaps: [[110, 38], [-100, 36]], chol: 0, fluid: .3, seed: 3 });
+  integralProtein(nb, { x: 110, w: 64, h: 140, seed: 6 }); carbChain(nb, { x: 110, y: -68, n: 3, branch: 2, seed: 2 });
+  integralProtein(nb, { x: -100, w: 64, h: 140, seed: 8 });
+  const hookB = path(nb, 'M-114 -60V-116H-86V-102', { stroke: MC.integral, 'stroke-width': 10 }, { d: 0 });
+  const nbl = say(p, 'a neighbouring cell', 1280, 120, tN + 1.4, { size: 26, fill: COL.dim, weight: 700 });
+  // msg: signal transduction
+  clockRun(t => rc.bind(.6 * io(mRamp(t, tM + .2, tM + 3)) + .4 * mRamp(t, tM + 3.8, tM + 5)), D);
+  const aS = G(p, { o: 0 }); show(aS, tM + 4.6, .3); mArrow(aS, [X.rec, M + 140], [X.rec, M + 210], { color: CREAM, w: 5, head: 15 });
+  const Ls = say(p, 'signal transduction', X.rec, M + 255, tM + 5.6, { size: 26, fill: MC.receptor, weight: 700 });
+  // pass: transport, with no energy and with ATP
+  prog(k => ch.gate(k), tPa + .2, .6, io);
+  clockRun(t => ch.flow(t < tPa + .5 ? 0 : t - tPa - .5, { speed: 60 }), D);
+  prog(k => pu.run(k), tPa + 4.6, 3.6, lin);
+  const Lt = say(p, 'transport', (X.ch + X.pu) / 2, M + 255, tPa + 7.3, { size: 26, fill: MC.channel, weight: 700 });
+  // enz: an enzyme on the inner surface
+  prog(k => ez.react(k), tE + .1, 2.4, lin);
+  const Le = say(p, 'enzymatic activity', X.en, M + 290, tE + .6, { size: 26, fill: MC.enzyme, weight: 700 });
+  // neigh: a neighbour comes close; recognition, then joining
+  show(nb, tN + .1, .4); tw(nb, { y: NY }, tN + .1, 2, io);
+  const rg = ring(p, [X.gp, M - 110], 34, tN + 2.2, { color: MC.carb, w: 4 });
+  const Lr = say(p, 'recognition', X.gp - 60, M - 130, tN + 5.0, { size: 26, fill: MC.carb, weight: 700, anchor: 'end' });
+  draw(hookA, tN + 6.1, .6); draw(hookB, tN + 6.3, .6);
+  const Lj = say(p, 'joining', 1525, M - 100, tN + 6.9, { size: 26, fill: MC.integral, weight: 700, anchor: 'end' });
+  // hold: attachment to the matrix outside and the filaments inside
+  const lk = G(p);
+  const l1 = path(lk, `M${X.att} ${M - 75}C${X.att + 12} ${M - 120} ${X.att - 12} ${M - 160} ${X.att} ${M - 186}`, { stroke: MC.fibronectin, 'stroke-width': 6 }, { d: 0 });
+  const l2 = path(lk, `M${X.att} ${M + 75}C${X.att - 10} ${M + 160} ${X.att + 10} ${M + 250} ${X.att} ${M + 322}`, { stroke: MC.actin, 'stroke-width': 6 }, { d: 0 });
+  draw(l1, tH + .3, .8); draw(l2, tH + 1.4, .8);
+  const La = say(p, 'attachment', X.att + 40, M + 140, tH + 1.0, { size: 26, fill: MC.ecm, weight: 700, anchor: 'start' });
+  // note: one membrane, six jobs
+  [Ls, Lt, Le, Lr, Lj, La].forEach((e, i) => pulse(e, tNo + .2 + .15 * i, 1.12));
+  const nt = G(p, { o: 0 }); show(nt, tNo + .3, .5);
+  mk('rect', { x: 360, y: 30, width: 640, height: 66, rx: 18, fill: '#0a1626', stroke: COL.chalk, 'stroke-opacity': .5, 'stroke-width': 3 }, nt);
+  wLabel(nt, 'one membrane, six jobs, all done by proteins', { x: 680, y: 73, size: 28, o: 1 });
+
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['A membrane is a collage of proteins in a fluid bilayer;', 'proteins give it most of its specific functions.', g => { membranePatch(g, { x: 190, y: 0, s: .17 }); }],
+    ['Peripheral proteins sit on the surface; integral ones', 'enter the core; transmembrane ones span it (α helix).', g => { cutaway(g, { x: 190, y: -6, s: .24, w: 1000, depth: 120, at: { peri: -330, half: -60, trans: 240 } }); }],
+    ['Six jobs: transport, enzymes, signals,', 'recognition, joining, attachment.', g => {
+      [MC.pump, MC.enzyme, MC.receptor, MC.carb, MC.integral, MC.ecm].forEach((c, i) => mk('circle', { cx: 110 + (i % 3) * 80, cy: (i < 3 ? -30 : 34), r: 26, fill: c, stroke: mix(c, '#000000', .3), 'stroke-width': 3 }, g)); }],
+    ['Sugar chains on glycoproteins and glycolipids face', 'outward and work as identity badges.', g => { idBadge(g, { x: 190, y: 0, s: 1.3, n: 4, branch: 1, seed: 2 }); }],
+  ];
+  const ttl = G(p, { o: 0 }); show(ttl, 0, .3);
+  wLabel(ttl, 'Summary', { x: 800, y: 86, size: 40, weight: 700, o: 1 });
+  wLabel(ttl, 'membrane proteins and carbohydrates', { x: 800, y: 124, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const X0 = 170;
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: X0 - 16, y: 230 + i * 160, o: 0 });
+    const ic = G(g); icon(ic);
+    T(g, a, { x: 420, y: -6, size: 34, weight: 600 }); T(g, b, { x: 420, y: 38, size: 30, fill: COL.dim });
+    tw(g, { o: 1, x: X0 }, m('w' + (i + 1)), .6);
+  });
+  say(p, 'Now try the chapter practice.', 800, 870, m('end'), { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const PCX = 1310;
+  at('kind', g => {
+    const ca = cutaway(g, { x: PCX, y: 400, s: .54, w: 1000, depth: 220, at: { peri: -320, half: -40, trans: 240 } });
+    wLabel(g, 'outside', { x: 1060, y: 250, size: 22, fill: COL.dim, anchor: 'start', o: 1 });
+    wLabel(g, 'cytoplasm', { x: 1300, y: 545, size: 22, fill: COL.dim, anchor: 'start', o: 1 });
+    S.kindEls = [ca.peri, ca.half, ca.trans];
+    put(qBadge(g, '4', ca.pt('trans')[0], 478), { o: 1 });
+    [ca.pt('periBottom'), ca.pt('halfTop'), ca.pt('transTop')].forEach(([x, y], i) => {
+      const b = qBadge(g, String(i + 1), x, i ? y - 44 : y + 40);
+      put(b, { o: 1 });
+    });
+  });
+  at('why', g => {
+    const w = G(g, { x: PCX, y: 430, s: 1.15 });
+    mk('rect', { x: -230, y: 46, width: 460, height: 200, fill: MC.cyto }, w);
+    bilayer(w, { w: 460, gaps: [[0, 40]], chol: 0, fluid: .3, seed: 6 });
+    mk('rect', { x: -230, y: -40, width: 460, height: 80, fill: GOLD, 'fill-opacity': .2 }, w);
+    helixProtein(w, { n: 1, mem: 84 }).hydro(1);
+    wLabel(g, 'the stretch inside the core', { x: PCX, y: 150, size: 26, fill: COL.chalk, o: 1 });
+    wLabel(g, 'why nonpolar?', { x: PCX, y: 760, size: 34, fill: GOLD, weight: 700, o: 1 });
+  });
+  at('atp', g => {
+    const a = panelA(g, { x: PCX, y: 420, s: .95, captions: false });
+    a.pu.run(.15); a.ch.flow(1.3);
+    wLabel(g, 'the transport panel', { x: PCX, y: 160, size: 26, fill: COL.dim, o: 1 });
+  });
+  at('carb', g => {
+    mk('rect', { x: PCX - 280, y: 470 + 46 * 1.1, width: 560, height: 140, fill: MC.cyto }, g);
+    bilayer(g, { x: PCX, y: 470, s: 1.1, w: 500, gaps: [[-120, 38], [130, 12]], chol: 0, fluid: .3, seed: 4 });
+    integralProtein(g, { x: PCX - 132, y: 470, s: 1.1, w: 64, h: 140, seed: 3 }); carbChain(g, { x: PCX - 132, y: 470 - 75, s: 1.1, n: 5, branch: 2, seed: 1 });
+    phospholipid(g, { x: PCX + 143, y: 470 - 51, s: 1.1, color: '#a9c4e4', seed: 9 }); carbChain(g, { x: PCX + 143, y: 470 - 63, s: 1.1, n: 4, branch: 1, seed: 2 });
+    put(qBadge(g, '?', PCX - 132, 250), { o: 1 });
+    wLabel(g, 'on a lipid', { x: PCX + 143, y: 700, size: 24, fill: COL.dim, o: 1 });
+    wLabel(g, 'on a protein', { x: PCX - 132, y: 700, size: 24, fill: COL.dim, o: 1 });
+  });
+  at('badge', g => {
+    [[1130, 3, 1, 1, 'cell type A'], [1310, 5, 2, 4, 'cell type B'], [1490, 4, 0, 6, 'cell type C']].forEach(([x, n, br, sd, nm]) => {
+      stripCell(g, { x, y: 520, s: .8, chain: [n, br, sd] }); idBadge(g, { x, y: 330, s: .9, n, branch: br, seed: sd });
+      wLabel(g, nm, { x, y: 670, size: 22, fill: COL.dim, o: 1 });
+    });
+    wLabel(g, 'three cell types, one body', { x: PCX, y: 190, size: 26, fill: COL.chalk, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('kind');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-kind', prompt: ['Peripheral, integral or transmembrane? Pick the simplest name that fits.'],
+    build: withPic('kind', grid([
+      { parts: ['(1) on the surface only'], ans: ['p'], why: 'Peripheral: bound to the surface, never inside the core.', fx: () => kindFx(0) },
+      { parts: ['(2) enters the core'], ans: ['i'], why: 'Integral: it enters the water-avoiding core of the bilayer.', fx: () => kindFx(1) },
+      { parts: ['(3) spans the membrane'], ans: ['t'], why: 'Transmembrane: an integral protein that reaches all the way through.', fx: () => kindFx(2) },
+      { parts: ['(4) an α helix in the core'], ans: ['i'], why: 'Integral: any protein with a span in the core is integral (a transmembrane one is a kind of integral protein).', fx: () => kindFx(1) },
+    ], [['p', 'peripheral', null, 'P'], ['i', 'integral', null, 'I'], ['t', 'transmembrane', null, 'T']], { multi: false, text: true })) },
+  { id: 'p-why', prompt: ['Why is the stretch of an integral protein inside the bilayer made of nonpolar amino acids?'],
+    build: withPic('why', choice([
+      ['The core is full of water.'],
+      ['The core is the fatty-acid tails, which avoid water, and nonpolar amino acids fit there.'],
+      ['Nonpolar amino acids carry the sugar chains.'],
+      ['Nonpolar means the protein needs ATP.']], 1,
+      'Right. The tails are nonpolar and avoid water; nonpolar amino acids sit comfortably among them, so the protein stays put.',
+      ['The core is the water-avoiding middle: the fatty-acid tails. Water stays outside it.', null,
+       'Sugar chains sit on the outer face, outside the core.',
+       'Nonpolar describes how the amino acids treat water. It has nothing to do with energy.'])) },
+  { id: 'p-atp', prompt: ['In the transport panel, which protein needs ATP?'],
+    build: withPic('atp', choice([
+      ['the protein on the right, which pushes a substance across with ATP'],
+      ['the passage on the left, which substances cross freely'],
+      ['a receptor'],
+      ['an enzyme']], 0,
+      'Right. The protein on the right spends ATP to push the substance across; the passage needs none.',
+      [null, 'Substances cross the passage with no ATP spent.',
+       'A receptor relays a signal; it does not move a substance across.',
+       'An enzyme speeds up a reaction; it is not drawn in the transport panel.'])) },
+  { id: 'p-carb', prompt: ['A sugar chain is covalently bonded to a protein on the outer face. What is the whole molecule called?'],
+    build: withPic('carb', choice([['a glycolipid'], ['a peripheral protein'], ['a glycoprotein'], ['cholesterol']], 2,
+      'Right. A chain bonded to a protein makes a glycoprotein, the more common kind.',
+      ['A glycolipid carries its chain on a lipid, like the one on the right.',
+       '“Peripheral” names where a protein sits (on the surface), not that it carries a chain.', null,
+       'Cholesterol is a steroid in the bilayer, not a protein.'])) },
+  { id: 'p-badge', prompt: ['How can a cell tell one cell type from another by touch?'],
+    build: withPic('badge', choice([
+      ['Every cell has the same chains.'],
+      ['The chains sit in the cytoplasm.'],
+      ['The chains are made of cholesterol.'],
+      ['The carbohydrate chains on the outer face differ between cell types.']], 3,
+      'Right. Surface carbohydrates vary between species, individuals and cell types, so they work as identity badges.',
+      ['They vary: between species, between individuals, even between cell types in one body.',
+       'The chains face outward, on the external side, where other cells can touch them.',
+       'They are carbohydrates: chains of sugars, bonded to lipids or proteins.', null])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// A numbered badge for a practice picture; .t is its text.
+function qBadge(p, str, x, y, { o = 0, r = 24 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: '#3b8fd9', stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t });
+}
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+function kindFx(i) { const e = S.kindEls?.[i]; if (e) pulseFx(e, 1.15); }
+function q2Fx(i) { const q = S.q2?.[i]; if (q) pulseFx(q.f, 1.08); }
+const PRACTICE = { x: 0, y: 0, w: 1010, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>

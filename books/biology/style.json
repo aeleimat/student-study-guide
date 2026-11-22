@@ -47,6 +47,21 @@
           "chapter-06/lesson-07",
           "chapter-06/lesson-08"
         ]
+      },
+      {
+        "unit": 7,
+        "title": "Chapter 7: Membrane Structure and Function",
+        "source": "books/biology/source/chapter-07-membrane-structure-and-function.pdf",
+        "sections": "books/biology/source/chapter-07-sections.json",
+        "lessons": [
+          "chapter-07/lesson-01",
+          "chapter-07/lesson-02",
+          "chapter-07/lesson-03",
+          "chapter-07/lesson-04",
+          "chapter-07/lesson-05",
+          "chapter-07/lesson-06",
+          "chapter-07/lesson-07"
+        ]
       }
     ],
     "pilot": "chapter-03/lesson-02",
@@ -100,7 +115,18 @@
       "intermediate filament": "#f3c95c",
       "cell wall": "#c9b27a",
       "collagen": "#f0b45a",
-      "integrin": "#6c8cff"
+      "integrin": "#6c8cff",
+      "phospholipid": "head #8fb0d6 ball, tails #e9c46a (kink = unsaturated)",
+      "cholesterol": "#e8a87c",
+      "integral protein": "#6c8cff (peripheral #bba8ee)",
+      "channel": "#4fa3a5 (aquaporin too)",
+      "carrier": "#7fd1b9",
+      "pump": "#5b6ee1",
+      "Na+": "#ffb347 disc",
+      "K+": "#c07ae0 rounded square",
+      "Cl-": "#8fd6b0",
+      "membrane potential": "+ #e5533d outside, − #6c8cff inside",
+      "red blood cell": "#d9534f"
     },
     "fonts": {
       "text": "system UI",
@@ -279,6 +305,11 @@
       "name": "cyto.js (chapter 6 kit)",
       "file": "site/biology/lib/cyto.js",
       "what": "microtubule, microfilament, intermediateFilament, fiberCompare, motorProtein, centrosome, centriole, axoneme, dyneinWalk, flagellumSwim, ciliumBeat, ciliaRow, muscleUnit, amoebaCrawl, cytoStreaming, plantWalls, ecmScene, cellJunction; API in its header"
+    },
+    {
+      "name": "membrane.js (chapter 7 kit)",
+      "file": "site/biology/lib/membrane.js",
+      "what": "adds chapter 7 colours to MC; solute ions, bilayer and phospholipid, membranePatch (.focus/.build), membrane proteins and six functions, channel/aquaporin/carrier/naKPump/protonPump/cotransporter, particleCloud, uTube, redCell/plantCell/paramecium, voltmeter/membranePotential, exocytosis/endocytosis; API in its header"
     }
   ],
   "images": {

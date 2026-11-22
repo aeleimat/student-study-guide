@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 7, Lesson 5: Facilitated Diffusion and Active Transport — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 7 (Membrane Structure and Function), lesson 5: a plain gate and a revolving door, then the cell and
+// the shared membrane patch with its transport proteins lit; facilitated diffusion (channel, aquaporin, gated channel,
+// carrier; passive, downhill); active transport (against the gradient, ATP, a ball rolled uphill); the sodium-potassium
+// pump step by step with its counters; a worked case (a gated Na⁺ channel lets sodium in, the pump sends it out);
+// a three-way summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-07/lesson-05.md.
+const CHAPTER = { number: 705, label: '7, lesson 5', title: 'Facilitated Diffusion and Active Transport', minutes: 7, language: 'en', lead: false, next: '../lesson-06/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+const rk = k => Math.round(mClamp(k) * 2000) / 2000;
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const PCX = 1270;
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  if (ax !== null) { path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g); }
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A ring that pops in round a point (o 0 before t0; t0 null: shown at once).
+function ring(p, [x, y], r, t0, { color = COL.chalk, w = 4 } = {}) {
+  const g = G(p, { x, y, o: 0 });
+  mk('circle', { r, fill: 'none', stroke: color, 'stroke-width': w }, g);
+  if (t0 !== null) { show(g, t0, .3); pulse(g, t0 + .1, 1.12); } else put(g, { o: 1 });
+  return g;
+}
+// A title and a dim second line, centred; fades in at t0.
+function banner(p, a, b, x, y, t0, { color = COL.chalk, size = 40 } = {}) {
+  const g = G(p, { o: 0 });
+  wLabel(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wLabel(g, b, { x, y: y + size * .95, size: size * .62, fill: COL.dim, weight: 500, o: 1 });
+  show(g, t0, .5);
+  return g;
+}
+// Points scattered in a box, deterministic, keeping out of the avoid boxes and apart from one another.
+function scatter(n, [x0, y0, x1, y1], seed, avoid = [], minD = 46) {
+  const pts = [];
+  for (let i = 0; pts.length < n && i < n * 80; i++) {
+    const x = x0 + (x1 - x0) * wHash(i, seed), y = y0 + (y1 - y0) * wHash(i, seed + 31);
+    if (avoid.some(([a, b, c, d]) => x > a && x < c && y > b && y < d)) continue;
+    if (pts.some(q => Math.hypot(q[0] - x, q[1] - y) < minD)) continue;
+    pts.push([x, y]);
+  }
+  return pts;
+}
+// A crowd of solutes at points; .jig(t) jiggles them in place (pure in t).
+function crowd(p, kind, pts, { r, label = 'name', amp = 5, o = 1 } = {}) {
+  const g = G(p, { o }), list = pts.map(([x, y]) => ({ e: solute(g, kind, { x, y, r, label }), x, y }));
+  return Object.assign(g, {
+    list,
+    jig(t) { t = Math.floor(t * 15) / 15; if (g._jt === t) return g; g._jt = t; list.forEach((q, i) => mPose(q.e, q.x + amp * Math.sin(t * (1.1 + .37 * (i % 5)) + i * 2.1), q.y + amp * Math.cos(t * (.9 + .29 * (i % 4)) + i * 1.3), 1)); return g; },
+  });
+}
+// A flat strip of membrane: the kit's bilayer with the cytoplasm shaded below it; origin on the bilayer's midline.
+function strip(p, { x = 800, y = 450, w = 1200, gaps = [], s = 1, depth = 500, o = 1, seed = 2, full = true } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: full ? -4000 : -w / 2 - 400, y: 46, width: full ? 8000 : w + 800, height: depth, fill: MC.cyto }, g);
+  const bl = bilayer(g, { w, gaps, seed, unsat: .3 });
+  return Object.assign(g, { bl });
+}
+// gaps for strip(): proteins at stage x positions, relative to the strip centre
+const gapsAt = (cx, s, list) => list.map(([x, half]) => [(x - cx) / s, half]);
+// A numbered step badge; .t is its text, .disc its circle.
+function badge(p, str, x, y, { o = 0, r = 24 } = {}) {
+  const g = G(p, { x, y, o });
+  const disc = mk('circle', { r, fill: '#3b8fd9', stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t, disc });
+}
+// An uphill arrow's ATP spark (gradArrow puts it at the arrow's middle, on the membrane) moved to x, y.
+const atpAt = (a, x, y) => { mPose(a.atp, x, y, 1); return a; };
+// The pump's ATP chip fades out before its ADP chip fades in (the kit crossfades them on one spot, q 1.5 to 1.6).
+const atpThenAdp = (pu, k) => { const q = rk(k) * 6; mO(pu.atp, q < 1.45 ? 1 : 1 - mRamp(q, 1.45, 1.5)); };
+// The pump's third Na⁺ leaves to NA3OUT, not the kit's spot (85, −148), which lies on the second K⁺'s way in.
+const NA3OUT = [55, -150];
+const na3Out = (pu, k) => { const l = io(mRamp(rk(k) * 6, 2.65, 3)); if (l > 0) mPose(pu.na[2], mLerp(0, NA3OUT[0], l), mLerp(38, NA3OUT[1], l)); };
+// Text whose content is set only when it changes.
+function setText(e, str) { if (e._txt !== str) { e.textContent = str; e._txt = str; } }
+
+/* ---------- backdrops (top view): a wall with a plain gate, a wall with a revolving door ---------- */
+function gateArt(p, { x = 0, y = 0, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  path(g, 'M-230 0H-62M62 0H230', { stroke: '#c9b27a', 'stroke-width': 16 });
+  mk('circle', { cx: -62, cy: 0, r: 12, fill: '#8f7a48' }, g); mk('circle', { cx: 62, cy: 0, r: 12, fill: '#8f7a48' }, g);
+  path(g, 'M-62 0L-100 -52M62 0L100 -52', { stroke: '#e3d2a2', 'stroke-width': 9 });   // the two leaves, swung open
+  const walkers = G(g), kinds = ['Na', 'sugar', 'K', 'Cl', 'Na', 'sugar'];
+  const ws = kinds.map((kd, i) => solute(walkers, kd, { r: 15, label: kd === 'sugar' ? false : 'sign' }));
+  return Object.assign(g, {
+    walk(t) {
+      ws.forEach((e, i) => {
+        const u = cFrac(t * .23 + i / ws.length), dir = i % 2 ? -1 : 1;   // both ways, anyone, at any time
+        const yy = dir * (-190 + 380 * u), xx = [-30, 22, -8, 36, 4, -40][i];
+        mPose(e, xx, yy, Math.sin(Math.PI * u));
+      });
+      return g;
+    },
+  }).walk(0);
+}
+function revolvingDoor(p, { x = 0, y = 0, R = 100, o = 1, s = 1, wall = true } = {}) {
+  const g = G(p, { x, y, o, s });
+  if (wall) path(g, `M-230 0H${-R}M${R} 0H230`, { stroke: '#c9b27a', 'stroke-width': 16 });
+  // housing: arcs on the left and right, open at the top and the bottom
+  const a = 50 * Math.PI / 180, arc = sd => `M${cF(sd * R * Math.cos(a))} ${cF(-R * Math.sin(a))}A${R} ${R} 0 0 ${sd > 0 ? 1 : 0} ${cF(sd * R * Math.cos(a))} ${cF(R * Math.sin(a))}`;
+  path(g, arc(1) + arc(-1), { stroke: '#a9c6ea', 'stroke-width': 9 });
+  const rot = G(g);
+  path(rot, `M${-R + 8} 0H${R - 8}M0 ${-R + 8}V${R - 8}`, { stroke: '#e3d2a2', 'stroke-width': 8 });
+  mk('circle', { r: 9, fill: '#8f7a48' }, rot);
+  const riders = [0, 1].map(i => solute(g, i ? 'Na' : 'sugar', { r: 15, label: i ? 'sign' : false }));
+  return Object.assign(g, {
+    spin(t) {
+      const th = Math.round(t * 36 * 10) / 10;   // degrees, a steady rhythm
+      cSet(rot, { r: th });
+      riders.forEach((e, i) => { const an = (th + 45 + 180 * i) * Math.PI / 180; mPose(e, R * .55 * Math.cos(an), R * .55 * Math.sin(an), 1); });
+      return g;
+    },
+  }).spin(0);
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Gates and revolving doors', (m, D) => {
+  const p = panel(0), tDo = m('door'), tC = m('cells'), tP = m('patch'), tL = m('lit');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const gate = gateArt(W, { x: 290, y: 470, o: 0 }), door = revolvingDoor(W, { x: 730, y: 470, o: 0 });
+  show(gate, .2, .6); show(door, .5, .6);
+  clockRun(t => { const u = Math.min(t, tC); gate.walk(u); door.spin(u); }, D);   // still while they fade out, but always written (replay)
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 7 · LESSON 5', { x: 1250, y: 250, size: 26, fill: COL.dim, o: 1 });
+  ['Facilitated diffusion', 'and active transport'].forEach((s, i) => wLabel(ttl, s, { x: 1250, y: 335 + i * 70, size: 52, o: 1 }));
+  wLabel(ttl, 'Membrane structure and function:', { x: 1250, y: 490, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(ttl, 'channels, carriers and pumps', { x: 1250, y: 526, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .2, .5);
+  // door: the gate lets anyone through, the door turns one compartment at a time
+  pulse(gate, tDo + .1, 1.05); pulse(door, tDo + 2.3, 1.05);
+  const l1 = G(p, { o: 0 }), l2 = G(p, { o: 0 });
+  wLabel(l1, 'a plain gate', { x: 290, y: 720, size: 32, o: 1 }); wLabel(l1, 'anyone, any time', { x: 290, y: 760, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(l2, 'a revolving door', { x: 730, y: 720, size: 32, o: 1 }); wLabel(l2, 'one turn at a time', { x: 730, y: 760, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  show(l1, tDo + .2, .4); show(l2, tDo + 2.3, .4);
+  const sideG = G(p, { o: 0 }); show(sideG, tDo + .4, .4);
+  wLabel(sideG, 'seen from above', { x: 510, y: 180, size: 22, fill: COL.dim, weight: 500, o: 1 });
+  [l1, l2, sideG].forEach(e => hide(e, tC, .4));
+  // cells: the cell appears; its membrane lights; the camera pushes into its edge
+  hide(gate, tC, .5); hide(door, tC, .5);
+  const cm = cellMap(W, { kind: 'animal', x: 800, y: 470, s: .62, o: 0 });
+  show(cm, tC + .2, .6);
+  prog(k => cm.focus('membrane', k), tC + .6, .7, io);
+  const [mx, my] = cm.pt('membrane');
+  const lm = tag(p, 'the plasma membrane', [mx + 60, my - 70], [mx + 8, my + 6], tC + .9, { size: 30, weight: 700, fill: CC.membrane, line: CC.membrane });
+  hide(lm, tC + 1.6, .3);
+  cam.to({ x: mx, y: my, z: 4.5 }, tC + 1.6, tP - tC - 1.7);   // z 4.5, not 6: the dimmed map's layers grow with the zoom
+  // patch: the shared fluid-mosaic patch; lit: the transport proteins light, the rest dims
+  hide(cam.el, tP - .4, .35);   // the push fades out before the patch fades in: never both layers at once
+  const mp = membranePatch(p, { x: 800, y: 470, o: 0 });
+  show(mp, tP, .5);
+  const sides = mp.sides(); show(sides, tP + .6, .5);
+  // no drift here: each drift redraw repaints the whole 1500-wide patch (≈3× the frame time); the lit proteins carry the beat
+  prog(k => mp.focus(['transport'], k), tL + .2, .9, io);
+  const pc = mp.pt('channel'), pr = mp.pt('carrier'), pu = mp.pt('pump');
+  tag(p, 'channel', [pc[0] - 40, 590], [pc[0], pc[1] + 70], tL + 3.1, { size: 32, weight: 700, fill: MC.channel, line: MC.channel });
+  tag(p, 'carrier', [pr[0] + 10, 590], [pr[0], pr[1] + 70], tL + 3.9, { size: 32, weight: 700, fill: MC.carrier, line: MC.carrier });
+  tag(p, 'pump', [pu[0] + 190, 700], [pu[0] + 30, pu[1] + 90], tL + 4.8, { size: 32, weight: 700, fill: '#9aa8ff', line: '#9aa8ff' });
+  say(p, 'transport proteins', 800, 860, tL + 1.2, { size: 30, weight: 700 });
+}],
+
+/* ---------- facil ---------- */
+['facil', 'Facilitated diffusion', (m, D) => {
+  const p = panel(0), tF = m('fd'), tCh = m('channel'), tA = m('aqua'), tG = m('gated'), tCr = m('carrier'), tDn = m('down');
+  const MY = 470, CH = 480, AQ = 770, GT = 1060, CR = 1350;
+  const sp = strip(p, { x: 905, y: MY, w: 1330, gaps: gapsAt(905, 1, [[CH, 66], [AQ, 66], [GT, 66], [CR, 78]]) });
+  // the gradient: crowded outside, sparse inside
+  const wedge = G(p, { x: 120, y: MY, r: 90 }); gradientWedge(wedge, { w: 600, h: 120, n: 46 });
+  wLabel(p, 'crowded', { x: 120, y: 140, size: 24, fill: COL.dim, weight: 600, o: 1 });
+  wLabel(p, 'sparse', { x: 120, y: 820, size: 24, fill: COL.dim, weight: 600, o: 1 });
+  // the side names in two lines, clear of the channel's ion column (x 480 ± 20) and the down arrow (x 195)
+  wLabel(p, 'EXTRACELLULAR', { x: 222, y: 352, size: 22, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(p, 'FLUID', { x: 222, y: 378, size: 22, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(p, 'CYTOPLASM', { x: 222, y: 562, size: 22, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  // solutes: crowded above each protein, a few below
+  const top = [175, 380], av = [[0, 0, 1600, 130]];
+  const cNa = crowd(p, 'Na', scatter(7, [CH - 130, top[0], CH + 120, top[1]], 3, [[CH - 34, 250, CH + 34, 400], [250, 330, 580, 400], ...av], 50), { r: 17 });
+  const cW = crowd(p, 'water', scatter(10, [AQ - 120, top[0], AQ + 120, top[1]], 5, [[AQ - 30, 250, AQ + 30, 400]], 40));
+  const cCl = crowd(p, 'Cl', scatter(7, [GT - 130, top[0], GT + 120, top[1]], 7, [[GT - 34, 250, GT + 34, 400]], 50), { r: 17 });
+  const cS = crowd(p, 'sugar', scatter(6, [CR - 130, top[0], CR + 130, top[1]], 9, [[CR - 60, 280, CR + 60, 400]], 54));
+  const below = [crowd(p, 'Na', [[CH - 90, 770]], { r: 17 }), crowd(p, 'water', [[AQ - 80, 770], [AQ + 90, 790], [AQ + 10, 820]]),
+    crowd(p, 'Cl', [[GT + 90, 780]], { r: 17 }), crowd(p, 'sugar', [[CR - 100, 790]])];
+  const crowds = [cNa, cW, cCl, cS, ...below];
+  // the four proteins, dim until named
+  const gCh = G(p, { x: CH, y: MY, o: .3 }), gAq = G(p, { x: AQ, y: MY, o: .3 }), gGt = G(p, { x: GT, y: MY, o: .3 }), gCr = G(p, { x: CR, y: MY, o: .3 });
+  const ch = channelProtein(gCh, { gated: false, kind: 'Na', n: 3 });
+  const aq = aquaporin(gAq, { n: 5 });
+  const gt = channelProtein(gGt, { kind: 'Cl', n: 3 });
+  const cr = carrierProtein(gCr, {});
+  const sugar2 = solute(p, 'sugar', { x: CR + 30, y: MY + 155, o: 0 });   // the first one carried in, left behind
+  const sig = solute(p, 'signal', { x: GT - 120, y: 200, r: 18, o: 0 });
+  // fd: the banner, a cream downhill arrow by the wedge
+  banner(p, 'facilitated diffusion', 'passive · down the gradient · through a transport protein', 800, 60, tF + .2, { size: 40 });
+  const dArr = gradArrow(p, [195, 230], [195, 700], { o: 0 }); show(dArr, tF + 5, .5);
+  say(p, 'down', 195, 210, tF + 5.2, { size: 22, fill: MC.down, weight: 700 });
+  // labels under each protein, as each is named
+  const lab = (x, a, b, t0, col) => { const g = G(p, { o: 0 }); wLabel(g, a, { x, y: 680, size: 28, weight: 700, fill: col, o: 1 }); wLabel(g, b, { x, y: 712, size: 22, fill: COL.dim, weight: 500, o: 1 }); show(g, t0, .4); return g; };
+  show(gCh, tCh, .4); pulse(gCh, tCh + .1, 1.06); lab(CH, 'channel protein', 'a corridor for one ion', tCh + .3, MC.channel);
+  show(gAq, tA, .4); pulse(gAq, tA + .1, 1.06); lab(AQ, 'aquaporin', 'a channel for water', tA + .3, MC.channel);
+  show(gGt, tG, .4); pulse(gGt, tG + .1, 1.06); lab(GT, 'gated channel', 'opens to a stimulus', tG + .3, MC.channel);
+  show(gCr, tCr, .4); pulse(gCr, tCr + .1, 1.06); lab(CR, 'carrier protein', 'binds, changes shape', tCr + .3, MC.carrier);
+  // the gated channel: a signal comes in, the lid swings open, Cl⁻ pass
+  const tSig = tG + 1.6, tOpen = tSig + 1.6;
+  show(sig, tSig, .3); tw(sig, { x: GT - 6, y: MY - 108 }, tSig, 1.5, io);
+  say(p, 'signal', GT - 150, 190, tSig + .1, { size: 22, fill: MC.ligand, weight: 700 });
+  // the carrier: two turns, the second on "open to the outside, bind, change shape, open to the inside, release"
+  const c1 = [tCr + 2.3, tCr + 8.6], c2 = [tCr + 9.3, tCr + 15.1];
+  const tDoor = tCr + 15.3;
+  const dr = revolvingDoor(p, { x: 1500, y: 800, R: 46, wall: false, o: 0 }); show(dr, tDoor, .4);
+  say(p, 'like a revolving door', 1430, 810, tDoor + .1, { size: 24, anchor: 'end', fill: COL.chalk, weight: 600 });
+  clockRun(t => {
+    crowds.forEach(c => c.jig(t));
+    ch.flow(t >= tCh ? t - tCh : 0, { speed: 80 });
+    aq.flow(t >= tA ? t - tA : 0, { speed: 60 });
+    gt.gate(io(mRamp(t, tOpen, tOpen + .7)));
+    gt.flow(t >= tG ? t - tG : 0, { speed: 80 });
+    const k = t < c2[0] ? mRamp(t, c1[0], c1[1]) : mRamp(t, c2[0], c2[1]);
+    cr.carry(k);
+    const kk = rk(k), first = t < c2[0];
+    mO(cr.sol[0], first ? 1 - mRamp(kk, .86, .98) : mRamp(kk, 0, .05));
+    const k1 = first ? kk : 1, w = io(mRamp(t, c1[1] + .1, c1[1] + .7));
+    mPose(sugar2, mLerp(CR + 30, CR + 110, w), mLerp(MY + 155, MY + 330, w), mRamp(k1, .86, .98));
+    if (t >= tDoor) dr.spin(t - tDoor);
+  }, D);
+  // down: every one of them runs downhill, with no ATP
+  [CH, AQ, GT, CR].forEach((x, i) => {
+    const a = gradArrow(p, [x + 88, MY - 80], [x + 88, MY + 80], { o: 0, w: 6, head: 18 }); show(a, tDn + .2 + .15 * i, .4);
+  });
+  const no = G(p, { o: 0 }); show(no, tDn + 1.4, .5);
+  mk('rect', { x: 520, y: 830, width: 760, height: 56, rx: 28, fill: '#0b1626', stroke: MC.down, 'stroke-width': 2.5 }, no);
+  wLabel(no, 'all passive: down the gradient, no ATP', { x: 900, y: 868, size: 30, weight: 700, o: 1 });
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0), MY = 420;
+  strip(p, { x: 320, y: MY, w: 560, gaps: gapsAt(320, 1, [[180, 66], [460, 78]]), depth: 520, full: false });
+  channelProtein(p, { x: 180, y: MY, gated: false, kind: 'Na', n: 3 }).flow(1.2);
+  carrierProtein(p, { x: 460, y: MY }).carry(.2);
+  wLabel(p, 'channel', { x: 180, y: 690, size: 30, weight: 700, fill: MC.channel, o: 1 });
+  wLabel(p, 'carrier', { x: 460, y: 690, size: 30, weight: 700, fill: MC.carrier, o: 1 });
+  wLabel(p, 'a pore', { x: 180, y: 726, size: 22, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(p, 'a shape change', { x: 460, y: 726, size: 22, fill: COL.dim, weight: 500, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-chan-carrier', prompt: ['Channel or carrier?'],
+  build: grid([
+    { parts: ['a pore the solute passes straight through'], ans: ['c'], why: 'Channel: it is a corridor, open through the middle.' },
+    { parts: ['binds the solute and changes shape'], ans: ['r'], why: 'Carrier: the shape change moves the binding site across. A channel does not flip.' },
+    { parts: ['an aquaporin'], ans: ['c'], why: 'Channel: an aquaporin is a channel for water.' },
+    { parts: ['open to one side at a time, like a revolving door'], ans: ['r'], why: 'Carrier: it opens to the outside, then to the inside, never both at once.' },
+    { parts: ['a gated ion channel'], ans: ['c'], why: 'Channel: a channel with a gate that opens to a stimulus.' },
+  ], [['c', 'channel', null, 'C'], ['r', 'carrier', null, 'R']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- active ---------- */
+['active', 'Active transport', (m, D) => {
+  const p = panel(0), tPr = m('problem'), tAg = m('against'), tAt = m('atp'), tPo = m('protein'), tN = m('note');
+  const MY = 470, PX = 600, PX2 = 900;
+  strip(p, { x: 650, y: MY, w: 820, gaps: gapsAt(650, 1, [[PX, 84], [PX2, 84]]) });
+  const wedge = G(p, { x: 120, y: MY, r: 90 }); gradientWedge(wedge, { w: 600, h: 120, n: 46, color: MC.Na });
+  const hiL = wLabel(p, '[Na⁺] high', { x: 120, y: 140, size: 26, fill: MC.Na, weight: 700, o: 1 });
+  const loL = wLabel(p, '[Na⁺] low', { x: 120, y: 822, size: 26, fill: MC.Na, weight: 700, o: 1 });
+  wLabel(p, 'EXTRACELLULAR FLUID', { x: 250, y: 372, size: 22, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(p, 'CYTOPLASM', { x: 250, y: 562, size: 22, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  const cOut = crowd(p, 'Na', scatter(13, [250, 150, 1050, 380], 11, [[PX - 60, 150, PX + 60, 400], [PX2 - 60, 300, PX2 + 60, 400], [700, 150, 1050, 215], [240, 330, 480, 395], [380, 205, 580, 265]], 52), { r: 17 });
+  const cIn = crowd(p, 'Na', [[330, 700], [1010, 770], [460, 800]], { r: 17 });
+  // the pumps (the kit's own ions are hidden; this beat moves one Na⁺ of its own)
+  const g1 = G(p, { x: PX, y: MY, o: .3 }), g2 = G(p, { x: PX2, y: MY, o: .3 });
+  const pu = naKPump(g1, {}), pu2 = naKPump(g2, {});
+  [pu, pu2].forEach(q => [...q.na, ...q.k, q.atp, q.adp, q.pi, q.p].forEach(e => mO(e, 0)));
+  const na = solute(p, 'Na', { x: PX, y: 700, r: 18 });
+  // problem: this Na⁺ has to go out, but diffusion only runs in
+  const qG = G(p, { o: 0 }); show(qG, tPr + 2.6, .4); hide(qG, tAg + .2, .4);
+  path(qG, `M${PX} 670V260`, { stroke: COL.chalk, 'stroke-width': 4, 'stroke-dasharray': '10 10' });
+  wLabel(qG, '?', { x: PX + 44, y: 720, size: 54, weight: 800, fill: MC.Na, o: 1 });
+  wLabel(qG, 'needed: out', { x: PX - 40, y: 250, size: 24, anchor: 'end', fill: COL.chalk, o: 1 });
+  const dA = gradArrow(p, [420, 230], [420, 690], { o: 0 }); show(dA, tPr + 4.4, .4);
+  const dL = say(p, 'downhill: in', 420, 210, tPr + 4.6, { size: 24, fill: MC.down, weight: 700 });
+  // against: the pump lights; an orange uphill arrow with ATP; the Na⁺ is carried out
+  show(g1, tAg, .4); pulse(g1, tAg + .1, 1.05);
+  const uA = atpAt(gradArrow(p, [760, 690], [760, 250], { against: true, o: 0 }), 794, 600); show(uA, tAg + .5, .4);
+  banner(p, 'active transport', 'against the gradient · uses energy, usually ATP', 650, 60, tAg + .3, { size: 40, color: MC.against });
+  const tUp = tAg + 4.2, spark = solute(p, 'ATP', { x: PX + 90, y: 640, r: 18, o: 0 });
+  show(spark, tUp - .8, .3); tw(spark, { x: PX + 30, y: MY + 80 }, tUp - .7, .6, io); hide(spark, tUp, .3);
+  clockRun(t => {
+    cOut.jig(t); cIn.jig(t);
+    const a = io(mRamp(t, tUp - .9, tUp)), u = io(mRamp(t, tUp + .3, tUp + .9)), b = io(mRamp(t, tUp + 1, tUp + 2.2));
+    const y = b > 0 ? mLerp(MY, 250, b) : mLerp(700, MY, a);
+    mPose(na, PX + (b > 0 ? -40 * b : 0), y, 1);
+    pu.halves.set(rk(1 - u));
+    pu2.halves.set(rk(.5 + .5 * Math.sin(t * .9)));
+  }, D);
+  // atp: a ball rolled uphill, one ATP at a time
+  const hill = G(p, { o: 0 }); show(hill, tAt, .5); hide(hill, tN - .2, .4);
+  mk('rect', { x: 1120, y: 140, width: 450, height: 460, rx: 20, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, hill);
+  const H0 = [1160, 540], H1 = [1530, 250];
+  path(hill, `M${H0[0]} ${H0[1]}L${H1[0]} ${H1[1]}L${H1[0]} ${H0[1]}Z`, { fill: '#2a4466', stroke: MC.against, 'stroke-width': 4 });
+  wLabel(hill, 'uphill needs energy', { x: 1345, y: 190, size: 26, weight: 700, fill: MC.against, o: 1 });
+  const ball = solute(hill, 'Na', { r: 24 });
+  const pays = [0, 1, 2].map(i => solute(hill, 'ATP', { r: 16, o: 0 }));
+  const legs = [[tAt + 2.2, tAt + 3.2], [tAt + 3.9, tAt + 4.9], [tAt + 5.6, tAt + 6.6]];
+  const along = k => { const n = Math.hypot(H1[0] - H0[0], H1[1] - H0[1]), nx = (H1[1] - H0[1]) / n, ny = -(H1[0] - H0[0]) / n; return [mLerp(H0[0], H1[0], k) - nx * 26, mLerp(H0[1], H1[1], k) - ny * 26]; };
+  clockRun(t => {
+    t = Math.min(t, tN + .4);   // pure in t: always written, frozen once the hill has gone
+    let k = .08; legs.forEach(([a, b], i) => { k += .28 * io(mRamp(t, a, b)); });
+    const [bx, by] = along(k); mPose(ball, bx, by, 1);
+    pays.forEach((e, i) => { const [a] = legs[i], q = along(.08 + .28 * i); mPose(e, q[0] - 10, q[1] - 44, mRamp(t, a - .5, a - .3) * (1 - mRamp(t, a + .1, a + .4))); });
+  }, D);
+  say(hill, 'pay ATP', 1240, 580, tAt + 2, { size: 22, fill: MC.atp, weight: 700 });
+  // protein: a second pump; specific membrane proteins keep the two sides different
+  tw(g2, { o: 1 }, tPo + .3, .5); pulse(g2, tPo + .4, 1.05);
+  say(p, 'specific transport proteins in the membrane', 720, 745, tPo + .8, { size: 26, fill: '#9aa8ff', weight: 700 });
+  pulse(hiL, tPo + 4.2, 1.15); pulse(loL, tPo + 4.6, 1.15);
+  const keep = G(p, { o: 0 }); show(keep, tPo + 4.4, .4);
+  wLabel(keep, 'kept different', { x: 120, y: 860, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  // note: downhill only, or uphill too
+  hide(dA, tN, .3); hide(dL, tN, .3);
+  const nt = G(p, { o: 0 }); show(nt, tN + .4, .5);
+  mk('rect', { x: 1120, y: 200, width: 450, height: 420, rx: 20, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, nt);
+  const r1 = G(nt, { o: 0 }), r2 = G(nt, { o: 0 });
+  mArrow(r1, [1170, 260], [1170, 380], { color: MC.down, w: 6, head: 18 });
+  wLabel(r1, 'channels, carriers:', { x: 1200, y: 300, size: 28, anchor: 'start', weight: 700, fill: MC.channel, o: 1 });
+  wLabel(r1, 'downhill only', { x: 1200, y: 340, size: 28, anchor: 'start', weight: 600, o: 1 });
+  mArrow(r2, [1170, 580], [1170, 450], { color: MC.against, w: 6, head: 18 });
+  solute(r2, 'ATP', { x: 1200, y: 520, r: 15 });
+  wLabel(r2, 'pumps:', { x: 1200, y: 480, size: 28, anchor: 'start', weight: 700, fill: '#9aa8ff', o: 1 });
+  wLabel(r2, 'uphill too, paid', { x: 1230, y: 528, size: 28, anchor: 'start', weight: 600, o: 1 });
+  wLabel(r2, 'in ATP', { x: 1230, y: 566, size: 28, anchor: 'start', weight: 600, o: 1 });
+  show(r1, m('note', 1.7), .4); show(r2, m('note', 5.1), .4);
+}],
+
+/* ---------- pump ---------- */
+['pump', 'The sodium-potassium pump', (m, D) => {
+  const p = panel(0), tS = [1, 2, 3, 4, 5, 6].map(i => m('s' + i)), tCo = m('count');
+  const PX = 610, MY = 450, PS = 1.7;
+  const Z = G(p, { x: PX, y: MY, s: .55 });
+  strip(Z, { x: 0, y: 0, w: 720, s: PS, gaps: [[0, 72]], depth: 400 });
+  tw(Z, { s: 1 }, .1, 1.6, io);
+  // the ions in the background: outside Na⁺ high and K⁺ low; inside the reverse
+  const AV = [[PX - 170, 0, PX + 380, 900], [30, 575, 470, 640]];
+  const oNa = crowd(p, 'Na', scatter(8, [40, 160, 1210, 340], 21, AV, 60), { r: 18, o: 0 });
+  const oK = crowd(p, 'K', scatter(2, [40, 170, 1210, 330], 23, [...AV, ...oNa.list.map(q => [q.x - 40, q.y - 40, q.x + 40, q.y + 40])], 60), { r: 17, o: 0 });
+  const iK = crowd(p, 'K', scatter(8, [40, 580, 1210, 770], 25, AV, 60), { r: 17, o: 0 });
+  const iNa = crowd(p, 'Na', scatter(2, [40, 590, 1210, 760], 27, [...AV, ...iK.list.map(q => [q.x - 40, q.y - 40, q.x + 40, q.y + 40])], 60), { r: 18, o: 0 });
+  [oNa, oK].forEach(c => show(c, m('s1', -6) + .2, .6)); [iK, iNa].forEach(c => show(c, m('s1', -2.2) + .2, .6));
+  const sideT = G(p, { o: 0 }), sideB = G(p, { o: 0 });
+  wLabel(sideT, 'EXTRACELLULAR FLUID', { x: 40, y: 60, size: 24, anchor: 'start', fill: COL.dim, weight: 700, o: 1 });
+  const hiT = wLabel(sideT, '[Na⁺] high   [K⁺] low', { x: 40, y: 104, size: 30, anchor: 'start', weight: 700, o: 1 });
+  wLabel(sideB, 'CYTOPLASM', { x: 40, y: 868, size: 24, anchor: 'start', fill: COL.dim, weight: 700, o: 1 });
+  const hiB = wLabel(sideB, '[Na⁺] low   [K⁺] high', { x: 40, y: 826, size: 30, anchor: 'start', weight: 700, o: 1 });
+  show(sideT, m('s1', -6), .4); show(sideB, m('s1', -2.2), .4);
+  // the pump, pushed in from small
+  const pg = G(Z, { s: PS });
+  const pu = naKPump(pg, {});
+  tag(p, 'sodium-potassium pump', [PX - 360, 618], [PX - 72, MY + 110], 1.8, { size: 30, weight: 700, fill: '#9aa8ff', line: '#9aa8ff' });
+  // time → k: one step per narrated step; step 5 starts once the phosphate is off (the slide's order)
+  const QK = [0, 1, 2, 3, 4.45, 5, 6], TK = [...tS, tCo];
+  const qAt = t => { if (t <= TK[0]) return 0; for (let i = 0; i < 6; i++) if (t < TK[i + 1]) return QK[i] + (QK[i + 1] - QK[i]) * (t - TK[i]) / (TK[i + 1] - TK[i]); return 6; };
+  const stepOf = q => q < 1 ? 1 : q < 2 ? 2 : q < 3 ? 3 : q < 4.45 ? 4 : q < 5 ? 5 : 6;
+  // the ring of six steps and the step caption
+  const RX = 1420, RY = 220, RR = 118;
+  const rg = G(p, { o: 0 }); show(rg, tS[0] - .3, .4);
+  mk('circle', { cx: RX, cy: RY, r: RR, fill: 'none', stroke: COL.faint, 'stroke-width': 4, 'stroke-dasharray': '10 10' }, rg);
+  const bs = [0, 1, 2, 3, 4, 5].map(i => { const a = (-90 + 60 * i) * Math.PI / 180; return badge(rg, String(i + 1), RX + RR * Math.cos(a), RY + RR * Math.sin(a), { o: .35, r: 27 }); });
+  wLabel(rg, 'the cycle', { x: RX, y: RY + 10, size: 24, fill: COL.dim, weight: 600, o: 1 });
+  const CAP = [['three Na⁺ bind', 'from the cytoplasm'], ['ATP gives the pump', 'a phosphate: ADP left'], ['it opens outward', 'and releases the Na⁺'],
+    ['two K⁺ bind from outside;', 'the phosphate comes off'], ['back to the first shape,', 'holding the K⁺'], ['the K⁺ are released', 'into the cytoplasm']];
+  const cap = G(p, { o: 0 }); show(cap, tS[0], .3);
+  const capH = wLabel(cap, 'Step 1', { x: RX, y: 420, size: 38, weight: 800, fill: '#cfe6ff', o: 1 });
+  const capA = wLabel(cap, CAP[0][0], { x: RX, y: 466, size: 26, weight: 600, o: 1 }), capB = wLabel(cap, CAP[0][1], { x: RX, y: 502, size: 26, weight: 600, o: 1 });
+  // the counters, read from the same k as the pump
+  const cnt = G(p, { o: 0 }); show(cnt, tS[0] + .3, .4);
+  const box = mk('rect', { x: 1255, y: 570, width: 330, height: 230, rx: 18, fill: '#0b1626', stroke: COL.faint, 'stroke-width': 3 }, cnt);
+  solute(cnt, 'Na', { x: 1295, y: 615, r: 17 }); solute(cnt, 'K', { x: 1295, y: 685, r: 16 }); solute(cnt, 'ATP', { x: 1295, y: 755, r: 17 });
+  const nNa = wLabel(cnt, '', { x: 1330, y: 625, size: 30, anchor: 'start', weight: 700, o: 1 });
+  const nK = wLabel(cnt, '', { x: 1330, y: 695, size: 30, anchor: 'start', weight: 700, o: 1 });
+  const nA = wLabel(cnt, '', { x: 1330, y: 765, size: 30, anchor: 'start', weight: 700, o: 1 });
+  let lastStep = 0;
+  clockRun(t => {
+    [oNa, oK, iK, iNa].forEach(c => c.jig(t));
+    const q = Math.round(qAt(t) / 6 * 2000) / 2000 * 6;
+    pu.cycle(q / 6); atpThenAdp(pu, q / 6); na3Out(pu, q / 6);
+    const st6 = t < tS[0] ? 0 : stepOf(q);
+    if (st6 !== lastStep) {
+      lastStep = st6;
+      bs.forEach((b, i) => { mO(b, i + 1 === st6 ? 1 : .35); cAttr(b.disc, 'fill', i + 1 === st6 ? '#3b8fd9' : '#1d3a5c'); });
+      if (st6) { setText(capH, 'Step ' + st6); setText(capA, CAP[st6 - 1][0]); setText(capB, CAP[st6 - 1][1]); }
+    }
+    const naOut = [0, 1, 2].filter(i => mRamp(q, 2.45 + i * .1, 3) >= .5).length, kIn = [0, 1].filter(i => mRamp(q, 5 + i * .1, 5.8) >= .5).length;
+    setText(nNa, 'Na⁺ out: ' + naOut); setText(nK, 'K⁺ in: ' + kIn); setText(nA, 'ATP used: ' + (q >= 1.45 ? 1 : 0));
+  }, D);
+  // the chips (ATP, ADP, P, Pi) carry their own names, so no second label rides beside them
+  // count: the totals per ATP
+  [nNa, nK, nA].forEach((e, i) => pulse(e, tCo + .2 + .25 * i, 1.12));
+  const tot = G(p, { o: 0 }); show(tot, tCo + .6, .5);
+  wLabel(tot, 'every turn, for 1 ATP:', { x: RX, y: 838, size: 26, fill: COL.dim, weight: 600, o: 1 });
+  wLabel(tot, '3 Na⁺ out · 2 K⁺ in', { x: RX, y: 878, size: 32, weight: 800, fill: MC.Na, o: 1 });
+  pulse(hiT, m('s1', -6) + .3, 1.04); pulse(hiB, m('s1', -2.2) + .3, 1.04);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0), MY = 430, PX = 320;
+  strip(p, { x: PX, y: MY, w: 380, s: 1.2, gaps: [[0, 72]], depth: 480, full: false });
+  const g = G(p, { x: PX, y: MY, s: 1.2 }); naKPump(g, {}).cycle(.12);
+  wLabel(p, 'EXTRACELLULAR FLUID', { x: 40, y: 80, size: 22, anchor: 'start', fill: COL.dim, weight: 700, o: 1 });
+  wLabel(p, 'CYTOPLASM', { x: 40, y: 860, size: 22, anchor: 'start', fill: COL.dim, weight: 700, o: 1 });
+  wLabel(p, 'one turn = ?', { x: PX, y: 150, size: 34, weight: 700, fill: MC.Na, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-count', prompt: ['Each turn of the sodium-potassium pump moves…'],
+  build: choice([['3 Na⁺ out and 2 K⁺ in, for 1 ATP'], ['2 Na⁺ out and 3 K⁺ in, for 1 ATP'], ['3 Na⁺ in and 2 K⁺ out, for 1 ATP'], ['1 Na⁺ out and 1 K⁺ in, with no ATP']], 0,
+    'Right. One ATP per turn: three sodium ions out, two potassium ions in.',
+    [null, 'The numbers are swapped: three sodium leave, two potassium come in.',
+      'The direction is reversed: the pump keeps sodium low inside, so it sends sodium out and brings potassium in.',
+      'A pump works against the gradient, so it needs ATP, and it moves three Na⁺ and two K⁺ each turn.']),
+}], done) }],
+
+/* ---------- example ---------- */
+['example', 'Channel in, pump out', (m, D) => {
+  const p = panel(0), tCh = m('chan'), tFi = m('fill'), tPu = m('pump'), tBa = m('bal');
+  const MY = 450, CX = 300, PX = 900;
+  strip(p, { x: 640, y: MY, w: 1220, gaps: gapsAt(640, 1, [[CX, 66], [PX, 84]]) });
+  wLabel(p, 'EXTRACELLULAR FLUID', { x: 40, y: 60, size: 22, anchor: 'start', fill: COL.dim, weight: 700, o: 1 });
+  wLabel(p, 'CYTOPLASM', { x: 40, y: 870, size: 22, anchor: 'start', fill: COL.dim, weight: 700, o: 1 });
+  const oNa = crowd(p, 'Na', scatter(14, [60, 110, 1230, 330], 31, [[CX - 50, 200, CX + 50, 400], [PX - 140, 150, PX + 200, 400], [40, 30, 420, 80], [CX + 90, 330, CX + 430, 400], [PX + 120, 330, PX + 400, 400]], 56), { r: 17 });
+  // the gated channel and the pump
+  const ch = channelProtein(p, { x: CX, y: MY, kind: 'Na', n: 3 });
+  const pg = G(p, { x: PX, y: MY }), pu = naKPump(pg, {});
+  tag(p, 'gated Na⁺ channel', [150, 372], [CX - 40, MY - 50], .5, { size: 26, weight: 700, fill: MC.channel, line: MC.channel });
+  const lp = G(p, { o: 0 }); show(lp, .7, .4);
+  wLabel(lp, 'sodium-potassium', { x: 1130, y: 570, size: 26, weight: 700, fill: '#9aa8ff', anchor: 'start', o: 1 });
+  wLabel(lp, 'pump', { x: 1130, y: 604, size: 26, weight: 700, fill: '#9aa8ff', anchor: 'start', o: 1 });
+  // the channel: opens at "opens", shuts when the pump takes over
+  const tO = tCh + .4, tC = tPu;
+  const SPEED = 70, L = 320, n = 3, gateK = t => io(mRamp(t, tO, tO + .6)) * (1 - io(mRamp(t, tC, tC + .5)));
+  const arr = [];
+  for (let j = 0; j < 14; j++) for (let i = 0; i < n; i++) { const ta = (j + .92 - i / n) * L / SPEED; if (ta > tO + .9 && ta < tC) arr.push(ta); }
+  arr.sort((a, b) => a - b);
+  // inside Na⁺: one there from the start, the arrivals, and the pump's own three (at its inner sites at k 0)
+  const SL = [[540, 780], [170, 640], [430, 640], [250, 770], [620, 660], [380, 790], [140, 830], [700, 760], [520, 850], [300, 850], [660, 840]];
+  const H2 = 88, NAIN = [[-70, H2 + 60], [5, H2 + 95], [75, H2 + 55]].map(([x, y]) => [PX + x, MY + y]);
+  const NAOUT = [[-70, -H2 - 70], [10, -H2 - 115], NA3OUT].map(([x, y]) => [PX + x, MY + y]);
+  const KIN = [[-45, H2 + 70], [45, H2 + 105]].map(([x, y]) => [PX + x, MY + y]);
+  const CYC = [[tPu + .3, tPu + 3.8], [tPu + 3.95, tPu + 7.45], [tPu + 7.6, tPu + 11.1]];
+  const dots = [{ t0: -1, slot: SL[0] }].concat(arr.map((ta, j) => ({ t0: ta, slot: SL[j + 1] })));
+  // arrivals 1-3 go to the pump for the second turn, 4-6 for the third
+  [1, 2, 3].forEach((j, i) => { if (dots[j]) Object.assign(dots[j], { take: CYC[1][0], site: NAIN[i] }); });
+  [4, 5, 6].forEach((j, i) => { if (dots[j]) Object.assign(dots[j], { take: CYC[2][0], site: NAIN[i] }); });
+  dots.forEach(d => { d.e = solute(p, 'Na', { r: 18, o: 0 }); });
+  const exit = [CX, MY + 130];
+  // copies left behind at each new turn: the Na⁺ just sent out, the K⁺ just brought in
+  const left = [1, 2].map(c => ({ c, na: NAOUT.map(q => solute(p, 'Na', { x: q[0], y: q[1], r: 18, o: 0 })), k: KIN.map(q => solute(p, 'K', { x: q[0], y: q[1], r: 17, o: 0 })) }));
+  const KAWAY = [[[1080, 640], [1160, 700]], [[1060, 760], [1150, 810]]];
+  const cycAt = t => { for (let c = CYC.length - 1; c >= 0; c--) if (t >= CYC[c][0]) return c; return -1; };
+  const naInPump = t => { const c = cycAt(t); if (c < 0) return 3; const q = rk(mRamp(t, CYC[c][0], CYC[c][1])) * 6; return [0, 1, 2].filter(i => mRamp(q, 2.45 + i * .1, 3) < .5).length; };
+  const count = t => dots.filter(d => t >= d.t0 && !(d.take !== undefined && t >= d.take)).length + naInPump(t);
+  // the gauge
+  const GX = 1440, GY0 = 760, GH = 460, GMAX = 12;
+  const gg = G(p, { o: 0 }); show(gg, tCh + 1, .4);
+  mk('rect', { x: GX - 34, y: GY0 - GH, width: 68, height: GH, rx: 14, fill: '#0b1626', stroke: COL.faint, 'stroke-width': 3 }, gg);
+  const fillR = mk('rect', { x: GX - 28, y: GY0 - 6, width: 56, height: 0, rx: 10, fill: MC.Na }, gg);
+  const warn = mk('rect', { x: GX - 34, y: GY0 - GH, width: 68, height: GH * .35, rx: 14, fill: '#e5533d', 'fill-opacity': .18 }, gg);
+  wLabel(gg, 'Na⁺ inside', { x: GX, y: GY0 - GH - 56, size: 28, weight: 700, fill: MC.Na, o: 1 });
+  const gN = wLabel(gg, '', { x: GX, y: GY0 - GH - 16, size: 34, weight: 800, o: 1 });
+  const gW = G(p, { o: 0 }); show(gW, tFi + .6, .4); hide(gW, tBa, .4);
+  wLabel(gW, 'too much', { x: GX, y: GY0 + 44, size: 26, weight: 700, fill: '#ff8a76', o: 1 });
+  wLabel(gW, 'Na⁺ inside', { x: GX, y: GY0 + 76, size: 26, weight: 700, fill: '#ff8a76', o: 1 });
+  const gL = G(p, { o: 0 }); show(gL, tBa + 2.8, .4);
+  wLabel(gL, 'low again', { x: GX, y: GY0 + 44, size: 26, weight: 700, fill: MC.carrier, o: 1 });
+  clockRun(t => {
+    oNa.jig(t);
+    ch.gate(gateK(t)); ch.flow(t);
+    dots.forEach(d => {
+      if (t < d.t0) { mO(d.e, 0); return; }
+      const a = io(mRamp(t, d.t0, d.t0 + 1.1));
+      let [x, y] = [mLerp(exit[0], d.slot[0], a), mLerp(exit[1], d.slot[1], a)];
+      let o = d.t0 < 0 ? 1 : mRamp(t, d.t0 + .3, d.t0 + .5);   // shows once the channel's own ion has faded at the exit
+      if (d.take !== undefined) {
+        const w = io(mRamp(t, d.take - 1.6, d.take - .1));
+        x = mLerp(x, d.site[0], w); y = mLerp(y, d.site[1], w);
+        if (t >= d.take) o = 0;
+      }
+      mPose(d.e, x, y, o);
+    });
+    const c = cycAt(t);
+    const kc = c < 0 ? 0 : rk(mRamp(t, CYC[c][0], CYC[c][1])); pu.cycle(kc); atpThenAdp(pu, kc); na3Out(pu, kc);
+    left.forEach(({ c: cc, na, k }) => {
+      const t0 = CYC[cc][0], on = t >= t0 ? 1 : 0, a = io(mRamp(t, t0, t0 + 1));
+      // the Na⁺ just sent out rise a little and fade into the crowd outside (their own spots would land on its members)
+      na.forEach((e, i) => mPose(e, NAOUT[i][0], NAOUT[i][1] - 40 * a, on * (1 - mRamp(t, t0 + .3, t0 + .9))));
+      k.forEach((e, i) => mPose(e, mLerp(KIN[i][0], KAWAY[cc - 1][i][0], a), mLerp(KIN[i][1], KAWAY[cc - 1][i][1], a), on));
+    });
+    const nn = count(t);
+    setText(gN, String(nn));
+    const hgt = Math.round((GH - 12) * Math.min(1, nn / GMAX));
+    cAttr(fillR, 'height', hgt); cAttr(fillR, 'y', GY0 - 6 - hgt);
+  }, D);
+  // arrows: downhill through the channel, uphill (with ATP) through the pump
+  const dA = gradArrow(p, [CX + 90, 262], [CX + 90, 640], { o: 0 }); show(dA, tCh + 2.4, .4);
+  say(p, 'in: downhill, no energy', CX + 110, 372, tCh + 2.6, { size: 24, fill: MC.down, weight: 700, anchor: 'start' });
+  const uA = atpAt(gradArrow(p, [PX + 120, 640], [PX + 120, 262], { against: true, o: 0 }), PX + 154, 305); show(uA, tPu + .4, .4);   // the spark clear of the membrane and the pump's Pi
+  say(p, 'out: uphill, ATP', PX + 140, 372, tPu + .6, { size: 24, fill: MC.against, weight: 700, anchor: 'start' });
+  // bal: the two together
+  const bl = G(p, { o: 0 }); show(bl, tBa + .2, .5);
+  mk('rect', { x: 380, y: 806, width: 860, height: 60, rx: 30, fill: '#0b1626', stroke: COL.chalk, 'stroke-opacity': .5, 'stroke-width': 2.5 }, bl);
+  wLabel(bl, 'the channel lets it in · the pump sends it out', { x: 810, y: 846, size: 30, weight: 700, o: 1 });
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tDi = m('diff'), tFa = m('fac'), tAc = m('act'), tE = m('end');
+  const XS = [290, 800, 1310], MY = 380;
+  const ttl = G(p, { o: 0 }); show(ttl, 0, .3);
+  wLabel(ttl, 'Summary: three ways across', { x: 800, y: 56, size: 36, weight: 700, o: 1 });
+  const cols = [], o2 = [];
+  XS.forEach((x, i) => {
+    const g = G(p, { o: 0 }); cols.push(g);
+    mk('rect', { x: x - 220, y: 180, width: 440, height: 420, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+    const sg = G(g);
+    mk('rect', { x: x - 216, y: MY + 46, width: 432, height: 150, fill: MC.cyto }, sg);
+    bilayer(sg, { x, y: MY, w: 420, gaps: i === 0 ? [] : i === 1 ? [[-90, 66], [90, 78]] : [[0, 84]], seed: 4 + i });
+  });
+  // diffusion: O₂ straight through the bilayer
+  const O2s = [0, 1, 2].map(i => solute(cols[0], 'O2', { r: 15 }));
+  mArrow(cols[0], [XS[0] + 130, MY - 110], [XS[0] + 130, MY + 110], { color: MC.down, w: 6, head: 18 });
+  // facilitated: a channel and a carrier
+  const ch = channelProtein(cols[1], { x: XS[1] - 90, y: MY, gated: false, kind: 'Na', n: 3, s: .85 });   // its ions stay below the title
+  const cr = carrierProtein(cols[1], { x: XS[1] + 90, y: MY });
+  mArrow(cols[1], [XS[1] + 175, MY - 110], [XS[1] + 175, MY + 110], { color: MC.down, w: 6, head: 18 });
+  // active: the pump, an orange uphill arrow with ATP
+  const pg = G(cols[2], { x: XS[2], y: MY, s: .85 }); naKPump(pg, {}).cycle(.12);
+  atpAt(gradArrow(cols[2], [XS[2] + 140, MY + 110], [XS[2] + 140, MY - 110], { against: true, w: 6, head: 18 }), XS[2] + 174, MY + 100);
+  const T3 = [['diffusion', 'no protein, no energy', 'downhill', MC.down], ['facilitated diffusion', 'a channel or a carrier', 'downhill, no energy', MC.channel],
+    ['active transport', 'a pump, paid in ATP', 'uphill: 3 Na⁺ out, 2 K⁺ in', MC.against]];
+  T3.forEach(([a, b, c, col], i) => {
+    wLabel(cols[i], a, { x: XS[i], y: 224, size: 32, weight: 700, fill: col, o: 1 });
+    wLabel(cols[i], b, { x: XS[i], y: 650, size: 26, weight: 600, o: 1 });
+    wLabel(cols[i], c, { x: XS[i], y: 688, size: 26, weight: 600, fill: COL.dim, o: 1 });
+  });
+  [tDi, tFa, tAc].forEach((t0, i) => show(cols[i], t0 + .1, .5));
+  // the bracket: both passive
+  const br = G(p, { o: 0 }); show(br, m('fac', 6.1), .5);
+  path(br, `M${XS[0] - 210} 160V136H${XS[1] + 210}V160`, { stroke: MC.down, 'stroke-width': 4 });
+  wLabel(br, 'passive transport', { x: (XS[0] + XS[1]) / 2, y: 122, size: 30, weight: 700, fill: MC.down, o: 1 });
+  const ba = G(p, { o: 0 }); show(ba, tAc + .3, .5);
+  path(ba, `M${XS[2] - 210} 160V136H${XS[2] + 210}V160`, { stroke: MC.against, 'stroke-width': 4 });
+  wLabel(ba, 'needs energy', { x: XS[2], y: 122, size: 30, weight: 700, fill: MC.against, o: 1 });
+  clockRun(t => {
+    O2s.forEach((e, i) => { const u = cFrac(t * .3 + i / 3); mPose(e, XS[0] - 60 + 50 * i, MY - 150 + 300 * u, Math.sin(Math.PI * u)); });
+    ch.flow(t);
+    const k = rk(cFrac(t / 5));
+    cr.carry(k); mO(cr.sol[0], mRamp(k, 0, .06) * (1 - mRamp(k, .86, .98)));
+  }, D);
+  say(p, 'Now try the chapter practice.', 800, 820, tE, { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const card = (g, x, y, w, h) => mk('rect', { x, y, width: w, height: h, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+  const mini = (g, x, y, w, gaps, seed = 4, d = 120) => { mk('rect', { x: x - w / 2, y: y + 46, width: w, height: d, fill: MC.cyto }, g); bilayer(g, { x, y, w, gaps, seed }); };
+  at('passive', g => {
+    const rows = [[160, 'diffusion'], [420, 'facilitated'], [680, 'active']];
+    rows.forEach(([y, s], i) => {
+      card(g, 990, y - 110, 560, 230);
+      mini(g, 1230, y, 400, i === 0 ? [] : i === 1 ? [[-80, 66], [80, 78]] : [[0, 84]], 5 + i, 70);   // the cytoplasm stops at the card's foot
+      if (i === 0) { solute(g, 'O2', { x: 1190, y: y - 80, r: 14 }); solute(g, 'O2', { x: 1260, y: y + 90, r: 14 }); mArrow(g, [1330, y - 80], [1330, y + 80], { color: MC.down, w: 5, head: 16 }); }
+      if (i === 1) { channelProtein(g, { x: 1150, y, gated: false, kind: 'Na', n: 3, s: .8 }).flow(1); carrierProtein(g, { x: 1310, y, s: .8 }).carry(.2); mArrow(g, [1390, y - 80], [1390, y + 80], { color: MC.down, w: 5, head: 16 }); }
+      if (i === 2) { const pg = G(g, { x: 1230, y, s: .7 }); mO(naKPump(pg, {}).cycle(.12).atp, 0); /* its ATP chip would hang below the card */ atpAt(gradArrow(g, [1340, y + 80], [1340, y - 80], { against: true, w: 5, head: 16 }), 1382, y - 74); }
+      wLabel(g, s, { x: 1006, y: y - 80, size: 22, weight: 700, anchor: 'start', fill: COL.dim, o: 1 });
+    });
+  });
+  at('order', g => {
+    card(g, 980, 90, 580, 720);
+    const MY = 450, cx = 1270;
+    mk('rect', { x: 990, y: MY + 46, width: 560, height: 300, fill: MC.cyto }, g);
+    bilayer(g, { x: cx, y: MY, w: 560, gaps: [[0, 72]], seed: 6 });
+    naKPump(G(g, { x: cx, y: MY, s: 1 }), {}).cycle(.12);
+    // the six steps; every badge clear of the membrane
+    const pos = [[cx - 200, MY + 120], [cx + 200, MY + 230], [cx + 200, MY - 220], [cx - 200, MY - 220], [cx, MY + 290], [cx - 200, MY + 250]];
+    const names = ['Na⁺ bind', 'P from ATP', 'Na⁺ out', 'K⁺ bind, P off', 'shape back', 'K⁺ released'];
+    S.ordB = pos.map(([x, y], i) => { const b = badge(g, '?', x, y, { o: 1, r: 26 }); b.lab = wLabel(g, names[i], { x, y: y + 52, size: 22, weight: 600, o: 0 }); return b; });
+    wLabel(g, 'EXTRACELLULAR FLUID', { x: 1000, y: 130, size: 20, anchor: 'start', fill: COL.dim, weight: 700, o: 1 });
+    wLabel(g, 'CYTOPLASM', { x: 1000, y: 790, size: 20, anchor: 'start', fill: COL.dim, weight: 700, o: 1 });
+  });
+  at('uphill', g => {
+    card(g, 980, 90, 580, 720);
+    const MY = 450;
+    mk('rect', { x: 990, y: MY + 46, width: 560, height: 300, fill: MC.cyto }, g);
+    bilayer(g, { x: 1270, y: MY, w: 560, gaps: [], seed: 7 });
+    crowd(g, 'Na', scatter(4, [1010, 560, 1530, 780], 41, [], 70), { r: 17 });
+    crowd(g, 'Na', scatter(11, [1010, 130, 1530, 370], 43, [], 62), { r: 17 });
+    gradArrow(g, [1270, 640], [1270, 250], { against: true });
+    wLabel(g, 'low → high: which kind?', { x: 1270, y: 790, size: 26, weight: 700, fill: MC.against, o: 1 });
+  });
+  at('gated', g => {
+    card(g, 980, 90, 580, 720);
+    const MY = 450;
+    mk('rect', { x: 990, y: MY + 46, width: 560, height: 300, fill: MC.cyto }, g);
+    bilayer(g, { x: 1270, y: MY, w: 560, gaps: [[0, 66]], seed: 8 });
+    const c = channelProtein(g, { x: 1270, y: MY, kind: 'Cl', n: 3, s: 1.3 }); c.gate(.75); c.flow(1.5);
+    solute(g, 'signal', { x: 1240, y: MY - 145, r: 18 });
+    wLabel(g, 'signal', { x: 1170, y: MY - 160, size: 24, weight: 700, fill: MC.ligand, anchor: 'end', o: 1 });
+    wLabel(g, 'what does the gate do?', { x: 1270, y: 790, size: 26, weight: 700, fill: MC.channel, o: 1 });
+  });
+  at('after', g => {
+    card(g, 980, 90, 580, 720);
+    const MY = 420;
+    mk('rect', { x: 990, y: MY + 46, width: 560, height: 330, fill: MC.cyto }, g);
+    bilayer(g, { x: 1270, y: MY, w: 560, gaps: [[-150, 66], [130, 84]], seed: 9 });
+    const c = channelProtein(g, { x: 1120, y: MY, kind: 'Na', n: 3 }); c.gate(1); c.flow(2);
+    naKPump(G(g, { x: 1400, y: MY }), {}).cycle(0);
+    crowd(g, 'Na', [[1040, 620], [1200, 650], [1080, 720], [1240, 740], [1160, 590]], { r: 17 });
+    wLabel(g, '?', { x: 1400, y: MY - 150, size: 70, weight: 800, fill: MC.against, o: 1 });
+    wLabel(g, 'Na⁺ flooded in: now what?', { x: 1270, y: 800, size: 26, weight: 700, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('passive');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-passive', prompt: ['Passive or active?'],
+    build: withPic('passive', grid([
+      { parts: ['oxygen slips through the bilayer'], ans: ['p'], why: 'Passive: simple diffusion, downhill, with no protein and no energy.' },
+      { parts: ['glucose through a carrier, from high to low'], ans: ['p'], why: 'Passive: facilitated diffusion. The carrier changes shape, but the glucose runs downhill and no ATP is spent.' },
+      { parts: ['water through an aquaporin'], ans: ['p'], why: 'Passive: an aquaporin is a channel, so water moves down its gradient.' },
+      { parts: ['sodium pushed out against its gradient'], ans: ['a'], why: 'Active: against the gradient takes energy, here from the sodium-potassium pump.' },
+      { parts: ['needs ATP'], ans: ['a'], why: 'Active: passive transport needs no energy; a pump is paid in ATP.' },
+    ], [['p', 'passive', null, 'P'], ['a', 'active', null, 'A']], { multi: false, text: true })) },
+  { id: 'p-order', prompt: ['Number the pump’s six steps, 1 to 6.'],
+    // two steps a row, so all six fit on the card with its feedback
+    build: withPic('order', blanks([
+      { parts: ['Na⁺ out: ', { box: '3' }, '   K⁺ released: ', { box: '6' }], why: 'Step 3: the phosphate changes its shape, so it opens outward and lets the Na⁺ go. Step 6, last: open inward again, it lets the K⁺ go into the cytoplasm.', hint: 'Sodium goes out first, then potassium comes in.', fx: () => { ordFx(2, '3'); ordFx(5, '6'); } },
+      { parts: ['P from ATP: ', { box: '2' }, '   shape back: ', { box: '5' }], why: 'Step 2: with the Na⁺ bound, ATP gives the pump a phosphate. Step 5: without the phosphate, it returns to its first shape, holding the K⁺.', hint: 'The pump is paid right after the sodium binds.', fx: () => { ordFx(1, '2'); ordFx(4, '5'); } },
+      { parts: ['K⁺ bind, P off: ', { box: '4' }, '   Na⁺ bind: ', { box: '1' }], why: 'Step 1: open to the cytoplasm, the pump binds three Na⁺. Step 4: two K⁺ bind from outside, and the phosphate comes off.', hint: 'Where is the pump open when the cycle starts?', fx: () => { ordFx(3, '4'); ordFx(0, '1'); } },
+    ])) },
+  { id: 'p-uphill', prompt: ['Which transport moves a solute from low to high concentration?'],
+    build: withPic('uphill', choice([['a channel protein'], ['a carrier in facilitated diffusion'], ['active transport by a pump, using ATP'], ['simple diffusion through the bilayer']], 2,
+      'Right. Only active transport goes uphill, and the pump pays for it with ATP.',
+      ['A channel is a corridor: solutes run through it downhill only.', 'A carrier in facilitated diffusion changes shape, but still moves solutes downhill, with no ATP.', null,
+        'Simple diffusion runs downhill, from crowded to sparse, with no protein at all.'])) },
+  { id: 'p-gated', prompt: ['What does a gated ion channel do?'],
+    build: withPic('gated', choice([['pumps ions with ATP'], ['opens or closes in response to a stimulus'], ['stays open all the time'], ['binds glucose and changes shape']], 1,
+      'Right. A stimulus, such as a chemical signal or a change in voltage, opens or closes its gate. The ions still flow downhill.',
+      ['That is a pump. A channel only lets ions run downhill; it spends no ATP.', null,
+        'That is a channel without a gate. A gated channel can shut.',
+        'That is a carrier protein. A channel is a pore with no shape change.'])) },
+  { id: 'p-after', prompt: ['A gated sodium channel opens and Na⁺ floods in. How does the cell get the sodium back out?'],
+    build: withPic('after', choice([['it diffuses out through the same channel'], ['aquaporins carry it out'], ['the sodium-potassium pump pushes it out, against the gradient, using ATP'], ['nothing is needed']], 2,
+      'Right. Outside is still crowded with Na⁺, so getting it out is uphill: the pump does it, paid in ATP.',
+      ['The gradient runs inward: outside is crowded, so the channel only lets more in.', 'Aquaporins carry water, not ions.', null,
+        'Without the pump, sodium would keep building up inside the cell.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+function ordFx(i, str) { const b = S.ordB?.[i]; if (!b) return; fxp(q => { b.t.textContent = q > 0 ? str : '?'; put(b.lab, { o: q }); }, 0, .3); pulseFx(b, 1.4); }
+
+boot();
+</script>
+</body>
+</html>

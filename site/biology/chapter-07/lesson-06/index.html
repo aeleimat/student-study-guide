@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 7, Lesson 6: Membrane Potential, Ion Pumps and Cotransport — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 7 (Membrane Structure and Function), lesson 6: a sugar beet and a nerve cell, then the membrane
+// patch with its pump and carrier lit; membrane potential (uneven ions, inside negative, a thin charge layer, millivolts);
+// the chemical and electrical forces of the electrochemical gradient (sodium: both in; potassium: they disagree);
+// electrogenic pumps (sodium-potassium in animals, proton pump in plants, fungi, bacteria); the proton pump building
+// charge and stored energy; the sucrose-H⁺ cotransporter; the whole chain and a blocked pump; summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-07/lesson-06.md.
+const CHAPTER = { number: 706, label: '7, lesson 6', title: 'Membrane Potential, Ion Pumps and Cotransport', minutes: 7, language: 'en', lead: false, next: '../lesson-07/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+const ELEC = '#7fc8ff', CORAL = '#f4a48c', GREEN = '#8fdc8f', RED = '#e5533d';
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 });
+  mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g);
+  if (t0 !== null) show(g, t0, .4);
+  return g;
+}
+// A pulse relative to the element's own scale s (the engine's pulse() sets scale absolutely).
+const pulseS = (e, t0, s, k) => { tw(e, { s: s * k }, t0, .22, out); tw(e, { s }, t0 + .22, .4); };
+// A ring that pops in round a point (o 0 before t0; t0 null: no tweens).
+function ring(p, [x, y], r, t0, { color = COL.chalk, w = 4, dash = null } = {}) {
+  const g = G(p, { x, y, o: 0 });
+  mk('circle', { r, fill: 'none', stroke: color, 'stroke-width': w, ...(dash ? { 'stroke-dasharray': dash } : {}) }, g);
+  if (t0 !== null) { show(g, t0, .3); pulse(g, t0 + .1, 1.12); }
+  return g;
+}
+// A straight arrow, solid or dashed, head at b.
+function arw(p, [x1, y1], [x2, y2], { color = COL.chalk, w = 7, head = 22, dash = null, o = 1 } = {}) {
+  const g = G(p, { o }), L = Math.hypot(x2 - x1, y2 - y1) || 1, ux = (x2 - x1) / L, uy = (y2 - y1) / L;
+  path(g, `M${cF(x1)} ${cF(y1)}L${cF(x2 - ux * head * .8)} ${cF(y2 - uy * head * .8)}`, { stroke: color, 'stroke-width': w, ...(dash ? { 'stroke-dasharray': dash, 'stroke-linecap': 'butt' } : {}) });
+  path(g, `M${cF(x2 - ux * head - uy * head * .7)} ${cF(y2 - uy * head + ux * head * .7)}L${cF(x2)} ${cF(y2)}L${cF(x2 - ux * head + uy * head * .7)} ${cF(y2 - uy * head - ux * head * .7)}Z`, { fill: color, stroke: color, 'stroke-width': 2 });
+  return g;
+}
+// The electrochemical arrow: a wide cream arrow with a blue core (both forces in one).
+function fatArrow(p, a, b, { o = 1 } = {}) {
+  const g = G(p, { o });
+  arw(g, a, b, { color: MC.down, w: 22, head: 40 });
+  arw(g, [a[0], a[1] + 6], [b[0], b[1] - 14], { color: ELEC, w: 8, head: 20 });
+  return g;
+}
+// A dark plate behind a caption.
+function plate(p, x, y, w, h, { o = 1 } = {}) { return mk('rect', { x: x - w / 2, y: y - h / 2, width: w, height: h, rx: 18, fill: '#0a1626', stroke: COL.chalk, 'stroke-opacity': .45, 'stroke-width': 2.5, 'fill-opacity': .92 }, p); }
+// A membrane across the stage: cytoplasm below (+y), the bilayer at y. gaps: [[x in parent, half-width in the
+// bilayer's own units]] leave room for proteins. .face / .faceIn: the outer and inner faces in parent coordinates.
+function memb(p, { x = 800, y = 470, w = 1640, s = 1, gaps = [], seed = 2, unsat = .3 } = {}) {
+  const g = G(p);
+  mk('rect', { x: x - w / 2, y: y + 46 * s, width: w, height: 1000, fill: MC.cyto }, g);
+  const bl = bilayer(g, { x, y, s, w: w / s, gaps: gaps.map(([gx, h]) => [(gx - x) / s, h]), seed, unsat, fluid: .5 });
+  return Object.assign(g, { bl, y, s, face: y - 59 * s, faceIn: y + 59 * s });
+}
+// Lipids jiggle (redrawn 12 times a second, from that rounded time).
+const lipidLife = (M, D) => clockRun(t => M.bl.drift(Math.floor(t * 12) / 12), D);
+// EXTRACELLULAR FLUID / CYTOPLASM labels at the left edge.
+function sideNames(p, M, t0, { size = 24, inDy = 52 } = {}) {
+  const g = G(p, { o: 0 });
+  wLabel(g, 'EXTRACELLULAR FLUID', { x: 30, y: 44, size, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(g, 'CYTOPLASM', { x: 30, y: M.faceIn + inDy, size, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  if (t0 !== null) show(g, t0, .5); else put(g, { o: 1 });
+  return g;
+}
+// Charge rows: coral + along the outer face, blue − along the inner, at the given x's (in the order they appear).
+// .set(f) shows the share f of them (the next one fading in), drawn from f rounded to 1/1000.
+function signs(p, xs, yo, yi, { size = 36 } = {}) {
+  const g = G(p), P = [], N = [];
+  xs.forEach(x => {
+    P.push(wLabel(g, '+', { x, y: yo + size * .36, size, fill: MC.plus, weight: 800, o: 0 }));
+    N.push(wLabel(g, '−', { x, y: yi + size * .36, size, fill: MC.minus, weight: 800, o: 0 }));
+  });
+  let last = -1;
+  const sg = Object.assign(g, {
+    n: xs.length,
+    set(f) {
+      f = Math.round(mClamp(f) * 1000) / 1000; if (f === last) return sg; last = f;
+      const m = f * xs.length; xs.forEach((_, i) => { const q = mClamp(m - i); mO(P[i], q); mO(N[i], q); });
+      return sg;
+    },
+  });
+  return sg;
+}
+// x's from a to b every dx, leaving out the spans [c, half] (round proteins).
+function rowXs(a, b, dx, skip = []) { const xs = []; for (let x = a; x <= b; x += dx) if (!skip.some(([c, h]) => Math.abs(x - c) < h)) xs.push(x); return xs; }
+// n points on a jittered grid inside [x0, y0, x1, y1].
+function scatter(n, [x0, y0, x1, y1], seed = 1) {
+  const W = x1 - x0, H = y1 - y0, cols = Math.max(1, Math.round(Math.sqrt(n * W / H))), rows = Math.ceil(n / cols), cw = W / cols, rh = H / rows, pts = [];
+  for (let i = 0; i < n; i++) { const c = i % cols, r = Math.floor(i / cols); pts.push([x0 + cw * (c + .5) + (wHash(i, seed) - .5) * cw * .5, y0 + rh * (r + .5) + (wHash(i, seed + 3) - .5) * rh * .5]); }
+  return pts;
+}
+// A small wander for particle i at time t (quantised to 1/15 s by the caller).
+const jig = (i, t, a = 4) => [a * Math.sin(t * 1.7 + i * 2.1), a * Math.cos(t * 1.3 + i * 1.7)];
+// The voltmeter with its two leads: a reference electrode in the extracellular fluid (+ terminal) and a fine
+// microelectrode through the membrane into the cytoplasm (− terminal), as the kit's membranePotential wires it.
+function meterRig(p, { x = 1460, y = 170, s = .9, inTip = [1420, 620], outTip = [1540, 330], o = 1 } = {}) {
+  const g = G(p, { o });
+  const leads = G(g), vm = voltmeter(g, { x, y, s });
+  const [tm, tp] = vm.terminals();
+  path(leads, `M${cP(tm)}C${cF(tm[0])} ${cF(tm[1] + 60)} ${cF(inTip[0])} ${cF(inTip[1] - 260)} ${cP(inTip)}`, { stroke: '#cfe6ff', 'stroke-width': 3.5, 'stroke-opacity': .85 });
+  path(leads, `M${cF(inTip[0])} ${cF(inTip[1] - 90)}L${cP(inTip)}`, { stroke: '#e8f4ff', 'stroke-width': 7, 'stroke-opacity': .5 });
+  path(leads, `M${cP(tp)}C${cF(tp[0] + 20)} ${cF(tp[1] + 40)} ${cF(outTip[0])} ${cF(outTip[1] - 40)} ${cP(outTip)}`, { stroke: COL.dim, 'stroke-width': 3.5 });
+  mk('circle', { cx: inTip[0], cy: inTip[1], r: 5, fill: COL.chalk }, leads); mk('circle', { cx: outTip[0], cy: outTip[1], r: 5, fill: COL.chalk }, leads);
+  return Object.assign(g, { vm, leads, set(mV) { vm.set(mV); return g; } });
+}
+// On a voltmeter's own dial: an arc over [a, b] mV (the kit's dial runs 205° … 335° for −200 … 0 at radius 78).
+function dialArc(vm, a, b, { color = MC.against, r = 94, w = 8 } = {}) {
+  const ang = v => (205 + 130 * (v + 200) / 200) * Math.PI / 180, cy = 28;
+  const p0 = [r * Math.cos(ang(a)), cy + r * Math.sin(ang(a))], p1 = [r * Math.cos(ang(b)), cy + r * Math.sin(ang(b))];
+  return path(vm, `M${cP(p0)}A${r} ${r} 0 0 1 ${cP(p1)}`, { stroke: color, 'stroke-width': w, 'stroke-linecap': 'round' }, { o: 0 });
+}
+
+/* ---------- backdrops ---------- */
+// A sugar beet: a cream conical root with a rosette of leaves; origin at the top of the root.
+function beetArt(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  [-52, -26, 0, 26, 52].forEach((a, i) => {
+    const lf = G(g, { y: -40, r: a });
+    const L = 190 - Math.abs(a) * 1.2;
+    path(lf, `M0 0C-38 ${-L * .3} -40 ${-L * .75} 0 ${-L}C40 ${-L * .75} 38 ${-L * .3} 0 0Z`, { fill: i % 2 ? '#4fae55' : '#5bbf5b', stroke: '#2f7a3a', 'stroke-width': 4 });
+    path(lf, `M0 -6V${-L + 14}`, { stroke: '#a7dca8', 'stroke-width': 3, 'stroke-opacity': .7 });
+  });
+  path(g, 'M-120 -30C-132 90 -50 230 0 360C50 230 132 90 120 -30C80 -66 -80 -66 -120 -30Z', { fill: '#efe2c4', stroke: '#b8a47a', 'stroke-width': 5 });
+  path(g, 'M-98 50Q0 70 98 50M-78 140Q0 158 78 140M-48 236Q0 250 48 236', { stroke: '#d4c39a', 'stroke-width': 3 });
+  path(g, 'M0 360L8 412', { stroke: '#b8a47a', 'stroke-width': 4 });
+  return g;
+}
+// A nerve cell: a cell body with dendrites and a long axon to the right (stage coordinates). .axon: its points.
+function nerveArt(p, { o = 1 } = {}) {
+  const g = G(p, { o }), NC = '#c9a0dc', ND = '#8a5fa6';
+  const axon = []; for (let i = 0; i <= 40; i++) { const x = 775 + i * 16.5; axon.push([x, 640 + 14 * Math.sin((x - 775) / 80)]); }
+  path(g, 'M690 610L640 560L600 548M640 560L630 515M680 670L630 720L590 726M630 720L626 770M712 590L716 530L690 498M716 530L748 500',
+    { stroke: NC, 'stroke-width': 8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  path(g, 'M' + axon.map(cP).join('L'), { stroke: NC, 'stroke-width': 10 });
+  const end = axon[axon.length - 1];
+  path(g, `M${cP(end)}l46 -40M${cP(end)}l58 4M${cP(end)}l44 44`, { stroke: NC, 'stroke-width': 7, 'stroke-linecap': 'round' });
+  for (const [dx, dy] of [[46, -40], [58, 4], [44, 44]]) mk('circle', { cx: end[0] + dx, cy: end[1] + dy, r: 9, fill: NC }, g);
+  path(g, cBlob(62, 54, { seed: 4, wob: .06, cx: 718, cy: 640 }), { fill: NC, stroke: ND, 'stroke-width': 4 });
+  mk('circle', { cx: 714, cy: 636, r: 20, fill: '#7d5596' }, g);
+  return Object.assign(g, { axon });
+}
+// Beet root storage cells seen through a lens round (0, 0), radius R; the centre cell's edge carries tiny + and −.
+function beetLens(p, { x = 0, y = 0, R = 170, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('circle', { r: R, fill: '#0b1828', stroke: COL.chalk, 'stroke-width': 6 }, g);
+  let wd = '', vd = '';
+  for (let row = -5; row <= 5; row++) for (let col = -4; col <= 4; col++) {
+    const cx = col * 72 + (row % 2 ? 36 : 0), cy = row * 52;
+    if (Math.hypot(cx, cy) > R - 30) continue;
+    wd += `M${cx - 32} ${cy - 22}h64v44h-64Z`;
+    vd += `M${cx - 24} ${cy - 14}h48v28h-48Z`;
+  }
+  path(g, wd, { fill: CC.cyto, stroke: CC.wall, 'stroke-width': 3 });
+  path(g, vd, { fill: CC.vac, 'fill-opacity': .55 });
+  const edge = G(g, { o: 0 });
+  path(edge, 'M-30 -19.2h60', { stroke: CC.membrane, 'stroke-width': 1.2 });
+  let pl = '', mi = '';
+  for (let i = 0; i < 7; i++) {
+    const xx = -27 + i * 9;
+    pl += `M${xx - 1.6} -26.2h3.2M${xx} -27.8v3.2`;
+    mi += `M${xx - 1.6} -15.6h3.2`;
+  }
+  path(edge, pl, { stroke: MC.plus, 'stroke-width': .9 });
+  path(edge, mi, { stroke: MC.minus, 'stroke-width': .9 });
+  return Object.assign(g, { edge });
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Membrane potential, pumps and cotransport', (m, D) => {
+  const p = panel(0), tB = m('beet'), tN = m('nerve'), tC = m('cell'), tP = m('patch'), tL = m('lit');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const bt = beetArt(W, { x: 330, y: 400, o: 0 }), nv = nerveArt(W, { o: 0 });
+  show(bt, .2, .6); show(nv, .5, .6);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 7 · LESSON 6', { x: 1150, y: 130, size: 26, fill: COL.dim, o: 1 });
+  ['Membrane potential,', 'ion pumps and cotransport'].forEach((s, i) => wLabel(ttl, s, { x: 1150, y: 214 + i * 70, size: 56, o: 1 }));
+  wLabel(ttl, 'charge at the edge of the cell', { x: 1150, y: 352, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .2, .5);
+  // beet, nerve
+  pulse(bt, tB + .1, 1.05);
+  const l1 = say(p, 'a sugar beet', 330, 830, tB + .2, { size: 32 });
+  const l1b = say(p, 'it stores sugar in its root', 330, 870, tB + 1.2, { size: 24, fill: COL.dim, weight: 500 });
+  pulse(nv, tN + .1, 1.04);
+  const l2 = say(p, 'a nerve cell', 1100, 760, tN + .2, { size: 32 });
+  const l2b = say(p, 'signals run along its whole length', 1100, 800, tN + 1.1, { size: 24, fill: COL.dim, weight: 500 });
+  const spark = put(mk('circle', { r: 13, fill: '#fff3c4' }, W), { o: 0 }), AX = nv.axon;
+  clockRun(t => {
+    const on = t >= tN + .4 && t < tC + .6, u = on ? cFrac((t - tN - .4) / 2.2) : 0, q = AX[Math.min(AX.length - 1, Math.round(u * (AX.length - 1)))];
+    mPose(spark, q[0], q[1], on ? mBump(u, 0, 1) : 0);
+  }, D);
+  // cell: a lens opens on the root's cells; push in to one cell's edge, where + and − sit
+  [l1, l1b, l2, l2b].forEach(e => hide(e, tC, .3));
+  const lens = beetLens(W, { x: 330, y: 560, s: .2, o: 0 });
+  tw(lens, { s: 1, o: 1 }, tC + .2, .9, out);
+  tw(nv, { o: .25 }, tC + .2, .6);
+  cam.to({ x: 330, y: 560 - 22, z: 7 }, tC + 1.3, 3, soft);
+  hide(bt, tC + 3.2, .05); hide(nv, tC + 3.2, .05);
+  show(lens.edge, tC + 3, .6);
+  const cap = G(p, { o: 0 }); show(cap, tC + 3.6, .5); hide(cap, tP, .4);
+  plate(cap, 800, 790, 900, 110);
+  wLabel(cap, 'at the edge of the cell: + outside, − inside', { x: 800, y: 780, size: 34, o: 1 });
+  wLabel(cap, 'an electric voltage', { x: 800, y: 822, size: 28, fill: MC.against, weight: 700, o: 1 });
+  // patch: the shared membrane patch builds; lit: its pump and carrier light
+  hide(cam.el, tP, .6);
+  const mp = membranePatch(p, { x: 800, y: 470, o: 0 }); mp.build(0);
+  show(mp, tP, .3); prog(k => mp.build(k), tP + .1, 1.4, lin);
+  const sd = mp.sides(); show(sd, tP + .9, .5);
+  clockRun(t => { if (t >= tP) mp.drift(Math.floor((t - tP) * 12) / 12); }, D);
+  prog(k => mp.focus(['pump', 'carrier'], k), tL + .1, .9, io);
+  show(mp.label('pump', 'sodium-potassium pump', { dx: 40, dy: -190, size: 28 }), tL + .5, .4);
+  show(mp.label('carrier', 'carrier: a cotransporter is one', { dx: -330, dy: -200, size: 28, color: MC.carrier }), tL + 1.3, .4);
+  ring(p, mp.pt('pump'), 110, tL + .6, { color: MC.pump, w: 4 });
+}],
+
+/* ---------- voltage ---------- */
+['voltage', 'Membrane potential', (m, D) => {
+  const p = panel(0), tI = m('ions'), tU = m('uneven'), tV = m('volt'), tM = m('meter'), tT = m('thin');
+  const Y = 450, M = memb(p, { y: Y }); sideNames(p, M, .2); lipidLife(M, D);
+  const glow = G(p, { o: 0 });
+  mk('rect', { x: 0, y: Y - 104, width: 1250, height: 46, rx: 18, fill: MC.plus, 'fill-opacity': .22 }, glow);
+  mk('rect', { x: 0, y: Y + 58, width: 1250, height: 46, rx: 18, fill: MC.minus, 'fill-opacity': .25 }, glow);
+  // ions: a neutral bulk on each side, plus six extra cations outside and six extra anions inside
+  const IL = G(p);
+  const outPts = scatter(18, [70, 110, 790, 300], 3), inPts = scatter(16, [70, 620, 1050, 850], 5);
+  const OUTX = [1, 4, 7, 10, 13, 16], INX = [0, 3, 6, 9, 12, 15];
+  const bulkOut = ['Na', 'Cl', 'K', 'Cl', 'Na', 'Cl', 'Na', 'Cl', 'Na', 'Cl', 'Na', 'Cl'], exOut = ['Na', 'K', 'Na', 'Na', 'K', 'Na'];
+  const bulkIn = ['K', 'Cl', 'K', 'Cl', 'Na', 'Cl', 'K', 'Cl', 'K', 'Cl'];
+  const ions = [];
+  let bo = 0, bi = 0;
+  outPts.forEach((q, i) => {
+    const j = OUTX.indexOf(i), kind = j >= 0 ? exOut[j] : bulkOut[bo++];
+    ions.push({ kind, from: q, to: j >= 0 ? [240 + 180 * j, Y - 80] : null, side: -1 });
+  });
+  inPts.forEach((q, i) => {
+    const j = INX.indexOf(i), kind = j >= 0 ? 'Cl' : bulkIn[bi++];
+    ions.push({ kind, from: q, to: j >= 0 ? [240 + 180 * j, Y + 80] : null, side: 1 });
+  });
+  ions.forEach((it, i) => {
+    it.e = solute(IL, it.kind, { x: it.from[0], y: it.from[1], r: 18, o: 0 });
+    if (it.to) { it.halo = mk('circle', { r: 25, fill: 'none', stroke: it.side < 0 ? MC.plus : MC.minus, 'stroke-width': 4 }, it.e); put(it.halo, { o: 0 }); }
+    show(it.e, tI + .2 + .05 * i, .4);
+    if (it.halo) show(it.halo, tU + 3.4, .4);
+  });
+  clockRun(t => {
+    const tq = Math.floor(t * 15) / 15, k = io(mRamp(tq, tU + .4, tU + 3.2));
+    ions.forEach((it, i) => {
+      const [jx, jy] = jig(i, tq, it.to ? 4 * (1 - k) + 1.5 * k : 4), b = it.to ? [mLerp(it.from[0], it.to[0], k), mLerp(it.from[1], it.to[1], k)] : it.from;
+      cSet(it.e, { x: b[0] + jx, y: b[1] + jy });
+    });
+  }, D);
+  // the far fluid (dimmed at "thin") lies over the bulk ions
+  const veil = G(p, { o: 0 });
+  mk('rect', { x: 0, y: 64, width: 925, height: 262, fill: COL.board, 'fill-opacity': .7 }, veil);
+  mk('rect', { x: 0, y: 584, width: 1100, height: 290, fill: '#10223a', 'fill-opacity': .7 }, veil);
+  // uneven: the extras gather at the faces
+  const Lp = say(p, '+ surplus', 1290, Y - 70, tU + 3.8, { size: 30, fill: MC.plus, weight: 800 });
+  const Lm = say(p, '− surplus', 1290, Y + 96, tU + 4.6, { size: 30, fill: MC.minus, weight: 800 });
+  // volt: the voltmeter comes in and connects; meter: millivolts, the range, inside negative
+  const rig = meterRig(p, { x: 1460, y: 170, inTip: [1420, 640], outTip: [1545, 340], o: 0 });
+  put(rig, { x: 200 }); tw(rig, { o: 1, x: 0 }, tV + .1, .9, out);
+  put(rig.leads, { o: 0 }); show(rig.leads, tV + .9, .5);
+  clockRun(t => rig.set(-70 * io(mRamp(Math.floor(t * 30) / 30, tV + 1.5, tV + 3))), D);
+  const T1 = G(p, { o: 0 }); show(T1, tV + .8, .4);
+  wLabel(T1, 'membrane potential', { x: 1300, y: 150, size: 34, weight: 700, anchor: 'end', o: 1 });
+  wLabel(T1, 'the voltage across the membrane', { x: 1300, y: 188, size: 24, fill: COL.dim, weight: 500, anchor: 'end', o: 1 });
+  say(p, 'in millivolts (mV): thousandths of a volt', 1300, 224, tM + .3, { size: 24, anchor: 'end', fill: COL.chalk, weight: 600 });
+  const arc = dialArc(rig.vm, -200, -50); show(arc, tM + 3.4, .5);
+  say(p, 'animal cells: about −50 to −200 mV', 1300, 262, tM + 3.6, { size: 24, anchor: 'end', fill: MC.against, weight: 700 });
+  say(p, '(textbook values; −70 is typical)', 1300, 294, tM + 4.6, { size: 22, anchor: 'end', fill: COL.dim, weight: 500 });
+  tag(p, 'minus: the inside is negative', [1250, 760], [1420, 646], tM + 7.6, { size: 28, fill: MC.minus, line: MC.minus });
+  // thin: the extra charge hugs the two faces; the fluid farther away is neutral
+  show(glow, tT + .2, .6); show(veil, tT + 1.4, .7);
+  hide(Lp, tT, .3); hide(Lm, tT, .3);
+  const Th = G(p, { o: 0 }); show(Th, tT + .6, .5);
+  plate(Th, 720, 42, 760, 58); wLabel(Th, 'the extra charge: a thin layer at each face', { x: 720, y: 52, size: 28, o: 1 });
+  const Tn = G(p, { o: 0 }); show(Tn, tT + 4.9, .5);
+  plate(Tn, 550, 730, 760, 58); wLabel(Tn, 'farther away: neutral (+ and − balance)', { x: 550, y: 740, size: 28, fill: COL.chalk, o: 1 });
+}],
+
+/* ---------- forces ---------- */
+['forces', 'Two forces on an ion', (m, D) => {
+  const p = panel(0), tC = m('chem'), tE = m('elec'), tB = m('comb'), tNa = m('na'), tK = m('k');
+  const Y = 470, M = memb(p, { y: Y }); sideNames(p, M, .2, { inDy: 90 }); lipidLife(M, D);
+  const sg = signs(p, rowXs(60, 1560, 90), M.face - 26, M.faceIn + 26, { size: 34 }); sg.set(1);
+  const IL = G(p), NA = G(IL), KG = G(IL, { o: 0 });
+  // sodium: crowded outside, sparse inside; one sodium ion in a ring
+  const naOut = scatter(10, [250, 130, 560, 330], 7).map(q => solute(NA, 'Na', { x: q[0], y: q[1], r: 18 }));
+  const naIn = [[300, 720], [520, 800]].map(q => solute(NA, 'Na', { x: q[0], y: q[1], r: 18 }));
+  const naF = solute(NA, 'Na', { x: 440, y: 356, r: 20 });
+  [...naOut, ...naIn].forEach(e => put(e, { o: 0 })); put(naF, { o: 0 });
+  [...naOut, ...naIn].forEach((e, i) => show(e, .3 + .04 * i, .4)); show(naF, .4, .4);
+  const naR = ring(NA, [440, 356], 30, tC + .2, { color: COL.chalk, w: 3 });
+  // chem: the concentration gradient pushes it in (crowded → sparse)
+  const AC = [[520, 230], [520, 660]], AE = [[600, 230], [600, 660]];
+  const chA = arw(NA, ...AC, { color: MC.down, w: 9, head: 26, o: 0 }), elA = arw(NA, ...AE, { color: ELEC, w: 9, head: 26, o: 0 });
+  show(chA, tC + 1.6, .4);
+  const Lc = G(NA, { o: 0 }); show(Lc, tC + 1.8, .4);
+  wLabel(Lc, 'chemical force', { x: 650, y: 290, size: 30, fill: MC.down, weight: 700, anchor: 'start', o: 1 });
+  wLabel(Lc, 'its concentration gradient', { x: 650, y: 324, size: 22, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+  const Lcr = say(NA, 'crowded', 405, 104, tC + 3.6, { size: 24, fill: COL.dim, weight: 600 });
+  const Lsp = say(NA, 'sparse', 405, 870, tC + 4.6, { size: 24, fill: COL.dim, weight: 600 });
+  // elec: the negative inside pulls a positive ion in and pushes a negative ion away
+  show(elA, tE + .3, .4);
+  const Le = G(NA, { o: 0 }); show(Le, tE + .5, .4);
+  wLabel(Le, 'electrical force', { x: 650, y: 620, size: 30, fill: ELEC, weight: 700, anchor: 'start', o: 1 });
+  wLabel(Le, 'the effect of the membrane potential', { x: 650, y: 654, size: 22, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+  const clG = G(NA, { o: 0 }); show(clG, tE + 4.6, .4);
+  solute(clG, 'Cl', { x: 150, y: 330, r: 20 });
+  arw(clG, [150, 296], [150, 170], { color: ELEC, w: 7, head: 20 });
+  wLabel(clG, 'Cl⁻ pushed away', { x: 150, y: 150, size: 22, fill: ELEC, weight: 700, o: 1 });
+  wLabel(clG, 'Na⁺ pulled in', { x: 600, y: 700, size: 22, fill: ELEC, weight: 700, o: 1 });
+  // comb: the two arrows merge into one, the electrochemical gradient
+  tw(chA, { x: 40, o: 0 }, tB + .2, .8, io); tw(elA, { x: -40, o: 0 }, tB + .2, .8, io);
+  hide(Lc, tB, .3); hide(Le, tB, .3); hide(clG, tB, .3);
+  const fat = fatArrow(NA, [560, 220], [560, 680], { o: 0 }); show(fat, tB + .7, .4);
+  const Lb = G(NA, { o: 0 }); show(Lb, tB + .9, .4);
+  wLabel(Lb, 'electrochemical gradient', { x: 650, y: 300, size: 32, fill: COL.chalk, weight: 800, anchor: 'start', o: 1 });
+  wLabel(Lb, '= chemical force + electrical force', { x: 650, y: 336, size: 22, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+  wLabel(Lb, 'drives the diffusion of ions', { x: 650, y: 366, size: 22, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+  // na: sodium, both forces in
+  hide(fat, tNa, .3); hide(Lb, tNa, .3);
+  pulse(naR, tNa + .2, 1.2);
+  const Ln = say(NA, 'Na⁺: more outside than inside', 405, 74, tNa + .4, { size: 26, fill: MC.Na, weight: 700 });
+  hide(Lcr, tNa, .3);
+  tw(chA, { x: 0 }, tNa + 1.6, .05); tw(elA, { x: 0 }, tNa + 6.3, .05);
+  tw(chA, { o: 1 }, tNa + 1.7, .4); tw(elA, { o: 1 }, tNa + 6.4, .4);
+  const Ln1 = say(NA, 'chemical: in', 650, 300, tNa + 1.9, { size: 30, fill: MC.down, weight: 700, anchor: 'start' });
+  const Ln2 = say(NA, 'electrical: in', 650, 630, tNa + 6.6, { size: 30, fill: ELEC, weight: 700, anchor: 'start' });
+  const agree = G(NA, { o: 0 }); show(agree, tNa + 10.5, .4);
+  plate(agree, 810, 470, 330, 56); wLabel(agree, 'both agree: a strong pull in', { x: 810, y: 479, size: 24, weight: 700, fill: MC.Na, o: 1 });
+  // k: potassium, the forces disagree; the ion is tugged both ways
+  tw(NA, { o: .3 }, tK, .5); hide(agree, tK, .3); hide(Ln1, tK, .3); hide(Ln2, tK, .3); hide(Ln, tK, .3); hide(Lsp, tK, .3);
+  show(KG, tK + .1, .5);
+  scatter(10, [880, 600, 1380, 840], 9).forEach(q => solute(KG, 'K', { x: q[0], y: q[1], r: 18 }));
+  [[980, 230], [1420, 250]].forEach(q => solute(KG, 'K', { x: q[0], y: q[1], r: 18 }));
+  const kF = solute(KG, 'K', { x: 1100, y: 585, r: 20 });
+  const kR = ring(KG, [1100, 585], 30, null, { color: COL.chalk, w: 3 }); put(kR, { o: 1 });
+  wLabel(KG, 'K⁺: more inside than outside', { x: 1130, y: 880, size: 26, fill: MC.K, weight: 700, o: 1 });
+  const kc = arw(p, [1210, 690], [1210, 250], { color: MC.down, w: 9, head: 26, o: 0 }), ke = arw(p, [1290, 250], [1290, 690], { color: ELEC, w: 9, head: 26, o: 0 });
+  show(kc, tK + 2.4, .4); show(ke, tK + 5.2, .4);
+  say(p, 'chemical: out', 1250, 226, tK + 2.6, { size: 30, fill: MC.down, weight: 700, anchor: 'end' });
+  say(p, 'electrical: in', 1330, 720, tK + 5.4, { size: 30, fill: ELEC, weight: 700, anchor: 'start' });
+  clockRun(t => {
+    const tq = Math.floor(t * 20) / 20, a = mRamp(tq, tK + 5.6, tK + 6.2) * 9 * Math.sin((tq - tK) * 7);
+    cSet(kF, { y: 585 + a }); cSet(kR, { y: 585 + a });
+  }, D);
+  const win = G(p, { o: 0 }); show(win, tK + 9.4, .4);
+  plate(win, 1100, 130, 520, 60); wLabel(win, 'they disagree: the stronger force wins', { x: 1100, y: 140, size: 26, weight: 700, o: 1 });
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0), Y = 450;
+  const M = memb(p, { x: 330, y: Y, w: 660 });
+  signs(p, rowXs(40, 630, 74), M.face - 26, M.faceIn + 26, { size: 32 }).set(1);
+  scatter(7, [40, 130, 300, 330], 2).forEach(q => solute(p, 'Na', { x: q[0], y: q[1], r: 18 }));
+  solute(p, 'Na', { x: 120, y: 720, r: 18 });
+  scatter(7, [360, 580, 630, 820], 4).forEach(q => solute(p, 'K', { x: q[0], y: q[1], r: 18 }));
+  solute(p, 'K', { x: 520, y: 220, r: 18 });
+  wLabel(p, 'Na⁺: more outside', { x: 170, y: 90, size: 26, fill: MC.Na, weight: 700, o: 1 });
+  wLabel(p, 'K⁺: more inside', { x: 500, y: 870, size: 26, fill: MC.K, weight: 700, o: 1 });
+  wLabel(p, 'inside negative', { x: 170, y: 640, size: 24, fill: MC.minus, weight: 700, o: 1 });
+  wLabel(p, 'outside', { x: 500, y: 110, size: 24, fill: COL.dim, weight: 600, o: 1 });
+  wLabel(p, 'inside', { x: 170, y: 870, size: 24, fill: COL.dim, weight: 600, o: 1 });
+}, { ask: done => quiz({ x: 700, y: 60, w: 840, cls: 'side' }, [{
+  id: 'm-forces', prompt: ['Which way does each force push the ion: into the cell or out of it?'],
+  build: grid([
+    { parts: ['Na⁺, chemical force (more Na⁺ outside)'], ans: ['in'], why: 'In: ions spread from crowded to sparse, and there is more sodium outside.' },
+    { parts: ['Na⁺, electrical force (the inside is negative)'], ans: ['in'], why: 'In: the negative inside attracts a positive ion.' },
+    { parts: ['K⁺, chemical force (more K⁺ inside)'], ans: ['out'], why: 'Out: there is more potassium inside, so it spreads outward.' },
+    { parts: ['K⁺, electrical force (the inside is negative)'], ans: ['in'], why: 'In: potassium is positive too, so the negative inside pulls it back in.' },
+  ], [['in', 'in', null, 'I'], ['out', 'out', null, 'O']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- pumps ---------- */
+['pumps', 'Electrogenic pumps', (m, D) => {
+  const p = panel(0), tP = m('pump'), tA = m('animal'), tPl = m('plant');
+  const Y = 470, S1 = 1.2, NX = 500, PX = 1100;
+  const M = memb(p, { y: Y, s: S1, gaps: [[NX, 84], [PX, 70]] }); sideNames(p, M, .2, { inDy: 90 }); lipidLife(M, D);
+  signs(p, rowXs(60, 1560, 90, [[NX, 130], [PX, 110]]), M.face - 26, M.faceIn + 26, { size: 34 }).set(1);
+  const nk = naKPump(p, { x: NX, y: Y, s: S1, o: 0 }), pp = protonPump(p, { x: PX, y: Y, s: S1, o: 0 });
+  show(nk, .3, .5); show(pp, .5, .5);
+  const n1 = say(p, 'sodium-potassium pump', NX, 176, .6, { size: 30, weight: 700, fill: '#aab6ff' });
+  const n2 = say(p, 'proton pump', PX, 176, .8, { size: 30, weight: 700, fill: '#aab6ff' });
+  // pump: both are electrogenic
+  const Ttl = G(p, { o: 0 }); show(Ttl, tP + .2, .4);
+  wLabel(Ttl, 'electrogenic pump', { x: 800, y: 78, size: 40, weight: 800, o: 1 });
+  wLabel(Ttl, 'a transport protein that makes voltage across a membrane', { x: 800, y: 118, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  pulseS(nk, tP + 1, S1, 1.06); pulseS(pp, tP + 1.6, S1, 1.06);
+  // animal: the sodium-potassium pump runs one cycle: 3 Na⁺ out, 2 K⁺ in
+  ring(p, [NX, Y], 150, tA + .2, { color: CORAL, w: 4 });
+  say(p, 'animal cells', NX, 800, tA + .3, { size: 32, weight: 700, fill: CORAL });
+  say(p, 'met in lesson 5', NX, 836, tA + 4.3, { size: 22, fill: COL.dim, weight: 500 });
+  prog(k => nk.cycle(k), tA + .8, 12, lin);
+  const chip = G(p, { o: 0 }); show(chip, tA + 6, .4);
+  mChip(chip, [['3 Na⁺ out', MC.Na], [' · ', COL.dim], ['2 K⁺ in', MC.K]], { x: NX, y: 880, size: 24, edge: CORAL });
+  const net = G(p, { o: 0 }); show(net, tA + 9.5, .4);
+  plate(net, 800, 236, 360, 50); wLabel(net, 'net: one + charge out per cycle', { x: 800, y: 244, size: 22, fill: MC.plus, weight: 700, o: 1 });
+  hide(net, tPl - .2, .3);
+  // plant: the proton pump moves H⁺ out
+  ring(p, [PX, Y], 140, tPl + .2, { color: GREEN, w: 4 });
+  say(p, 'plants, fungi, bacteria', PX, 800, tPl + .4, { size: 32, weight: 700, fill: GREEN });
+  prog(k => pp.run(k), tPl + .6, 5, lin);
+}],
+
+/* ---------- proton ---------- */
+['proton', 'The proton pump at work', (m, D) => {
+  const p = panel(0), tA = m('atp'), tPu = m('push'), tCh = m('charge'), tS = m('store');
+  const Y = 470, S1 = 1.4, PX = 560;
+  const M = memb(p, { y: Y, s: S1, gaps: [[PX, 70]] }); sideNames(p, M, .2); lipidLife(M, D);
+  // H⁺ already crowded outside, few inside
+  [[140, 170], [180, 290], [320, 120], [800, 130], [920, 270], [1020, 300], [1120, 250], [1230, 290]].forEach(q => solute(p, 'H', { x: q[0], y: q[1], r: 19 }));
+  [[200, 700], [320, 810], [960, 640]].forEach(q => solute(p, 'H', { x: q[0], y: q[1], r: 19 }));
+  const pp = protonPump(p, { x: PX, y: Y, s: S1 });
+  say(p, 'proton pump', PX, 86, .3, { size: 32, weight: 700, fill: '#aab6ff' });
+  // one value drives the charge rows and the meter: c protons out (0 … 4), 3 + c charge pairs, −10 mV a pair
+  const XS = [300, 820, 180, 940, 1060, 1180, 1300];
+  const sg = signs(p, XS, M.face - 28, M.faceIn + 28, { size: 38 });
+  const rig = meterRig(p, { x: 1460, y: 170, inTip: [1420, 580], outTip: [1545, 340] });
+  const kAt = t => .25 * mRamp(t, tPu + .6, tPu + 6) + .75 * mRamp(t, tCh + .3, tCh + 8.5);
+  const outCount = k => { k = Math.round(mClamp(k) * 2000) / 2000; let c = 0; for (let i = 0; i < 4; i++) c += io(mRamp(mRamp(k, i / 4, (i + 1) / 4), .6, .95)); return c; };
+  clockRun(t => {
+    const k = kAt(t), c = outCount(k), pairs = 3 + c;
+    pp.run(k); sg.set(pairs / 7); rig.set(-10 * pairs);
+  }, D);
+  const Lmp = G(p, { o: 0 }); show(Lmp, tCh + 4, .4);
+  wLabel(Lmp, 'membrane potential', { x: 1300, y: 160, size: 30, weight: 700, anchor: 'end', o: 1 });
+  wLabel(Lmp, 'each H⁺ out: one more + outside, one more − inside', { x: 1300, y: 196, size: 22, fill: COL.dim, weight: 500, anchor: 'end', o: 1 });
+  // atp: the pump runs on ATP (the kit's first ATP takes over from this one as the run starts)
+  const a0 = solute(p, 'ATP', { x: PX + 130 * S1, y: Y + 170 * S1, r: 14 * S1, o: 0 });
+  show(a0, tA, .3); pulse(a0, tA + .3, 1.3); hide(a0, tPu + .6, .05);
+  say(p, 'powered by ATP', 815, Y + 236, tA + .4, { size: 28, fill: MC.atp, weight: 700, anchor: 'start' });
+  // push: one H⁺ crosses, against its gradient
+  const ga = gradArrow(p, [440, 700], [440, 250], { against: true, o: 0 }); show(ga, tPu + 1.2, .4);
+  say(p, 'against its gradient', 440, 222, tPu + 1.6, { size: 26, fill: MC.against, weight: 700 });
+  const Lc = say(p, 'cytoplasm → extracellular fluid', PX, 870, tPu + 3, { size: 24, fill: COL.dim, weight: 500 });
+  // charge: each proton out leaves a + outside and a − inside
+  const L1 = say(p, '+ charge builds up outside', 940, 96, tCh + 3.9, { size: 26, fill: MC.plus, weight: 700 });
+  hide(Lc, tCh + 3.5, .3);
+  const L2 = say(p, '− charge left behind inside', 820, 870, tCh + 4.4, { size: 26, fill: MC.minus, weight: 700 });
+  // store: like water behind a dam
+  const dam = G(p, { o: 0 }); show(dam, tS + .3, .6);
+  mk('rect', { x: 1040, y: 640, width: 520, height: 240, rx: 18, fill: '#0b1828', stroke: COL.chalk, 'stroke-opacity': .5, 'stroke-width': 3 }, dam);
+  wLabel(dam, 'stored energy', { x: 1300, y: 676, size: 28, fill: MC.against, weight: 800, o: 1 });
+  wLabel(dam, 'like water behind a dam', { x: 1300, y: 706, size: 22, fill: COL.dim, weight: 500, o: 1 });
+  mk('rect', { x: 1060, y: 740, width: 228, height: 124, fill: '#3a6ea5', 'fill-opacity': .8 }, dam);
+  mk('rect', { x: 1288, y: 724, width: 26, height: 140, fill: '#8f9bb0' }, dam);
+  mk('rect', { x: 1314, y: 840, width: 226, height: 24, fill: '#3a6ea5', 'fill-opacity': .8 }, dam);
+  scatter(10, [1072, 752, 1276, 852], 6).forEach(q => mk('circle', { cx: cF(q[0]), cy: cF(q[1]), r: 7, fill: MC.H }, dam));
+  wLabel(dam, 'H⁺ crowded outside', { x: 1174, y: 760, size: 18, fill: '#ffd0e0', weight: 700, o: 1 });
+  const sp = say(dam, 'spent later on cellular work', 1428, 800, tS + 7.8, { size: 18, fill: COL.chalk, weight: 600 });
+  hide(L1, tS, .3); hide(L2, tS, .3);
+  notToScale(p, 1570, 900 - 14, .3);
+  void sp;
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0), Y = 450, PX = 330;
+  const M = memb(p, { x: 330, y: Y, w: 660, gaps: [[PX, 70]] });
+  signs(p, rowXs(40, 630, 70, [[PX, 110]]), M.face - 26, M.faceIn + 26, { size: 32 }).set(1);
+  const pp = protonPump(p, { x: PX, y: Y }); pp.run(1);
+  [[90, 150], [560, 130], [600, 260], [110, 300]].forEach(q => solute(p, 'H', { x: q[0], y: q[1], r: 18 }));
+  [[100, 680], [560, 760]].forEach(q => solute(p, 'H', { x: q[0], y: q[1], r: 18 }));
+  solute(p, 'ATP', { x: PX + 130, y: Y + 170, r: 16 });
+  wLabel(p, 'proton pump', { x: PX, y: 120, size: 30, fill: '#aab6ff', weight: 700, o: 1 });
+  wLabel(p, 'outside', { x: 330, y: 60, size: 24, fill: COL.dim, o: 1 });
+  wLabel(p, 'inside', { x: 330, y: 860, size: 24, fill: COL.dim, o: 1 });
+}, { ask: done => quiz({ x: 700, y: 60, w: 840, cls: 'side' }, [{
+  id: 'm-electrogenic', prompt: ['Why is the proton pump called electrogenic?'],
+  build: choice([['It moves charge across the membrane, so it builds a voltage.'], ['It makes electricity from sunlight.'], ['It carries electrons across the membrane.'], ['It lets ions diffuse down their gradient.']], 0,
+    'Right. Each H⁺ it pushes out carries a + charge, so + builds up outside and − is left inside: a voltage.',
+    [null, 'It runs on ATP, not light. "Electrogenic" means it generates voltage by moving charge.',
+     'It carries H⁺, a proton, not an electron. The proton’s + charge is what builds the voltage.',
+     'That is passive transport. The pump moves H⁺ against its gradient, paid for with ATP.']),
+}], done) }],
+
+/* ---------- cotrans ---------- */
+['cotrans', 'Cotransport', (m, D) => {
+  const p = panel(0), tD = m('def'), tPl = m('plant'), tCo = m('cot'), tH = m('h'), tSu = m('suc'), tI = m('ind');
+  const Y = 470, S1 = 1.2, PX = 380, CX = 1060;
+  const M = memb(p, { y: Y, s: S1, gaps: [[PX, 70], [CX, 72]] }); sideNames(p, M, .2, { inDy: 90 }); lipidLife(M, D);
+  signs(p, rowXs(60, 1560, 96, [[PX, 120], [CX, 120]]), M.face - 26, M.faceIn + 26, { size: 32 }).set(1);
+  // the H⁺ crowd outside (glowing at "plant"), a few inside
+  const crowdGlow = mk('ellipse', { cx: 730, cy: 236, rx: 270, ry: 118, fill: MC.H, 'fill-opacity': .14 }, p); put(crowdGlow, { o: 0 });
+  const crowd = [[560, 180], [650, 280], [700, 170], [780, 250], [840, 160], [620, 300], [760, 330], [120, 200], [200, 300], [1000, 180]];
+  crowd.forEach(q => solute(p, 'H', { x: q[0], y: q[1], r: 19 }));
+  [[560, 770], [180, 820]].forEach(q => solute(p, 'H', { x: q[0], y: q[1], r: 19 }));
+  const pp = protonPump(p, { x: PX, y: Y, s: S1 });
+  const cot = cotransporter(p, { x: CX, y: Y, s: S1, o: .35 });
+  // sucrose: a little outside, more inside
+  const SUC = G(p, { o: 0 }); show(SUC, 15.3, .5);
+  const sOut = [[1300, 170], [1430, 270], [1490, 140]].map(q => solute(SUC, 'sucrose', { x: q[0], y: q[1], r: 17 }));
+  scatter(7, [1230, 690, 1530, 870], 8).forEach(q => solute(SUC, 'sucrose', { x: q[0], y: q[1], r: 17 }));
+  say(SUC, 'sucrose', 1420, 82, 15.5, { size: 26, fill: MC.carb, weight: 700 });
+  // def
+  const Ld = G(p, { o: 0 }); show(Ld, tD + .3, .4);
+  plate(Ld, 800, 60, 960, 56);
+  wLabel(Ld, 'cotransport: one solute’s active transport drives another’s', { x: 800, y: 69, size: 28, weight: 700, o: 1 });
+  // plant: the H⁺ gradient made by the proton pump
+  show(crowdGlow, tPl + .2, .5); pulse(crowdGlow, tPl + .8, 1.05);
+  prog(k => pp.run(k), tPl + .3, 5, lin);
+  const Lp = say(p, 'plants: an H⁺ gradient built by proton pumps', 520, 112, tPl + .6, { size: 24, fill: MC.H, weight: 700 });
+  // cot: the cotransporter lights
+  tw(cot, { o: 1 }, tCo + .1, .5); pulseS(cot, tCo + .4, S1, 1.06);
+  show(cLabel(p, [CX + 70, Y - 70], [1235, 340], 'sucrose-H⁺ cotransporter', { size: 26, color: MC.carrier }), tCo + .4, .4);
+  hide(Lp, tCo, .3);
+  // h: one H⁺ drifts to the cotransporter and binds, down its gradient; it does not pass alone
+  const [hS, sS] = cot.sol, G2L = q => cOut(cot, q);   // local → parent
+  const site = [G2L([0, -18]), G2L([0, 18])], hFrom = [900, 300], sFrom = [1300, 170];
+  const fin1 = [[930, 760], [1150, 750]];
+  const da = arw(p, [880, 214], [1010, 370], { color: MC.down, w: 6, head: 22, dash: '14 10', o: 0 }); show(da, tH + .3, .4);
+  const Lh = G(p, { o: 0 }); show(Lh, tH + .6, .4);
+  wLabel(Lh, 'diffusion of H⁺', { x: 1040, y: 116, size: 26, fill: MC.down, weight: 700, o: 1 });
+  wLabel(Lh, 'down its gradient', { x: 1040, y: 146, size: 22, fill: COL.dim, weight: 500, o: 1 });
+  pulse(da, tH + 6, 1.08);
+  // suc: a sucrose joins, the carrier flips, both go in (sucrose uphill); ind: a second pair goes the same way
+  hide(sOut[0], tSu + 3.5, .05);
+  const fin = [solute(p, 'H', { x: fin1[0][0], y: fin1[0][1], r: 19, o: 0 }), solute(p, 'sucrose', { x: fin1[1][0], y: fin1[1][1], r: 17, o: 0 })];
+  clockRun(t => {
+    const tq = Math.floor(t * 30) / 30;
+    if (tq < tI + .3) {
+      const hk = io(mRamp(tq, tH + .8, tH + 3)), sk = io(mRamp(tq, tSu + 3.5, tSu + 5.4));
+      const fl = io(mRamp(tq, tSu + 5.6, tSu + 7)) - io(mRamp(tq, tSu + 8.8, tSu + 9.6)), lv = io(mRamp(tq, tSu + 7.1, tSu + 8.6));
+      cot.flip(fl);
+      const hp = lv > 0 ? cLerp2(site[0], fin1[0], lv) : cLerp2(hFrom, site[0], hk), sp = lv > 0 ? cLerp2(site[1], fin1[1], lv) : cLerp2(sFrom, site[1], sk);
+      // the pieces live in the carrier's frame: convert back from parent coordinates
+      const { x: gx, y: gy, s: gs } = st(cot);
+      cSet(hS, { x: (hp[0] - gx) / gs, y: (hp[1] - gy) / gs, o: tq < tH + .5 ? 0 : mRamp(tq, tH + .5, tH + .8) });
+      cSet(sS, { x: (sp[0] - gx) / gs, y: (sp[1] - gy) / gs, o: tq < tSu + 3.5 ? 0 : 1 });
+      mO(fin[0], 0); mO(fin[1], 0);
+    } else {
+      mO(fin[0], 1); mO(fin[1], 1);
+      const k = mRamp(tq, tI + .5, tI + 6.5); cot.carry(k);
+      const fo = mRamp(tq, tI + .3, tI + .7); mO(hS, fo); mO(sS, fo);
+    }
+  }, D);
+  const ua = arw(p, [1205, 400], [1205, 650], { color: MC.against, w: 8, head: 24, o: 0 }); show(ua, tSu + 7.4, .4);
+  const Lu = G(p, { o: 0 }); show(Lu, tSu + 7.6, .4);
+  wLabel(Lu, 'sucrose: uphill', { x: 1225, y: 622, size: 26, fill: MC.against, weight: 700, anchor: 'start', o: 1 });
+  wLabel(Lu, 'against its gradient', { x: 1225, y: 650, size: 22, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+  // ind: the ledger
+  const l1 = G(p, { o: 0 }); show(l1, tI + .6, .4);
+  mChip(l1, [['ATP spent here', MC.atp]], { x: PX, y: 850, size: 24, edge: MC.atp });
+  const l2 = G(p, { o: 0 }); show(l2, tI + 2.4, .4);
+  mChip(l2, [['no ATP here', COL.chalk]], { x: CX - 40, y: 850, size: 24, edge: COL.dim });
+  const Li = G(p, { o: 0 }); show(Li, tI + 6.4, .5);
+  plate(Li, 720, 660, 520, 92);
+  wLabel(Li, 'indirect', { x: 720, y: 652, size: 34, weight: 800, fill: MC.carrier, o: 1 });
+  wLabel(Li, 'the pump spent ATP on H⁺, not on sucrose', { x: 720, y: 688, size: 22, fill: COL.chalk, weight: 500, o: 1 });
+  hide(Lu, tI + 6, .3);
+  notToScale(p, 1570, 900 - 14, .3);
+}],
+
+/* ---------- example ---------- */
+['example', 'The whole chain', (m, D) => {
+  const p = panel(0), tA = m('a'), tB = m('b'), tC = m('c'), tDd = m('d'), tX = m('block');
+  const Y = 430, S1 = .9, PX = 200, CX = 820;
+  const M = memb(p, { x: 640, y: Y, w: 1260, s: S1, gaps: [[PX, 70], [CX, 72]] }); sideNames(p, M, .2, { inDy: 130 }); lipidLife(M, D);
+  const pp = protonPump(p, { x: PX, y: Y, s: S1 }), cot = cotransporter(p, { x: CX, y: Y, s: S1 });
+  const sg = signs(p, rowXs(80, 1220, 92, [[PX, 100], [CX, 100]]), M.face - 24, M.faceIn + 24, { size: 32 });
+  // one level (0 … 1) for the H⁺ gradient and the voltage: built from "b", lost after the block
+  const level = t => mRamp(t, tB + .5, tB + 4) * (1 - mRamp(t, tX + .6, tX + 5));
+  const crowd = scatter(12, [320, 140, 700, 330], 11).map(q => solute(p, 'H', { x: q[0], y: q[1], r: 17, o: 0 }));
+  [[420, 640], [560, 760]].forEach(q => solute(p, 'H', { x: q[0], y: q[1], r: 17 }));
+  // the pump cycles (4 H⁺ a cycle) from "b" until it is blocked; the cotransporter from "c", slowing with the gradient
+  const pumpPh = t => Math.max(0, Math.min(t, tX + .3) - (tB + .3)) / 2.4;
+  const r0 = 1 / 3.2;
+  const cotPh = t => { if (t < tC + .3) return 0; const B = tX + .6; if (t < B) return r0 * (t - tC - .3); const u = Math.min(t - B, 4.4); return r0 * (B - tC - .3) + r0 * (u - u * u / 8.8); };
+  const delivered = ph => ph < .82 ? 0 : Math.floor(ph - .82) + 1;
+  const sIn = scatter(12, [900, 560, 1230, 860], 12).map((q, i) => solute(p, 'sucrose', { x: q[0], y: q[1], r: 15, o: i < 3 ? 1 : 0 }));
+  [[960, 200], [1080, 290], [1180, 180]].forEach(q => solute(p, 'sucrose', { x: q[0], y: q[1], r: 15 }));
+  const beet = beetArt(p, { x: 1430, y: 300, s: .42 });
+  const rig = meterRig(p, { x: 1440, y: 700, s: .72, inTip: [1200, 580], outTip: [1290, 330] });
+  clockRun(t => {
+    const tq = Math.floor(t * 30) / 30, lv = level(tq);
+    sg.set(lv); rig.set(-70 * lv);
+    crowd.forEach((e, i) => mO(e, mClamp(lv * crowd.length - i)));
+    const ph = pumpPh(tq), kf = cFrac(ph);
+    pp.run(ph > 0 ? kf : 0);
+    pp.h.forEach((e, i) => { const u = mRamp(kf, i / 4, (i + 1) / 4); mO(e, ph <= 0 ? 1 : (1 - mRamp(u, .9, 1)) * (ph > 1 ? mRamp(kf, 0, .06) : 1)); });
+    const cp = cotPh(tq), cf = cFrac(cp);
+    cot.carry(cp > 0 ? cf : 0);
+    const so = cp <= 0 ? 0 : cf < .1 ? cf / .1 : cf > .86 ? (1 - cf) / .14 : 1;
+    cot.sol.forEach(e => mO(e, so));
+    const dv = delivered(cp);
+    sIn.forEach((e, i) => { if (i >= 3) mO(e, mClamp(dv - (i - 3))); });
+    cSet(beet, { s: .42 + .022 * Math.min(9, dv) });
+  }, D);
+  // the four steps
+  const badgeAt = (n, x, str, t0) => { const g = G(p, { o: 0 }); show(g, t0, .4); badge(g, String(n), x, 74, { o: 1 }); wLabel(g, str, { x, y: 128, size: 22, fill: COL.chalk, weight: 600, o: 1 }); return g; };
+  badgeAt(1, PX, 'ATP powers the pump', tA);
+  const a0 = solute(p, 'ATP', { x: PX + 130 * S1, y: Y + 170 * S1, r: 14 * S1, o: 0 }); show(a0, tA + .1, .3); pulse(a0, tA + .4, 1.3); hide(a0, tB + .3, .05);
+  badgeAt(2, 510, 'H⁺ out: gradient + voltage', tB + .2);
+  badgeAt(3, CX, 'H⁺ back in, with sucrose', tC + .2);
+  badgeAt(4, 1430, 'sucrose piles up', tDd + .2);
+  // block: a poison stops the pump
+  const X = G(p, { x: PX, y: Y, o: 0 }); show(X, tX + .3, .2); pulse(X, tX + .4, 1.15);
+  path(X, 'M-70 -70L70 70M70 -70L-70 70', { stroke: RED, 'stroke-width': 16, 'stroke-linecap': 'round' });
+  say(p, 'poison: pump blocked', PX, 640, tX + .6, { size: 26, fill: RED, weight: 700 });
+  const nb = G(p, { o: 0 }); show(nb, tX + 2.6, .4);
+  plate(nb, 640, 860, 420, 54); wLabel(nb, 'no pump, no push', { x: 640, y: 869, size: 28, weight: 800, fill: RED, o: 1 });
+  say(p, 'the cotransporter itself is fine', CX, 700, tX + 8.5, { size: 22, fill: MC.carrier, weight: 600 });
+  say(p, 'simplified: a real gradient', 1440, 846, tX + 3, { size: 20, fill: COL.dim, weight: 500 });
+  say(p, 'runs down over time', 1440, 872, tX + 3, { size: 20, fill: COL.dim, weight: 500 });
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['Membrane potential: a voltage across the membrane,', 'made by uneven ions; the inside is negative.', g => {
+      path(g, 'M60 0H200', { stroke: MC.head, 'stroke-width': 18 }); path(g, 'M60 0H200', { stroke: MC.tail, 'stroke-width': 6 });
+      wLabel(g, '+ + +', { x: 130, y: -20, size: 26, fill: MC.plus, weight: 800, o: 1 }); wLabel(g, '− − −', { x: 130, y: 40, size: 26, fill: MC.minus, weight: 800, o: 1 });
+      voltmeter(g, { x: 290, y: -8, s: .5 }).set(-70);
+    }],
+    ['Each ion feels a chemical and an electrical force:', 'together, its electrochemical gradient.', g => {
+      solute(g, 'Na', { x: 150, y: 0, r: 22 });
+      arw(g, [205, -50], [205, 50], { color: MC.down, w: 7, head: 18 }); arw(g, [240, -50], [240, 50], { color: ELEC, w: 7, head: 18 });
+    }],
+    ['Electrogenic pumps make the voltage: Na⁺/K⁺ in animals,', 'H⁺ in plants, fungi, bacteria; they store energy.', g => { naKPump(g, { x: 130, y: 0, s: .36 }); protonPump(g, { x: 260, y: 0, s: .38 }).run(1); }],
+    ['Cotransport: H⁺ flowing back in through a cotransporter', 'carries sucrose into the cell, against its gradient.', g => { cotransporter(g, { x: 190, y: 0, s: .42 }).carry(.45); }],
+  ];
+  const ttl = G(p, { o: 0 }); show(ttl, 0, .3);
+  wLabel(ttl, 'Summary', { x: 800, y: 86, size: 40, weight: 700, o: 1 });
+  wLabel(ttl, 'membrane potential, ion pumps and cotransport', { x: 800, y: 124, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const X0 = 150;
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: X0 - 16, y: 210 + i * 168, o: 0 });
+    const ic = G(G(g, { x: -28.5, s: 1.15 }), { x: 190 }); icon(G(ic, { x: -190 }));
+    T(g, a, { x: 440, y: -6, size: 32, weight: 600 }); T(g, b, { x: 440, y: 36, size: 28, fill: COL.dim });
+    tw(g, { o: 1, x: X0 }, m('w' + (i + 1)), .6);
+    pulse(ic, m('w' + (i + 1)) + .5, 1.06);
+  });
+  say(p, 'Now try the chapter practice.', 800, 870, m('end'), { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const PCX = 1270;
+  at('sign', g => {
+    const ecf = mk('rect', { x: 990, y: 110, width: 560, height: 270, rx: 18, fill: '#132a46', 'fill-opacity': .5 }, g);
+    const M = memb(g, { x: PCX, y: 450, w: 580 });
+    const cy = mk('rect', { x: 990, y: 520, width: 560, height: 300, rx: 18, fill: '#1d3d63', 'fill-opacity': .6 }, g);
+    wLabel(g, 'extracellular fluid', { x: 1150, y: 170, size: 26, fill: COL.chalk, o: 1 });
+    wLabel(g, 'cytoplasm', { x: 1150, y: 700, size: 26, fill: COL.chalk, o: 1 });
+    meterRig(g, { x: 1440, y: 230, s: .7, inTip: [1440, 640], outTip: [1520, 330] }).set(-70);
+    S.signPick = [{ el: cy, box: [990, 520, 560, 300], label: 'the cytoplasm' }, { el: ecf, box: [990, 110, 560, 270], label: 'the extracellular fluid' }];
+    void M;
+  });
+  at('pumps', g => {
+    const M = memb(g, { x: PCX, y: 450, w: 600, s: .9, gaps: [[1130, 84], [1420, 70]] });
+    naKPump(g, { x: 1130, y: 450, s: .9 }); protonPump(g, { x: 1420, y: 450, s: .9 });
+    wLabel(g, 'sodium-potassium pump', { x: 1130, y: 230, size: 22, fill: '#aab6ff', weight: 700, o: 1 });
+    wLabel(g, 'proton pump', { x: 1420, y: 230, size: 22, fill: '#aab6ff', weight: 700, o: 1 });
+    void M;
+  });
+  at('force', g => {
+    const M = memb(g, { x: PCX, y: 450, w: 600 });
+    signs(g, rowXs(1000, 1540, 68), M.face - 26, M.faceIn + 26, { size: 32 }).set(1);
+    scatter(9, [1000, 130, 1540, 320], 13).forEach(q => solute(g, 'Cl', { x: q[0], y: q[1], r: 18 }));
+    [[1080, 700], [1420, 780]].forEach(q => solute(g, 'Cl', { x: q[0], y: q[1], r: 18 }));
+    wLabel(g, 'Cl⁻: more outside', { x: PCX, y: 100, size: 26, fill: MC.Cl, weight: 700, o: 1 });
+    wLabel(g, 'chemical force: ?', { x: PCX, y: 640, size: 24, fill: MC.down, weight: 700, o: 1 });
+    wLabel(g, 'electrical force: ?', { x: PCX, y: 680, size: 24, fill: ELEC, weight: 700, o: 1 });
+  });
+  at('cot', g => {
+    const M = memb(g, { x: PCX, y: 450, w: 600, s: .9, gaps: [[1110, 70], [1420, 72]] });
+    signs(g, rowXs(1000, 1540, 72, [[1110, 90], [1420, 90]]), M.face - 24, M.faceIn + 24, { size: 30 }).set(1);
+    protonPump(g, { x: 1110, y: 450, s: .9 }).run(1); cotransporter(g, { x: 1420, y: 450, s: .9 }).carry(.45);
+    [[1010, 160], [1200, 140], [1260, 260], [1320, 160]].forEach(q => solute(g, 'H', { x: q[0], y: q[1], r: 17 }));
+    [[1500, 200]].forEach(q => solute(g, 'sucrose', { x: q[0], y: q[1], r: 16 }));
+    scatter(5, [1300, 640, 1540, 820], 3).forEach(q => solute(g, 'sucrose', { x: q[0], y: q[1], r: 16 }));
+    wLabel(g, 'proton pump', { x: 1110, y: 100, size: 22, fill: '#aab6ff', weight: 700, o: 1 });
+    wLabel(g, 'sucrose-H⁺ cotransporter', { x: 1420, y: 100, size: 22, fill: MC.carrier, weight: 700, o: 1 });
+  });
+  at('steps', g => {
+    const M = memb(g, { x: PCX, y: 430, w: 600, s: .8, gaps: [[1060, 70], [1400, 72]] });
+    protonPump(g, { x: 1060, y: 430, s: .8 }); cotransporter(g, { x: 1400, y: 430, s: .8 });
+    solute(g, 'ATP', { x: 1060 + 104, y: 430 + 136, r: 12 });
+    [[1180, 240], [1240, 300], [1280, 220]].forEach(q => solute(g, 'H', { x: q[0], y: q[1], r: 15 }));
+    scatter(5, [1300, 600, 1540, 800], 5).forEach(q => solute(g, 'sucrose', { x: q[0], y: q[1], r: 14 }));
+    S.stepB = [badge(g, '?', 1060, 700, { o: 1 }), badge(g, '?', 1240, 150, { o: 1 }), badge(g, '?', 1400, 220, { o: 1 }), badge(g, '?', 1420, 840, { o: 1 })];
+    void M;
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('sign');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-sign', prompt: ['A cell has a membrane potential. Click the side of the membrane that is negative.'],
+    build: withPic('sign', (body, api) => pickEls(S.signPick, 0, 'Right. The cytoplasm is negative: pumping + charge out leaves a surplus of − charge inside.',
+      i => [null, 'The extracellular fluid holds the surplus of + charge. The minus sign of −70 mV says the inside is negative.'][i])(body, api)) },
+  { id: 'p-pumps', prompt: ['Which is the main electrogenic pump of each cell?'],
+    build: withPic('pumps', grid([
+      { parts: ['sugar beet'], ans: ['p'], why: 'A proton pump: plants use proton pumps as their main electrogenic pump.' },
+      { parts: ['nerve cell'], ans: ['s'], why: 'The sodium-potassium pump: it is the major electrogenic pump of animal cells.' },
+      { parts: ['yeast (a fungus)'], ans: ['p'], why: 'A proton pump: fungi, like plants and bacteria, mainly use proton pumps.' },
+      { parts: ['bacterium'], ans: ['p'], why: 'A proton pump, as in plants and fungi.' },
+      { parts: ['muscle cell'], ans: ['s'], why: 'The sodium-potassium pump, as in every animal cell.' },
+    ], [['s', 'Na⁺/K⁺ pump', null, 'S'], ['p', 'proton pump', null, 'P']], { multi: false, text: true })) },
+  { id: 'p-force', prompt: ['Chloride (Cl⁻) is more concentrated outside a cell whose inside is negative. Which statement is right?'],
+    build: withPic('force', choice([['The chemical force points in and the electrical force points out: they oppose.'], ['Both forces point in.'], ['Both forces point out.'], ['There is no electrical force on Cl⁻.']], 0,
+      'Right. Cl⁻ spreads in from the crowded outside, but the negative inside pushes a negative ion away, so the two forces oppose.',
+      [null, 'The chemical force does point in, but the negative inside repels a negative ion: the electrical force points out.',
+       'More Cl⁻ outside means it spreads inward: the chemical force points in.',
+       'A membrane potential acts on every charged particle, and Cl⁻ carries a − charge.'])) },
+  { id: 'p-cot', prompt: ['In a plant cell, sucrose enters against its concentration gradient. What supplies the energy?'],
+    build: withPic('cot', choice([['The H⁺ gradient built by the proton pump with ATP: H⁺ flows back in through the cotransporter and carries sucrose.'], ['The cotransporter splits ATP for each sucrose.'], ['Nothing: sucrose just diffuses in.'], ['The negative inside pulls the sucrose in.']], 0,
+      'Right. The pump spends ATP on H⁺; the H⁺ gradient then pays for sucrose. That is why cotransport is called indirect.',
+      [null, 'No ATP is spent at the cotransporter. The ATP went into the pump, which built the H⁺ gradient: that is why it is indirect.',
+       'Sucrose moves uphill, from less to more, so it needs a push: diffusion only runs downhill.',
+       'Sucrose carries no charge, so the voltage does not pull it. The push comes from the H⁺ flowing in with it.'])) },
+  { id: 'p-steps', prompt: ['Put the chain in order: number the steps from 1 to 4.'],
+    build: withPic('steps', blanks([
+      { parts: ['protons ride the carrier back in: step ', { box: '3' }], why: 'Step 3: the H⁺ gradient drives H⁺ back in, through the cotransporter.', hint: 'Energy first, then the gradient, then the cotransporter, then the sugar.', fx: () => stepFx(2, '3') },
+      { parts: ['ATP powers the proton pump: step ', { box: '1' }], why: 'Step 1: the energy comes first, from ATP.', hint: 'Energy first, then the gradient, then the cotransporter, then the sugar.', fx: () => stepFx(0, '1') },
+      { parts: ['sucrose is carried into the cell: step ', { box: '4' }], why: 'Step 4: sucrose rides in with the H⁺ and piles up in the cell.', hint: 'Energy first, then the gradient, then the cotransporter, then the sugar.', fx: () => stepFx(3, '4') },
+      { parts: ['the pump pushes protons out: step ', { box: '2' }], why: 'Step 2: the pump moves H⁺ out, building the gradient and the voltage.', hint: 'Energy first, then the gradient, then the cotransporter, then the sugar.', fx: () => stepFx(1, '2') },
+    ])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// A numbered step badge; .t is its text.
+function badge(p, str, x, y, { o = 0, r = 24 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: '#3b8fd9', stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t });
+}
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.q?.remove(); S.q = null; S.pics?.(key); return build(body, api); }; }   // drops the last question's stage rings
+function stepFx(i, str) { const b = S.stepB?.[i]; if (!b) return; fxp(q => { b.t.textContent = q > 0 ? str : '?'; }, 0, .2); pulseFx(b, 1.4); }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>

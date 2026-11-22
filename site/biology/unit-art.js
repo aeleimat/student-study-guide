@@ -56,5 +56,22 @@
       P('M440 46C470 40 500 40 530 46M444 58C472 52 498 52 526 58M448 70C474 64 496 64 522 70', 'a') + C(540, 80, 7) +
       C(398, 60, 3, 'faint') + C(410, 140, 3, 'faint') + C(392, 120, 3, 'faint') + C(552, 118, 3, 'faint') +
       `</g>`),
+    // Unit 7 (Chapter 7: Membrane Structure and Function): a stretch of lipid bilayer (heads as circles, two tails
+    // each, one kinked) with a channel protein in it; an ion drops through the channel again and again.
+    reset((() => {
+      let s = '';
+      for (let i = 0; i < 10; i++) {
+        const x = 250 + i * 34 + (i > 6 ? 14 : 0);
+        if (i === 5 || i === 6) continue;
+        s += C(x, 56, 9) + P(`M${x - 4} 65L${x - 4} 88M${x + 4} 65L${x + 4} 88`, 'a') +
+          C(x, 132, 9) + P(i === 3 ? `M${x - 4} 123L${x - 4} 110L${x - 10} 100M${x + 4} 123L${x + 4} 100` : `M${x - 4} 123L${x - 4} 100M${x + 4} 123L${x + 4} 100`, 'a');
+      }
+      s += P('M418 40C406 40 404 48 404 60L404 130C404 142 406 148 418 148C428 148 430 142 430 130L430 60C430 48 428 40 418 40Z') +
+        P('M472 40C462 40 460 48 460 60L460 130C460 142 462 148 472 148C484 148 486 142 486 130L486 60C486 48 484 40 472 40Z') +
+        `<g class="t hop" style="offset-path: path('M445 6L445 176')"><circle r="9" fill="none" stroke="currentColor" stroke-width="2.5"/>` +
+        `<text x="0" y="5" font-size="14" text-anchor="middle" fill="currentColor">+</text></g>` +
+        Tx(588, 24, 'outside', 13, 'faint', 'end') + Tx(588, 176, 'cytoplasm', 13, 'faint', 'end');
+      return s;
+    })()),
   ];
 })();

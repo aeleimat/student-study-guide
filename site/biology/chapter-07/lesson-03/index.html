@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 7, Lesson 3: Selective Permeability, Diffusion and Osmosis — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 7 (Membrane Structure and Function), lesson 3: a drop of dye spreading in a glass, a cell in it, the
+// membrane patch with the bilayer and transport proteins lit; what crosses the bare bilayer (nonpolar fast, sugars and
+// ions not); channel, aquaporin and carrier, specificity; diffusion in a box (random motion, net movement, dynamic
+// equilibrium, two solutes); the concentration gradient and passive transport; osmosis in a U-tube; four travellers;
+// summary; practice. Plan, errata and storyboard: books/biology/chapters/chapter-07/lesson-03.md.
+const CHAPTER = { number: 703, label: '7, lesson 3', title: 'Selective Permeability, Diffusion and Osmosis', minutes: 7, language: 'en', lead: false, next: '../lesson-04/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+const QT = t => Math.round(t * 120) / 120;          // beat time rounded the way the kits round it
+const PURPLE = '#b48cf0', WATERCOL = '#9fd8f5', GOOD = '#8fdc8f', BAD = '#f08a7a';
+const setTxt = (e, s) => { if (e._s !== s) { e.textContent = s; e._s = s; } return e; };
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  if (ax !== null) { path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g); }
+  show(g, t0, .4);
+  return g;
+}
+// A ring that pops in round a point; returns it (o 0 before t0).
+function ring(p, [x, y], r, t0, { color = COL.chalk, w = 4, dash = null } = {}) {
+  const g = G(p, { x, y, o: 0 });
+  mk('circle', { r, fill: 'none', stroke: color, 'stroke-width': w, ...(dash ? { 'stroke-dasharray': dash } : {}) }, g);
+  if (t0 !== null) { show(g, t0, .3); pulse(g, t0 + .1, 1.12); }
+  return g;
+}
+// Three lines of a lane heading: a name, a verdict and an example line, centred on x.
+function laneHead(p, x, [a, ca], [b, cb], c, t0, t1 = t0 + .8, t2 = t0 + 1.4) {
+  const g = G(p);
+  say(g, a, x, 92, t0, { size: 30, weight: 700, fill: ca });
+  if (b) say(g, b, x, 132, t1, { size: 26, weight: 700, fill: cb });
+  if (c) say(g, c, x, 168, t2, { size: 22, weight: 500, fill: COL.dim });
+  return g;
+}
+
+/* ---------- molecules drawn here (beyond the kit) ---------- */
+// A short hydrocarbon: a grey zigzag of carbons, centred on its origin.
+function hydrocarbon(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o }), pts = [-36, -21, -7, 7, 21, 36].map((u, i) => [u, i % 2 ? 7 : -7]);
+  path(g, 'M' + pts.map(cP).join('L'), { stroke: '#8d96a6', 'stroke-width': 6 });
+  path(g, cDots(pts), { stroke: MC.Cgas, 'stroke-width': 13 });
+  return g;
+}
+// An ion in its shell of water (a dashed ring of small water dots); origin at the ion.
+function shellIon(p, kind, { x = 0, y = 0, o = 1 } = {}) {
+  const g = G(p, { x, y, o }), dots = [];
+  mk('circle', { r: 33, fill: 'none', stroke: MC.water, 'stroke-width': 2, 'stroke-dasharray': '5 6', 'stroke-opacity': .7 }, g);
+  for (let i = 0; i < 8; i++) { const a = i / 8 * 2 * Math.PI; dots.push([33 * Math.cos(a), 33 * Math.sin(a)]); }
+  path(g, cDots(dots), { stroke: MC.water, 'stroke-width': 9 });
+  solute(g, kind, {});
+  return g;
+}
+// A dashed outline of a gate (two halves of a channel) in a membrane: what the "needs a gate" lanes lack.
+function gateOutline(p, { x = 0, y = 0, s = 1, o = 0 } = {}) {
+  const g = G(p, { x, y, s, o });
+  for (const sd of [-1, 1]) path(g, cStadium(40, 140, 20), { fill: 'none', stroke: MC.channel, 'stroke-width': 4, 'stroke-dasharray': '10 8', transform: `translate(${sd * 38} 0)` });
+  return g;
+}
+// An ATP spark crossed out: "no energy".
+function noATP(p, { x = 0, y = 0, o = 1, r = 20 } = {}) {
+  const g = G(p, { x, y, o });
+  solute(g, 'ATP', { r });
+  path(g, `M${-r * 1.6} ${r * 1.6}L${r * 1.6} ${-r * 1.6}`, { stroke: COL.bad, 'stroke-width': 6 });
+  return g;
+}
+// A flat arrow with text beside it, for the diffusion counters; .set(str) changes the text (only on change).
+function countArrow(p, [x1, x2], y, color, { w = 7, side = 'right' } = {}) {
+  const g = G(p);
+  mArrow(g, [x1, y], [x2, y], { color, w, head: 20 });
+  const right = x2 > x1, t = T(g, '', { x: right ? Math.max(x1, x2) + 16 : Math.min(x1, x2) - 16, y: y + 9, size: 26, fill: color, weight: 700, anchor: right ? 'start' : 'end', o: 1 });
+  return Object.assign(g, { set(s) { setTxt(t, s); return g; } });
+}
+// A box's two sides as counts of each solute: "● 16" per solute under each half; .set(counts).
+function sideCounts(p, x, y, half, cols) {
+  const g = G(p), mkT = xx => { const t = T(g, '', { x: xx, y, size: 28, weight: 700, anchor: 'middle', o: 1 }); return cols.map(c => { const ts = mk('tspan', { fill: c }, t); return ts; }); };
+  const L = mkT(x - half), R = mkT(x + half);
+  return Object.assign(g, {
+    set(cs) {
+      cs.forEach((c, i) => { setTxt(L[i], (i ? '   ' : '') + '● ' + c.left); setTxt(R[i], (i ? '   ' : '') + '● ' + c.right); });
+      return g;
+    },
+  });
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Selective permeability, diffusion and osmosis', (m, D) => {
+  const p = panel(0), tD = m('dye'), tC = m('cell'), tP = m('patch'), tL = m('lit');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const GX = 450, GY = 800, GH = 460, top = GY - GH * .85;
+  const gl = beaker(W, { x: GX, y: GY, w: 400, h: GH, level: .85, o: 0 }); show(gl, .2, .6);
+  const tint = mk('rect', { x: GX - 194, y: top, width: 388, height: GY - 6 - top, rx: 10, fill: MC.dye1 }, W); put(tint, { o: 0 });
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 7 · LESSON 3', { x: 1160, y: 230, size: 26, fill: COL.dim, o: 1 });
+  ['Selective permeability,', 'diffusion and osmosis'].forEach((s, i) => wLabel(ttl, s, { x: 1160, y: 320 + i * 74, size: 58, o: 1 }));
+  wLabel(ttl, 'Membrane structure and function:', { x: 1160, y: 478, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(ttl, 'what gets across, and how', { x: 1160, y: 514, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .3, .5);
+  const lw = say(W, 'a glass of water', GX, GY + 48, .6, { size: 30, fill: COL.dim, weight: 500 });
+  // dye: a drop falls in, then spreads through the glass with no stirring
+  const drop = mk('circle', { r: 13, fill: MC.dye1, stroke: mix(MC.dye1, '#000000', .3), 'stroke-width': 2 }, W); put(drop, { x: GX, y: 250, o: 0 });
+  show(drop, tD + .1, .2); tw(drop, { y: top + 26 }, tD + .3, .7, io); hide(drop, tD + 1.1, .4);
+  const ld = say(W, 'a drop of dye', GX + 60, 262, tD + .2, { size: 28, fill: MC.dye1, anchor: 'start' }); hide(ld, tD + 3, .4);
+  const N = 64, from = [], to = [];
+  for (let i = 0; i < N; i++) {
+    from.push([GX + 18 * (wHash(i, 3) - .5), top + 30 + 18 * wHash(i, 4)]);
+    to.push([GX - 176 + 352 * wHash(i, 5), top + 22 + (GY - 30 - top - 22) * wHash(i, 6)]);
+  }
+  const dots = path(W, '', { stroke: MC.dye1, 'stroke-width': 11 });
+  put(dots, { o: 0 }); show(dots, tD + 1, .3);
+  clockRun(t => {
+    if (t < tD + .9) return;
+    const u = QT(t), k = mRamp(u, tD + 1, tD + 7.5), e = 1 - (1 - k) ** 2, j = Math.round(u * 8) / 8;
+    let d = '';
+    for (let i = 0; i < N; i++) d += `M${cF(mLerp(from[i][0], to[i][0], e) + 4 * Math.sin(1.3 * j + i))} ${cF(mLerp(from[i][1], to[i][1], e) + 4 * Math.cos(1.1 * j + 2 * i))}h.01`;
+    mD(dots, d);
+  }, D);
+  tw(tint, { o: .26 }, tD + 1.4, 6.2);
+  const ls = say(p, 'it spreads until the glass looks the same', 1160, 690, tD + 5.5, { size: 28, fill: MC.dye1 }); hide(ls, tC - .3, .4);
+  // cell: cells float in the glass; the camera pushes in to one, and its edge lights
+  const CX = GX, CY = 612, CR = 36;
+  const cells = G(W, { o: 0 });
+  let cd = '', nd = '';
+  for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 + .3, x = CX + 108 * Math.cos(a), y = CY + 100 * Math.sin(a); cd += cBlob(CR * .92, CR * .82, { seed: 5 + i, wob: .06, cx: x, cy: y }); nd += cCircle(8, x + 5, y - 3); }
+  path(cells, cd, { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 3 });
+  path(cells, nd, { fill: CC.nucleo, stroke: CC.env, 'stroke-width': 1.5 });
+  const centre = cBlob(CR, CR * .94, { seed: 2, wob: .04, cx: CX, cy: CY });
+  path(cells, centre, { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 3 });
+  mk('circle', { cx: CX - 6, cy: CY + 4, r: 9, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 1.5 }, cells);
+  const glow = path(W, centre, { stroke: COL.chalk, 'stroke-width': 1.6, 'stroke-opacity': .9 }); put(glow, { o: 0 });
+  show(cells, tC + .1, .7); hide(lw, tC, .4);
+  tw(dots, { o: .45 }, tC + .2, .6); hide(dots, tC + 2.6, .7); tw(tint, { o: 0 }, tC + 2.6, .7);
+  cam.to({ x: CX, y: CY, z: 2.4 }, tC + .5, 2.4);
+  cam.to({ x: CX, y: CY - CR * .94, z: 8 }, tC + 3.3, 2.6);
+  show(glow, tC + 5.4, .5); pulse(glow, tC + 5.6, 1.01);
+  const cap = G(p, { o: 0 }); show(cap, tC + 4.4, .5); hide(cap, tP, .4);
+  mk('rect', { x: 420, y: 740, width: 760, height: 110, rx: 22, fill: '#0a1626', stroke: COL.chalk, 'stroke-opacity': .55, 'stroke-width': 3 }, cap);
+  wLabel(cap, 'a cell: wrapped in a membrane', { x: 800, y: 790, size: 36, weight: 700, o: 1 });
+  wLabel(cap, 'that decides what may pass', { x: 800, y: 830, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  // patch: our patch of membrane; lit: the bilayer and the transport proteins
+  hide(cam.el, tP, .6);
+  const mp = membranePatch(p, { x: 800, y: 450, s: .7, o: 0 });
+  tw(mp, { s: 1, o: 1 }, tP + .1, 1.3, out);
+  clockRun(t => mp.drift(Math.round(t * 20) / 20), D);
+  const sd = mp.sides(); show(sd, tP + 1.2, .5);
+  prog(k => mp.focus(['bilayer', 'transport'], k), tL + .1, 1, io);
+  put(mp, { s: 1 });
+  const pc = mp.pt('channel'), pk = mp.pt('carrier'), pq = mp.pt('pump');
+  put(mp, { s: .7 });
+  tag(p, 'lipid bilayer', [1390, 300], [1390, 404], tL + .6, { size: 32, weight: 700, fill: MC.head });
+  tag(p, 'transport proteins', [900, 812], [pk[0], 540], tL + 2.2, { size: 32, weight: 700, fill: MC.carrier, line: MC.carrier });
+  const lx = G(p, { o: 0 }); show(lx, tL + 2.4, .4);
+  path(lx, `M800 790L${pc[0]} 535M1000 790L${pq[0]} 555`, { stroke: MC.carrier, 'stroke-width': 2.5 });
+  path(lx, cDots([[pc[0], 535], [pq[0], 555]]), { stroke: MC.carrier, 'stroke-width': 9 });
+}],
+
+/* ---------- bilayer ---------- */
+['bilayer', 'What crosses the bilayer', (m, D) => {
+  const p = panel(0), tS = m('sel'), tN = m('nonpolar'), tPo = m('polar'), tI = m('ions'), tB = m('border');
+  const BY = 500, BS = 1.6, FACE = BY - 59 * BS;
+  // the push: the patch zooms onto a bare stretch of lipid, and the close-up takes over
+  const mp = membranePatch(p, { x: 800, y: 450 }); mp.focus(['bilayer', 'transport'], 1);
+  tw(mp, { x: 800 - 10 * BS, y: BY, s: BS }, .05, 1.3, io); hide(mp, 1.05, .45);
+  const view = G(p, { o: 0 }); show(view, .9, .6);
+  mk('rect', { x: 0, y: BY, width: 1600, height: 900 - BY, fill: MC.cyto }, view);
+  const bl = bilayer(view, { x: 800, y: BY, s: BS, w: 1000, seed: 4 });
+  wLabel(view, 'EXTRACELLULAR FLUID', { x: 24, y: 46, size: 22, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(view, 'CYTOPLASM', { x: 1576, y: 878, size: 22, fill: COL.dim, anchor: 'end', weight: 700, o: 1 });
+  const c0 = say(p, 'Concept 7.2: the plasma membrane controls the traffic', 800, 700, 1.4, { size: 30 }); hide(c0, tS - .2, .3);
+  // sel
+  say(p, 'selectively permeable', 800, 694, tS + .1, { size: 40, weight: 700 });
+  say(p, 'some substances cross more easily than others', 800, 738, tS + 2.6, { size: 26, fill: COL.dim, weight: 500 });
+  // nonpolar: hydrocarbons, O2 and CO2 dissolve in the tails and pass straight through
+  const L1 = 330, L2 = 800, L3 = 1270;
+  laneHead(p, L1, ['hydrophobic (nonpolar)', MC.tail], ['crosses rapidly', GOOD], 'hydrocarbons · O₂ · CO₂', tN + .2, tN + 9.8, tN + 5.4);
+  const core = path(p, `M${L1} ${BY - 50}V${BY + 50}`, { stroke: MC.tail, 'stroke-width': 46, 'stroke-opacity': .28 }); put(core, { o: 0 }); show(core, tN + 9.6, .6);
+  const np = [hydrocarbon(p, { o: 0 }), solute(p, 'O2', { r: 18, o: 0 }), solute(p, 'CO2', { r: 17, o: 0 })];
+  // polar: sugars bounce off the heads
+  laneHead(p, L2, ['polar (sugar)', MC.head], ['does not cross easily', BAD], 'glucose: hydrophilic', tPo + .2, tPo + 1.6, tPo + 4.6);
+  const sg = [0, 1, 2].map(() => solute(p, 'sugar', { r: 19, o: 0 }));
+  // ions: in a shell of water, they stop at the heads
+  laneHead(p, L3, ['ions', '#ffb347'], ['an even harder time', BAD], 'beyond the slides: same rule', tI + .2, tI + .8, tI + 2.6);
+  const io2 = [shellIon(p, 'Na', { o: 0 }), shellIon(p, 'Cl', { o: 0 })];
+  const shellT = say(p, 'a shell of water', L3 + 120, 300, tI + 6, { size: 22, fill: MC.water, anchor: 'start', weight: 500 });
+  clockRun(t => {
+    const u0 = QT(t);
+    np.forEach((e, i) => {
+      if (u0 < tN) { mO(e, 0); return; }
+      const u = cFrac((u0 - tN) * .2 + i / 3), y = 250 + 480 * u, x = L1 + 22 * Math.sin(2 * Math.PI * u + 2 * i);
+      mPose(e, x, y, mRamp(u, 0, .1) * mRamp(1 - u, 0, .1) * mRamp(u0, tN + .3, tN + 1.2));
+    });
+    sg.forEach((e, i) => {
+      if (u0 < tPo) { mO(e, 0); return; }
+      const u = cFrac((u0 - tPo) * .18 + i / 3), b = 1 - Math.abs(2 * u - 1), y = 250 + (FACE - 22 - 250) * b, x = L2 + 70 * (u - .5) * (i - 1) + 10 * Math.sin(3 * u + i);
+      mPose(e, x, y, mRamp(u, 0, .12) * mRamp(1 - u, 0, .12) * mRamp(u0, tPo + .3, tPo + 1.2));
+    });
+    io2.forEach((e, i) => {
+      if (u0 < tI) { mO(e, 0); return; }
+      const u = cFrac((u0 - tI) * .14 + i / 2), b = 1 - Math.abs(2 * u - 1), y = 250 + (FACE - 36 - 250) * b, x = L3 + (i ? 60 : -60) + 20 * Math.sin(2 * u + i);
+      mPose(e, x, y, mRamp(u, 0, .12) * mRamp(1 - u, 0, .12) * mRamp(u0, tI + .3, tI + 1.2));
+    });
+    bl.drift(Math.round(t * 20) / 20);
+  }, D);
+  // border: some walk straight through, the rest need a gate
+  say(p, 'walks straight through', L1, 806, tB + 1.8, { size: 28, weight: 700, fill: GOOD });
+  [L2, L3].forEach((x, i) => {
+    const gt = gateOutline(p, { x, y: BY, s: BS * .9 }); show(gt, tB + 3.8 + .2 * i, .5);
+    say(p, 'needs a gate', x, 806, tB + 3.9 + .2 * i, { size: 28, weight: 700, fill: MC.channel });
+  });
+  hide(shellT, tB, .3);
+  notToScale(p, 1576, 46, .5);
+}],
+
+/* ---------- proteins ---------- */
+['proteins', 'Transport proteins', (m, D) => {
+  const p = panel(0), tT = m('tp'), tCh = m('channel'), tA = m('aqua'), tCa = m('carrier'), tSp = m('specific'), tLa = m('later');
+  const BY = 500, BS = 1.6, XC = -270, XA = 0, XK = 270, sx = l => 800 + l * BS;
+  const view = G(p);
+  mk('rect', { x: 0, y: BY, width: 1600, height: 900 - BY, fill: MC.cyto }, view);
+  const L = G(view, { x: 800, y: BY, s: BS });
+  const bl = bilayer(L, { w: 1000, seed: 4, gaps: [[XC, 66], [XA, 66], [XK, 74]] });
+  wLabel(view, 'EXTRACELLULAR FLUID', { x: 24, y: 46, size: 22, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(view, 'CYTOPLASM', { x: 1576, y: 878, size: 22, fill: COL.dim, anchor: 'end', weight: 700, o: 1 });
+  const ch = channelProtein(L, { x: XC, kind: 'Na', gated: false, n: 4, o: 0 });
+  const aq = aquaporin(L, { x: XA, n: 5, o: 0 });
+  const ca = carrierProtein(L, { x: XK, o: 0 });
+  const chP = ch.parts[0].parentNode, aqP = aq.parts[0].parentNode, caP = ca.sol[0].parentNode;
+  const LBX = [140, 580, 995], LBA = [[sx(XC) - 58, 385], [sx(XA) - 58, 385], [sx(XK) - 72, 388]];
+  put(chP, { o: 0 }); put(aqP, { o: 0 }); put(caP, { o: 0 });
+  const q0 = say(p, 'how do hydrophilic substances get across?', 800, 700, .3, { size: 32 }); hide(q0, tT, .3);
+  // tp: three transport proteins slide into place and light
+  [ch, aq, ca].forEach((e, i) => { show(e, tT + .1 + .25 * i, .5); pulse(e, tT + .5 + .25 * i, 1.06); });
+  say(p, 'transport proteins: they span the membrane', 800, 50, tT + .3, { size: 32, weight: 700 });
+  // each name sits just above-left of its protein, with a short leader to the protein's top
+  const lab = (name, sub, col, tx, [ax, ay], t0, t1) => {
+    say(p, name, tx, 262, t0, { size: 30, weight: 700, fill: col });
+    say(p, sub, tx, 298, t1, { size: 24, fill: COL.chalk, weight: 500 });
+    const sx0 = tx + Math.max(uiW(name, 30), uiW(sub, 24)) / 2 + 12, g = G(p, { o: 0 });
+    path(g, `M${sx0.toFixed(1)} 272L${ax} ${ay}`, { stroke: col, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: col }, g);
+    show(g, t0 + .2, .4);
+  };
+  // channel: Na+ through the open teal tunnel
+  lab('channel protein', 'a hydrophilic tunnel', MC.channel, LBX[0], LBA[0], tCh + .1, tCh + 2.4);
+  show(chP, tCh + .6, .4);
+  // aqua: water single file through the aquaporin
+  lab('aquaporin', 'a channel for water', MC.channel, LBX[1], LBA[1], tA + .2, tA + 1.2);
+  show(aqP, tA + .6, .4);
+  // carrier: glucose binds, it changes shape, glucose leaves inside
+  lab('carrier protein', 'binds, changes shape', MC.carrier, LBX[2], LBA[2], tCa + .2, tCa + 2.4);
+  show(caP, tCa + 2, .4);
+  // specific: a sodium ion bounces off the glucose carrier
+  const na = solute(L, 'Na', { o: 0 }), nx = G(p, { o: 0 }), NA0 = [450, -200], NA1 = [XK + 34, -112];
+  clockRun(t => {
+    const u0 = QT(t);
+    ch.flow(u0 < tCh ? 0 : u0 - tCh, { speed: 80 });
+    aq.flow(u0 < tA ? 0 : u0 - tA, { speed: 60 });
+    ca.carry(u0 < tCa + 2 ? 0 : cFrac((u0 - tCa - 2) / 5.2));
+    const k = mRamp(u0, tSp + .6, tSp + 4.2), b = k < .5 ? io(k * 2) : 1 - io(k * 2 - 1) * .85;
+    const q = zL2(NA0, NA1, b);
+    mPose(na, q[0], q[1], mRamp(k, 0, .1) * (1 - mRamp(u0, tSp + 4.2, tSp + 5)));
+    bl.drift(Math.round(t * 20) / 20);
+  }, D);
+  const xa = sx(NA1[0]) + 26, ya = BY + NA1[1] * BS - 40;
+  path(nx, `M${xa - 16} ${ya - 16}L${xa + 16} ${ya + 16}M${xa + 16} ${ya - 16}L${xa - 16} ${ya + 16}`, { stroke: COL.bad, 'stroke-width': 7 });
+  show(nx, tSp + 2.4, .2); hide(nx, tSp + 5.6, .4);
+  say(p, 'specific', 1480, 312, tSp + .6, { size: 30, weight: 700, fill: MC.carrier });
+  say(p, 'glucose, not Na⁺', 1480, 348, tSp + 4.6, { size: 24, weight: 500 });
+  // later: two pictures to remember; how they work comes in lesson 5
+  say(p, 'a tunnel', (sx(XC) + sx(XA)) / 2, 822, tLa + 3.2, { size: 30, weight: 700, fill: MC.channel });
+  say(p, 'a shape change', sx(XK), 822, tLa + 4.6, { size: 30, weight: 700, fill: MC.carrier });
+  say(p, 'how they work: lesson 5', 800, 868, tLa + .3, { size: 24, fill: COL.dim, weight: 500 });
+  notToScale(p, 1576, 20, .5);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  mk('rect', { x: 30, y: 560, width: 580, height: 300, rx: 20, fill: MC.cyto }, p);
+  bilayer(p, { x: 320, y: 560, s: 1.1, w: 520, seed: 6 });
+  [['O2', 'oxygen', 120, 170], ['CO2', 'carbon dioxide', 320, 170], ['hc', 'a hydrocarbon', 520, 170], ['sugar', 'glucose', 200, 330], ['Na', 'a sodium ion', 440, 330]].forEach(([k, s, x, y]) => {
+    if (k === 'hc') hydrocarbon(p, { x, y }); else solute(p, k, { x, y, r: k === 'Na' ? 22 : 20 });
+    wLabel(p, s, { x, y: y + 56, size: 24, o: 1 });
+  });
+  wLabel(p, 'the bare bilayer: who crosses alone?', { x: 320, y: 470, size: 24, fill: COL.dim, weight: 500, o: 1 });
+}, { ask: done => quiz({ x: 650, y: 60, w: 900, cls: 'side' }, [{
+  id: 'c-cross', prompt: ['Which of these can cross the bare lipid bilayer on its own?'],
+  build: grid([
+    { parts: ['oxygen (O₂)'], ans: ['a'], why: 'Alone: oxygen is small and nonpolar, so it dissolves in the hydrophobic tails and crosses rapidly.' },
+    { parts: ['carbon dioxide (CO₂)'], ans: ['a'], why: 'Alone: carbon dioxide is small and nonpolar too.' },
+    { parts: ['a hydrocarbon'], ans: ['a'], why: 'Alone: hydrocarbons are hydrophobic, the slides’ own example of a fast crosser.' },
+    { parts: ['glucose'], ans: ['p'], why: 'Needs a protein: glucose is polar and hydrophilic, so the hydrophobic core keeps it out.' },
+    { parts: ['a sodium ion (Na⁺)'], ans: ['p'], why: 'Needs a protein: an ion is charged and wrapped in water, so it cannot slip into the oily core.' },
+  ], [['a', 'crosses alone', null, 'A'], ['p', 'needs a protein', null, 'P']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- diffusion ---------- */
+['diffusion', 'Diffusion', (m, D) => {
+  const p = panel(0), tSp = m('spread'), tR = m('random'), tN = m('net'), tE = m('eq'), tTw = m('two'), tI = m('indep');
+  const BX = 700, BC = 470, BW = 880, BH = 420, opt = { x: BX, y: BC, w: BW, h: BH };
+  say(p, 'Concept 7.3: passive transport', 800, 62, .3, { size: 34, weight: 700 });
+  say(p, 'diffusion across a membrane, with no energy from the cell', 800, 100, .9, { size: 26, fill: COL.dim, weight: 500 });
+  const A = particleCloud(p, { ...opt, solutes: [{ kind: 'dye1', left: 16, right: 0 }], seed: 3, o: 0 });
+  const B = particleCloud(p, { ...opt, solutes: [{ kind: 'dye1', left: 8, right: 8 }], seed: 3, o: 0 });
+  const C = particleCloud(p, { ...opt, solutes: [{ kind: 'dye1', left: 12, right: 0 }, { kind: 'dye2', left: 0, right: 12 }], seed: 5, o: 0 });
+  C.pieces.slice(12).forEach(e => { const c = e.firstChild; c.setAttribute('fill', PURPLE); c.setAttribute('stroke', mix(PURPLE, '#000000', .3)); });
+  show(A, tSp + 5.4, .6);
+  say(p, 'diffusion: molecules spread out evenly into the available space', 800, 166, tSp + .3, { size: 28, fill: MC.dye1 });
+  const lm = say(p, 'membrane (cross section)', BX, 246, tSp + 5.9, { size: 24, fill: MC.head });
+  const ld = say(p, 'dye', BX - BW / 4, 246, tSp + 8.2, { size: 24, fill: MC.dye1, weight: 700 });
+  hide(ld, tTw, .3);
+  // the molecule traced at "random": one that stays on the left, found from the cloud itself
+  A.set(1, 0); const sides1 = A.pieces.map(e => st(e).x); A.set(0, 0);
+  const J = A.pieces.findIndex((e, i) => st(e).x < -120 && sides1[i] < -120 && st(e).y < 0);
+  const tr = A.pieces[J], IX = 1392, IY = 345, IR = 128, MAG = 3.5;
+  const rg = G(p, { o: 0 }), rc = mk('circle', { r: 22, fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, rg);
+  const ins = G(p, { o: 0 });
+  mk('circle', { cx: IX, cy: IY, r: IR, fill: '#15304f', stroke: COL.chalk, 'stroke-width': 3 }, ins);
+  const trail = path(ins, '', { stroke: COL.chalk, 'stroke-width': 3, 'stroke-opacity': .8 });
+  const tDot = mk('circle', { cx: IX, cy: IY, r: 14 * .62 * MAG * .55, fill: MC.dye1, stroke: mix(MC.dye1, '#000000', .3), 'stroke-width': 2 }, ins);
+  wLabel(ins, 'one molecule, magnified', { x: IX, y: IY + IR + 34, size: 22, fill: COL.dim, weight: 500, o: 1 });
+  const lead = path(p, '', { stroke: COL.dim, 'stroke-width': 2, 'stroke-dasharray': '6 6' }); put(lead, { o: 0 });
+  show(rg, tR + .2, .3); show(ins, tR + .5, .5); show(lead, tR + .5, .5);
+  const lr = say(p, 'each moves at random', IX, IY + IR + 70, tR + 1, { size: 28, weight: 700 });
+  [rg, ins, lead, lr].forEach(e => hide(e, tN + 6, .5));
+  // counters: each side's count, and the crossings each way, all from the cloud's own counts
+  const sc = sideCounts(p, BX, BC + BH / 2 + 44, BW / 4, [MC.dye1, PURPLE]); put(sc, { o: 0 }); show(sc, tSp + 6.2, .5);
+  const aR = countArrow(p, [BX - 90, BX + 90], 774, MC.dye1), aL = countArrow(p, [BX + 90, BX - 90], 818, MC.dye1, { w: 5 });
+  const bL = countArrow(p, [BX + 90, BX - 90], 818, PURPLE);
+  [aR, aL, bL].forEach(e => put(e, { o: 0 }));
+  show(aR, tN + .4, .4); show(aL, tN + .4, .4);
+  const ln = say(p, 'net movement →', BX, 866, tN + .6, { size: 28, weight: 700, fill: MC.dye1 }); hide(ln, tE, .3);
+  // eq: the box reaches equilibrium; molecules keep crossing, as many each way
+  hide(A, tE + .2, .5); show(B, tE + .2, .5);
+  const le = say(p, 'dynamic equilibrium', BX, 866, tE + 2.8, { size: 30, weight: 700 }); hide(le, tTw, .3);
+  const le2 = say(p, 'net movement stops; the molecules don’t', 1340, 774, tE + 9.3, { size: 24, weight: 500, fill: COL.chalk }); hide(le2, tTw, .3);
+  // two: a second dye, purple, starts on the right; indep: each runs down its own gradient
+  hide(B, tTw + .1, .5); show(C, tTw + .1, .5);
+  show(bL, tI + .3, .4); hide(aL, tTw, .3);
+  const lw = say(p, 'WATER: the solvent', BX - BW / 2 + 20, BC + BH / 2 - 12, tI + 7.5, { size: 22, anchor: 'start', fill: '#cfe3f7', weight: 700 });
+  const lt = say(p, 'each solute: its own gradient', BX, 866, tI + .4, { size: 28, weight: 700 });
+  clockRun(t => {
+    const u = QT(t), tau = 2 * u;
+    let cs;
+    // clouds and the trace outside their windows sit in a fixed state, so a seek and a step agree
+    if (u >= tE + .7) A.set(1, 0);
+    if (u >= tTw + .6) B.set(1, 0);
+    if (!(u >= tR && u < tN + 6.6)) { mPose(rg, 0, 0); mD(trail, ''); mD(lead, ''); }
+    if (u < tE + .7) {
+      const k = mRamp(u, tN + .4, tE - .2);
+      A.set(k, tau); cs = A.counts(k);
+      aR.set(cs[0].toRight + ' crossed'); aL.set(cs[0].toLeft + ' crossed');
+      // the traced molecule: a ring on it, its recent path magnified in the inset
+      if (u >= tR && u < tN + 6.6) {
+        const s0 = st(tr), [px, py] = cOut(A, [s0.x, s0.y]);
+        mPose(rg, px, py, st(rg).o);
+        const w0 = [14 * zWob(J, zT(tau), 3), 12 * zWob(J + 500, zT(tau), 3)];
+        let d = '';
+        for (let j = 0; j <= 36; j++) { const tj = zT(tau - j * .1), q = [14 * zWob(J, tj, 3) - w0[0], 12 * zWob(J + 500, tj, 3) - w0[1]]; d += (j ? 'L' : 'M') + cF(IX + MAG * q[0]) + ' ' + cF(IY + MAG * q[1]); }
+        mD(trail, d);
+        const dx = IX - px, dy = IY - py, L = Math.hypot(dx, dy);
+        mD(lead, `M${cF(px + dx / L * 26)} ${cF(py + dy / L * 26)}L${cF(IX - dx / L * IR)} ${cF(IY - dy / L * IR)}`);
+      }
+    } else if (u < tTw + .6) {
+      const k = mRamp(u, tE + .5, tE + 6.3);
+      B.set(k, tau); cs = B.counts(k);
+      aR.set(cs[0].toRight + ' crossed'); aL.set(cs[0].toLeft + ' crossed');
+    } else {
+      const k = mRamp(u, tI + .5, tI + 8.2);
+      C.set(k, tau); cs = C.counts(k);
+      aR.set(cs[0].toRight + ' crossed'); aL.set(cs[0].toLeft + ' crossed'); bL.set(cs[1].toLeft + ' crossed');
+    }
+    sc.set(u < tTw + .1 ? [cs[0]] : cs);
+  }, D);
+  notToScale(p, 1576, 30, .5);
+  void lm; void lw; void lt;
+}],
+
+/* ---------- gradient ---------- */
+['gradient', 'The concentration gradient', (m, D) => {
+  const p = panel(0), tG = m('grad'), tDn = m('down'), tPa = m('passive'), tTh = m('through');
+  const WX = 800, WY = 236, WW = 760, WH = 190;
+  say(p, 'concentration gradient', 800, 70, tG + .2, { size: 38, weight: 700, fill: MC.dye1 });
+  say(p, 'the difference in concentration from one area to another', 800, 108, tG + .8, { size: 24, fill: COL.dim, weight: 500 });
+  const wd = gradientWedge(p, { x: WX, y: WY, w: WW, h: WH, color: MC.dye1, n: 70, o: 0 }); show(wd, tG + .3, .6);
+  say(p, 'crowded', WX - WW / 2 - 18, WY + 9, tG + 1.4, { size: 26, anchor: 'end', weight: 700 });
+  say(p, 'sparse', WX + WW / 2 + 18, WY + 9, tG + 1.8, { size: 26, anchor: 'start', weight: 700 });
+  // down: an arrow down the gradient; a ball rolls down the wedge's top edge, by itself
+  const ga = gradArrow(p, [WX - WW / 2 + 30, 372], [WX + WW / 2 - 30, 372], { o: 0 }); show(ga, tDn + .2, .5);
+  say(p, 'down the gradient', 690, 418, tDn + .6, { size: 28, weight: 700 });
+  say(p, 'no work needed', 1000, 418, tDn + 5.6, { size: 28, weight: 700, fill: GOOD });
+  const R = 22, ball = G(p, { o: 0 }), bi = G(ball);
+  mk('circle', { r: R, fill: '#e8e2cf', stroke: '#9d957a', 'stroke-width': 3 }, bi);
+  path(bi, `M${-R + 3} 0H${R - 3}`, { stroke: '#9d957a', 'stroke-width': 4 });
+  const edge = u => [WX - WW / 2 + WW * u, WY - WH / 2 * (1 - .85 * u)];
+  const nrm = (() => { const a = edge(0), b = edge(1), dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy); return [dy / L, -dx / L, L]; })();
+  show(ball, tDn + 7.8, .3);
+  clockRun(t => {
+    const u = QT(t), k = io(mRamp(u, tDn + 8, tDn + 13.5)), uu = .03 + .94 * k, q = edge(uu);
+    const ux = q[0] + nrm[0] * (R + 2), uy = q[1] + nrm[1] * (R + 2), ang = Math.round(uu * nrm[2] / R * 180 / Math.PI);
+    mPose(ball, ux, uy, st(ball).o); if (st(bi).r !== ang) put(bi, { r: ang });
+  }, D);
+  // passive: passive transport, the cell spends no energy
+  say(p, 'passive transport', 760, 494, tPa + .3, { size: 36, weight: 700 });
+  const na = noATP(p, { x: 1010, y: 482, o: 0 }); show(na, tPa + 4.1, .3);
+  say(p, 'the cell spends no energy', 800, 534, tPa + 4.2, { size: 24, fill: COL.dim, weight: 500 });
+  // through: a nonpolar molecule through the bilayer, a polar one through a carrier; both downhill
+  const MY = 730, MS = .7;
+  const mini = (cx, t0) => { const g = G(p, { o: 0 }); show(g, t0, .5); mk('rect', { x: cx - 250, y: MY, width: 500, height: 130, rx: 16, fill: MC.cyto }, g); return g; };
+  const g1 = mini(460, tTh + .2), g2 = mini(1140, tTh + 3.6);
+  const b1 = bilayer(g1, { x: 460, y: MY, s: MS, w: 700, seed: 7 });
+  const b2 = bilayer(g2, { x: 1140, y: MY, s: MS, w: 700, seed: 8, gaps: [[0, 74]] });
+  const cr = carrierProtein(g2, { x: 1140, y: MY, s: MS });
+  const o2s = [[380, 628], [430, 650], [510, 632], [560, 655], [410, 850]].map(([x, y]) => solute(g1, 'O2', { x, y, r: 14 }));
+  const sgs = [[1050, 628], [1095, 655], [1210, 632], [1245, 652], [1100, 852]].map(([x, y]) => solute(g2, 'sugar', { x, y, r: 13 }));
+  const mov = solute(g1, 'O2', { r: 15 });
+  gradArrow(g1, [270, 640], [270, 830], { w: 6, head: 18 }); gradArrow(g2, [950, 640], [950, 830], { w: 6, head: 18 });
+  say(p, 'nonpolar: through the bilayer', 460, 600, tTh + .4, { size: 24, weight: 700, fill: MC.tail });
+  say(p, 'polar: through a transport protein', 1140, 600, tTh + 3.8, { size: 24, weight: 700, fill: MC.head });
+  say(p, 'still downhill', 800, 738, tTh + 6.4, { size: 26, weight: 700, fill: MC.down });
+  clockRun(t => {
+    const u = QT(t), k = cFrac(Math.max(0, u - tTh) / 3.2);
+    mPose(mov, 470, 640 + 200 * k, u < tTh ? 0 : mRamp(k, 0, .1) * mRamp(1 - k, 0, .1));
+    cr.carry(u < tTh + 3.6 ? 0 : cFrac((u - tTh - 3.6) / 4.6));
+  }, D);
+  void b1; void b2; void o2s; void sgs;
+}],
+
+/* ---------- osmosis ---------- */
+['osmosis', 'Osmosis', (m, D) => {
+  const p = panel(0), tO = m('osm'), tT = m('tube'), tDr = m('dir'), tIn = m('inset'), tW = m('why'), tR = m('rise');
+  const UX = 520, UY = 810;
+  say(p, 'osmosis', 800, 64, tO + .2, { size: 40, weight: 700, fill: WATERCOL });
+  say(p, 'the diffusion of water across a selectively permeable membrane', 800, 104, tO + 1, { size: 26, weight: 500 });
+  const ut = uTube(p, { x: UX, y: UY, w: 520, h: 440, aw: 140, left: 4, right: 12, waters: 22, o: 0 }); show(ut, tT + .1, .6);
+  const [lA, rA] = ut.levels();
+  say(p, 'membrane: water passes, sugar does not', UX, 868, tT + 3.6, { size: 24, fill: MC.head, weight: 600 });
+  const ml = path(p, `M${UX} 846V${UY - 6}`, { stroke: COL.dim, 'stroke-width': 2.5 }, { o: 0 }); show(ml, tT + 3.6, .4);
+  say(p, 'less sugar', lA[0], 340, tT + 6.8, { size: 28, weight: 700, fill: MC.carb });
+  say(p, 'more sugar', rA[0], 340, tT + 8.8, { size: 28, weight: 700, fill: MC.carb });
+  // dir: water moves toward the higher solute concentration
+  const wa = path(p, `M${lA[0]} 520V720Q${lA[0]} 742 ${lA[0] + 22} 742H${rA[0] - 22}Q${rA[0]} 742 ${rA[0]} 720V530`, { stroke: WATERCOL, 'stroke-width': 7, 'stroke-opacity': .9 }, { d: 0 });
+  draw(wa, tDr + .2, 1.6);
+  const wh = G(p, { x: rA[0], y: 516, o: 0 }); path(wh, 'M-14 14L0 -6L14 14Z', { fill: WATERCOL, stroke: WATERCOL, 'stroke-width': 3 }); show(wh, tDr + 1.7, .2);
+  say(p, 'H₂O', UX, 560, tDr + .8, { size: 40, weight: 800, fill: WATERCOL });
+  say(p, 'lower → higher', UX, 600, tDr + 2.2, { size: 22, weight: 600 });
+  say(p, 'solute concentration', UX, 628, tDr + 2.2, { size: 22, weight: 600 });
+  // inset: the membrane magnified; more water crosses toward the sugar
+  const IX = 1210, IY = 470, IR = 245, ins = G(p, { o: 0 }); show(ins, tIn + .3, .6);
+  mk('circle', { cx: IX, cy: IY, r: IR, fill: '#1f5285', stroke: COL.chalk, 'stroke-width': 4 }, ins);
+  path(ins, `M${UX + 20} ${UY - 70}L${IX - IR * .92} ${IY + IR * .4}M${UX + 20} ${UY - 70}L${IX - IR * .7} ${IY + IR * .72}`, { stroke: COL.dim, 'stroke-width': 2, 'stroke-dasharray': '6 6' });
+  mk('circle', { cx: UX, cy: UY - 70, r: 26, fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, ins);
+  const memb = path(ins, `M${IX} ${IY - IR + 12}V${IY + IR - 12}`, { stroke: MC.head, 'stroke-width': 26, 'stroke-dasharray': '46 22', 'stroke-linecap': 'butt' });
+  path(ins, `M${IX} ${IY - IR + 12}V${IY + IR - 12}`, { stroke: MC.tail, 'stroke-width': 9, 'stroke-dasharray': '46 22', 'stroke-linecap': 'butt' });
+  void memb;
+  wLabel(ins, 'at the membrane', { x: IX, y: IY - IR - 16, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  const sugars = [[1290, 340], [1360, 460], [1290, 580], [1350, 360], [1350, 590]];
+  sugars.forEach(([x, y]) => solute(ins, 'sugar', { x, y, r: 20 }));
+  wLabel(ins, 'sugar', { x: 1330, y: 655, size: 22, fill: MC.carb, weight: 700, o: 1 });
+  // the water held by sugar (shown at "why"), and the free water
+  const held = [], links = G(ins, { o: 0 });
+  sugars.forEach(([x, y], i) => [0, 1, 2].forEach(j => { const a = j * 2.1 + i; const hx = x + 38 * Math.cos(a), hy = y + 38 * Math.sin(a); held.push([hx, hy]); path(links, `M${x + 20 * Math.cos(a)} ${y + 20 * Math.sin(a)}L${hx} ${hy}`, { stroke: MC.carb, 'stroke-width': 2, 'stroke-dasharray': '4 4' }); }));
+  const heldD = path(ins, cDots(held), { stroke: MC.water, 'stroke-width': 13 });
+  const FREE = 10, CROSS = 7, BACK = 3, wd = path(ins, '', { stroke: MC.water, 'stroke-width': 13 });
+  const cr = path(ins, '', { stroke: '#ffffff', 'stroke-width': 13 });
+  const lm = say(p, 'more cross toward the sugar', IX, IY + IR + 40, tIn + 2, { size: 26, weight: 700, fill: WATERCOL });
+  show(links, tW + .4, .6); pulse(heldD, tW + .6, 1.02);
+  const lw1 = say(p, 'sugar holds some water:', IX, IY + IR + 76, tW + 1.2, { size: 24, weight: 600, fill: MC.carb });
+  const lw2 = say(p, 'fewer free water molecules there', IX, IY + IR + 104, tW + 3, { size: 24, weight: 600, fill: MC.carb });
+  [ins, lm, lw1, lw2].forEach(e => hide(e, tR - .3, .5));
+  // rise: the sugar side is diluted and rises; it ends higher, held by the taller column
+  const lvl = G(p, { o: 0 }); show(lvl, tR + .2, .4);
+  path(lvl, `M${UX - 270} ${lA[1]}H${UX + 270}`, { stroke: COL.dim, 'stroke-width': 2.5, 'stroke-dasharray': '8 8' });
+  wLabel(lvl, 'start', { x: UX - 280, y: lA[1] + 8, size: 22, fill: COL.dim, anchor: 'end', weight: 500, o: 1 });
+  const mkL = path(p, '', { stroke: COL.chalk, 'stroke-width': 5 }), mkR = path(p, '', { stroke: COL.chalk, 'stroke-width': 5 });
+  put(mkL, { o: 0 }); put(mkR, { o: 0 }); show(mkL, tR + .3, .3); show(mkR, tR + .3, .3);
+  const tagR = G(p, { o: 0 }); show(tagR, tR + 5, .5);
+  const tagT1 = wLabel(tagR, 'taller column', { x: 0, y: 0, size: 30, weight: 700, anchor: 'start', o: 1 });
+  wLabel(tagR, 'pushes back', { x: 0, y: 38, size: 30, weight: 700, anchor: 'start', o: 1 });
+  void tagT1;
+  const end1 = say(p, 'it ends higher, not level', 850, 700, tR + 6.4, { size: 32, weight: 700, fill: WATERCOL, anchor: 'start' });
+  const end2 = say(p, 'sugar side diluted', 850, 420, tR + 1.2, { size: 28, weight: 600, fill: MC.carb, anchor: 'start' });
+  void end1; void end2;
+  clockRun(t => {
+    const u = QT(t), tau = u;
+    const k = u < tR ? .2 * mRamp(u, tDr + 1, tR) : .2 + .8 * io(mRamp(u, tR + .5, tR + 7.5));
+    ut.set(k, tau);
+    const [l, r] = ut.levels();
+    mD(mkL, `M${cF(l[0] - 55)} ${cF(l[1])}H${cF(l[0] + 55)}`); mD(mkR, `M${cF(r[0] - 55)} ${cF(r[1])}H${cF(r[0] + 55)}`);
+    mPose(tagR, r[0] + 100, r[1] + 4, st(tagR).o);
+    // the inset's water: free molecules jiggle; more cross left to right than right to left
+    if (u >= tIn && u < tR) {
+      let d = '', c = '';
+      const j = Math.round(u * 30) / 30;
+      for (let i = 0; i < FREE; i++) { const sd = i < 6 ? -1 : 1, x = IX + sd * (50 + 150 * wHash(i, 41)), y = IY - 180 + 360 * wHash(i, 42); d += `M${cF(x + 8 * Math.sin(j * 1.7 + i))} ${cF(y + 8 * Math.cos(j * 1.3 + i))}h.01`; }
+      for (let i = 0; i < CROSS + BACK; i++) {
+        const dir = i < CROSS ? 1 : -1, ph = cFrac((u - tIn) * .2 + i / (CROSS + BACK)), y = IY - 170 + 340 * wHash(i, 51);
+        const x = IX + dir * (-170 + 340 * ph);
+        if (Math.abs(y - IY) < IR - 30 && Math.hypot(x - IX, y - IY) < IR - 20) c += `M${cF(x)} ${cF(y)}h.01`;
+      }
+      mD(wd, d); mD(cr, c);
+    } else { mD(wd, ''); mD(cr, ''); }
+  }, D);
+  notToScale(p, 1576, 30, .5);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0), S2 = .62;
+  const ut = uTube(p, { x: 430, y: 700, s: S2 });
+  const [l, r] = ut.levels();
+  wLabel(p, 'less sugar', { x: l[0] - 20, y: 390, size: 26, weight: 700, fill: MC.carb, o: 1 });
+  wLabel(p, 'more sugar', { x: r[0] + 20, y: 390, size: 26, weight: 700, fill: MC.carb, o: 1 });
+  wLabel(p, 'selectively permeable membrane', { x: 430, y: 740, size: 22, fill: MC.head, o: 1 });
+  wLabel(p, '?', { x: 430, y: 220, size: 72, weight: 800, fill: WATERCOL, o: 1 });
+  mArrow(p, [380, 196], [260, 196], { color: WATERCOL, w: 5 }); mArrow(p, [480, 196], [600, 196], { color: WATERCOL, w: 5 });
+}, { ask: done => quiz({ x: 860, y: 60, w: 700, cls: 'side' }, [{
+  id: 'c-osmo', prompt: ['Water on both sides, more sugar on the right. The membrane lets water through, not sugar. Which way does the water move?'],
+  build: choice([['Toward the right, where there is more sugar'], ['Toward the left, where there is less sugar'], ['It does not move at all'], ['The sugar crosses instead']], 0,
+    'Right. Water moves from lower to higher solute concentration, so it crosses toward the sugar side.',
+    [null, 'That reverses the rule: water goes toward more solute, here the right.',
+     'Water crosses both ways, but more crosses toward the sugar, so there is a net movement to the right.',
+     'This membrane is selectively permeable: water passes, sugar does not. Only the water moves.']),
+}], done) }],
+
+/* ---------- example ---------- */
+['example', 'Four travellers', (m, D) => {
+  const p = panel(0), tO = m('o2'), tG = m('glu'), tN = m('na'), tH = m('h2o'), tA = m('all');
+  const BY = 480, BS = 1.3, LX = [260, 620, 980, 1340], loc = x => (x - 800) / BS;
+  mk('rect', { x: 0, y: BY, width: 1600, height: 900 - BY, fill: MC.cyto }, p);
+  const L = G(p, { x: 800, y: BY, s: BS });
+  const GAPS = [[loc(LX[1]), 74], [loc(LX[2]), 66], [loc(LX[3]), 66]];
+  const bl = bilayer(L, { w: 1232, seed: 9, gaps: GAPS });
+  // until a lane brings its protein, a short run of lipids fills its gap
+  const fills = GAPS.map(([gx, gh], i) => bilayer(L, { x: gx, w: 2 * gh + 20, seed: 30 + i }));
+  const cr = carrierProtein(L, { x: loc(LX[1]), o: 0 });
+  const ch = channelProtein(L, { x: loc(LX[2]), kind: 'Na', gated: false, n: 3, o: 0 });
+  const aq = aquaporin(L, { x: loc(LX[3]), n: 5, o: 0 });
+  const crP = cr.sol[0].parentNode, chP = ch.parts[0].parentNode, aqP = aq.parts[0].parentNode;
+  put(crP, { o: 0 }); put(chP, { o: 0 }); put(aqP, { o: 0 });
+  wLabel(p, 'EXTRACELLULAR FLUID', { x: 24, y: 46, size: 22, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(p, 'CYTOPLASM', { x: 1576, y: 878, size: 22, fill: COL.dim, anchor: 'end', weight: 700, o: 1 });
+  const lead = say(p, 'four travellers at the membrane', 800, 700, .3, { size: 32 }); hide(lead, tO, .3);
+  // o2: straight through the bilayer
+  const o2 = solute(p, 'O2', { r: 18, o: 0 });
+  laneHead(p, LX[0], ['oxygen (O₂)', MC.O2], ['small, nonpolar', MC.tail], null, tO + .1, tO + 1);
+  say(p, 'through the bilayer', LX[0], 780, tO + 3.2, { size: 26, weight: 700, fill: MC.tail });
+  say(p, 'down its gradient, no energy', LX[0], 814, tO + 6.6, { size: 22, weight: 500 });
+  // glu: a carrier
+  laneHead(p, LX[1], ['glucose', MC.carb], ['polar', MC.head], null, tG + .1, tG + .4);
+  say(p, 'carrier protein', LX[1], 780, tG + 3, { size: 26, weight: 700, fill: MC.carrier });
+  say(p, 'still downhill', LX[1], 814, tG + 5.4, { size: 22, weight: 500 });
+  show(cr, tG + .3, .5); hide(fills[0], tG + .3, .5); show(crP, tG + 1.6, .4);
+  // na: a channel
+  laneHead(p, LX[2], ['sodium ion (Na⁺)', MC.Na], ['charged', BAD], null, tN + .1, tN + .4);
+  say(p, 'channel protein', LX[2], 780, tN + 2.4, { size: 26, weight: 700, fill: MC.channel });
+  say(p, 'a hydrophilic tunnel', LX[2], 814, tN + 2.8, { size: 22, weight: 500 });
+  show(ch, tN + .3, .5); hide(fills[1], tN + .3, .5); show(chP, tN + 2.2, .4);
+  // h2o: osmosis, a little through the bilayer, much faster through aquaporins
+  laneHead(p, LX[3], ['water (H₂O)', WATERCOL], ['osmosis', WATERCOL], null, tH + .1, tH + .4);
+  show(aq, tH + .3, .5); hide(fills[2], tH + .3, .5); show(aqP, tH + 2.6, .4);
+  const thin = [0, 1].map(() => solute(p, 'water', { r: 15, o: 0 }));
+  say(p, 'aquaporin: fast', LX[3], 780, tH + 3.4, { size: 26, weight: 700, fill: MC.channel });
+  say(p, 'bilayer: a little', LX[3], 814, tH + 1.6, { size: 22, weight: 500 });
+  say(p, 'toward more solute', LX[3], 848, tH + 5.6, { size: 22, weight: 600, fill: MC.carb });
+  // all: three kinds of route, one rule
+  const rt = [['bilayer', MC.tail], ['carrier', MC.carrier], ['channel', MC.channel], ['channel', MC.channel]];
+  LX.forEach((x, i) => { const r = ring(p, [x, BY], 112, tA + .3 + .25 * i, { color: rt[i][1], w: 4, dash: '10 8' }); void r; });
+  const fin = G(p, { o: 0 }); show(fin, tA + 3.6, .5);
+  mk('rect', { x: 430, y: 156, width: 740, height: 64, rx: 20, fill: '#0a1626', stroke: COL.chalk, 'stroke-opacity': .55, 'stroke-width': 3 }, fin);
+  wLabel(fin, 'three kinds of route, one rule: no energy', { x: 800, y: 198, size: 30, weight: 700, o: 1 });
+  clockRun(t => {
+    const u = QT(t);
+    const k = cFrac(Math.max(0, u - tO - 1.2) / 3);
+    mPose(o2, LX[0] + 14 * Math.sin(6 * k), 230 + 420 * k, u < tO + 1.2 ? 0 : mRamp(k, 0, .1) * mRamp(1 - k, 0, .1));
+    cr.carry(u < tG + 1.6 ? 0 : cFrac((u - tG - 1.6) / 4.8));
+    ch.flow(u < tN + 2.2 ? 0 : u - tN - 2.2, { speed: 80 });
+    aq.flow(u < tH + 2.6 ? 0 : u - tH - 2.6, { speed: 60 });
+    thin.forEach((e, i) => { const q = cFrac(Math.max(0, u - tH - 1) / 7 + i / 2); mPose(e, LX[3] + 96, 260 + 420 * q, u < tH + 1 ? 0 : .8 * mRamp(q, 0, .1) * mRamp(1 - q, 0, .1)); });
+    bl.drift(Math.round(t * 20) / 20);
+  }, D);
+  notToScale(p, 1576, 20, .5);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['The membrane is selectively permeable: nonpolar', 'molecules cross the bilayer; polar ones and ions need proteins.', g => { const b = G(g, { x: 190, s: .5 }); bilayer(b, { w: 400, seed: 3, gaps: [[-90, 62], [80, 74]] }); channelProtein(b, { x: -90, kind: 'Na', gated: false, n: 0 }); const cw = carrierProtein(b, { x: 80 }); cw.flip(.5); put(cw.sol[0].parentNode, { o: 0 }); }],
+    ['Diffusion: net movement down a concentration gradient,', 'from random motion, ending in dynamic equilibrium.', g => { particleCloud(g, { x: 190, s: .3, w: 520, h: 300, solutes: [{ kind: 'dye1', left: 12, right: 0 }], seed: 3 }).set(.35, 0); }],
+    ['Moving down a gradient is passive transport:', 'it costs the cell no energy.', g => { gradientWedge(g, { x: 190, w: 220, h: 80, color: MC.dye1, n: 30 }); noATP(g, { x: 330, y: 0, r: 14 }); }],
+    ['Osmosis is the diffusion of water across a selectively', 'permeable membrane, toward the higher solute concentration.', g => { uTube(g, { x: 190, y: 62, s: .26 }).set(1, 0); }],
+  ];
+  const ttl = G(p, { o: 0 }); show(ttl, 0, .3);
+  wLabel(ttl, 'Summary', { x: 800, y: 86, size: 40, weight: 700, o: 1 });
+  wLabel(ttl, 'selective permeability, diffusion and osmosis', { x: 800, y: 124, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const X0 = 150;
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: X0 - 16, y: 210 + i * 165, o: 0 });
+    const ic = G(G(g, { x: -28.5, s: 1.15 }), { x: 190 }); icon(G(ic, { x: -190 }));
+    T(g, a, { x: 420, y: -6, size: 33, weight: 600 }); T(g, b, { x: 420, y: 36, size: 28, fill: COL.dim });
+    tw(g, { o: 1, x: X0 }, m('w' + (i + 1)), .6);
+    pulse(ic, m('w' + (i + 1)) + .5, 1.06);
+  });
+  say(p, 'Now try the chapter practice.', 800, 868, m('end'), { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const PCX = 1270;
+  at('chan', g => {
+    mk('rect', { x: 980, y: 450, width: 580, height: 320, rx: 20, fill: MC.cyto }, g);
+    const b = G(g, { x: PCX, y: 450, s: 1.3 });
+    bilayer(b, { w: 440, seed: 5, gaps: [[-100, 66], [100, 74]] });
+    channelProtein(b, { x: -100, kind: 'Na', gated: false, n: 4 }).flow(1.3);
+    carrierProtein(b, { x: 100 }).carry(.4);
+    wLabel(g, 'channel', { x: PCX - 130, y: 700, size: 28, weight: 700, fill: MC.channel, o: 1 });
+    wLabel(g, 'carrier', { x: PCX + 130, y: 700, size: 28, weight: 700, fill: MC.carrier, o: 1 });
+  });
+  const cloudPic = (g, solutes, k, seed, arrows) => {
+    const c = particleCloud(g, { x: PCX, y: 400, s: .62, w: 860, h: 460, solutes, seed });
+    c.set(k, 0);
+    const cs = c.counts(k);
+    arrows(cs);
+    if (solutes.length > 1) c.pieces.slice(solutes[0].left + solutes[0].right).forEach(e => { e.firstChild.setAttribute('fill', PURPLE); e.firstChild.setAttribute('stroke', mix(PURPLE, '#000000', .3)); });
+    return c;
+  };
+  at('net', g => cloudPic(g, [{ kind: 'dye1', left: 16, right: 0 }], .4, 3, cs => {
+    countArrow(g, [PCX - 90, PCX + 90], 600, MC.dye1).set(cs[0].toRight + ' crossed');
+    countArrow(g, [PCX + 90, PCX - 90], 645, MC.dye1, { w: 4 }).set(cs[0].toLeft + ' crossed');
+    wLabel(g, 'every molecule moves at random', { x: PCX, y: 130, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  }));
+  at('eq', g => cloudPic(g, [{ kind: 'dye1', left: 8, right: 8 }], 1, 3, cs => {
+    countArrow(g, [PCX - 90, PCX + 90], 600, MC.dye1).set(cs[0].toRight + ' crossed');
+    countArrow(g, [PCX + 90, PCX - 90], 645, MC.dye1).set(cs[0].toLeft + ' crossed');
+    wLabel(g, `${cs[0].left} left · ${cs[0].right} right`, { x: PCX, y: 130, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  }));
+  at('two', g => cloudPic(g, [{ kind: 'dye1', left: 12, right: 0 }, { kind: 'dye2', left: 0, right: 12 }], 0, 5, () => {
+    mArrow(g, [PCX - 90, 600], [PCX + 90, 600], { color: MC.dye1, w: 7, head: 20 });
+    mArrow(g, [PCX + 90, 645], [PCX - 90, 645], { color: PURPLE, w: 7, head: 20 });
+    wLabel(g, 'start: orange left, purple right', { x: PCX, y: 130, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  }));
+  at('osm', g => {
+    S.stepB = [];
+    [[1060, .15], [1270, .55], [1480, 1]].forEach(([x, k]) => {
+      const u = uTube(g, { x, y: 560, s: .32 }); u.set(k, 0);
+      S.stepB.push(badge(g, '?', x, 640, { o: 1 }));
+    });
+    wLabel(g, 'more sugar on the right of each tube', { x: PCX, y: 300, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('chan');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-chan', prompt: ['Channel protein, carrier protein, or both?'],
+    build: withPic('chan', grid([
+      { parts: ['a hydrophilic tunnel'], ans: ['c'], why: 'Channel: molecules or ions pass through its hydrophilic channel like a tunnel.' },
+      { parts: ['changes shape'], ans: ['k'], why: 'Carrier: it binds what it moves, then changes shape to shuttle it across.' },
+      { parts: ['specific to its cargo'], ans: ['b'], why: 'Both: every transport protein is specific for its substance.' },
+      { parts: ['the aquaporin'], ans: ['c'], why: 'Channel: the aquaporin is a channel protein that passes water.' },
+    ], [['c', 'channel', null, 'C'], ['k', 'carrier', null, 'K'], ['b', 'both', null, 'B']], { multi: false, text: true })) },
+  { id: 'p-net', prompt: ['Every dye molecule moves at random. Why does the population show net movement from left to right?'],
+    build: withPic('net', choice([['The cell pushes them to the right'], ['More molecules start on the left, so more cross left to right than back'], ['Each molecule chooses to go right'], ['The membrane pumps them across']], 1,
+      'Right. With more molecules on the left, more random steps carry them across to the right than back: net movement down the gradient.',
+      ['Diffusion is passive: the cell spends no energy and pushes nothing.', null,
+       'Each molecule moves at random; none of them knows where it is going.',
+       'Nothing pumps them: this membrane only lets the dye through.'])) },
+  { id: 'p-eq', prompt: ['At dynamic equilibrium, which is true?'],
+    build: withPic('eq', choice([['All movement stops'], ['As many molecules cross each way as the other, so there is no net movement'], ['All the molecules end up on one side'], ['The cell spends energy to hold it there']], 1,
+      'Right. The molecules keep moving and crossing; only the net movement stops.',
+      ['The molecules never stop moving. It is the net movement that stops.', null,
+       'That is closer to the start, with the dye crowded on one side. At equilibrium it is spread evenly.',
+       'Diffusion and its equilibrium cost the cell no energy.'])) },
+  { id: 'p-two', prompt: ['In this box, orange moves right and purple moves left. What does that show?'],
+    build: withPic('two', choice([['The two dyes repel each other'], ['Each solute diffuses down its own concentration gradient, independently'], ['The membrane switches direction for each dye'], ['One dye pushes the other across']], 1,
+      'Right. Each solute follows its own gradient: orange is crowded on the left, purple on the right.',
+      ['They do not need to push or repel: each simply spreads from where it is crowded.', null,
+       'The membrane does nothing different: each dye just runs down its own gradient.',
+       'The two are independent; neither cares about the other.'])) },
+  { id: 'p-osm', prompt: ['Osmosis in the U-tube: number the steps from 1 to 3.'],
+    build: withPic('osm', grid([
+      { parts: ['The sugar side is diluted and rises'], ans: ['2'], why: 'Step 2: the water that arrives dilutes the sugar side and raises it.', fx: () => stepFx(1, '2') },
+      { parts: ['Water crosses toward more sugar'], ans: ['1'], why: 'Step 1: water moves from lower to higher solute concentration.', fx: () => stepFx(0, '1') },
+      { parts: ['The taller column pushes back; it stops higher'], ans: ['3'], why: 'Step 3: it ends higher, not level, held up against the taller column’s push.', fx: () => stepFx(2, '3') },
+    ], [['1', '1st'], ['2', '2nd'], ['3', '3rd']], { multi: false, text: true })) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// A numbered step badge; .t is its text.
+function badge(p, str, x, y, { o = 0, r = 24 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: '#3b8fd9', stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t });
+}
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+function stepFx(i, str) { const b = S.stepB?.[i]; if (!b) return; fxp(q => { b.t.textContent = q > 0 ? str : '?'; }, 0, .2); pulseFx(b, 1.4); }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>

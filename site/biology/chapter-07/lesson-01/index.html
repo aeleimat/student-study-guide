@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 7, Lesson 1: Phospholipids and the Fluid Mosaic — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 7 (Membrane Structure and Function), lesson 1: a soap bubble, a ring of cells, Chapter 6's animal-cell
+// map with the plasma membrane lit, and a push in to its edge; the border checkpoint (selective permeability named only);
+// the amphipathic phospholipid; the bilayer building itself in water; the fluid mosaic model; lateral movement and
+// flip-flop; temperature and saturated / unsaturated tails; cholesterol as a fluidity buffer; three membranes chilled and
+// warmed; summary; practice. Plan, errata and storyboard: books/biology/chapters/chapter-07/lesson-01.md.
+const CHAPTER = { number: 701, label: '7, lesson 1', title: 'Phospholipids and the Fluid Mosaic', minutes: 7, language: 'en', lead: false, next: '../lesson-02/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+const CORAL = '#f07a6a', ICE = '#4a8fe7', HEAT = '#f39a2b', GOOD = '#8fdc8f', OIL = '#d9c35c';
+const ramp = (t, a, b) => mClamp((t - a) / (b - a));
+const sm = (t, a, b) => io(ramp(t, a, b));
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 });
+  mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g);
+  if (t0 !== null) show(g, t0, .4);
+  return g;
+}
+// A ring round a point; pops in at t0 (null: shown at once by the caller).
+function ring(p, [x, y], r, t0, { color = COL.chalk, w = 4, dash = null } = {}) {
+  const g = G(p, { x, y, o: 0 });
+  mk('circle', { r, fill: 'none', stroke: color, 'stroke-width': w, ...(dash ? { 'stroke-dasharray': dash } : {}) }, g);
+  if (t0 !== null) { show(g, t0, .3); pulse(g, t0 + .1, 1.12); }
+  return g;
+}
+// A double-headed arrow between two points.
+function dArrow(p, a, b, { color = COL.chalk, w = 6, head = 20, o = 1 } = {}) {
+  const g = G(p, { o }), mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  mArrow(g, mid, a, { color, w, head }); mArrow(g, mid, b, { color, w, head });
+  return g;
+}
+// A small thermometer, origin at the bulb; .set(f) 0 cold (blue) … 1 warm (orange). No number on it: the page writes
+// the one temperature the slides give (37 °C) beside it when it is meant.
+function thermo(p, { x = 0, y = 0, h = 240, w = 26, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('rect', { x: -w / 2 - 5, y: -h - 5, width: w + 10, height: h + 5, rx: w / 2 + 5, fill: '#0b1626', stroke: WC.glass, 'stroke-width': 3 }, g);
+  mk('circle', { r: w + 4, fill: '#0b1626', stroke: WC.glass, 'stroke-width': 3 }, g);
+  const col = mk('rect', { x: -w / 2 + 5, width: w - 10, rx: (w - 10) / 2 }, g), bulb = mk('circle', { r: w - 3 }, g);
+  let last = null;
+  const th = Object.assign(g, {
+    set(f) {
+      f = Math.round(mClamp(f) * 200) / 200; if (f === last) return th; last = f;
+      const hh = 12 + (h - 34) * f, c = mix(ICE, HEAT, Math.round(f * 20) / 20);
+      cAttr(col, 'y', (-hh).toFixed(1)); cAttr(col, 'height', hh.toFixed(1)); cAttr(col, 'fill', c); cAttr(bulb, 'fill', c);
+      return th;
+    },
+  });
+  return th.set(.5);
+}
+// A translucent icy wash over a membrane (o 0): the solid state.
+function iceWash(p, x, y, w, h) {
+  const g = G(p, { o: 0 });
+  mk('rect', { x: x - w / 2, y: y - h / 2, width: w, height: h, rx: 18, fill: ICE, 'fill-opacity': .28, stroke: '#a9cdf5', 'stroke-width': 3, 'stroke-dasharray': '10 8' }, g);
+  return g;
+}
+// A drop of salad oil, origin at its centre.
+function oilDrop(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M0 -70C30 -30 52 0 52 26C52 56 28 74 0 74C-28 74 -52 56 -52 26C-52 0 -30 -30 0 -70Z', { fill: OIL, stroke: '#9c8a2c', 'stroke-width': 4 });
+  mk('ellipse', { cx: -18, cy: 20, rx: 10, ry: 18, fill: '#fff', 'fill-opacity': .35 }, g);
+  return g;
+}
+// A round clock face; .set(a) turns its hand (0..1 = one turn).
+function clockFace(p, { x = 0, y = 0, r = 44, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: '#0b1626', stroke: COL.chalk, 'stroke-width': 4 }, g);
+  let tk = ''; for (let i = 0; i < 12; i++) { const a = i / 12 * 2 * Math.PI; tk += `M${cF(Math.sin(a) * r * .78)} ${cF(-Math.cos(a) * r * .78)}L${cF(Math.sin(a) * r * .9)} ${cF(-Math.cos(a) * r * .9)}`; }
+  path(g, tk, { stroke: COL.dim, 'stroke-width': 3 });
+  const hand = G(g); path(hand, `M0 6V${-r * .7}`, { stroke: HEAT, 'stroke-width': 5 }); mk('circle', { r: 5, fill: HEAT }, g);
+  return Object.assign(g, { set(a) { cSet(hand, { r: 360 * a }); return g; } });
+}
+// A dial from "too solid" (blue) to "too fluid" (orange); .set(v) −1..1 swings the needle.
+function gauge(p, { x = 0, y = 0, R = 110, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  const arc = (a0, a1) => `M${cF(-R * Math.cos(a0))} ${cF(-R * Math.sin(a0))}A${R} ${R} 0 0 1 ${cF(-R * Math.cos(a1))} ${cF(-R * Math.sin(a1))}`;
+  path(g, arc(0, Math.PI * .36), { stroke: ICE, 'stroke-width': 18, 'stroke-linecap': 'butt' });
+  path(g, arc(Math.PI * .36, Math.PI * .64), { stroke: GOOD, 'stroke-width': 18, 'stroke-linecap': 'butt' });
+  path(g, arc(Math.PI * .64, Math.PI), { stroke: HEAT, 'stroke-width': 18, 'stroke-linecap': 'butt' });
+  wLabel(g, 'too solid', { x: -R - 10, y: 40, size: 22, fill: '#a9cdf5', o: 1 });
+  wLabel(g, 'too fluid', { x: R + 10, y: 40, size: 22, fill: '#f6c48a', o: 1 });
+  const nd = G(g); path(nd, `M0 0V${-R + 16}`, { stroke: COL.chalk, 'stroke-width': 6 }); mk('circle', { r: 9, fill: COL.chalk }, g);
+  return Object.assign(g, { set(v) { cSet(nd, { r: 80 * Math.max(-1, Math.min(1, v)) }); return g; } });
+}
+// A curly brace down the left of a span (x, y0 → y1), opening right.
+function brace(p, x, y0, y1, { color = COL.chalk, w = 4 } = {}) {
+  const m = (y0 + y1) / 2, d = 26;
+  return path(p, `M${x + d} ${y0}Q${x} ${y0} ${x} ${y0 + 30}V${m - 20}Q${x} ${m} ${x - d * .7} ${m}Q${x} ${m} ${x} ${m + 20}V${y1 - 30}Q${x} ${y1} ${x + d} ${y1}`, { stroke: color, 'stroke-width': w }, { d: 0 });
+}
+// A green tick or a red cross with a word, origin at its left.
+function verdict(p, ok, str, x, y, { size = 28, o = 0 } = {}) {
+  return wLabel(p, (ok ? '✓ ' : '✗ ') + str, { x, y, size, fill: ok ? GOOD : '#ff8f7a', anchor: 'start', weight: 700, o });
+}
+
+/* ---------- backdrops ---------- */
+// A flat soap bubble round (0, 0): a thin film with a cream highlight and a slow, wobbling sheen; .set(t).
+function soapBubble(p, { x = 0, y = 0, R = 220, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  const film = mk('ellipse', { rx: R, ry: R, fill: '#8fb0d6', 'fill-opacity': .1, stroke: '#cfe6ff', 'stroke-opacity': .75, 'stroke-width': 5 }, g);
+  const sheen = G(g);
+  path(sheen, `M${-R * .82} ${R * .2}A${R * .85} ${R * .85} 0 0 1 ${-R * .1} ${-R * .84}`, { stroke: '#5fd3e8', 'stroke-width': 9, 'stroke-opacity': .55 });
+  path(sheen, `M${R * .78} ${R * .1}A${R * .8} ${R * .8} 0 0 1 ${R * .05} ${R * .78}`, { stroke: '#ff9fc4', 'stroke-width': 8, 'stroke-opacity': .5 });
+  path(g, `M${-R * .62} ${-R * .3}A${R * .7} ${R * .7} 0 0 1 ${-R * .28} ${-R * .62}`, { stroke: COL.chalk, 'stroke-width': 10, 'stroke-opacity': .85 });
+  mk('circle', { cx: R * .42, cy: -R * .48, r: R * .06, fill: COL.chalk, 'fill-opacity': .8 }, g);
+  return Object.assign(g, {
+    set(t) {
+      t = Math.round(t * 30) / 30;
+      const a = .025 * Math.sin(2.2 * t);
+      cAttr(film, 'rx', (R * (1 + a)).toFixed(1)); cAttr(film, 'ry', (R * (1 - a)).toFixed(1));
+      cSet(sheen, { r: 14 * t });
+      return g;
+    },
+  });
+}
+// A small cluster of round cells (seven), each with a nucleus dot, drawn round (0, 0). .edge is the centre cell's
+// cream outline (stroke drawn 0).
+function cellRing(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o }), R = 88;
+  let d = '', nd = '';
+  const at = [[0, 0]]; for (let i = 0; i < 6; i++) { const a = i / 6 * 2 * Math.PI + .4; at.push([200 * Math.cos(a), 190 * Math.sin(a)]); }
+  at.forEach(([cx, cy], i) => { d += cBlob(R, R * .9, { seed: i + 3, wob: .06, cx, cy }); nd += cCircle(18, cx + 16 - 8 * (i % 3), cy - 10 + 6 * (i % 2)); });
+  path(g, d, { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 4 });
+  path(g, nd, { fill: CC.nucleo, stroke: CC.env, 'stroke-width': 3 });
+  const edge = path(g, cBlob(R, R * .9, { seed: 3, wob: .06 }), { stroke: COL.chalk, 'stroke-width': 7 }, { d: 0 });
+  return Object.assign(g, { edge });
+}
+// The edge of the cell as two bands, with the membrane between them (y = 450), EXTRACELLULAR FLUID above and
+// CYTOPLASM below. Returns { g, sides }.
+function edgeBands(p, { o = 1 } = {}) {
+  const g = G(p, { o });
+  mk('rect', { x: 0, y: 0, width: 1600, height: 450, fill: COL.board }, g);
+  mk('rect', { x: 0, y: 450, width: 1600, height: 450, fill: MC.cyto }, g);
+  path(g, 'M0 450H1600', { stroke: MC.head, 'stroke-width': 26 });
+  path(g, 'M0 450H1600', { stroke: MC.tail, 'stroke-width': 9 });
+  const sides = G(g, { o: 1 });
+  wLabel(sides, 'EXTRACELLULAR FLUID', { x: 60, y: 80, size: 26, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(sides, 'CYTOPLASM', { x: 60, y: 830, size: 26, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  return { g, sides };
+}
+// A border-checkpoint sign on the membrane line at x (a post, a board and a striped barrier arm).
+function checkpoint(p, { x = 800, o = 1 } = {}) {
+  const g = G(p, { x, y: 0, o });
+  path(g, 'M0 437V300', { stroke: '#9fb0c8', 'stroke-width': 8 });
+  mk('rect', { x: -118, y: 248, width: 236, height: 58, rx: 10, fill: '#0b1626', stroke: COL.chalk, 'stroke-width': 3.5 }, g);
+  wLabel(g, 'CHECKPOINT', { y: 287, size: 28, weight: 800, fill: '#ffd27a', o: 1 });
+  const arm = G(g, { x: 0, y: 412 });
+  mk('rect', { x: -170, y: -7, width: 170, height: 14, rx: 7, fill: '#f2efe6' }, arm);
+  let st = ''; for (let i = 0; i < 5; i++) st += `M${-160 + i * 34} -7h16v14h-16Z`;
+  path(arm, st, { fill: '#e5533d' });
+  mk('circle', { cy: 412, r: 10, fill: '#9fb0c8' }, g);
+  return Object.assign(g, { arm });
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Phospholipids and the fluid mosaic', (m, D) => {
+  const p = panel(0), tB = m('bubble'), tC = m('cells'), tM = m('map'), tL = m('lit'), tP = m('push');
+  // the bubble and the ring of cells live in one camera; the map in a second, so each push is its own shot
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const bub = soapBubble(W, { x: 520, y: 450, R: 230, o: 0 }), bw = G(W); bw.appendChild(bub);
+  show(bub, .2, .8);
+  clockRun(t => bub.set(t), D);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 7 · LESSON 1', { x: 1210, y: 250, size: 26, fill: COL.dim, o: 1 });
+  ['Phospholipids', 'and the fluid mosaic'].forEach((s, i) => wLabel(ttl, s, { x: 1210, y: 340 + i * 74, size: 60, o: 1 }));
+  wLabel(ttl, 'Membrane structure and function:', { x: 1210, y: 500, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(ttl, 'what the cell’s edge is made of', { x: 1210, y: 536, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .3, .5);
+  // bubble: a thin skin that holds its shape, and flows
+  pulse(bw, tB + .1, 1.05);
+  const l1 = say(p, 'a soap bubble: a thin skin that holds its shape, and flows', 520, 760, tB + .4, { size: 30 });
+  hide(l1, tC - .2, .4);
+  // cells: the bubble gives way to a ring of cells; the centre cell's edge is drawn in cream; push in to it
+  hide(bub, tC, .7);
+  const cr = cellRing(W, { x: 800, y: 450, s: .7, o: 0 });
+  tw(cr, { o: 1, s: 1 }, tC + .1, 1, out);
+  draw(cr.edge, tC + 1.1, 1.1);
+  const l2 = say(p, 'every cell: wrapped in a skin of its own', 800, 800, tC + 1.2, { size: 32 });
+  hide(l2, tM - .3, .3);
+  cam.to({ x: 800, y: 450, z: 2.4 }, tC + 1.6, 1.6);
+  hide(cam.el, tM, .6);
+  // map: the animal-cell map from chapter 6, in its own camera
+  const cam2 = camera(p, D, { x: 800, y: 450, z: 1 });
+  put(cam2.el, { o: 0 }); show(cam2.el, tM, .6);
+  const cm = cellMap(cam2.world, { kind: 'animal', x: 800, y: 470, s: .72 }); cm.build(1);
+  const lab = say(p, 'our map: an animal cell, from chapter 6', 800, 80, tM + .4, { size: 32, fill: COL.dim, weight: 500 });
+  // lit: the plasma membrane lights (cream outline), the rest dims; its label names it the boundary
+  prog(k => cm.focus('membrane', k), tL + .1, .9, io);
+  const outline = path(cm, cBlob(540, 340, { seed: 2 }), { stroke: COL.chalk, 'stroke-width': 9 }, { d: 0 });
+  draw(outline, tL + .3, 1.6);
+  const [mx, my] = cm.pt('membrane');
+  hide(lab, tL, .3);
+  const lt = tag(p, 'plasma membrane', [1240, 110], [mx + 6, my - 8], tL + .7, { size: 38, weight: 700, sub: 'the boundary of the living cell', subFill: COL.chalk });
+  hide(lt, tP, .3);
+  // push: in to the edge; it becomes the two sides with the membrane between them
+  cam2.to({ x: mx, y: my, z: 5.5 }, tP, 2.1);
+  const eb = edgeBands(p, { o: 0 });
+  show(eb.g, tP + 1.5, .7);
+  hide(cam2.el, tP + 2.3, .05);
+  notToScale(eb.g, 1570, 40, 0);
+}],
+
+/* ---------- edge ---------- */
+['edge', 'The border checkpoint', (m, D) => {
+  const p = panel(0), tG = m('gate'), tS = m('select'), tW = m('why');
+  edgeBands(p);
+  notToScale(p, 1570, 40, 0);
+  // gate: a checkpoint sign on the membrane; food goes in, waste goes out
+  const cp = checkpoint(p, { o: 0 }); tw(cp, { o: 1 }, tG + .1, .5);
+  tw(cp.arm, { r: -8 }, tG + .5, .3, out); tw(cp.arm, { r: 0 }, tG + .8, .4, back);
+  const hd = say(p, 'the membrane works like a border checkpoint', 800, 150, tG + .3, { size: 36, weight: 700 });
+  const fin = G(p, { o: 0 }), fout = G(p, { o: 0 });
+  mArrow(fin, [250, 250], [250, 640], { color: COL.chalk, w: 7, head: 24 });
+  wLabel(fin, 'food in', { x: 250, y: 220, size: 28, o: 1 });
+  [[250, 300], [250, 560]].forEach(([x, y]) => solute(fin, 'sugar', { x: x + 44, y, r: 16 }));
+  mArrow(fout, [1350, 640], [1350, 250], { color: COL.chalk, w: 7, head: 24 });
+  wLabel(fout, 'waste out', { x: 1350, y: 690, size: 28, o: 1 });
+  [[1350, 560], [1350, 320]].forEach(([x, y]) => solute(fout, 'CO2', { x: x + 50, y, r: 16 }));
+  show(fin, tG + 1.2, .5); show(fout, tG + 2.6, .5);
+  hide(fin, tS, .4); hide(fout, tS, .4); hide(hd, tS, .3);
+  // select: small nonpolar molecules cross; a sugar and a sodium ion are turned back
+  const MOV = [
+    { kind: 'O2', x: 380, ok: true, name: 'O₂', off: 0 }, { kind: 'sugar', x: 500, ok: false, name: 'sugar', off: .7 },
+    { kind: 'CO2', x: 1030, ok: true, name: 'CO₂', off: 1.4 }, { kind: 'Na', x: 1230, ok: false, name: '', off: 2.1 },
+  ];
+  const PER = 4.2, Y0 = 215;
+  const pcs = MOV.map(q => {
+    const g = G(p, { x: q.x, y: Y0, o: 0 });
+    solute(g, q.kind, { r: q.kind === 'Na' ? 26 : 22 });
+    if (q.name) wLabel(g, q.name, { x: 34, y: 9, size: 26, anchor: 'start', fill: COL.chalk, o: 1 });
+    const v = verdict(p, q.ok, q.ok ? 'crosses' : 'turned back', ({ O2: 300, sugar: 570 })[q.kind] || q.x, 730, { size: 26 }); v.setAttribute('text-anchor', 'middle');
+    show(v, tS + .3 + q.off + PER * (q.ok ? .53 : .5), .4);
+    return { g, q };
+  });
+  clockRun(t => {
+    pcs.forEach(({ g, q }) => {
+      const rel = t - tS - .3 - q.off;
+      if (rel < 0) { mO(g, 0); return; }
+      const u = Math.round(((rel % PER) / PER) * 600) / 600, fade = Math.min(1, u * 7, (1 - u) * 7) * (1 - sm(t, tW, tW + .6));
+      const y = q.ok ? Y0 + 440 * u : Y0 + 195 * Math.sin(Math.PI * u);
+      cSet(g, { y, o: fade });
+    });
+  }, D);
+  const sp = G(p, { o: 0 });
+  wLabel(sp, 'selective permeability', { x: 800, y: 110, size: 46, weight: 700, fill: '#ffd27a', o: 1 });
+  wLabel(sp, 'some substances cross more easily than others · named here, lesson 3 explains it', { x: 800, y: 156, size: 25, fill: COL.dim, weight: 500, o: 1 });
+  show(sp, m('select', 3.4), .5);
+  // why: the line itself is the question; a dotted frame round it
+  hide(cp, tW, .4);
+  const fr = G(p, { o: 0 });
+  mk('rect', { x: 520, y: 395, width: 560, height: 110, rx: 20, fill: 'none', stroke: COL.chalk, 'stroke-width': 4, 'stroke-dasharray': '12 10' }, fr);
+  wLabel(fr, '?', { x: 800, y: 372, size: 64, weight: 800, fill: '#ffd27a', o: 1 });
+  wLabel(fr, 'what is this line made of?', { x: 800, y: 580, size: 30, o: 1 });
+  show(fr, tW + .3, .5); pulse(fr, tW + .9, 1.05);
+}],
+
+/* ---------- amphi ---------- */
+['amphi', 'The phospholipid', (m, D) => {
+  const p = panel(0), tH = m('head'), tT = m('tails'), tB = m('both');
+  const HX = 640, HY = 250, SC = 6;
+  const hd = G(p, { o: 0 }); show(hd, .2, .5);
+  wLabel(hd, 'the phospholipid', { x: 800, y: 78, size: 42, weight: 700, o: 1 });
+  wLabel(hd, 'the most abundant lipid in the plasma membrane', { x: 800, y: 120, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const pl = phospholipid(p, { x: HX, y: HY, s: SC, o: 0, seed: 3 });
+  show(pl, .3, .6);
+  put(pl.head, { o: .4 }); put(pl.tails, { o: .4 });
+  clockRun(t => pl.wobble(t, .5), D);
+  // head: hydrophilic, a water molecule leans toward it
+  tw(pl.head, { o: 1 }, tH + .1, .4); pulse(pl.head, tH + .2, 1.18);
+  tag(p, 'hydrophilic head', [1060, 236], [HX + 72, HY], tH + .5, { size: 36, weight: 700, fill: MC.head, line: MC.head, sub: 'contains a phosphate group · water loving', subFill: '#c7d8ee' });
+  const w1 = waterMolecule(p, { x: 260, y: 240, s: .8, o: 0, r: 60 });
+  show(w1, tH + 2.6, .5); tw(w1, { x: 500, r: 90 }, tH + 2.8, 1.6, out);
+  // tails: hydrophobic, a water molecule shies away
+  tw(pl.tails, { o: 1 }, tT + .1, .4);
+  tag(p, 'two hydrophobic tails', [1060, 420], [HX + 30, 420], tT + .5, { size: 36, weight: 700, fill: MC.tail, line: MC.tail, sub: 'fatty acid chains · water hating', subFill: '#f0dca4' });
+  const w2 = waterMolecule(p, { x: 520, y: 450, s: .8, o: 0, r: -30 });
+  show(w2, tT + 4.2, .4); tw(w2, { x: 290, y: 500, r: -70 }, tT + 4.5, 1.4, out);
+  const no = say(p, 'pushed away', 300, 580, tT + 5.4, { size: 24, fill: COL.dim, weight: 500 });
+  // both: one molecule, two kinds of part: amphipathic
+  hide(w1, tB, .5); hide(w2, tB, .5); hide(no, tB, .3);
+  draw(brace(p, 560, 176, 522), tB + .2, .7);
+  const am = G(p, { o: 0 }); show(am, tB + .6, .5);
+  wLabel(am, 'amphipathic', { x: 640, y: 650, size: 54, weight: 800, fill: '#ffd27a', o: 1 });
+  wLabel(am, 'water loving', { x: 520, y: 712, size: 30, weight: 700, fill: MC.head, o: 1 });
+  wLabel(am, '+', { x: 640, y: 712, size: 30, weight: 700, o: 1 });
+  wLabel(am, 'water hating', { x: 762, y: 712, size: 30, weight: 700, fill: MC.tail, o: 1 });
+  wLabel(am, 'in one molecule', { x: 640, y: 756, size: 26, fill: COL.dim, weight: 500, o: 1 });
+}],
+
+/* ---------- bilayer ---------- */
+['bilayer', 'The bilayer builds itself', (m, D) => {
+  const p = panel(0), tW = m('water'), tT = m('tuck'), tD = m('double'), tS = m('sheet'), tP = m('patch');
+  const CX = 800, CY = 450, SC = 2;
+  const cyto = put(mk('rect', { x: 0, y: CY, width: 1600, height: 450, fill: MC.cyto }, p), { o: 0 });
+  // the full sheet, drawn now and faded in at "sheet": it leaves room for the crowd that has just assembled
+  const full = bilayer(p, { x: CX + 13 * SC, y: CY, s: SC, w: 750, gaps: [[-13, 150]], seed: 4, fluid: .5, o: 0 });
+  const sa = selfAssembly(p, { x: CX, y: CY, s: SC, n: 24, spread: 620, water: 18, seed: 6, o: 0 });
+  // keep the water out of the band where the tails will meet
+  for (const d of sa.firstChild.children) { const s0 = st(d); if (Math.abs(s0._y0) < 80) s0._y0 = Math.sign(s0._y0 || 1) * (80 + Math.abs(s0._y0)); }
+  show(sa, .2, .6);
+  const hd = say(p, 'a crowd of phospholipids in water', 800, 70, .3, { size: 34, weight: 700 });
+  // water: the heads glow beside the water; the tails do not
+  hide(hd, tW, .3);
+  sa.lipids.forEach((l, i) => pulse(l.head, tW + .1 + i * .04, 1.4));
+  const c1 = mChip(p, [['heads: happy beside water', MC.head]], { x: 560, y: 70, size: 28, edge: MC.head, o: 0 });
+  const c2 = mChip(p, [['tails: not', MC.tail]], { x: 1010, y: 70, size: 28, edge: MC.tail, o: 0 });
+  show(c1, tW + .2, .4); show(c2, m('water', 2.2), .4);
+  hide(c1, tD, .3); hide(c2, tD, .3);
+  // tuck: the tails gather away from the water and the heads face out
+  const K = t => sm(t, tT + .2, tT + 4.4);
+  clockRun(t => { sa.set(K(t), t); full.drift(t); }, D);
+  // double: a bilayer, extracellular fluid above, cytoplasm below, tails meeting in the middle
+  const yTop = CY - 46.6 * SC, yBot = CY + 46.6 * SC;
+  say(p, 'a bilayer', 800, 70, tD + .1, { size: 42, weight: 700 });
+  show(cyto, m('double', 2.9), .8);
+  const sides = G(p, { o: 0 }); show(sides, m('double', 2.9), .5);
+  wLabel(sides, 'EXTRACELLULAR FLUID', { x: 60, y: 140, size: 26, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  wLabel(sides, 'CYTOPLASM', { x: 60, y: 820, size: 26, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  const L1 = tag(p, 'heads face the water', [1310, 240], [1085, yTop - 18], m('double', 3.6), { size: 30, fill: MC.head, line: MC.head });
+  const L1b = G(p, { o: 0 }); show(L1b, m('double', 4.2), .4);
+  path(L1b, `M1310 270L1085 ${yBot + 18}`, { stroke: MC.head, 'stroke-width': 2.5 }); mk('circle', { cx: 1085, cy: yBot + 18, r: 4.5, fill: MC.head }, L1b);
+  const L2 = tag(p, 'tails meet in the middle', [330, 660], [560, CY], m('double', 6.5), { size: 30, fill: MC.tail, line: MC.tail });
+  // sheet: it builds itself; the sheet carries on to either side
+  show(full, tS + .1, 1.2);
+  [L1, L1b, L2].forEach(e => hide(e, tS, .4));
+  const pill = (t0, t1) => { const g = G(p, { o: 0 }); mk('rect', { x: 400, y: 192, width: 800, height: 56, rx: 18, fill: '#0f1e33', 'fill-opacity': .9 }, g); show(g, t0, .3); if (t1) hide(g, t1, .3); };
+  pill(tS + .4, tP);
+  const bi = say(p, 'it builds itself: no help from the cell', 800, 230, tS + .4, { size: 32, weight: 700, fill: '#ffd27a' });
+  hide(bi, tP, .3);
+  // patch: the frame of every membrane
+  pill(tP + .3);
+  say(p, 'the frame of every membrane in the cell', 800, 230, tP + .3, { size: 34, weight: 700 });
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const bl = bilayer(p, { x: 330, y: 450, s: 1.6, w: 360, seed: 4 });
+  clockRun(t => bl.drift(t), 0, { tail: true });
+  for (let i = 0; i < 7; i++) {
+    const x = 90 + i * 80, up = i % 2 ? 250 : 290;
+    solute(p, 'water', { x, y: up, r: 22 }); solute(p, 'water', { x: x + 30, y: 900 - up, r: 22 });
+  }
+  wLabel(p, 'water', { x: 330, y: 210, size: 28, fill: '#cfeefa', o: 1 });
+  wLabel(p, 'water', { x: 330, y: 720, size: 28, fill: '#cfeefa', o: 1 });
+}, { ask: done => quiz({ x: 650, y: 60, w: 900, cls: 'side' }, [{
+  id: 'c-faces', prompt: ['In a bilayer in water, which part of each phospholipid faces the water?'],
+  build: choice([['the hydrophilic heads'], ['the hydrophobic tails'], ['both ends equally'], ['neither: no part touches water']], 0,
+    'Right. The water-loving heads face the water on both sides, and the water-hating tails tuck into the middle.',
+    [null, 'The tails are hydrophobic: they hate water, so they tuck inward, away from it.',
+     'The two ends differ: the head loves water and the tails hate it. That is what amphipathic means.',
+     'The heads of both layers touch water: the extracellular fluid on one side, the cytoplasm on the other.']),
+}], done) }],
+
+/* ---------- mosaic ---------- */
+['mosaic', 'The fluid mosaic model', (m, D) => {
+  const p = panel(0), tF = m('fluid'), tM = m('mosaic'), tL = m('later');
+  const CX = 800, CY = 470, SC = 1.7, PX = [-300, -90, 150, 330];
+  const holes = bilayer(p, { x: CX, y: CY, s: SC, w: 880, seed: 2, gaps: PX.map(x => [x, 46]) });
+  const whole = bilayer(p, { x: CX, y: CY, s: SC, w: 880, seed: 2 });
+  const prot = G(p, { x: CX, y: CY, s: SC });
+  const pr = PX.map((x, i) => { const w = G(prot, { x, y: -420, o: 0 }); integralProtein(w, { w: i === 2 ? 74 : 80, h: i === 1 ? 140 : 154, seed: i + 2 }); return w; });
+  const per = G(prot, { x: 40, y: 340, o: 0 }); peripheralProtein(per, { y: 0 });
+  const F = t => .5 + .5 * sm(t, tF + .1, tF + 1.2);
+  clockRun(t => { const f = F(t); holes.fluid(f).drift(t); whole.fluid(f).drift(t); }, D);
+  const hd = say(p, 'the fluid mosaic model', 800, 78, .2, { size: 42, weight: 700 });
+  // fluid: the lipids are not locked in place
+  const fl = G(p, { o: 0 }); show(fl, tF + .2, .5);
+  wLabel(fl, 'fluid', { x: 330, y: 190, size: 44, weight: 800, fill: '#5fd3e8', o: 1 });
+  wLabel(fl, 'lipids are not locked in place:', { x: 330, y: 232, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(fl, 'the sheet flows, like a soap film', { x: 330, y: 266, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  // mosaic: proteins drop into the sheet like tiles
+  pr.forEach((w, i) => { const t0 = tM + .3 + i * .35; tw(w, { y: 0, o: 1 }, t0, .9, out); });
+  tw(per, { y: 46.6 + 11 + 24, o: 1 }, tM + 1.8, .9, out);
+  hide(whole, tM + .9, .8);
+  const mo = G(p, { o: 0 }); show(mo, tM + .5, .5);
+  wLabel(mo, 'mosaic', { x: 1180, y: 190, size: 44, weight: 800, fill: MC.integral, o: 1 });
+  const mo2 = G(p, { o: 0 }); show(mo2, tM + 2.4, .5);
+  wLabel(mo2, 'proteins embedded in it,', { x: 1180, y: 232, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(mo2, 'like tiles set into a floor', { x: 1180, y: 266, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const tile = G(p, { x: 1460, y: 160, o: 0 }); show(tile, tM + 2.4, .5);
+  const TC = [MC.integral, MC.peripheral, MC.head, MC.tail, MC.integral, MC.head, MC.peripheral, MC.head, MC.integral];
+  TC.forEach((c, i) => mk('rect', { x: -51 + (i % 3) * 35, y: -51 + Math.floor(i / 3) * 35, width: 32, height: 32, rx: 4, fill: c }, tile));
+  // later: the proteins are for the next lesson
+  hide(hd, tL, .3);
+  pr.forEach((w, i) => pulse(w, tL + .2 + i * .2, 1.12)); pulse(per, tL + 1, 1.12);
+  const lt = say(p, 'next lesson: the proteins', 800, 800, tL + .4, { size: 32, weight: 700, fill: MC.peripheral });
+  tw(prot, { o: .35 }, m('later', 2.7), .6);
+  say(p, 'today: the lipids', 800, 78, m('later', 2.7), { size: 36, weight: 700, fill: MC.head });
+}],
+
+/* ---------- move ---------- */
+['move', 'Lateral movement and flip-flop', (m, D) => {
+  const p = panel(0), tLa = m('lateral'), tF = m('flip'), tS = m('sum'), tRare = m('flip', 6.4);
+  const CX = 800, CY = 430, SC = 2.6;
+  const bl = bilayer(p, { x: CX, y: CY, s: SC, w: 560, seed: 5, gaps: [[-20, 40]] });
+  const pw = G(p, { x: CX - 20 * SC, y: CY, s: SC, o: 0 }); integralProtein(pw, { w: 56, h: 150, seed: 6 });
+  show(pw, .2, .5);
+  const hd = say(p, 'how do the lipids move?', 800, 90, .2, { size: 40, weight: 700 });
+  const HJ = -6, FJ = 5, yH = CY - 46.6 * SC;
+  // lateral: a marked lipid swaps places with its neighbour in the same layer, again and again
+  const t0 = tLa + .6, PER = 2.4, NC = Math.max(1, Math.floor((tF - .2 - t0) / PER));
+  const hopK = t => (t < t0 || t > t0 + NC * PER) ? 0 : .5 - .5 * Math.cos(2 * Math.PI * Math.round(((t - t0) / PER) * 600) / 600);
+  // flip: the head pushes into the middle and is pushed back; later the rare jump goes through
+  const flipK = t => {
+    if (t < tRare) { const a = sm(t, tF + .4, tF + 1.6) - sm(t, tF + 2.4, tF + 3.4); return .34 * a + .03 * a * Math.sin(36 * Math.round(t * 30) / 30); }
+    return sm(t, tRare + .3, tRare + 2.8);
+  };
+  clockRun(t => {
+    bl.drift(t).hop(HJ, -1, hopK(t), 1, CORAL).flipflop(FJ, flipK(t), CORAL);
+    cSet(pw, { x: CX + (-20 + 9 * Math.sin(1.3 * Math.round(t * 30) / 30)) * SC });
+  }, D);
+  const hx = CX + HJ * 26 * SC;
+  hide(hd, tLa, .3);
+  const la = G(p, { o: 0 }); show(la, tLa + .3, .5);
+  dArrow(la, [hx - 70, yH - 70], [hx + 140, yH - 70], { color: COL.chalk, w: 6 });
+  wLabel(la, 'lateral movement', { x: hx + 35, y: 150, size: 38, weight: 700, o: 1 });
+  wLabel(la, 'sideways, within its own layer', { x: hx + 35, y: 190, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const rate = G(p, { o: 0 }); show(rate, m('lateral', 5.6), .5);
+  wLabel(rate, 'about 10⁷ times per second', { x: hx + 35, y: 730, size: 32, weight: 700, fill: '#ffd27a', o: 1 });
+  wLabel(rate, 'ten million · slowed down here', { x: hx + 35, y: 770, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  const pd = G(p, { o: 0 }); show(pd, m('lateral', 10), .4); hide(pd, tF, .4);
+  dArrow(pd, [CX - 20 * SC - 80, CY + 190], [CX - 20 * SC + 40, CY + 190], { color: MC.integral, w: 5, head: 16 });
+  wLabel(pd, 'some proteins drift too', { x: CX - 20 * SC - 20, y: CY + 250, size: 26, fill: MC.integral, o: 1 });
+  // flip: crossing would take the head through the water-hating middle; flip-flop is rare
+  const fx0 = CX + (FJ * 26 + 13) * SC;
+  const mid = G(p, { o: 0 }); show(mid, tF + 1.2, .4); hide(mid, tRare, .4);
+  mk('rect', { x: fx0 - 120, y: CY - 46, width: 240, height: 92, rx: 14, fill: 'none', stroke: MC.tail, 'stroke-width': 4, 'stroke-dasharray': '10 8' }, mid);
+  wLabel(mid, 'the water-loving head would cross', { x: fx0 - 40, y: CY + 230, size: 26, fill: MC.head, o: 1 });
+  wLabel(mid, 'the water-hating middle', { x: fx0 - 40, y: CY + 266, size: 26, fill: MC.tail, o: 1 });
+  const ff = G(p, { o: 0 }); show(ff, tRare + .1, .5);
+  dArrow(ff, [fx0 + 110, yH - 10], [fx0 + 110, CY + 46.6 * SC + 10], { color: COL.chalk, w: 6 });
+  wLabel(ff, 'flip-flop', { x: fx0 - 40, y: 150, size: 38, weight: 700, o: 1 });
+  wLabel(ff, 'from one layer to the other', { x: fx0 - 40, y: 190, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(ff, 'about once per month', { x: fx0 - 40, y: 730, size: 32, weight: 700, fill: '#ffd27a', o: 1 });
+  const ck = clockFace(p, { x: fx0 + 230, y: 740, r: 34, o: 0 }); show(ck, tRare + .6, .4);
+  prog(k => ck.set(k), tRare + .8, 5, lin);
+  // sum: often and rare
+  const ch1 = mChip(p, [['often', GOOD]], { x: hx + 35, y: 250, size: 28, edge: GOOD, o: 0 });
+  const ch2 = mChip(p, [['rare', HEAT]], { x: fx0 - 40, y: 250, size: 28, edge: HEAT, o: 0 });
+  show(ch1, tS + .2, .4); pulse(ch1, tS + .3, 1.15); show(ch2, tS + 1, .4); pulse(ch2, tS + 1.1, 1.15);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const SQ = 1.4, XQ = 335;
+  const bl = bilayer(p, { x: XQ, y: 430, s: SQ, w: 360, seed: 5 });
+  bl.hop(-3, -1, .5, 1, CORAL).flipflop(3, .5, CORAL);
+  const yH = 430 - 46.6 * SQ;
+  dArrow(p, [XQ - 3 * 26 * SQ - 50, yH - 50], [XQ - 3 * 26 * SQ + 90, yH - 50], { w: 5, head: 16 });
+  const fx0 = XQ + (3 * 26 + 13) * SQ;
+  dArrow(p, [fx0 + 70, yH - 10], [fx0 + 70, 430 + 46.6 * SQ + 10], { w: 5, head: 16 });
+  notToScale(p, 600, 560, 0);
+}, { ask: done => quiz({ x: 650, y: 60, w: 900, cls: 'side' }, [{
+  id: 'c-motion', prompt: ['Is it lateral movement, or flip-flop?'],
+  build: grid([
+    { parts: ['a lipid swaps places with its neighbour in the same layer'], ans: ['l'], why: 'Lateral: it moves sideways and stays in its own layer.' },
+    { parts: ['a lipid moves from one layer to the other'], ans: ['f'], why: 'Flip-flop: its head would have to cross the water-hating middle.' },
+    { parts: ['happens about ten million times per second'], ans: ['l'], why: 'Lateral movement is fast: about 10⁷ times per second.' },
+    { parts: ['happens about once per month'], ans: ['f'], why: 'Flip-flop is rare: about once per month.' },
+  ], [['l', 'lateral', null, 'L'], ['f', 'flip-flop', null, 'F']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- temp ---------- */
+['temp', 'Temperature and fluidity', (m, D) => {
+  const p = panel(0), tC = m('cool'), tSa = m('sat'), tU = m('unsat'), tR = m('rule'), tW = m('cool', 3.8), tO = m('cool', 6.6);
+  say(p, 'Temperature and fluidity', 800, 70, .2, { size: 40, weight: 700 });
+  // cool: one membrane; as it cools it switches from fluid to solid, then warms back to working fluidity
+  const one = G(p, { o: 0 }); show(one, .3, .5); hide(one, tSa, .5);
+  const B0 = bilayer(one, { x: 840, y: 420, s: 1.7, w: 620, unsat: .4, seed: 7 });
+  const th = thermo(one, { x: 210, y: 560, h: 280 });
+  const ice = iceWash(one, 840, 420, 1100, 230);
+  const TF = t => .8 - .68 * sm(t, tC + .3, tC + 2.8) + .5 * sm(t, tW, tW + 1.6);
+  clockRun(t => { const f = TF(t); th.set(f); B0.fluid(mClamp((f - .15) * 1.6)).drift(t); mO(ice, .9 * mClamp((.35 - f) / .2)); }, D);
+  const s1 = say(one, 'cooling: fluid → solid', 840, 200, tC + .6, { size: 34, weight: 700, fill: '#a9cdf5' });
+  hide(s1, tW, .3);
+  say(one, 'membranes must be fluid to work', 840, 200, tW + .3, { size: 34, weight: 700, fill: GOOD });
+  const oil = oilDrop(one, { x: 840, y: 680, s: .7, o: 0 }); show(oil, tO + .1, .5);
+  say(one, 'usually about as fluid as salad oil', 840, 790, tO + .3, { size: 30, fill: OIL });
+  // sat: straight tails pack tightly (viscous); unsat: kinks keep the tails apart (fluid)
+  const LX = 430, RX = 1170, BY = 330;
+  const L = bilayer(p, { x: LX, y: BY, s: 1.45, w: 430, unsat: 0, seed: 8, fluid: .02, o: 0 });
+  const R = bilayer(p, { x: RX, y: BY, s: 1.45, w: 430, unsat: 1, seed: 9, fluid: 1, o: 0 });
+  clockRun(t => { L.drift(t); R.drift(t); }, D);
+  show(L, tSa + .2, .6); show(R, tU + .1, .6);
+  say(p, 'saturated tails', LX, 175, tSa + .4, { size: 32, weight: 700 });
+  say(p, 'unsaturated tails', RX, 175, tU + .3, { size: 32, weight: 700 });
+  const iL = phospholipid(p, { x: LX - 150, y: 520, s: 2.6, o: 0, seed: 1 });
+  const iR = phospholipid(p, { x: RX - 150, y: 520, s: 2.6, o: 0, seed: 2, kink: true });
+  show(iL, tSa + 1.4, .5); show(iR, tU + .6, .5);
+  say(p, 'no double bonds: straight', LX - 100, 540, tSa + 1.6, { size: 26, anchor: 'start' });
+  say(p, 'straight tails pack tightly', LX - 100, 580, m('sat', 3.5), { size: 26, anchor: 'start' });
+  say(p, '→ viscous, less fluid', LX - 100, 625, m('sat', 7.1), { size: 30, weight: 700, anchor: 'start', fill: '#a9cdf5' });
+  const kp = cOut(iR, [3.6, 23.7]);
+  ring(p, kp, 22, m('unsat', 2.4), { color: '#ffd27a', w: 3.5 });
+  say(p, 'a double bond makes a kink', RX - 100, 540, m('unsat', 2.4), { size: 26, anchor: 'start' });
+  say(p, 'kinks keep the tails apart', RX - 100, 580, m('unsat', 6.1), { size: 26, anchor: 'start' });
+  say(p, '→ stays fluid', RX - 100, 625, m('unsat', 7.2), { size: 30, weight: 700, anchor: 'start', fill: GOOD });
+  // rule: unsaturated membranes are more fluid, and stay fluid at lower temperatures
+  const ru = G(p, { o: 0 }); show(ru, tR + .3, .5);
+  mk('rect', { x: 230, y: 690, width: 1140, height: 110, rx: 22, fill: '#0a1626', stroke: COL.chalk, 'stroke-opacity': .5, 'stroke-width': 3 }, ru);
+  wLabel(ru, 'rich in unsaturated fatty acids: more fluid than rich in saturated ones', { x: 800, y: 735, size: 30, weight: 700, o: 1 });
+  wLabel(ru, 'and they stay fluid at lower temperatures', { x: 800, y: 778, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  pulse(R, tR + 3, 1.04);
+}],
+
+/* ---------- chol ---------- */
+['chol', 'Cholesterol, the fluidity buffer', (m, D) => {
+  const p = panel(0), tWe = m('wedge'), tWa = m('warm'), tCo = m('cold'), tB = m('buffer');
+  const CX = 620, CY = 450, SC = 1.9;
+  say(p, 'Cholesterol', 620, 70, .2, { size: 40, weight: 700, fill: MC.chol });
+  say(p, 'in animal cell membranes', 620, 110, .3, { size: 26, fill: COL.dim, weight: 500 });
+  const bl = bilayer(p, { x: CX, y: CY, s: SC, w: 560, unsat: .3, chol: .45, seed: 10 });
+  bl.cholesterol(0);
+  // a big cholesterol first: a steroid, four rings
+  const big = G(p, { x: 1330, y: 330, o: 0 }); cholesterol(big, { s: 3.4, y: -80 });
+  show(big, .4, .5);
+  const bt = say(p, 'a steroid: four fused rings', 1330, 560, 1.2, { size: 28, fill: MC.chol });
+  hide(big, tWe + .2, .5); hide(bt, tWe, .3);
+  // wedge: the cholesterol slides in between the tails
+  prog(k => { bl.cholesterol(k); cSet(bl.cholG, { y: -24 * (1 - k) }); }, tWe + .2, 1, out);
+  let ci = 0, best = 1e9; for (let i = 0; i < 40; i++) { const q = bl.cholPt(i); const d = Math.abs(q[0] - 120) + (q[1] < 0 ? 0 : 500); if (d < best) { best = d; ci = i; } }
+  const cq = bl.cholPt(ci), cp = [CX + cq[0] * SC, CY + cq[1] * SC];
+  const wl = tag(p, 'cholesterol, wedged between the tails', [620, 210], cp, tWe + .9, { size: 28, fill: MC.chol, line: MC.chol });
+  hide(wl, tWa, .3);
+  // warm (37 °C): the lipids jiggle hard, and the cholesterol holds them back; cool: it keeps the tails apart
+  const th = thermo(p, { x: 1320, y: 660, h: 300, o: 0 }); show(th, tWa + .1, .4);
+  const TF = t => .5 + .45 * sm(t, tWa + .1, tWa + 1) - .85 * sm(t, tCo + .1, tCo + 1.6) + .4 * sm(t, tB + .2, tB + 1.4);
+  const FL = t => .5 + .5 * sm(t, tWa + .3, tWa + 1.3) - .38 * sm(t, tWa + 2.5, tWa + 4) - .32 * sm(t, tCo + .4, tCo + 2) + .15 * sm(t, tB + .2, tB + 1.4);
+  clockRun(t => { th.set(TF(t)); bl.fluid(FL(t)).drift(t * 1.4); }, D);
+  const r37 = say(p, '37 °C', 1370, 410, tWa + .6, { size: 34, weight: 800, fill: HEAT, anchor: 'start' });
+  hide(r37, tCo, .3);
+  const wm = G(p, { o: 0 }); show(wm, m('warm', 3.2), .5); hide(wm, tCo, .4);
+  wLabel(wm, 'warm (37 °C): restrains the', { x: 620, y: 700, size: 30, weight: 700, fill: HEAT, o: 1 });
+  wLabel(wm, 'movement of the phospholipids', { x: 620, y: 740, size: 30, weight: 700, fill: HEAT, o: 1 });
+  const rc = say(p, 'cool', 1370, 600, tCo + .6, { size: 30, weight: 800, fill: '#a9cdf5', anchor: 'start' });
+  hide(rc, tB, .3);
+  const cl = G(p, { o: 0 }); show(cl, tCo + 1.6, .5); hide(cl, tB, .4);
+  wLabel(cl, 'cool: prevents the tails', { x: 620, y: 700, size: 30, weight: 700, fill: '#a9cdf5', o: 1 });
+  wLabel(cl, 'from packing tightly', { x: 620, y: 740, size: 30, weight: 700, fill: '#a9cdf5', o: 1 });
+  const apart = G(p, { o: 0 }); show(apart, tCo + 2.2, .4); hide(apart, tB, .4);
+  dArrow(apart, [cp[0] - 40, cp[1] + 70], [cp[0] + 40, cp[1] + 70], { color: '#a9cdf5', w: 4, head: 14 });
+  // buffer: the dial stays in the middle
+  hide(th, tB, .4);
+  const gz = gauge(p, { x: 1330, y: 400, R: 120, o: 0 }); show(gz, tB + .2, .5);
+  prog(k => gz.set(Math.sin(k * 3 * Math.PI) * (1 - k) * .9), tB + .4, 3, lin);
+  const bf = G(p, { o: 0 }); show(bf, tB + .6, .5);
+  wLabel(bf, 'a fluidity buffer', { x: 1330, y: 510, size: 36, weight: 800, fill: GOOD, o: 1 });
+  wLabel(bf, 'not too fluid when warm,', { x: 1330, y: 556, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(bf, 'not too solid when cool', { x: 1330, y: 590, size: 26, fill: COL.dim, weight: 500, o: 1 });
+}],
+
+/* ---------- example ---------- */
+['example', 'Three membranes', (m, D) => {
+  const p = panel(0), tT = m('three'), tC = m('chill'), tK = m('kinks'), tCh = m('chol'), tH = m('heat'), tN = m('note');
+  const XS = [290, 800, 1310], BY = 500, SC = 1.35;
+  const hd = say(p, 'three membranes', 800, 80, .2, { size: 40, weight: 700 });
+  const wr = XS.map(x => G(p, { x, y: BY, o: 0 }));
+  const bs = [
+    bilayer(wr[0], { s: SC, w: 280, unsat: 0, seed: 11 }),
+    bilayer(wr[1], { s: SC, w: 280, unsat: 1, seed: 12 }),
+    bilayer(wr[2], { s: SC, w: 280, unsat: 0, chol: .55, seed: 13 }),
+  ];
+  const ices = XS.map(x => iceWash(p, x, BY, 400, 190));
+  const names = ['saturated', 'unsaturated', 'saturated + cholesterol'];
+  [tT + .3, m('three', 2.3), m('three', 4.4)].forEach((t0, i) => {
+    put(wr[i], { x: XS[i] + 120 }); tw(wr[i], { x: XS[i], o: 1 }, t0, .8, out);
+    say(p, names[i], XS[i], BY - 130, t0 + .3, { size: 30, weight: 700 });
+  });
+  // the thermometer above: chill at "chill", warm to 37 °C at "heat"
+  hide(hd, tC - .3, .3);
+  const th = thermo(p, { x: 760, y: 250, h: 170, w: 22, o: 0 }); show(th, tC - .2, .4);
+  const TF = t => .6 - .5 * sm(t, tC + .2, tC + 1.8) + .85 * sm(t, tH + .2, tH + 1.8);
+  const rd1 = say(p, 'chilled', 800, 140, tC + .4, { size: 30, weight: 800, fill: '#a9cdf5', anchor: 'start' }); hide(rd1, tH, .3);
+  say(p, '37 °C', 800, 140, tH + .6, { size: 30, weight: 800, fill: HEAT, anchor: 'start' });
+  // how fluid each one is, from the same clock as the thermometer
+  const F = [
+    t => .5 - .5 * sm(t, m('chill', 1.2), m('chill', 3)) + 1 * sm(t, tH + .6, tH + 2.4),
+    t => .75 - .15 * sm(t, tC + .5, tC + 3) + .4 * sm(t, tH + .6, tH + 2.4),
+    t => .5 - .1 * sm(t, tC + .5, tC + 3) + .1 * sm(t, tH + .6, tH + 2.4),
+  ];
+  clockRun(t => {
+    th.set(TF(t));
+    bs.forEach((b, i) => b.fluid(F[i](t)).drift(t));
+    mO(ices[0], .9 * sm(t, m('chill', 1.6), m('chill', 3)) * (1 - sm(t, tH + .6, tH + 1.6)));
+  }, D);
+  const VY = BY + 140;
+  const v1 = verdict(p, false, 'solid first', XS[0] - 95, VY); show(v1, m('chill', 2.6), .4); hide(v1, tH + .4, .3);
+  const v2 = verdict(p, true, 'stays fluid', XS[1] - 95, VY); show(v2, tK + .5, .4); hide(v2, tH + .4, .3);
+  const v3 = verdict(p, true, 'stays fluid', XS[2] - 95, VY); show(v3, tCh + .6, .4); hide(v3, tH + .4, .3);
+  pulse(wr[2], m('chol', 2), 1.05);
+  const h1 = say(p, 'loosens', XS[0], VY, tH + 2.2, { size: 28, weight: 700, fill: '#f6c48a' });
+  const h2 = say(p, 'loosens', XS[1], VY, tH + 2.4, { size: 28, weight: 700, fill: '#f6c48a' });
+  const h3 = verdict(p, true, 'held steady', XS[2] - 95, VY); show(h3, m('heat', 3.2), .4);
+  // note: every tool, one goal
+  wr.forEach((w, i) => pulse(w, tN + .2 + i * .25, 1.05));
+  const nt = G(p, { o: 0 }); show(nt, tN + .4, .5);
+  mk('rect', { x: 260, y: 720, width: 1080, height: 100, rx: 22, fill: '#0a1626', stroke: COL.chalk, 'stroke-opacity': .5, 'stroke-width': 3 }, nt);
+  wLabel(nt, 'the same goal: fluid enough to work,', { x: 800, y: 762, size: 32, weight: 700, o: 1 });
+  wLabel(nt, 'and still held together', { x: 800, y: 802, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  [h1, h2].forEach(e => tw(e, { o: .6 }, tN, .4));
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['The plasma membrane is the cell’s boundary,', 'and it is selectively permeable.', g => { const c = cellMap(g, { kind: 'animal', x: 190, y: 0, s: .13 }); c.focus('membrane', 1); }],
+    ['Phospholipids are amphipathic: a hydrophilic head,', 'two hydrophobic tails; in water they form a bilayer.', g => { phospholipid(g, { x: 130, y: -40, s: 1.4 }); bilayer(g, { x: 240, y: 0, s: .6, w: 160 }); }],
+    ['Fluid mosaic: lipids drift sideways all the time;', 'flip-flop to the other layer is rare.', g => { const b = bilayer(g, { x: 190, y: 0, s: .7, w: 230 }); b.hop(-2, -1, .5, 1, CORAL); dArrow(g, [120, -62], [190, -62], { w: 4, head: 12 }); }],
+    ['Kinked unsaturated tails keep it fluid, straight saturated', 'tails make it viscous; cholesterol buffers both.', g => { phospholipid(g, { x: 120, y: -40, s: 1.4, kink: true }); phospholipid(g, { x: 180, y: -40, s: 1.4 }); cholesterol(g, { x: 245, y: -45, s: 1.4 }); }],
+  ];
+  const ttl = G(p, { o: 0 }); show(ttl, 0, .3);
+  wLabel(ttl, 'Summary', { x: 800, y: 86, size: 40, weight: 700, o: 1 });
+  wLabel(ttl, 'phospholipids and the fluid mosaic', { x: 800, y: 124, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const X0 = 170;
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: X0 - 16, y: 200 + i * 160, o: 0 });
+    const ic = G(G(g, { x: -28.5, s: 1.15 }), { x: 190 }); icon(G(ic, { x: -190 }));
+    T(g, a, { x: 420, y: -6, size: 33, weight: 600 }); T(g, b, { x: 420, y: 36, size: 29, fill: COL.dim });
+    tw(g, { o: 1, x: X0 }, m('w' + (i + 1)), .6);
+    pulse(ic, m('w' + (i + 1)) + .5, 1.06);
+  });
+  say(p, 'Now try the chapter practice.', 800, 850, m('end'), { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const PCX = 1270;
+  at('parts', g => {
+    const pl = phospholipid(g, { x: PCX - 120, y: 170, s: 4.2, seed: 2 });
+    put(tag(g, 'head', [PCX + 120, 180], [PCX - 120 + 50, 170], null, { size: 28 }), { o: 1 });
+    put(tag(g, 'tails', [PCX + 120, 300], [PCX - 120 + 14, 290], null, { size: 28 }), { o: 1 });
+    mk('rect', { x: 980, y: 520, width: 580, height: 300, fill: MC.cyto, 'fill-opacity': .7, rx: 18 }, g);
+    bilayer(g, { x: PCX, y: 600, s: 1.2, w: 470, seed: 3 });
+    wLabel(g, 'extracellular fluid', { x: PCX, y: 500, size: 24, fill: COL.dim, o: 1 });
+    wLabel(g, 'cytoplasm', { x: PCX, y: 790, size: 24, fill: COL.dim, o: 1 });
+    void pl;
+  });
+  at('why', g => {
+    const sa = selfAssembly(g, { x: PCX, y: 430, s: 1.25, n: 18, spread: 420, water: 14, seed: 6 }); sa.set(.5, 0);
+    wLabel(g, 'phospholipids dropped into water', { x: PCX, y: 790, size: 26, fill: COL.dim, o: 1 });
+  });
+  at('cold', g => {
+    bilayer(g, { x: PCX - 150, y: 430, s: 1.15, w: 210, unsat: 0, seed: 8, fluid: .05 });
+    bilayer(g, { x: PCX + 160, y: 430, s: 1.15, w: 210, unsat: 1, seed: 9, fluid: 1 });
+    wLabel(g, 'saturated', { x: PCX - 150, y: 320, size: 28, weight: 700, o: 1 });
+    wLabel(g, 'unsaturated', { x: PCX + 160, y: 320, size: 28, weight: 700, o: 1 });
+    const t = thermo(g, { x: PCX, y: 760, h: 150, w: 20 }); t.set(.12);
+    wLabel(g, 'cooling', { x: PCX + 40, y: 640, size: 26, fill: '#a9cdf5', anchor: 'start', o: 1 });
+  });
+  at('chol', g => {
+    const b = bilayer(g, { x: PCX - 40, y: 430, s: 1.4, w: 360, chol: .55, seed: 10 }); b.cholesterol(1);
+    wLabel(g, 'cholesterol (peach) between the tails', { x: PCX - 40, y: 290, size: 24, fill: MC.chol, o: 1 });
+    const t = thermo(g, { x: 1520, y: 720, h: 200, w: 20 }); t.set(.5);
+    wLabel(g, 'warm or cool?', { x: PCX - 40, y: 720, size: 28, fill: COL.dim, o: 1 });
+  });
+  at('flip', g => {
+    const b = bilayer(g, { x: PCX - 40, y: 430, s: 1.7, w: 340, seed: 5 }); b.flipflop(3, .5, CORAL);
+    const fx0 = PCX - 40 + (3 * 26 + 13) * 1.7;
+    dArrow(g, [fx0 + 80, 430 - 90], [fx0 + 80, 430 + 90], { w: 5, head: 16 });
+    wLabel(g, 'outer layer', { x: PCX - 40, y: 300, size: 24, fill: COL.dim, o: 1 });
+    wLabel(g, 'inner layer', { x: PCX - 40, y: 580, size: 24, fill: COL.dim, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('parts');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-parts', prompt: ['Hydrophilic or hydrophobic?'],
+    build: withPic('parts', grid([
+      { parts: ['the phosphate head'], ans: ['h'], why: 'Hydrophilic: the head, with its phosphate group, loves water.' },
+      { parts: ['the fatty acid tails'], ans: ['o'], why: 'Hydrophobic: the hydrocarbon tails hate water.' },
+      { parts: ['the part that faces the extracellular fluid'], ans: ['h'], why: 'Hydrophilic: the heads of the outer layer face the water outside.' },
+      { parts: ['the part in the middle of the bilayer'], ans: ['o'], why: 'Hydrophobic: the tails of both layers meet in the middle, away from water.' },
+    ], [['h', 'hydrophilic', null, 'H'], ['o', 'hydrophobic', null, 'O']], { multi: false, text: true })) },
+  { id: 'p-why', prompt: ['Why do phospholipids in water form a bilayer?'],
+    build: withPic('why', choice([
+      ['The hydrophilic heads face the water and the hydrophobic tails tuck together away from it.'],
+      ['The heads are attracted to each other.'], ['The tails want to touch the water.'], ['The cell builds it, using energy.']], 0,
+      'Right. Each molecule is amphipathic: heads to the water on both sides, tails hidden in the middle.',
+      [null, 'The heads face the water, not each other: the two rows of heads are on opposite faces.',
+       'The tails are hydrophobic: they hate water, so they tuck away from it.',
+       'The bilayer assembles itself in water, with no help from the cell.'])) },
+  { id: 'p-cold', prompt: ['Which membrane stays fluid at the lowest temperature?'],
+    build: withPic('cold', choice([['one rich in unsaturated fatty acids'], ['one rich in saturated fatty acids'], ['one with no lipids at all'], ['one whose lipids never move sideways']], 0,
+      'Right. The kinks of unsaturated tails stop them packing tightly, so the membrane stays fluid at lower temperatures.',
+      [null, 'Straight saturated tails pack tightly: that membrane turns viscous, then solid, first.',
+       'With no lipids there is no bilayer, so no membrane at all.',
+       'Lipids that never move make a solid membrane. A membrane must be fluid to work.'])) },
+  { id: 'p-chol', prompt: ['Cholesterol in an animal cell membrane: when does it do this?'],
+    build: withPic('chol', grid([
+      { parts: ['restrains the movement of the phospholipids'], ans: ['w'], why: 'Warm (37 °C): it holds the lipids back, so the membrane does not get too loose.' },
+      { parts: ['keeps the tails from packing tightly'], ans: ['k'], why: 'Cool: it props the tails apart, so the membrane does not stiffen.' },
+      { parts: ['sits wedged between the phospholipid tails'], ans: ['b'], why: 'Both: that is where it sits, whatever the temperature.' },
+      { parts: ['is a steroid with four rings'], ans: ['b'], why: 'Both: cholesterol is always a steroid.' },
+    ], [['w', 'warm (37 °C)', null, 'W'], ['k', 'cool', null, 'K'], ['b', 'both', null, 'B']], { multi: false, text: true })) },
+  { id: 'p-flip', prompt: ['A phospholipid moves from the outer layer to the inner layer. What is this, and how often does it happen?'],
+    build: withPic('flip', choice([['flip-flop, about once per month'], ['lateral movement, about ten million times per second'], ['flip-flop, about ten million times per second'], ['lateral movement, about once per month']], 0,
+      'Right. Crossing to the other layer is flip-flop, and it is rare: the head would have to pass the water-hating middle.',
+      [null, 'Lateral movement stays within one layer. This lipid changed layers.',
+       'It is flip-flop, but it is rare, not fast: about once per month.',
+       'Lateral movement stays in its own layer, and it is fast, not rare.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>
