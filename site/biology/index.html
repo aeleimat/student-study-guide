@@ -78,11 +78,12 @@ body::before { background: none; }
 // chapter × 100 + lesson (Chapter 3, lesson 2 = 302 = its CHAPTER.number), which keeps progress and the cards' ids
 // unique across the book. The card shows the lesson number. Add a lesson here when it is ready; a new textbook chapter
 // is a new unit whose third entry starts its numbering, e.g. ['Chapter 4: …', [...], { unit: 4, chapter: 401 }].
-// Chapter 3 starts at lesson 1: start 301 shown as 1.
+// Chapter 3 starts at lesson 1: start 301 shown as 1. Later units restart the shown number per lesson ({ chapter: k }).
 Contents.book({
   start: { unit: 3, chapter: 301, label: 1 },
   units: [   // [unit title, [[lesson title, minutes], ...], { unit, chapter }?]
     ['Chapter 3: Water and Life', [['Polar Water and Hydrogen Bonds', 5], ['Cohesion and Moderation of Temperature', 7], ['Floating Ice and Water the Solvent', 7], ['Water Splitting, Acids, Bases and pH', 6], ['Buffers, Ka and pKa, Acid Rain', 7]]],
+    ['Chapter 5: Large Biological Molecules', [['Macromolecules, Monomers and Polymers', 5, { chapter: 1 }], ['Nucleic Acids: From Gene to Protein', 5, { chapter: 2 }], ['Nucleotides: Base, Sugar and Phosphate', 5, { chapter: 3 }], ['Polynucleotides and the Double Helix', 6, { chapter: 4 }]], { unit: 5, chapter: 501 }],
   ],
   hues: ['#f4a48c', '#86c9e8', '#f3c95c', '#e8a0c8', '#8fd6b0', '#bba8ee', '#f0b45a'],   // one colour per unit, cycling
   progressKey: 'animebook:progress:biology',   // the same key as --progress-key in lib/book.css

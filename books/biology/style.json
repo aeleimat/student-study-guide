@@ -19,6 +19,18 @@
           "chapter-03/lesson-04",
           "chapter-03/lesson-05"
         ]
+      },
+      {
+        "unit": 5,
+        "title": "Chapter 5: Large Biological Molecules",
+        "source": "books/biology/source/chapter-05-large-biological-molecules.pdf",
+        "sections": "books/biology/source/chapter-05-sections.json",
+        "lessons": [
+          "chapter-05/lesson-01",
+          "chapter-05/lesson-02",
+          "chapter-05/lesson-03",
+          "chapter-05/lesson-04"
+        ]
       }
     ],
     "pilot": "chapter-03/lesson-02",
@@ -51,13 +63,20 @@
       "cold": "#4a8fe7",
       "acid / H+": "#ff7aa8",
       "base / OH-": "#6c8cff",
-      "electron": "#ffd27a"
+      "electron": "#ffd27a",
+      "phosphate": "#bba8ee",
+      "sugar (pentose)": "#f3c95c",
+      "base A": "#f07a6a",
+      "base G": "#8fd6b0",
+      "base C": "#6c8cff",
+      "base T": "#ffd27a",
+      "base U": "#f39a2b"
     },
     "fonts": {
       "text": "system UI",
       "math": "serif (engine default)"
     },
-    "notation": "°C, cal, kcal, J with a space (1 cal = 4.184 J); δ+ / δ− for partial charges; H₂O with subscripts"
+    "notation": "°C, cal, kcal, J with a space (1 cal = 4.184 J); δ+ / δ− for partial charges; H₂O with subscripts; 5′ and 3′ with the prime ′ (U+2032)"
   },
   "voice": {
     "engine": "edge",
@@ -215,6 +234,11 @@
       "name": "wBaseFrac",
       "file": "site/biology/lib/water.js",
       "what": "base fraction from pH and pKa (also wSplitFrac(Ka, C))"
+    },
+    {
+      "name": "macro.js (chapter 5 kit)",
+      "file": "site/biology/lib/macro.js",
+      "what": "monomer beads, polymer chain with dehydration/hydrolysis, nucleotide, base shapes, polynucleotide, DNA ladder/helix, cell with nucleus and ribosome, mRNA; API in its header"
     }
   ],
   "images": {

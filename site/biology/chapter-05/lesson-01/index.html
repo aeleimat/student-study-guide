@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 5, Lesson 1: Macromolecules, Monomers and Polymers — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 5 (Large Biological Molecules), lesson 1: from a bowl of pasta into a cell; the four classes of large
+// molecules; monomers and polymers (lipids the exception); dehydration step by step; enzymes; hydrolysis and digestion;
+// check 1; variety from a small set of monomers; check 2; summary; practice. Molecules are the only cast.
+// Plan, errata and storyboard: books/biology/chapters/chapter-05/lesson-01.md.
+const CHAPTER = { number: 501, label: '5, lesson 1', title: 'Macromolecules, Monomers and Polymers', minutes: 5, language: 'en', lead: false, next: '../lesson-02/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const KINDS = ['circle', 'square', 'hex', 'diamond'];
+const H2O = 'H₂O';
+// A leader line from a label to the thing it names.
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+// Write x, y, o (and s) only when they change.
+const place = (e, x, y, o = 1, s) => { const v = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, o: Math.round(o * 1000) / 1000 }; if (s !== undefined) v.s = Math.round(s * 1000) / 1000; const c = st(e); if (Object.keys(v).some(k => c[k] !== v[k])) put(e, v); return e; };
+const ptsPath = pts => pts.map(([a, b], i) => (i ? 'L' : 'M') + a.toFixed(1) + ' ' + b.toFixed(1)).join('');
+// Points of a wavy chain of n beads, centred on its origin.
+const wavePts = (n, sp, amp = 0, ph = 0, f = .9) => Array.from({ length: n }, (_, i) => [(i - (n - 1) / 2) * sp, amp * Math.sin(i * f + ph)]);
+
+// One bead of a monomer kind (macro.js shapes and colours), around (x, y).
+function bead(p, kind, x, y, r, o = {}) {
+  const [f, e] = M_BEAD[kind], g = G(p, { x, y, ...o });
+  path(g, mBeadPath(kind, r), { fill: f, stroke: e, 'stroke-width': Math.max(1.5, r * .09) });
+  if (r > 14) mk('ellipse', { cx: -r * .34, cy: -r * .4, rx: r * .28, ry: r * .16, fill: '#fff', 'fill-opacity': .3 }, g);
+  return g;
+}
+// A string of beads along pts (no HO/H tags): a polymer drawn small. .beads[i] are groups at their points; .stick the line.
+function beadString(p, pts, kinds, { r = 20, x = 0, y = 0, s = 1, r0 = 0, o = 1 } = {}) {
+  const g = G(p, { x, y, s, r: r0, o });
+  g.stick = path(g, ptsPath(pts), { stroke: WC.stick, 'stroke-width': Math.max(3, r * .34), 'stroke-linejoin': 'round' });
+  g.beads = pts.map(([a, b], i) => bead(g, kinds[i % kinds.length], a, b, r));
+  return g;
+}
+// A wobbly cell outline.
+function cellBlob(p, { x = 800, y = 450, w = 1400, h = 780, fill = MC.cyto, edge = MC.membrane, sw = 8, o = 1, seed = 0 } = {}) {
+  const g = G(p, { x, y, o }), rx = w / 2, ry = h / 2; let d = '';
+  for (let i = 0; i <= 72; i++) { const t = i / 72 * 2 * Math.PI, k = 1 + .025 * Math.sin(3 * t + .6 + seed) + .018 * Math.sin(5 * t + 2.1 + seed); d += (i ? 'L' : 'M') + (rx * k * Math.cos(t)).toFixed(1) + ' ' + (ry * k * Math.sin(t)).toFixed(1); }
+  path(g, d + 'Z', { fill, stroke: edge, 'stroke-width': sw });
+  return g;
+}
+// A paper clip lying flat, about 100 wide, centred on its origin.
+function paperClip(p, o = {}) {
+  const g = G(p, o);
+  path(g, 'M-30 -15H35A15 15 0 0 1 35 15H-38A11 11 0 0 1 -38 -7H25A7 7 0 0 1 25 7H-20', { stroke: '#c9d2dc', 'stroke-width': 5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  return g;
+}
+// A cream check mark and a red cross, centred on their origins.
+const checkMark = (p, o = {}) => { const g = G(p, o); mk('circle', { r: 26, fill: '#0b1626', stroke: COL.chalk, 'stroke-width': 3 }, g); path(g, 'M-12 1L-3 11L13 -9', { stroke: COL.chalk, 'stroke-width': 6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }); return g; };
+const crossMark = (p, o = {}) => { const g = G(p, o); path(g, 'M-70 -60L70 60M70 -60L-70 60', { stroke: COL.bad, 'stroke-width': 12, 'stroke-linecap': 'round' }); return g; };
+
+/* ---------- the four classes, as glyphs (about 240 × 150, centred) ---------- */
+const LIPID = { head: '#e0a85c', headEdge: '#a8762f', tail: '#f1d08a' };
+function carbGlyph(p, o = {}) {
+  const g = G(p, o), pts = [[-96, 12], [-32, -12], [32, 12], [96, -12]];
+  path(g, ptsPath(pts), { stroke: WC.stick, 'stroke-width': 8 });
+  pts.forEach(([x, y]) => { path(g, mPoly(6, 30, 0, x, y), { fill: MC.sugar, stroke: MC.sugarEdge, 'stroke-width': 3 }); mk('circle', { cx: x + 12, cy: y - 14, r: 4, fill: MC.oh }, g); });
+  return g;
+}
+function lipidGlyph(p, o = {}) {
+  const g = G(p, o);
+  [-34, 0, 34].forEach((dy, i) => {
+    let d = `M-60 ${dy * .5}`; for (let k = 1; k <= 8; k++) d += `L${-60 + k * 22} ${dy + (k % 2 ? -9 : 9) + (i === 1 && k > 4 ? 10 * (k - 4) / 4 : 0)}`;
+    path(g, d, { stroke: LIPID.tail, 'stroke-width': 9, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+  });
+  mk('ellipse', { cx: -82, cy: 0, rx: 34, ry: 46, fill: LIPID.head, stroke: LIPID.headEdge, 'stroke-width': 3 }, g);
+  mk('ellipse', { cx: -92, cy: -16, rx: 10, ry: 6, fill: '#fff', 'fill-opacity': .3 }, g);
+  return g;
+}
+function protGlyph(p, o = {}) {
+  const g = G(p, o), pts = [];
+  for (let i = 0; i < 12; i++) { const row = Math.floor(i / 4), c = row % 2 ? 3 - i % 4 : i % 4; pts.push([(c - 1.5) * 46 + (row === 1 ? 8 : 0), (row - 1) * 40]); }
+  pts.unshift([-120, -40]); pts.push([110, 66]);
+  path(g, ptsPath(pts), { stroke: '#9a7fb0', 'stroke-width': 8, 'stroke-linejoin': 'round' });
+  pts.forEach(([x, y]) => bead(g, 'amino', x, y, 17));
+  return g;
+}
+function nucGlyph(p, o = {}) {
+  const g = G(p, o), xs = [], pair = [['A', 'T'], ['G', 'C'], ['T', 'A'], ['C', 'G'], ['A', 'T'], ['G', 'C'], ['C', 'G']];
+  for (let i = 0; i < 7; i++) xs.push(-108 + i * 36);
+  const yT = x => -38 * Math.cos((x + 108) / 216 * Math.PI * 1.15), yB = x => -yT(x);
+  pair.forEach(([a, b], i) => { const x = xs[i], y1 = yT(x), y2 = yB(x), ym = (y1 + y2) / 2; path(g, `M${x} ${y1}L${x} ${ym}`, { stroke: MC[a], 'stroke-width': 9 }); path(g, `M${x} ${ym}L${x} ${y2}`, { stroke: MC[b], 'stroke-width': 9 }); });
+  let d1 = '', d2 = ''; for (let x = -120; x <= 120; x += 6) { d1 += (x > -120 ? 'L' : 'M') + x + ' ' + yT(x).toFixed(1); d2 += (x > -120 ? 'L' : 'M') + x + ' ' + yB(x).toFixed(1); }
+  path(g, d1, { stroke: MC.dna, 'stroke-width': 10 }); path(g, d2, { stroke: MC.dna, 'stroke-width': 10 });
+  return g;
+}
+const GLYPHS = [['carbohydrates', carbGlyph], ['lipids', lipidGlyph], ['proteins', protGlyph], ['nucleic acids', nucGlyph]];
+
+/* ---------- backdrops ---------- */
+// A bowl of pasta and a slice of bread on a table (intro). Returns { g, bowl, bread, steam }; the noodle at NOODLE is the way in.
+const NOODLE = [522, 548];
+function pastaScene(p) {
+  const g = G(p);
+  mk('rect', { x: -400, y: -400, width: 2400, height: 1060, fill: '#16304f' }, g);
+  path(g, 'M-400 300H2000', { stroke: '#1c3a5e', 'stroke-width': 3 });
+  mk('rect', { x: -400, y: 660, width: 2400, height: 700, fill: '#5c412b' }, g);
+  path(g, 'M-400 662H2000', { stroke: '#7a5a3e', 'stroke-width': 10 });
+  const bowl = G(g, { x: 480, y: 600 });
+  mk('ellipse', { cx: 0, cy: 132, rx: 220, ry: 20, fill: '#0b1626', 'fill-opacity': .45 }, bowl);
+  mk('ellipse', { cx: 0, cy: -12, rx: 248, ry: 44, fill: '#c4c0b6' }, bowl);
+  path(bowl, 'M-206 -14Q-130 -112 0 -116Q130 -112 206 -14Z', { fill: '#e2ad4c' });
+  let nd = '';
+  for (let k = 0; k < 9; k++) { const y0 = -24 - k * 10, w = 200 - k * 18; nd += `M${-w} ${y0}`; for (let x = -w + 20; x <= w; x += 20) nd += `Q${x - 10} ${y0 + ((x / 20) % 2 ? -12 : 12)} ${x} ${y0}`; }
+  path(bowl, nd, { stroke: '#f6cf6a', 'stroke-width': 7, 'stroke-linecap': 'round' });
+  path(bowl, `M${NOODLE[0] - 480 - 40} ${NOODLE[1] - 600 + 6}Q${NOODLE[0] - 480} ${NOODLE[1] - 600 - 18} ${NOODLE[0] - 480 + 40} ${NOODLE[1] - 600 + 4}`, { stroke: '#ffe08a', 'stroke-width': 9, 'stroke-linecap': 'round' });
+  path(bowl, 'M-250 -14Q-244 130 0 132Q244 130 250 -14Z', { fill: '#eeeae0', stroke: '#b9b3a6', 'stroke-width': 4 });
+  path(bowl, 'M-200 40Q-150 100 -60 112', { stroke: '#fff', 'stroke-width': 8, 'stroke-opacity': .5, 'stroke-linecap': 'round' });
+  const steam = path(g, 'M410 450q-20 -30 0 -60t0 -60M480 430q-20 -30 0 -60t0 -60M550 450q-20 -30 0 -60t0 -60', { stroke: '#cfd8ea', 'stroke-width': 5, 'stroke-opacity': .5, 'stroke-dasharray': '30 26', 'stroke-linecap': 'round' });
+  const bread = G(g, { x: 900, y: 650 });
+  path(bread, 'M-80 0V-110Q-120 -120 -116 -160Q-110 -200 -50 -200H50Q110 -200 116 -160Q120 -120 80 -110V0Z', { fill: '#9a6430' });
+  path(bread, 'M-66 -8V-116Q-100 -126 -98 -158Q-94 -186 -48 -186H48Q94 -186 98 -158Q100 -126 66 -116V-8Z', { fill: '#efcf93' });
+  let holes = ''; [[-30, -140], [20, -100], [-10, -60], [40, -40], [-40, -30], [30, -160]].forEach(([x, y]) => { holes += `M${x - 5} ${y}a5 4 0 1 0 10 0a5 4 0 1 0 -10 0`; });
+  path(bread, holes, { fill: '#d9ad66' });
+  return { g, bowl, bread, steam };
+}
+
+// Lock and key: the shape of a molecule decides what it can do (classes, fit). .key slides into the notch at y 0.
+function lockKey(p, o = {}) {
+  const g = G(p, o);
+  path(g, 'M-130 -60Q-130 -80 -110 -80H-42L0 -32L42 -80H110Q130 -80 130 -60V60Q130 80 110 80H-110Q-130 80 -130 60Z', { fill: M_BEAD.amino[0], stroke: M_BEAD.amino[1], 'stroke-width': 4 });
+  const key = G(g);
+  path(key, 'M-38 -82L0 -38L38 -82Z', { fill: M_BEAD.diamond[0], stroke: M_BEAD.diamond[1], 'stroke-width': 3 });
+  path(key, 'M0 -82V-118', { stroke: WC.stick, 'stroke-width': 7 });
+  mk('circle', { cx: 0, cy: -130, r: 15, fill: M_BEAD.diamond[0], stroke: M_BEAD.diamond[1], 'stroke-width': 3 }, key);
+  return Object.assign(g, { key });
+}
+
+// Gut tube with a long chain that enzymes cut into single monomers (hydro, eat). pose(t) draws it at beat time t.
+function gutScene(p, t0) {
+  const g = G(p), cy = 470, n = 8, sp = 60, r = 22, gap = 78;
+  const top = x => cy - 150 + 20 * Math.sin(x / 150), bot = x => cy + 150 + 20 * Math.sin(x / 150 + .7);
+  let dt = '', db = '';
+  for (let x = -20; x <= 1620; x += 20) { dt += (x > -20 ? 'L' : 'M') + x + ' ' + top(x).toFixed(1); }
+  for (let x = 1620; x >= -20; x -= 20) { db += 'L' + x + ' ' + bot(x).toFixed(1); }
+  path(g, dt + db + 'Z', { fill: '#3b2433' });
+  path(g, dt, { stroke: '#c98f9a', 'stroke-width': 12 });
+  path(g, 'M' + db.slice(1), { stroke: '#c98f9a', 'stroke-width': 12 });
+  const kinds = ['hex', 'circle', 'square', 'diamond', 'hex', 'square', 'circle', 'hex'];
+  const sticks = Array.from({ length: n }, () => path(g, '', { stroke: WC.stick, 'stroke-width': 8 }));
+  const waters = Array.from({ length: n }, () => waterMolecule(g, { s: .34, o: 0 }));
+  const beads = kinds.map(k => bead(g, k, 0, 0, r));
+  const order = [4, 2, 6, 1, 5, 3, 7], tb = {};
+  order.forEach((b, k) => { tb[b] = t0 + 1 + .62 * k; });
+  const enz = [0, 1, 2].map(() => enzyme(g, { R: 30, dir: 90 }));
+  const brk = (b, t) => io(ramp(t, tb[b], tb[b] + .7));
+  const pos = t => {
+    const xs = []; let acc = 0, tot = 0;
+    for (let b = 1; b < n; b++) tot += brk(b, t);
+    for (let j = 0; j < n; j++) { if (j > 0) acc += brk(j, t); xs.push(800 + (j - (n - 1) / 2) * sp + gap * (acc - tot / 2)); }
+    return xs.map((x, j) => [x, cy + 10 * Math.sin(1.4 * t + j) * ramp(t, tb[order[0]], tb[order[0]] + 1)]);
+  };
+  const tasks = [0, 1, 2].map(e => order.filter((b, k) => k % 3 === e));
+  return {
+    g, beads, enz,
+    pose(t) {
+      const P = pos(t);
+      P.forEach(([x, y], j) => place(beads[j], x, y));
+      for (let b = 1; b < n; b++) {
+        const [x1, y1] = P[b - 1], [x2, y2] = P[b], o = 1 - ramp(t, tb[b], tb[b] + .15);
+        mD(sticks[b], mSeg([x1 + r - 2, y1], [x2 - r + 2, y2])); mO(sticks[b], o);
+        place(waters[b], (x1 + x2) / 2, lerp(cy + 110, cy + 34, io(ramp(t, tb[b] - .7, tb[b] - .1))), mBump(t, tb[b] - .7, tb[b] + .35));
+      }
+      enz.forEach((e, k) => {
+        let [x, y] = [520 + 280 * k, cy - 260];
+        let bite = 1;
+        tasks[k].forEach(b => {
+          const [x1, y1] = P[b - 1], [x2, y2] = P[b], q = io(ramp(t, tb[b] - 1.1, tb[b] - .35));
+          x = lerp(x, (x1 + x2) / 2, q); y = lerp(y, (y1 + y2) / 2 - r - 30, q);
+          bite = Math.min(bite, 1 - mBump(t, tb[b] - .3, tb[b] + .35));
+        });
+        const last = tb[tasks[k][tasks[k].length - 1]], up = io(ramp(t, last + .5, last + 1.3));
+        place(e, x, lerp(y, cy - 220 + 20 * k, up), 1); e.bite(bite);
+      });
+    },
+  };
+}
+
+// The three polymers of one small set of monomers (diverse order, q2): a legend row of the four kinds, then three chains.
+const ORDERS = [['circle', 'square', 'hex', 'diamond', 'circle'], ['hex', 'hex', 'circle', 'diamond', 'square', 'square', 'circle', 'diamond'], ['diamond', 'circle', 'circle', 'square', 'hex', 'circle']];
+function orderPic(p, { y0, ys, x0 = 330, r = 26, sp = 72, t0 = null, lc = 800, legend = 'a small set of monomers' }) {
+  const L = G(p, { o: t0 === null ? 1 : 0 });
+  wLabel(L, legend, { x: lc, y: y0 - 60, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  KINDS.forEach((k, i) => bead(L, k, lc - 150 + i * 100, y0, 30));
+  if (t0 !== null) show(L, t0);
+  return ORDERS.map((seq, c) => {
+    const s = beadString(p, seq.map((_, i) => [x0 + i * sp, 0]), seq, { r, y: ys[c], o: t0 === null ? 1 : 0 });
+    if (t0 !== null) tw(s, { o: 1 }, t0 + .6 + .7 * c, .5);
+    return s;
+  });
+}
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const withPic = (key, build) => (body, api) => { S.pics?.(key); return build(body, api); };
+
+/* ---------- shared numbers (computed, never typed twice) ---------- */
+const bondsIn = n => n - 1;                   // n monomers in one chain are held by n − 1 bonds
+const Q1_N = 5, P_BUILD = 6, P_BREAK = 8;
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Big molecules from small ones', (m, D) => {
+  // A table with pasta and bread; on "cell" the camera dives into one noodle until a cell fills the stage. The cell is
+  // drawn at scale K around NOODLE, so at zoom 1/K its own coordinates are the stage's.
+  const p = panel(0), cam = camera(p, D), W = cam.world, sc = pastaScene(W), tMeal = m('meal'), tCell = m('cell'), tChain = m('chain');
+  const K = .04, [CX, CY] = NOODLE;
+  clockRun(t => { const off = (-t * 18).toFixed(1); if (sc.steam._off !== off) sc.steam.setAttribute('stroke-dashoffset', sc.steam._off = off); }, D);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 5: LARGE BIOLOGICAL MOLECULES · LESSON 1', { x: 1190, y: 170, size: 22, fill: COL.dim, o: 1 });
+  ['Macromolecules,', 'monomers and', 'polymers'].forEach((s, i) => wLabel(ttl, s, { x: 1190, y: 260 + i * 78, size: 66, o: 1 }));
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tCell - .2, .5);
+  // meal: the bowl, then the bread
+  pulse(sc.bowl, tMeal + .1, 1.06);
+  const l1 = say(p, 'a bowl of pasta', 480, 860, tMeal + .2, { size: 34 });
+  const l2 = say(p, 'or a slice of bread', 900, 720, tMeal + 1.4, { size: 28, fill: COL.dim, weight: 500 });
+  hide(l1, tCell, .3); hide(l2, tCell, .3);
+  // cell: a ring on one noodle, then the dive
+  const ring = mk('circle', { cx: CX, cy: CY, r: 40, fill: 'none', stroke: MC.membrane, 'stroke-width': 4 }, W); put(ring, { o: 0 });
+  show(ring, tCell, .3); hide(ring, tCell + 1.2, .4);
+  const C = G(W, { x: CX - K * 800, y: CY - K * 450, s: K });
+  const around = mk('rect', { x: -30000, y: -20000, width: 60000, height: 40000, fill: '#10233a' }, C); put(around, { o: 0 }); tw(around, { o: 1 }, tCell + 1.3, .9, lin);
+  const cellG = G(C, { o: 0 }); tw(cellG, { o: 1 }, tCell + .4, .8, lin);
+  cellBlob(cellG, { x: 800, y: 470, w: 1380, h: 700 });
+  for (let i = 0; i < 9; i++) waterMolecule(cellG, { x: 260 + wHash(i, 3) * 1080, y: 230 + wHash(i, 4) * 470, s: .34, r: wHash(i, 5) * 360, o: .55 });
+  [[380, 300, 'circle'], [1180, 640, 'hex'], [1260, 330, 'square'], [430, 640, 'diamond']].forEach(([x, y, k]) => bead(cellG, k, x, y, 16, { o: .7 }));
+  cam.to({ x: CX, y: CY, z: 1 / K }, tCell + .3, 2.6);
+  prog(q => { sc.g.style.display = q >= 1 ? 'none' : ''; ring.style.display = q >= 1 ? 'none' : ''; }, tCell + 3, .01, lin);   // the wide scene is covered: stop drawing it
+  say(p, 'food is made of cells,', 800, 64, tCell + .6, { size: 34 });
+  say(p, 'and cells are made of molecules', 800, 108, tCell + 2.6, { size: 30, fill: COL.dim, weight: 500 });
+  // chain: one long molecule, a string of small units, drifting
+  const seq = ['circle', 'square', 'hex', 'diamond', 'hex', 'circle', 'square', 'circle', 'diamond', 'hex', 'square', 'circle', 'hex', 'diamond'];
+  const chH = G(cellG, { x: 800, y: 470 }), ch = beadString(chH, wavePts(seq.length, 64, 46, .3, .7), seq, { r: 24, o: 0 });
+  tw(ch, { o: 1 }, tChain + .2, .9);
+  clockRun(t => place(chH, 800 + 10 * Math.sin(.5 * t), 470 + 8 * Math.sin(.7 * t)), D);
+  say(p, 'the biggest: long chains of small units', 800, 860, tChain + 1.2, { size: 30, fill: COL.chalk });
+}],
+
+/* ---------- the four classes ---------- */
+['classes', 'Four classes', (m, D) => {
+  const p = panel(0);
+  cellBlob(p, { x: 800, y: 450, w: 1720, h: 1040 });
+  say(p, 'four classes of large biological molecules', 800, 110, .3, { size: 34 });
+  const xs = [290, 630, 970, 1310], marks = ['carb', 'lip', 'prot', 'nuc'];
+  GLYPHS.forEach(([name, f], i) => {
+    const hold = G(p, { x: xs[i], y: 290 }), g = f(hold, { s: .3, o: 0 }); pop(g, m(marks[i]) - .05);
+    clockRun(t => place(hold, xs[i], 290 + 5 * Math.sin(1.3 * t + i)), D);
+    say(p, name, xs[i], 420, m(marks[i]) + .1, { size: 32 });
+  });
+  // big: a peek at the atoms of one macromolecule: many atoms held by covalent bonds
+  const tBig = m('big'), A = G(p, { o: 0 }); show(A, tBig + .1, .5);
+  mk('rect', { x: 140, y: 560, width: 720, height: 230, rx: 22, fill: '#0f2338', stroke: COL.faint, 'stroke-width': 2 }, A);
+  const at = []; for (let i = 0; i < 30; i++) { const x = 180 + i * 22.5, y = 675 + (i % 2 ? -16 : 16); at.push([x, y, i % 5 === 3 ? 'O' : i % 7 === 5 ? 'N' : 'C']); }
+  const side = []; at.forEach(([x, y], i) => { if (i % 3 === 1) side.push([x, y + (i % 2 ? -36 : 36), i % 6 === 1 ? 'O' : 'H', i]); });
+  let sd = ptsPath(at.map(([x, y]) => [x, y])); side.forEach(([x, y, , i]) => { sd += `M${at[i][0]} ${at[i][1]}L${x} ${y}`; });
+  const sticks = path(A, sd, { stroke: WC.stick, 'stroke-width': 5 }, { d: 0 }); draw(sticks, tBig + .3, 1.4, lin);
+  const AC = { C: ['#6d7787', 9], O: [WC.O, 9], N: [MC.C, 9], H: [WC.H, 6] };
+  [...at, ...side].forEach(([x, y, k], i) => { const c = mk('circle', { cx: x, cy: y, r: AC[k][1], fill: AC[k][0] }, A); put(c, { o: 0 }); show(c, tBig + .3 + i * .03, .2); });
+  say(A, 'thousands of atoms, joined by covalent bonds', 500, 610, tBig + 1.2, { size: 28 });
+  say(A, '(only a few shown)', 500, 770, tBig + 1.8, { size: 22, fill: COL.dim, weight: 500 });
+  // fit: shape decides function
+  const tFit = m('fit'), lk = lockKey(p, { x: 1170, y: 690, o: 0 }); show(lk, tFit + .1, .5);
+  put(lk.key, { y: -90 }); tw(lk.key, { y: 0 }, tFit + 1.6, .8, out);
+  say(p, 'shape decides function', 1170, 830, tFit + 2.2, { size: 30, fill: COL.chalk });
+}],
+
+/* ---------- monomers and polymers ---------- */
+['poly', 'Monomers and polymers', (m, D) => {
+  const p = panel(0), tUnit = m('unit'), tLong = m('long'), tThree = m('three'), tLip = m('lipid');
+  cellBlob(p, { x: 800, y: 450, w: 1720, h: 1040 });
+  const xs = [290, 630, 970, 1310], gl = GLYPHS.map(([name, f], i) => { const g = f(p, { x: xs[i], y: 140, s: .55 }); wLabel(p, name, { x: xs[i], y: 225, size: 24, fill: COL.dim, weight: 500, o: 1 }); return g; });
+  // unit: one block, like one paper clip
+  const one = monomerBead(p, 'circle', { x: 800, y: 470, s: .3, o: 0 }); tw(one, { s: 1.8, o: 1 }, tUnit - .1, .5, back);
+  const ml = say(p, 'monomer: one small building block', 800, 380, tUnit + .4, { size: 32 });
+  const clip = paperClip(p, { x: 1120, y: 470, o: 0, s: 1.1 }); show(clip, tUnit + .2);
+  const cl = say(p, 'like one paper clip', 1120, 540, tUnit + .6, { size: 26, fill: COL.dim, weight: 500 });
+  // long: the block becomes the first of a chain of identical blocks
+  const ch = polymerChain(p, { n: 8, kinds: ['circle'], x: 800, y: 470 }); ch.show(0);
+  tw(one, { x: ch.at(0)[0], s: 1 }, tLong - .2, .6);
+  prog(q => ch.show(Math.max(1, Math.floor(1 + 7.999 * q))), tLong + .4, 2.6, lin);
+  hide(one, tLong + .45, .1);
+  hide(ml, tLong - .3, .3); hide(clip, tLong - .2, .3); hide(cl, tLong - .2, .3);
+  const br = path(p, 'M455 540V560H1145V540', { stroke: COL.chalk, 'stroke-width': 3 }, { d: 0 }); draw(br, tLong + 2.8, .5);
+  say(p, 'polymer: many similar monomers, joined end to end', 800, 600, tLong + 3, { size: 32 });
+  const clips = G(p, { o: 0 }); for (let i = 0; i < 7; i++) paperClip(clips, { x: 560 + i * 80, y: 700 + (i % 2 ? 6 : -6), r: i % 2 ? 8 : -8 });
+  show(clips, tLong + 1.2, .6);
+  // three: the polymer classes get a check; lipid: a cross
+  [0, 2, 3].forEach((i, k) => { const c = checkMark(p, { x: xs[i] + 105, y: 95, o: 0, s: .4 }); pop(c, tThree + .9 + .35 * k); pulse(gl[i], tThree + .9 + .35 * k, 1.12); });
+  say(p, 'polymers', 1140, 290, tThree + 2.2, { size: 30, fill: COL.chalk });
+  pulse(gl[1], tLip + .2, 1.15);
+  const x = crossMark(p, { x: xs[1], y: 140, s: .6, o: 0 }); show(x, tLip + .3, .3);
+  say(p, 'large, but not a chain', xs[1], 290, tLip + 1.6, { size: 26, fill: '#ff9b8a' });
+}],
+
+/* ---------- dehydration ---------- */
+['dehy', 'Dehydration', (m, D) => {
+  const p = panel(0), tEnds = m('ends'), tMeet = m('meet'), tLose = m('lose'), tBond = m('bond'), tAgain = m('again');
+  const X = 640, Y = 430, s = 1.45, ch = polymerChain(p, { n: 5, x: X, y: Y, s, water: .001 });
+  const M0 = i => [X + s * ((ch.sp * (i - 1 - 2) + ch.sp * (i - 2) + 90) / 2), Y + s * (ch.R + 50)];
+  // our own leaving waters, one per new bond: they form where H and OH meet, then drift off
+  const ws = [3, 4].map(i => { const g = G(p, { o: 0 }); waterMolecule(g, { s: .62 * s * .9 }); wLabel(g, H2O, { x: 0, y: 92, size: 28, fill: COL.chalk, o: 1 }); return { i, g, at: M0(i) }; });
+  const k1 = t => t < tMeet ? lerp(0, .12, ramp(t, .2, .9)) : t < tLose ? lerp(.12, .35, io(ramp(t, tMeet, tMeet + 1.6))) : t < tBond ? lerp(.35, .62, ramp(t, tLose, tLose + 3)) : lerp(.62, 1, ramp(t, tBond, tBond + 1.4));
+  const k2 = t => ramp(t, tAgain + .2, tAgain + 2.2);
+  const drift = [[tLose + 3.4, tLose + 6.8, [300, 200]], [tAgain + 1.8, tAgain + 3, [420, 60]]];
+  clockRun(t => {
+    const a = k1(t);
+    if (a < 1) ch.dehydrate(3, a); else { ch.dehydrate(3, 1); if (t < tAgain + .2) ch.show(4); else ch.dehydrate(4, k2(t)); }   // the k = 1 pose first, so seeking and playing leave the same hidden state
+    ws.forEach(({ i, g, at: [x0, y0] }, n) => {
+      const k = i === 3 ? a : (t < tAgain + .2 ? 0 : k2(t)), [ta, tb, [dx, dy]] = drift[n], d = io(ramp(t, ta, tb));
+      place(g, x0 + dx * d, y0 + dy * d - 30 * Math.sin(Math.PI * d), ramp(k, .55, .6));
+    });
+  }, D);
+  // ends: every monomer has H at one end and OH at the other
+  say(p, 'every monomer: OH at one end, H at the other', 800, 110, tEnds + .2, { size: 32 });
+  [ch.beads[0].tagL, ch.beads[2].tagR, ch.beads[3].tagL, ch.beads[3].tagR].forEach((e, i) => pulse(e, tEnds + .5 + .3 * i, 1.5));
+  hide(say(p, 'new monomer', 1203, 240, tEnds + .8, { size: 26, fill: COL.dim, weight: 500 }), tMeet + .6, .4);
+  // lose: the chain's H and the monomer's OH leave together as one water
+  say(p, 'H + OH leave together as one water', 800, 160, tLose + 2.6, { size: 28, fill: COL.dim, weight: 500 });
+  // bond: the new bond, and the name
+  const nb = G(p, { o: 0 }); show(nb, tBond + .5);
+  wLabel(nb, 'new bond', { x: ch.mid(3)[0], y: Y - 120, size: 28, fill: MC.flash, o: 1 });
+  path(nb, `M${ch.mid(3)[0]} ${Y - 106}V${Y - 30}`, { stroke: MC.flash, 'stroke-width': 3 });
+  hide(nb, tAgain, .4);
+  say(p, 'DEHYDRATION', 110, 720, tBond + 2.6, { size: 72, fill: WC.bond, anchor: 'start', weight: 700 });
+  say(p, 'water removed, bond formed, polymer longer', 112, 772, tBond + 3.4, { size: 30, fill: COL.dim, anchor: 'start', weight: 500 });
+  // again: one more block, one more water
+  const cnt = say(p, '', 1480, 110, tBond + .8, { size: 30, anchor: 'end' });
+  clockRun(t => { const n = t < tBond + .6 ? '' : t < tAgain + 1.6 ? 'units: 4' : 'units: 5'; if (cnt.textContent !== n) cnt.textContent = n; }, D);
+}],
+
+['enz', 'Enzymes', (m, D) => {
+  const p = panel(0), tEnz = m('enz'), tGrab = m('grab'), tSnap = m('snap');
+  const X = 640, Y = 500, s = 1.45, ch = polymerChain(p, { n: 4, x: X, y: Y, s, water: .001, enzyme: true });
+  const enzL = ch.enzyme.parentNode; put(enzL, { o: 0 }); show(enzL, tEnz + .1, .4);
+  const bx = ch.mid(3)[0], M0 = [X + s * ((ch.sp * (2 - 1.5) + ch.sp * (3 - 1.5) + 90) / 2), Y + s * (ch.R + 50)];
+  const k = t => t < tEnz ? .12 : t < tGrab ? lerp(.12, .2, ramp(t, tEnz + .1, tEnz + .9)) : t < tSnap ? lerp(.2, .52, ramp(t, tGrab + .2, tGrab + 2.4)) : lerp(.52, 1, ramp(t, tSnap + .1, tSnap + 2.4));
+  const wg = G(p, { o: 0 }); waterMolecule(wg, { s: .8 }); wLabel(wg, H2O, { y: 90, size: 28, o: 1 });
+  const free = enzyme(p, { R: 58, s, o: 0 });
+  const freeY = Y + s * (-ch.R - 22 - 170);
+  clockRun(t => {
+    const a = k(t); ch.dehydrate(3, a);
+    const d = io(ramp(t, tSnap + 1.4, tSnap + 2.6));
+    place(wg, M0[0] + 380 * d, M0[1] + 150 * d - 40 * Math.sin(Math.PI * d), ramp(a, .55, .6));
+    place(free, bx + 60 * io(ramp(t, tSnap + 2.6, tSnap + 4)), freeY + 6 * Math.sin(2 * t), ramp(a, .87, .97), s); free.bite(.6 + .4 * Math.sin(3 * t) ** 2);
+  }, D);
+  // on its own: too slow (a clock whose hand creeps)
+  const slow = G(p, { o: 0 }); show(slow, .3);
+  const clk = G(slow, { x: 470, y: 120 }); mk('circle', { r: 30, fill: 'none', stroke: COL.dim, 'stroke-width': 4 }, clk);
+  const hand = path(clk, 'M0 0V-22', { stroke: COL.dim, 'stroke-width': 4 });
+  clockRun(t => put(hand, { r: Math.round(t * 4) }), D);
+  wLabel(slow, 'on its own: far too slow', { x: 520, y: 132, size: 32, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+  hide(slow, tEnz + .2, .4);
+  // enz: the enzyme drops in
+  const el = say(p, 'enzyme', bx + 120, Y - 110, tEnz + .5, { size: 32, fill: MC.enzyme, anchor: 'start' });
+  hide(say(p, 'a macromolecule that speeds the reaction up', 800, 120, tEnz + .9, { size: 30 }), tSnap + 1.4, .4);
+  hide(el, tSnap + 1.4, .3);
+  // grab: holds both blocks in position
+  say(p, 'holds both blocks in just the right position', 110, 760, tGrab + .6, { size: 30, anchor: 'start' });
+  // snap: bond, water out fast, enzyme free again
+  say(p, 'ready again', bx + 190, freeY + 10, tSnap + 2.6, { size: 30, fill: MC.enzyme, anchor: 'start' });
+  say(p, 'bond formed, water out: fast', 110, 810, tSnap + .9, { size: 30, fill: COL.dim, anchor: 'start', weight: 500 });
+}],
+
+/* ---------- hydrolysis ---------- */
+['hydro', 'Hydrolysis', (m, D) => {
+  const p = panel(0), tWater = m('water'), tSplit = m('split'), tName = m('name'), tEat = m('eat');
+  const A = G(p), X = 800, Y = 360, s = 1.4, ch = polymerChain(A, { n: 5, x: X, y: Y, s });
+  const k = t => t < tSplit ? .4 * io(ramp(t, tWater - .3, tSplit - .1)) : lerp(.4, 1, ramp(t, tSplit + .1, tSplit + 3.4));
+  clockRun(t => ch.hydrolyse(3, k(t)), D);
+  const bm = ch.mid(3);
+  const wl = say(A, H2O, bm[0] + 70, Y + s * 120, tWater + .6, { size: 28, anchor: 'start' }); hide(wl, tSplit + 1.3, .3);
+  say(A, 'H to one block', ch.at(2)[0] - 40, Y - 100, tSplit + 2.6, { size: 26, anchor: 'end', fill: COL.dim, weight: 500 });
+  say(A, 'OH to the other', ch.at(3)[0] + 140, Y - 100, tSplit + 3.2, { size: 26, anchor: 'start', fill: COL.dim, weight: 500 });
+  say(A, 'the bond breaks', bm[0] + 45, Y + 110, tSplit + 3.4, { size: 28, fill: MC.flash });
+  // name: hydrolysis beside dehydration
+  const nm = G(p, { o: 0 }); show(nm, tName + .3, .5);
+  wLabel(nm, 'HYDROLYSIS', { x: 110, y: 690, size: 64, fill: WC.bond, anchor: 'start', weight: 700, o: 1 });
+  wLabel(nm, 'water added, bond broken,', { x: 112, y: 738, size: 28, fill: COL.chalk, anchor: 'start', weight: 500, o: 1 });
+  wLabel(nm, 'polymer shorter', { x: 112, y: 776, size: 28, fill: COL.chalk, anchor: 'start', weight: 500, o: 1 });
+  const dh = G(nm, { o: 1 });
+  wLabel(dh, 'DEHYDRATION', { x: 1490, y: 690, size: 40, fill: COL.dim, anchor: 'end', weight: 700, o: 1 });
+  wLabel(dh, 'water removed, bond formed', { x: 1490, y: 730, size: 26, fill: COL.dim, anchor: 'end', weight: 500, o: 1 });
+  wLabel(nm, 'the reverse', { x: 860, y: 712, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  path(nm, 'M760 730H960M770 720L760 730L770 740M950 720L960 730L950 740', { stroke: COL.dim, 'stroke-width': 3 });
+  // eat: in the gut, enzymes cut a long chain into single monomers
+  hide(A, tEat - .2, .5); hide(nm, tEat - .2, .5);
+  const B = G(p, { o: 0 }); show(B, tEat + .1, .6);
+  B.style.display = 'none'; prog(() => { B.style.display = ''; }, tEat, .01, lin); prog(q => { A.style.display = q >= 1 ? 'none' : ''; }, tEat + .4, .01, lin);
+  const gut = gutScene(B, tEat);
+  clockRun(t => { if (t >= tEat - .1) gut.pose(t); }, D);
+  gut.pose(tEat);
+  wLabel(B, 'inside your gut', { x: 110, y: 120, size: 32, anchor: 'start', o: 1 });
+  say(B, 'enzymes', 1180, 200, tEat + .8, { size: 30, fill: MC.enzyme, anchor: 'start' });
+  say(B, 'big polymers chopped into monomers,', 800, 790, tEat + 4, { size: 32 });
+  say(B, 'small enough to use', 800, 836, tEat + 5, { size: 30, fill: COL.dim, weight: 500 });
+}],
+
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  polymerChain(p, { n: Q1_N, x: 410, y: 220, s: .85 });
+  wLabel(p, `a chain of ${Q1_N} monomers`, { x: 410, y: 130, size: 30, o: 1 });
+  mArrow(p, [410, 290], [410, 450], { color: COL.dim, w: 6 });
+  wLabel(p, 'fully digested', { x: 440, y: 380, size: 28, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+  const wq = G(p, { x: 310, y: 370 }); waterMolecule(wq, { s: .55 }); wLabel(wq, '?', { x: -60, y: 12, size: 40, fill: WC.bond, weight: 700, o: 1 });
+  Array.from({ length: Q1_N }, (_, i) => bead(p, KINDS[i % 4], 410 + (i - (Q1_N - 1) / 2) * 130, 540, 32));
+  wLabel(p, 'single monomers', { x: 410, y: 630, size: 28, fill: COL.dim, weight: 500, o: 1 });
+}, { ask: done => quiz({ x: 860, y: 90, w: 700, cls: 'side' }, [{
+  id: 'c-count',
+  prompt: [`A chain of ${Q1_N} monomers is fully digested into single monomers. Which reaction is this, and how many water molecules does it use?`],
+  build: choice([[`dehydration, ${bondsIn(Q1_N)} water released`], [`hydrolysis, ${bondsIn(Q1_N)} water added`], [`hydrolysis, ${Q1_N} water added`], [`dehydration, ${Q1_N} water released`]], 1,
+    `Right. Breaking a chain apart is hydrolysis, which adds water. ${Q1_N} units are held by ${bondsIn(Q1_N)} bonds, so ${bondsIn(Q1_N)} breaks use ${bondsIn(Q1_N)} water molecules.`,
+    ['Dehydration builds a chain and releases water. Digesting breaks the chain apart.', null,
+     `Water is used once per bond, not once per monomer: count the bonds between ${Q1_N} beads.`,
+     'That is building, not breaking: digestion splits the chain by adding water.']),
+}], done) }],
+
+/* ---------- variety ---------- */
+['diverse', 'Endless variety', (m, D) => {
+  const p = panel(0), tCells = m('cells'), tVary = m('vary'), tLet = m('letters'), tOrd = m('order');
+  // cells: one cell, many different polymers
+  const A = G(p);
+  cellBlob(A, { x: 800, y: 430, w: 1320, h: 700 });
+  const crowd = [];
+  for (let i = 0; i < 16; i++) {
+    const c = i % 4, r = Math.floor(i / 4), n = 4 + Math.floor(wHash(i, 2) * 6);
+    const seq = Array.from({ length: n }, (_, j) => KINDS[Math.floor(wHash(i * 13 + j, 3) * 4)]);
+    const x = 380 + c * 280 + (wHash(i, 4) - .5) * 90, y = 220 + r * 140 + (wHash(i, 5) - .5) * 40;
+    const g = G(A, { x, y }), b = beadString(g, wavePts(n, 32, 10 + 10 * wHash(i, 6), i, .9), seq, { r: 13, r0: (wHash(i, 7) - .5) * 60, o: 0 });
+    tw(b, { o: 1 }, tCells + .1 + .06 * i, .4); crowd.push([g, x, y]);
+  }
+  clockRun(t => { t = Math.min(t, tVary + .5); crowd.forEach(([g, x, y], i) => place(g, x + 6 * Math.sin(.8 * t + i), y + 5 * Math.sin(.6 * t + 2 * i))); }, D);
+  say(A, 'thousands of different macromolecules in one cell', 800, 850, tCells + .8, { size: 32 });
+  hide(A, tVary - .2, .4);
+  prog(q => { A.style.display = q >= 1 ? 'none' : ''; }, tVary + .3, .01, lin);
+  // vary: the same kinds of molecule differ a little between cells, more within a species, most between species
+  const B = G(p, { o: 0 }); show(B, tVary + .1, .4);
+  const base = ['circle', 'square', 'hex', 'diamond', 'circle', 'hex', 'square'];
+  const rows = [['two cells of one body', [3]], ['two members of a species', [1, 4, 5]], ['two different species', [0, 2, 3, 5, 6]]];
+  wLabel(B, 'how different', { x: 1260, y: 160, size: 26, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+  rows.forEach(([lab, diff], k) => {
+    const y = 270 + k * 170, t0 = tVary + .3 + [0, 2.2, 4.6][k], R = G(B, { o: 0 }); show(R, t0, .5);
+    wLabel(R, lab, { x: 80, y: y + 10, size: 28, anchor: 'start', o: 1 });
+    const other = base.map((b, j) => diff.includes(j) ? KINDS[(KINDS.indexOf(b) + 1 + j) % 4] : b);
+    beadString(R, wavePts(7, 46), base, { r: 19, x: 700, y });
+    beadString(R, wavePts(7, 46), other, { r: 19, x: 1060, y });
+    diff.forEach(j => mk('circle', { cx: 1060 + (j - 3) * 46, cy: y, r: 27, fill: 'none', stroke: MC.hi, 'stroke-width': 4 }, R));
+    const bar = mk('rect', { x: 1260, y: y - 14, width: 0, height: 28, rx: 8, fill: MC.hi }, R);
+    put(bar, { a_width: 0 }); tw(bar, { a_width: 46 * diff.length }, t0 + .4, .8, out);
+  });
+  say(B, 'differ more ↓', 1500, 760, tVary + 5.6, { size: 26, fill: MC.hi, anchor: 'end' });
+  hide(B, tLet - .2, .4);
+  prog(q => { B.style.display = q >= 1 ? 'none' : ''; }, tLet + .3, .01, lin);
+  // letters: an analogy, 26 letters spell every word
+  const C = G(p, { o: 0 }); show(C, tLet + .1, .4);
+  const AB = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', lx = i => 125 + i * 54;
+  [...AB].forEach((c, i) => wLabel(C, c, { x: lx(i), y: 230, size: 40, weight: 700, o: 1 }));
+  wLabel(C, 'an analogy: 26 letters', { x: 800, y: 140, size: 30, fill: COL.dim, weight: 500, o: 1 });
+  ['MONOMER', 'POLYMER', 'ENZYME'].forEach((w, k) => {
+    const t0 = tLet + 2.6 + 1.2 * k, y = 400 + k * 110;
+    [...w].forEach((c, i) => {
+      const g = G(C, { x: lx(AB.indexOf(c)), y: 230, o: 0 }); wLabel(g, c, { size: 52, fill: MC.hi, weight: 800, o: 1 });
+      tw(g, { o: 1 }, t0 + .05 * i, .2); tw(g, { x: 800 + (i - (w.length - 1) / 2) * 50, y }, t0 + .05 * i, .8, io);
+    });
+  });
+  say(C, 'spell every word in a library', 800, 760, tLet + 3.2, { size: 30 });
+  hide(C, tOrd - .2, .4);
+  prog(q => { C.style.display = q >= 1 ? 'none' : ''; }, tOrd + .3, .01, lin);
+  // order: the same blocks, different order and length
+  const E = G(p);
+  const chains = orderPic(E, { y0: 190, ys: [350, 490, 630], t0: tOrd + .1 });
+  chains.forEach((c, i) => say(E, `polymer ${i + 1}`, 1300, [350, 490, 630][i] + 10, tOrd + .9 + .7 * i, { size: 28, fill: COL.dim, anchor: 'start', weight: 500 }));
+  say(E, 'same blocks, different order and length: a different polymer', 800, 800, tOrd + 2.6, { size: 30 });
+}],
+
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  orderPic(p, { y0: 190, ys: [340, 460, 580], x0: 90, sp: 62, r: 23, lc: 410 });
+  ['polymer 1', 'polymer 2', 'polymer 3'].forEach((s, i) => wLabel(p, s, { x: 590, y: [340, 460, 580][i] + 10, size: 26, fill: COL.dim, anchor: 'start', weight: 500, o: 1 }));
+  wLabel(p, 'and thousands more…', { x: 410, y: 700, size: 28, fill: COL.dim, weight: 500, o: 1 });
+}, { ask: done => quiz({ x: 860, y: 90, w: 700, cls: 'side' }, [{
+  id: 'c-diverse',
+  prompt: ['Cells make thousands of different polymers from a small set of monomers. Why is that possible?'],
+  build: choice([['Each polymer uses its own special monomers.'], ['The same monomers can be joined in different orders and lengths.'], ['Water changes the monomers each time.'], ['Enzymes become part of every polymer.']], 1,
+    'Right. Like letters making many words: the order and the length of the chain make each polymer different.',
+    ['The set of monomers is small and shared: the polymers differ in how the same blocks are arranged.', null,
+     'Water only leaves or enters at the bond; the monomers themselves stay the same kinds.',
+     'Enzymes are not used up: they speed the reaction and are free to work again.']),
+}], done) }],
+
+/* ---------- summary ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['Four classes of large molecules;', 'three are polymers, built from monomers.', g => { carbGlyph(g, { x: 180, y: 0, s: .5 }); }],
+    ['Dehydration removes water and forms a bond;', 'enzymes speed it up.', g => { bead(g, 'circle', 130, 0, 22); bead(g, 'square', 190, 0, 22); path(g, 'M152 0H168', { stroke: WC.stick, 'stroke-width': 8 }); waterMolecule(g, { x: 250, y: 40, s: .36 }); mArrow(g, [200, 38], [230, 54], { color: COL.dim, w: 3, head: 9 }); }],
+    ['Hydrolysis adds water and breaks a bond.', '', g => { bead(g, 'circle', 120, 0, 22); bead(g, 'square', 220, 0, 22); waterMolecule(g, { x: 170, y: 40, s: .36 }); }],
+    ['A small set of monomers, in different orders,', 'gives endless variety.', g => { ORDERS.forEach((seq, i) => beadString(g, seq.slice(0, 5).map((_, j) => [100 + j * 34, -40 + i * 40]), seq, { r: 13 })); }],
+  ];
+  const icons = [];
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: -16, y: 190 + i * 160, o: 0 });
+    const ic = G(g); icon(ic); icons.push(ic);
+    T(g, a, { x: 330, y: b ? -6 : 12, size: 36, weight: 600 }); if (b) T(g, b, { x: 330, y: 40, size: 32, fill: COL.dim });
+    tw(g, { o: 1, x: 0 }, i ? m('w' + (i + 1)) : .15, .6);   // row 1 comes in with "To sum up"
+  });
+  say(p, 'Now try the chapter practice.', 800, 850, m('end'), { size: 32, fill: WC.bond });
+  pulse(icons[0], m('end') + .2, 1.15);
+  clockRun(t => icons.forEach((ic, i) => put(ic, { y: Math.round(50 * Math.sin(1.6 * t + 1.3 * i)) / 10 })), D);   // the icons breathe while each line is read
+}],
+
+['final1', 'Chapter practice', (m, D) => {
+  // A picture on the right for each practice question; the card's build shows the one it needs (pics.show(key)).
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('terms', g => {
+    beadString(g, wavePts(6, 60, 14), KINDS, { r: 22, x: 1270, y: 220 });
+    wLabel(g, 'polymer', { x: 1270, y: 290, size: 28, fill: COL.dim, weight: 500, o: 1 });
+    lipidGlyph(g, { x: 1150, y: 480, s: .8 }); wLabel(g, 'lipid', { x: 1150, y: 580, size: 28, fill: COL.dim, weight: 500, o: 1 });
+    enzyme(g, { x: 1420, y: 480, R: 50 }); wLabel(g, 'enzyme', { x: 1420, y: 580, size: 28, fill: COL.dim, weight: 500, o: 1 });
+    waterMolecule(g, { x: 1270, y: 720, s: .7 }); wLabel(g, H2O, { x: 1270, y: 810, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  });
+  at('build', g => {
+    Array.from({ length: P_BUILD }, (_, i) => bead(g, KINDS[i % 4], 1270 + (i - (P_BUILD - 1) / 2) * 92, 200, 28));
+    wLabel(g, `${P_BUILD} monomers`, { x: 1270, y: 120, size: 30, o: 1 });
+    mArrow(g, [1270, 260], [1270, 420], { color: COL.dim });
+    wLabel(g, 'dehydration', { x: 1295, y: 350, size: 26, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+    const w = waterMolecule(g, { x: 1140, y: 340, s: .5 }); wLabel(g, '?', { x: 1080, y: 352, size: 40, fill: WC.bond, weight: 700, o: 1 });
+    beadString(g, wavePts(P_BUILD, 70), KINDS, { r: 26, x: 1270, y: 500 });
+    wLabel(g, 'one chain', { x: 1270, y: 580, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  });
+  at('break', g => {
+    beadString(g, wavePts(P_BREAK, 64), KINDS, { r: 23, x: 1270, y: 200 });
+    wLabel(g, `${P_BREAK} monomers in one chain`, { x: 1270, y: 120, size: 30, o: 1 });
+    mArrow(g, [1270, 260], [1270, 420], { color: COL.dim });
+    wLabel(g, 'hydrolysis', { x: 1295, y: 350, size: 26, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+    waterMolecule(g, { x: 1140, y: 340, s: .5 }); wLabel(g, '?', { x: 1080, y: 352, size: 40, fill: WC.bond, weight: 700, o: 1 });
+    Array.from({ length: P_BREAK }, (_, i) => bead(g, KINDS[i % 4], 1270 + (i - (P_BREAK - 1) / 2) * 76, 500 + (i % 2 ? 16 : -16), 23));
+    wLabel(g, '?', { x: 1270, y: 600, size: 40, fill: WC.bond, weight: 700, o: 1 });
+  });
+  at('lipid', g => {
+    GLYPHS.forEach(([name, f], i) => { const x = 1130 + (i % 2) * 290, y = 230 + Math.floor(i / 2) * 300; f(g, { x, y, s: .85 }); wLabel(g, '?', { x, y: y + 120, size: 36, fill: WC.bond, weight: 700, o: 1 }); });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('terms');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-terms', prompt: ['True or false?'],
+    build: withPic('terms', grid([
+      { parts: ['A polymer is a long molecule made of many similar monomers.'], ans: ['t'], why: 'True: monomers are the building blocks, the polymer is the chain.' },
+      { parts: ['Lipids are polymers, just like proteins.'], ans: ['f'], why: 'False: lipids are large, but they are not chains of repeating monomers.' },
+      { parts: ['A dehydration reaction forms a bond and releases a water molecule.'], ans: ['t'], why: 'True: H from one block and OH from the other leave as water.' },
+      { parts: ['Hydrolysis builds polymers by removing water.'], ans: ['f'], why: 'False: hydrolysis adds water and breaks a bond, making the polymer shorter.' },
+      { parts: ['Enzymes speed up the dehydration reaction.'], ans: ['t'], why: 'True: an enzyme holds the blocks in position and is then free to work again.' },
+    ], TF, { multi: false, text: true })) },
+  { id: 'p-build', prompt: [`A cell joins ${P_BUILD} monomers into one chain by dehydration.`],
+    build: withPic('build', blanks([
+      { parts: ['bonds formed: ', { box: String(bondsIn(P_BUILD)) }], why: `${P_BUILD} monomers in a row are held by ${bondsIn(P_BUILD)} bonds.`, hint: 'Count the gaps between the beads in a row.' },
+      { parts: ['water molecules released: ', { box: String(bondsIn(P_BUILD)) }], why: `Each bond formed releases one water: ${bondsIn(P_BUILD)}.`, hint: 'One water leaves for every new bond.' },
+    ])) },
+  { id: 'p-break', prompt: [`A chain of ${P_BREAK} monomers is fully hydrolysed.`],
+    build: withPic('break', blanks([
+      { parts: ['water molecules used: ', { box: String(bondsIn(P_BREAK)) }], why: `${P_BREAK} monomers have ${bondsIn(P_BREAK)} bonds, and each break uses one water.`, hint: 'One water goes in for every bond broken.' },
+      { parts: ['monomers released: ', { box: String(P_BREAK) }], why: `Every one of the ${P_BREAK} monomers ends up on its own.`, hint: 'Fully hydrolysed: every bond is broken.' },
+    ])) },
+  { id: 'p-lipid', prompt: ['Which class of large biological molecule is NOT built from repeating monomers?'],
+    build: withPic('lipid', choice([['carbohydrates'], ['lipids'], ['proteins'], ['nucleic acids']], 1,
+      'Right. Lipids are large, but they are not chains of repeating units, so they are not true polymers.',
+      ['Carbohydrates are polymers: long chains of monomers.', null,
+       'Proteins are polymers: long chains of monomers.',
+       'Nucleic acids are polymers: long chains of monomers.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+boot();
+</script>
+</body>
+</html>

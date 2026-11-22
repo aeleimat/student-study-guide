@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 5, Lesson 4: Polynucleotides and the Double Helix — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 5 (Large Biological Molecules), lesson 4: nucleotides join 3′ OH to 5′ phosphate (dehydration) into a
+// strand with 5′ and 3′ ends, the sugar-phosphate backbone and the base sequence, check 1, the antiparallel partner and
+// A–T / G–C pairing by hydrogen bonds, the percent rule, the ladder twisted into the helix, semiconservative replication,
+// check 2, the chapter wrap and practice. Plan and errata: books/biology/chapters/chapter-05/lesson-04.md.
+const CHAPTER = { number: 504, label: '5, lesson 4', title: 'Polynucleotides and the Double Helix', minutes: 6, language: 'en', lead: false };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+// A leader line from a label to the thing it names.
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+// A highlight ring drawn around its own origin (so pulse scales it in place); o 0.
+const ringAt = (p, [x, y], r, color = MC.hi, w = 5) => { const g = G(p, { x, y, o: 0 }); mk('circle', { r, fill: 'none', stroke: color, 'stroke-width': w }, g); return g; };
+// A cream flash where a bond forms: a soft disc that swells and fades from t0.
+const flashAt = (p, [x, y], t0, r = 34) => { const g = G(p, { x, y, o: 0, s: .6 }); mk('circle', { r, fill: MC.flash, 'fill-opacity': .75 }, g); tw(g, { o: 1, s: 1.2 }, t0, .25, out); tw(g, { o: 0, s: 1.5 }, t0 + .25, .6); return g; };
+// Colour the soft backbone band of a strand (old strands blue, new strands orange).
+const tintSpine = (strand, color, op = .5) => { strand.spine.setAttribute('stroke', color); strand.spine.setAttribute('stroke-opacity', op); return strand; };
+// dnaLadder end labels at a readable screen size for the ladder's scale.
+const ladSize = s => Math.round(32 / s);
+const hideLabels = lad => Object.values(lad.labels).forEach(e => put(e, { o: 0 }));
+const OLD = WC.cold, NEW = MC.hi;   // replication: old strands blue, new strands orange
+
+// Type letters into boxes (a base sequence): one box per base, judged letter by letter, case ignored.
+const letterBoxes = ({ ans, pre = '', post = '', why, hint, fx: onRight }) => (body, api) => {
+  const line = h('div', 'bline'), mark = h('span', 'mark'), whyEl = h('div', 'why');
+  const end = s => { const e = h('span', 'lb-end', s); Object.assign(e.style, { fontSize: '30px', fontWeight: 700, margin: '0 10px' }); return e; };
+  if (pre) line.append(end(pre));
+  const boxes = [...ans].map((a, i) => {
+    const b = h('input', 'box');
+    Object.assign(b, { type: 'text', autocomplete: 'off', spellcheck: false, maxLength: 1 });
+    b.setAttribute('aria-label', `base ${i + 1} of ${ans.length}`);
+    b.dataset.ans = a; b.style.width = '2.6ch'; b.style.textTransform = 'uppercase'; b.style.textAlign = 'center';
+    b.addEventListener('input', () => { b.value = b.value.toUpperCase().replace(/[^ATGCU]/g, ''); if (b.value && boxes[i + 1]) boxes[i + 1].focus(); });
+    line.append(b);
+    return b;
+  });
+  if (post) line.append(end(post));
+  line.append(mark);
+  body.append(h('div', 'brow', [line, whyEl]));
+  body.classList.add('blanks');
+  let played = false;
+  const judge = () => {
+    let ok = true;
+    for (const b of boxes) { const g = b.value.trim().toUpperCase() === b.dataset.ans; b.classList.toggle('good', g); b.classList.toggle('bad', !g); ok = ok && g; }
+    mark.className = 'mark ' + (ok ? 'good' : 'bad'); mark.textContent = ok ? '✓' : '✗';
+    if (ok && !played) { played = true; onRight?.(); }
+    return ok;
+  };
+  requestAnimationFrame(() => { if (P.started) boxes[0]?.focus({ preventScroll: true }); });
+  return {
+    check() { const ok = judge(); api.grade(ok, ok ? why : hint); },
+    reveal() { boxes.forEach(b => { b.value = b.dataset.ans; }); judge(); return why; },
+    lock() { boxes.forEach(b => { b.disabled = true; }); },
+    hint: ['type A, T, G or C;', kbd('Tab'), translate('hintNextBox'), kbd('Enter'), translate('hintCheck')],
+  };
+};
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const withPic = (key, build) => (body, api) => { S.pics?.(key); return build(body, api); };
+
+/* ---------- shared numbers and sequences (computed, never typed twice) ---------- */
+const SEQ8 = 'ATGCCAGT';                          // the backbone strand and the twisted ladder
+const SEQ_HELIX = 'ATGC';                         // the four pairs of the helix beat: A–T, T–A, G–C, C–G
+const SEQ_COPY = 'ATGCCA';                        // the replicating helix
+const Q2_SEQ = 'ATGCCA', Q2_ANS = mComp(Q2_SEQ);  // the partner read from its 5′ end: TGGCAT
+const pct = a => ({ A: a, T: a, G: (100 - 2 * a) / 2, C: (100 - 2 * a) / 2 });   // the pairing rule: A = T, G = C
+const RATIO_A = 30, RATIO = pct(RATIO_A);         // ratio beat: 30, 30, 20, 20
+const PRACT_A = 22, PRACT = pct(PRACT_A);         // practice: 22, 22, 28, 28
+
+/* ---------- pictures used in more than one beat ---------- */
+// A 10 × 10 grid of base squares: counts {A, T, G, C} fill in that order, row by row; .set(cA, cT, cG, cC) poses it.
+function baseGrid(p, { x = 150, y = 220, cell = 44, gap = 5, o = 1 } = {}) {
+  const g = G(p, { x, y, o }), sq = i => { const c = i % 10, r = Math.floor(i / 10); return `M${c * cell} ${r * cell}h${cell - gap}v${cell - gap}h${-(cell - gap)}Z`; };
+  path(g, Array.from({ length: 100 }, (_, i) => sq(i)).join(''), { fill: '#1a2f4d', stroke: COL.faint, 'stroke-width': 1.5 });
+  const fills = {}; for (const b of 'ATGC') fills[b] = path(g, '', { fill: MC[b] });
+  const rest = path(g, '', { fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, { o: 0 });
+  const gr = Object.assign(g, {
+    fills, rest, sq, cell,
+    set(cA = 0, cT = 0, cG = 0, cC = 0) {
+      let i0 = 0;
+      for (const [b, c] of [['A', cA], ['T', cT], ['G', cG], ['C', cC]]) { const n = Math.round(c); let d = ''; for (let i = i0; i < i0 + n; i++) d += sq(i); mD(fills[b], d); i0 += n; }
+      return gr;
+    },
+  });
+  return gr;
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'From chain to helix', (m, D) => {
+  const p = panel(0);
+  const cell = cellScene(p, { x: 450, y: 470, w: 820, h: 640, o: .55, ribos: 5 });
+  const nuc = cell.pt(cell.nucleus.x, cell.nucleus.y + cell.nucleus.R + 44);
+  wLabel(p, 'DNA in the nucleus', { x: nuc[0], y: nuc[1], size: 26, fill: COL.dim, weight: 500, o: .9 });
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 5 · LESSON 4', { x: 1210, y: 150, size: 26, fill: COL.dim, o: 1 });
+  ['Polynucleotides', 'and the', 'double helix'].forEach((s, i) => wLabel(ttl, s, { x: 1210, y: 240 + i * 74, size: 64, o: 1 }));
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out);
+  // chain: a short strand grows nucleotide by nucleotide
+  const ic1 = G(p, { o: 0 });
+  const strand = polynucleotide(ic1, { seq: 'ATG', x: 985, y: 545, s: .3, ends: false });
+  wLabel(ic1, 'a chain', { x: 1010, y: 800, size: 28, o: 1 });
+  show(ic1, m('chain'), .5);
+  prog(q => strand.grow(1 + 2 * q), m('chain') + .4, 2.6, lin);
+  // helix: a ghost double helix
+  const ic2 = G(p, { o: 0 });
+  const hx = dnaLadder(ic2, { seq: 'ATGCAT', x: 1220, y: 520, s: .23, arrows: false }); hideLabels(hx); hx.twist(1);
+  wLabel(ic2, 'a double helix', { x: 1220, y: 800, size: 28, o: 1 });
+  tw(ic2, { o: .85 }, m('helix') + .3, 1);
+  // copy: a small helix splits into two copies
+  const ic3 = G(p, { o: 0 }), cp = [0, 1].map(() => { const g = G(ic3, { x: 1450 }); const l = dnaLadder(g, { seq: 'ATGCAT', x: 0, y: 520, s: .2, arrows: false }); hideLabels(l); l.twist(1); return g; });
+  wLabel(ic3, 'a copy', { x: 1450, y: 800, size: 28, o: 1 });
+  show(ic3, m('copy'), .5);
+  tw(cp[0], { x: 1400 }, m('copy') + .9, 1.4); tw(cp[1], { x: 1500 }, m('copy') + .9, 1.4);
+}],
+
+/* ---------- the chain ---------- */
+['chain', 'The phosphodiester link', (m, D) => {
+  // Three loose nucleotides; the camera pushes in. Nucleotide 2 and then 3 slide into place: the free 3′ OH of the one
+  // before meets the 5′ phosphate, the bond flashes and a water molecule leaves (dehydration).
+  const p = panel(0), cam = camera(p, D, { x: 800, y: 450, z: .62 }), W = cam.world;
+  cam.to({ z: 1 }, .2, 2.6);
+  const X0 = 560, Y0 = 200;
+  const sd = polynucleotide(W, { seq: 'ATG', x: X0, y: Y0, nums: true, ends: false });
+  const LOOSE = [[0, 0], [330, -40], [660, -80]];
+  const tF = m('free'), tJ = m('join'), tAg = m('again'), tE = m('ends');
+  const tJ1 = tJ + 1, tA1 = tJ1 + 2.2, tJ2 = tAg + .6, tA2 = tJ2 + 2.2;   // slide in, then the link forms
+  clockRun(t => {
+    const a1 = io(ramp(t, tJ1, tA1)), a2 = io(ramp(t, tJ2, tA2));
+    sd.place(1, LOOSE[1][0] * (1 - a1), LOOSE[1][1] * (1 - a1), 1).place(2, LOOSE[2][0] * (1 - a2), LOOSE[2][1] * (1 - a2), 1);
+    sd.linkOn(0, ramp(t, tA1 - .1, tA1 + .2)).linkOn(1, ramp(t, tA2 - .1, tA2 + .2)).refresh();
+  }, D);
+  // the parts, from lesson 3
+  const parts = G(W, { o: 0 }); show(parts, .9, .6); hide(parts, tF, .4);
+  const p0 = sd.pt(0, 'P'), b0 = sd.pt(0, 'B');
+  wLabel(parts, 'phosphate on C5′', { x: p0[0] - 50, y: p0[1] + 10, size: 28, fill: MC.P, anchor: 'end', o: 1 });
+  wLabel(parts, 'sugar', { x: X0 - 70, y: Y0 + 14, size: 28, fill: MC.sugar, anchor: 'end', o: 1 });
+  wLabel(parts, 'base on C1′', { x: b0[0] + 50, y: b0[1] - 50, size: 28, fill: MC.A, o: 1 });
+  hide(say(W, 'three loose nucleotides', 1050, 680, tF + .2, { size: 32, fill: COL.dim, weight: 500 }), tJ1, .4);
+  // free: the first sugar's 3′ OH
+  const OH = (i, dy = 0) => { const [x, y] = sd.pt(i, 'O3'); return [x, y + 20 + dy]; };
+  const r1 = ringAt(W, OH(0), 34, MC.oh); show(r1, tF + 4.3, .3); pulse(r1, tF + 4.6, 1.25); hide(r1, tA1, .3);
+  const lOH = say(W, 'OH on the 3′ carbon', X0 - 90, OH(0)[1] + 10, tF + 4.4, { size: 30, fill: MC.oh, anchor: 'end' }); hide(lOH, tJ1, .4);
+  // join: the next nucleotide's 5′ phosphate
+  const pr1 = sd.nucs[1].rings.phosphate; tw(pr1, { o: 1 }, tJ + .3, .3); tw(pr1, { o: 0 }, tA1, .3);
+  flashAt(W, [X0 - 23.5, Y0 + 66], tA1);
+  tw(sd.link(0), { o: 1 }, tA1, .2); tw(sd.link(0), { o: 0 }, tA1 + 1.6, .8);
+  say(W, 'phosphodiester bond', X0 - 90, Y0 + 76, tA1 + .3, { size: 30, fill: MC.flash, anchor: 'end' });
+  const w1 = waterMolecule(W, { x: X0 - 40, y: Y0 + 66, s: .62, o: 0 });
+  tw(w1, { o: 1, x: X0 - 120, y: Y0 + 170 }, tA1 + .1, .7); tw(w1, { x: 260, y: 470 }, tJ + 8.4, 1.8, io);
+  const lw = say(W, 'water leaves: dehydration', 260, 550, tJ + 8.9, { size: 28 });
+  hide(w1, tAg, .4); hide(lw, tAg, .4);
+  // again: the third joins the same way
+  const r2 = ringAt(W, [X0 - 23.5, Y0 + 206 + 70], 34, MC.oh); show(r2, tAg + .3, .3); hide(r2, tA2, .3);   // nucleotide 2's OH, in place since the first join
+  const pr2 = sd.nucs[2].rings.phosphate; tw(pr2, { o: 1 }, tAg + .3, .3); tw(pr2, { o: 0 }, tA2, .3);
+  flashAt(W, [X0 - 23.5, Y0 + 206 + 66], tA2);
+  tw(sd.link(1), { o: 1 }, tA2, .2); tw(sd.link(1), { o: 0 }, tA2 + 1.6, .8);
+  say(W, 'phosphodiester bond', X0 - 90, Y0 + 206 + 76, tA2 + .3, { size: 26, fill: COL.dim, anchor: 'end' });
+  const w2 = waterMolecule(W, { x: X0 - 40, y: Y0 + 272, s: .62, o: 0 });
+  tw(w2, { o: 1, x: X0 - 120, y: Y0 + 376 }, tA2 + .1, .7); tw(w2, { x: 260, y: 600 }, tA2 + 1.4, 1.8, io); hide(w2, tE, .4);
+  // ends: 5′ end (free phosphate) and 3′ end (free OH)
+  tw(sd.spine, { o: 1 }, tE + .2, .8);
+  const pT = sd.pt(0, 'P'), r5 = ringAt(W, pT, 42, MC.P, 6); show(r5, tE + 2.2, .3); pulse(r5, tE + 2.5, 1.2);
+  say(W, '5′ end', pT[0] - 70, pT[1] + 4, tE + 2.3, { size: 40, anchor: 'end', weight: 700 });
+  say(W, 'a free phosphate on C5′', pT[0] - 70, pT[1] + 44, tE + 2.8, { size: 26, fill: COL.dim, anchor: 'end', weight: 500 });
+  const o3 = [X0 - 23.5, Y0 + 412 + 70], r3 = ringAt(W, o3, 36, MC.oh, 6); show(r3, tE + 7.2, .3); pulse(r3, tE + 7.5, 1.2);
+  say(W, '3′ end', o3[0] - 70, o3[1] + 4, tE + 7.3, { size: 40, anchor: 'end', weight: 700 });
+  say(W, 'a free OH on C3′', o3[0] - 70, o3[1] + 44, tE + 7.8, { size: 26, fill: COL.dim, anchor: 'end', weight: 500 });
+  // dir: the strand's direction
+  const ar = mArrow(W, [820, 90], [820, 690], { color: COL.chalk, w: 7, head: 22, o: 0 }); show(ar, m('dir') + .3, .6);
+  say(W, 'read 5′ → 3′', 860, 400, m('dir') + .6, { size: 40, anchor: 'start', weight: 700 });
+}],
+
+/* ---------- the backbone and the sequence ---------- */
+['backbone', 'Backbone and sequence', (m, D) => {
+  const p = panel(0), X = 640, Y = 120, s = .42, st8 = 206 * s;
+  const sd = polynucleotide(p, { seq: SEQ8, x: X, y: Y, s, ends: false });
+  sd.spine.setAttribute('stroke-opacity', .34);
+  const rowY = i => Y + i * st8 - 12.36 * s;   // the base's centre line
+  const topP = sd.pt(0, 'P'), botO = sd.pt(SEQ8.length - 1, 'O3');
+  wLabel(p, '5′', { x: topP[0] - 44, y: topP[1] + 12, size: 34, weight: 700, o: 1 });
+  wLabel(p, '3′', { x: botO[0] - 44, y: botO[1] + 22, size: 34, weight: 700, o: 1 });
+  // bb: the repeating sugar-phosphate line
+  tw(sd.spine, { o: 1 }, m('bb') + .2, .8);
+  say(p, 'sugar-phosphate backbone', 560, 330, m('bb') + 4.9, { size: 32, anchor: 'end' });
+  say(p, 'sugar, phosphate, sugar, phosphate …', 560, 372, m('bb') + .3, { size: 24, fill: COL.dim, anchor: 'end', weight: 500 });
+  leader(p, [570, 320], [620, 320], m('bb') + 5);
+  // bases: each lights in turn
+  sd.nucs.forEach((nu, i) => { const r = nu.rings.base; tw(r, { o: 1 }, m('bases') + .3 + .3 * i, .2); tw(r, { o: 0 }, m('bases') + .8 + .3 * i, .4); });
+  const lb = [say(p, 'bases hang off it,', 1000, 200, m('bases') + .3, { size: 32, anchor: 'start' }), say(p, 'one from each sugar', 1000, 242, m('bases') + .9, { size: 28, fill: COL.dim, anchor: 'start', weight: 500 })];
+  // seq: the letters, in base colours
+  [...SEQ8].forEach((b, i) => say(p, b, 830, rowY(i) + 16, m('seq') + .3 + .18 * i, { size: 44, fill: MC[b], weight: 800 }));
+  const ls = [say(p, 'the backbone is the same all along:', 1000, 420, m('seq') + .4, { size: 28, fill: COL.dim, anchor: 'start', weight: 500 }),
+    say(p, 'the order of bases is the message', 1000, 462, m('seq') + 1.8, { size: 32, anchor: 'start' })];
+  // gene: two stretches, one molecule of many genes
+  [...lb, ...ls].forEach(e => hide(e, m('gene'), .4));
+  const br = (y1, y2) => `M870 ${y1}h18V${y2}h-18`;
+  const g1 = path(p, br(rowY(0) - 26, rowY(3) + 26), { stroke: MC.G, 'stroke-width': 5 }, { d: 0 }); draw(g1, m('gene') + .3, .6);
+  const g2 = path(p, br(rowY(4) - 26, rowY(7) + 26), { stroke: MC.C, 'stroke-width': 5 }, { d: 0 }); draw(g2, m('gene') + 1.3, .6);
+  say(p, 'one gene', 910, (rowY(0) + rowY(3)) / 2 + 10, m('gene') + .5, { size: 32, fill: MC.G, anchor: 'start' });
+  say(p, 'another gene', 910, (rowY(4) + rowY(7)) / 2 + 10, m('gene') + 1.5, { size: 32, fill: MC.C, anchor: 'start' });
+  // one DNA molecule: a long strand of many genes, the shown stretch marked on it
+  const mol = G(p, { o: 0 }); show(mol, m('gene') + 2.6, .6);
+  const MX = 1400, segs = [[90, 150, MC.A], [170, 235, MC.T], [250, 290, MC.G], [300, 340, MC.C], [360, 430, MC.A], [450, 520, MC.G], [540, 600, MC.T], [620, 700, MC.C], [715, 770, MC.G]];
+  mk('rect', { x: MX - 16, y: 80, width: 32, height: 700, rx: 14, fill: '#1a2f4d', stroke: COL.chalk, 'stroke-width': 3 }, mol);
+  segs.forEach(([a, b, c]) => mk('rect', { x: MX - 12, y: a, width: 24, height: b - a, rx: 4, fill: c, 'fill-opacity': .8 }, mol));
+  mk('rect', { x: MX - 26, y: 250, width: 52, height: 90, rx: 8, fill: 'none', stroke: MC.flash, 'stroke-width': 4 }, mol);
+  path(mol, `M${MX - 30} 250L900 ${rowY(0) - 30}M${MX - 30} 340L900 ${rowY(7) + 30}`, { stroke: COL.faint, 'stroke-width': 2.5, 'stroke-dasharray': '8 8' });
+  wLabel(mol, 'one DNA molecule:', { x: MX, y: 826, size: 28, o: 1 });
+  wLabel(mol, 'many genes', { x: MX, y: 864, size: 28, fill: COL.dim, weight: 500, o: 1 });
+}],
+
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0), X = 420, Y = 190;
+  const sd = polynucleotide(p, { seq: 'AT', x: X, y: Y, s: .95, nums: true, ends: false });
+  sd.place(1, 0, 70, 1).linkOn(0, 0).refresh();
+  const oh = sd.pt(0, 'O3'), ph = sd.pt(1, 'P');
+  const q = ringAt(p, [oh[0], (oh[1] + 19 + ph[1]) / 2], 1); put(q, { o: 1 });
+  wLabel(p, '?', { x: oh[0] + 60, y: (oh[1] + ph[1]) / 2 + 30, size: 48, fill: MC.flash, weight: 800, o: 1 });
+  wLabel(p, '3′ carbon', { x: oh[0] - 60, y: oh[1] + 30, size: 30, anchor: 'end', o: 1 });
+  wLabel(p, '5′ carbon', { x: ph[0] - 60, y: ph[1] + 10, size: 30, anchor: 'end', o: 1 });
+  wLabel(p, 'neighbouring nucleotides in one strand', { x: 430, y: 650, size: 28, fill: COL.dim, weight: 500, o: 1 });
+}, { ask: done => quiz({ x: 860, y: 90, w: 700, cls: 'side' }, [{
+  id: 'c-link',
+  prompt: ['In a strand, which two positions are joined by a phosphodiester bond?'],
+  build: choice([['The 3′ hydroxyl of one nucleotide and the 5′ phosphate of the next.'], ['The 5′ phosphates of two neighbours.'], ['Two bases, by hydrogen bonds.'], ['The 1′ carbons of two sugars.']], 0,
+    'Right. The strand is built end to end: each 3′ OH meets the next 5′ phosphate, and water leaves.',
+    [null, 'Two phosphates side by side would not make the sugar, phosphate, sugar line of the backbone. Which group sits on the 3′ carbon?',
+     'Hydrogen bonds between bases hold two strands together, not neighbours in one strand.',
+     'The 1′ carbon holds the base. The link runs from the 3′ carbon of one sugar to the 5′ phosphate of the next.']),
+}], done) }],
+
+/* ---------- the second strand ---------- */
+['helix', 'Two antiparallel strands', (m, D) => {
+  const p = panel(0), s = .6, n = SEQ_HELIX.length;
+  const lad = dnaLadder(p, { seq: SEQ_HELIX, x: 800, y: 250, s, size: ladSize(s) });
+  const R = lad.right, L5 = lad.labels.L5;
+  const rowY = r => 250 + s * (r * 206 - 12.36);
+  lad.hb.forEach(e => put(e, { o: 0 })); put(lad.arrows, { o: 0 }); put(lad.labels.R5, { o: 0 }); put(lad.labels.R3, { o: 0 });
+  // second: the partner slides in, bases facing the first strand
+  const t2 = m('second');
+  clockRun(t => {
+    const a = io(ramp(t, t2 + .1, t2 + 1.9)), oo = ramp(t, t2, t2 + .5);
+    for (let i = 0; i < n; i++) R.place(i, 330 * (1 - a), 0, oo);
+    R.refresh(); lad.pairs();
+  }, D);
+  // anti: the ends the other way round, two opposite arrows
+  const tA = m('anti');
+  show(lad.labels.R3, tA + .8, .4); show(lad.labels.R5, tA + .8, .4); show(lad.arrows, tA + .4, .6);
+  pulse(L5, tA + 3, 1.4); pulse(lad.labels.R3, tA + 4.6, 1.4);
+  say(p, 'antiparallel', 800, 760, tA + 6.8, { size: 46, weight: 700 });
+  say(p, 'the strands run in opposite 5′ → 3′ directions', 800, 808, tA + 7.4, { size: 28, fill: COL.dim, weight: 500 });
+  // pair: facing bases, A with T and G with C
+  const tP = m('pair');
+  say(p, 'A pairs with T · G pairs with C', 800, 120, tP + .4, { size: 36 });
+  for (let r = 0; r < n; r++) {
+    const a = lad.left.nucs[r].rings.base, b = R.nucs[n - 1 - r].rings.base, t0 = tP + 1.2 + 1.3 * r;
+    [a, b].forEach(e => { tw(e, { o: 1 }, t0, .2); tw(e, { o: 0 }, t0 + 1, .4); });
+    const c = mChip(p, [[SEQ_HELIX[r], MC[SEQ_HELIX[r]]], [' – ', COL.chalk], [mPair(SEQ_HELIX[r]), MC[mPair(SEQ_HELIX[r])]]], { x: 1150, y: rowY(r), size: 30, o: 0 });
+    show(c, t0 + .1, .4);
+  }
+  // hb: dashed cyan hydrogen bonds, row by row
+  const tH = m('hb');
+  lad.hb.forEach((e, r) => tw(e, { o: 1 }, tH + .3 + .5 * r, .3));
+  say(p, 'hydrogen bonds', 1090, 712, tH + .6, { size: 32, fill: MC.hbond, anchor: 'start' });
+  say(p, 'one is weak; there are many', 1090, 752, tH + 4.4, { size: 26, fill: COL.dim, anchor: 'start', weight: 500 });
+  // fit: purine faces pyrimidine, so every rung is the same width
+  const tF = m('fit'), x1 = mOut(lad, lad.left.pt(0, 'C1'))[0], x2 = 1600 - x1;   // the ladder is symmetric about x 800 (the right strand may still be sliding in when this runs)
+  for (let r = 0; r < n; r++) {
+    const e = mk('rect', { x: x1, y: rowY(r) - 30, width: x2 - x1, height: 60, rx: 10, fill: 'none', stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '10 7' }, p);
+    put(e, { o: 0 }); show(e, tF + 3.4 + .25 * r, .4);
+  }
+  say(p, '2-ring purine + 1-ring pyrimidine', 560, 410, tF + .8, { size: 26, anchor: 'end' });
+  say(p, 'every rung: the same width', 560, 456, tF + 4.4, { size: 30, fill: MC.flash, anchor: 'end' });
+  lad.left.nucs.forEach((nu, i) => { const e = nu.rings.base; if (nu.bs.purine) { tw(e, { o: 1 }, tF + .9, .2); tw(e, { o: 0 }, tF + 3, .4); } });
+  R.nucs.forEach(nu => { const e = nu.rings.base; if (nu.bs.purine) { tw(e, { o: 1 }, tF + .9, .2); tw(e, { o: 0 }, tF + 3, .4); } });
+}],
+
+/* ---------- the percent rule ---------- */
+['ratio', 'Counting bases', (m, D) => {
+  const p = panel(0), grid = baseGrid(p, { x: 150, y: 230 }).set();
+  say(p, '100 bases of one DNA molecule', 370, 190, .3, { size: 30, fill: COL.dim, weight: 500 });
+  // the bars: one per base, 11 px per percent
+  const BY = 700, K = 11, BX = j => 760 + 200 * j, bars = {}, labs = {};
+  path(p, `M720 ${BY}H1520`, { stroke: COL.dim, 'stroke-width': 3 });
+  [...'ATGC'].forEach((b, j) => {
+    bars[b] = mk('rect', { x: BX(j), y: BY, width: 130, height: 0, rx: 6, fill: MC[b] }, p); put(bars[b], { a_y: BY, a_height: 0 });
+    wLabel(p, b, { x: BX(j) + 65, y: BY + 50, size: 44, fill: MC[b], weight: 800, o: 1 });
+    labs[b] = wLabel(p, `${RATIO[b]} %`, { x: BX(j) + 65, y: BY - K * RATIO[b] - 16, size: 34, o: 0 });
+  });
+  const grow = (b, t0) => { tw(bars[b], { a_y: BY - K * RATIO[b], a_height: K * RATIO[b] }, t0, 1.4, out); show(labs[b], t0 + 1.2, .4); };
+  const tA = m('a'), tT = m('t'), tG = m('gc'), tS = m('gc', 4.2);
+  // the grid counts in step with the bars
+  clockRun(t => grid.set(RATIO.A * io(ramp(t, tA + .4, tA + 1.8)), RATIO.T * io(ramp(t, tT + .6, tT + 2)), RATIO.G * io(ramp(t, tS + .3, tS + 1.7)), RATIO.C * io(ramp(t, tS + .3, tS + 1.7))), D);
+  grow('A', tA + .4);
+  say(p, `adenine: ${RATIO.A} %`, 370, 720, tA + 1.2, { size: 32, fill: MC.A });
+  grow('T', tT + .6);
+  const arc = path(p, `M${BX(0) + 65} ${BY - K * RATIO.A - 60}Q${(BX(0) + BX(1)) / 2 + 65} ${BY - K * RATIO.A - 160} ${BX(1) + 65} ${BY - K * RATIO.T - 60}`, { stroke: MC.hbond, 'stroke-width': 4, 'stroke-dasharray': '10 8' }, { d: 0 });
+  draw(arc, tT + 2.2, .6);
+  say(p, 'pairs: A = T', (BX(0) + BX(1)) / 2 + 65, BY - K * RATIO.A - 130, tT + 2.4, { size: 30, fill: MC.hbond });
+  // gc: what is left, shared equally
+  const left = 100 - RATIO.A - RATIO.T;
+  let dr = ''; for (let i = RATIO.A + RATIO.T; i < 100; i++) dr += grid.sq(i);
+  mD(grid.rest, dr); tw(grid.rest, { o: 1 }, tG + .3, .4); tw(grid.rest, { o: 0 }, tS + 1.8, .4);
+  say(p, `100 − ${RATIO.A} − ${RATIO.T} = ${left} % left`, 1140, 150, tG + .5, { size: 34 });
+  grow('G', tS + .3); grow('C', tS + .3);
+  say(p, `${left} ÷ 2 = ${RATIO.G} % each, G and C`, 1140, 200, tS + .6, { size: 34, fill: MC.G });
+}],
+
+/* ---------- ladder to helix ---------- */
+['twist', 'The double helix', (m, D) => {
+  const p = panel(0), cam = camera(p, D), W = cam.world, s = .4, Y = 150;
+  const lad = dnaLadder(W, { seq: SEQ8, x: 800, y: Y, s, perRow: 45, arrows: false, size: ladSize(s) });
+  // ladder: the sides glow, then the rungs
+  const tL = m('ladder');
+  [lad.left, lad.right].forEach(sd => { sd.spine.setAttribute('stroke-opacity', .34); tw(sd.spine, { o: 1 }, tL + .2, .6); });
+  const c1 = say(p, 'sides: the two backbones', 660, 330, tL + .3, { size: 30, anchor: 'end' });
+  const c2 = say(p, 'rungs: the base pairs', 960, 520, tL + 2, { size: 30, anchor: 'start' });
+  lad.hb.forEach((e, r) => { tw(e, { o: .3 }, tL + 2 + .08 * r, .15); tw(e, { o: 1 }, tL + 2.3 + .08 * r, .3); });
+  hide(c1, m('twist'), .4); hide(c2, m('twist'), .4);
+  // twist: about the imaginary axis; the camera eases in a little while it turns
+  const tT = m('twist');
+  const axis = path(W, `M800 ${Y - 70}V${Y + s * 1560}`, { stroke: COL.faint, 'stroke-width': 3, 'stroke-dasharray': '6 10' }, { o: 0 });
+  show(axis, tT + .2, .6);
+  prog(k => lad.twist(k), tT + .3, 3.8, lin);
+  cam.to({ z: 1.06, y: 440 }, tT + .2, 4);
+  // two: outside and inside. A ribbon crosses at the widest point where its phase is 180°, row 7's rung is near widest.
+  const tw2 = m('two'), yOut = Y + s * (-104 + 180 / 45 * 206), yIn = Y + s * (7 * 206 - 12.36);
+  say(p, 'two backbones,', 1000, yOut - 12, tw2 + .4, { size: 30, anchor: 'start' });
+  say(p, 'spiraling outside', 1000, yOut + 28, tw2 + .8, { size: 30, anchor: 'start' });
+  leader(p, [990, yOut], [892, yOut], tw2 + .4);
+  say(p, 'base pairs,', 640, yIn - 52, tw2 + 2.4, { size: 30, anchor: 'end' });
+  say(p, 'stacked inside', 640, yIn - 12, tw2 + 2.8, { size: 30, anchor: 'end' });
+  leader(p, [650, yIn - 22], [740, yIn - 4], tw2 + 2.4);
+}],
+
+/* ---------- replication ---------- */
+['copy', 'Copying DNA', (m, D) => {
+  const p = panel(0), cam = camera(p, D), W = cam.world, s = .42, n = SEQ_COPY.length, Y = 150;
+  const lad = dnaLadder(W, { seq: SEQ_COPY, x: 800, y: Y, s, D: 330, size: ladSize(s) });
+  tintSpine(lad.left, OLD); tintSpine(lad.right, OLD); tintSpine(lad.newL, NEW, .85); tintSpine(lad.newR, NEW, .85);
+  const tU = m('unzip'), tT = m('tmpl'), tA = m('add'), tTwo = m('two');
+  // the fork opens (k to .55), the free nucleotides dock row by row (to .9), the last one joins during "add" (to 1)
+  const K1 = [tU + .3, tU + 5.5], K2 = [tT + 1.8, tA - .4], K3 = [tA + .8, tA + 4.8];
+  const kAt = t => .55 * ramp(t, ...K1) + .35 * ramp(t, ...K2) + .1 * ramp(t, ...K3);
+  const tLink = lerp(K3[0], K3[1], .45 / 1);   // k = .945: the last row's phosphodiester link (dock .9 → 1 of row 5)
+  // The macro docks both new strands from the top. The left new strand runs 5′ at the bottom → 3′ at the top, so it is
+  // re-docked here bottom first: each new strand then grows at its own 3′ end, as the "add" step says.
+  const nL = lad.newL, dkL = (k, i) => mRamp(k, .55 + .3 * i / n, .7 + .3 * i / n);
+  clockRun(t => {
+    const k = kAt(t); lad.unzip(k);
+    for (let i = 0; i < n; i++) { const d = dkL(k, i), e = io(d); nL.place(i, (1 - e) * 90, 0, mRamp(d, 0, .5)); mO(lad.hbL[n - 1 - i], mRamp(d, .85, 1)); }   // each comes in from the gap beside it, clear of its docked neighbour
+    for (let i = 0; i < n - 1; i++) nL.linkOn(i, mRamp(Math.min(dkL(k, i), dkL(k, i + 1)), .9, 1));
+    nL.refresh();
+    for (let r = 0; r < n; r++) {   // redraw the left pairs' H-bonds from where the re-docked nucleotides now are
+      const a = lad.left.pt(r, 'tip'), b = nL.pt(n - 1 - r, 'tip'), x1 = Math.min(a[0], b[0]) + 3, x2 = Math.max(a[0], b[0]) - 3;
+      mD(lad.hbL[r], ('GC'.includes(SEQ_COPY[r]) ? [-13, 0, 13] : [-8, 8]).map(d => mSeg([x1, a[1] + d], [x2, b[1] + d])).join(''));
+    }
+  }, D);
+  hide(say(p, 'hydrogen bonds come apart', 800, 80, tU + 1.4, { size: 32, fill: MC.hbond }), tA, .3);
+  // tmpl: old strands blue, new strands orange
+  [lad.left, lad.right].forEach(sd => tw(sd.spine, { o: 1 }, tT + .2, .6));
+  [lad.newL, lad.newR].forEach(sd => tw(sd.spine, { o: 1 }, tT + 1.8, .6));
+  const lo = [say(W, 'old strand', 515, 400, tT + .4, { size: 30, fill: OLD, anchor: 'end' }), say(W, 'old strand', 1085, 400, tT + .4, { size: 30, fill: OLD, anchor: 'start' })];
+  const ln = say(W, 'new strands', 800, 700, tT + 2.4, { size: 30, fill: NEW });
+  const lt = say(p, 'each old strand is a template: A faces T, G faces C', 800, 830, tT + 2.6, { size: 30 });
+  hide(ln, tA, .3); hide(lt, tA, .3); lo.forEach(e => { hide(e, tA, .3); show(e, tTwo + 1.6, .4); });
+  // add: a free nucleotide's 5′ phosphate meets the 3′ OH at the growing end of the right-hand new strand
+  cam.to({ x: 900, y: 550, z: 2.1 }, tA + .1, 1.8);   // the right new strand's growing 3′ end (bottom)
+  const nr = lad.newR, ohL = mOut(lad, nr.pt(n - 2, 'O3')), ph = mOut(lad, nr.pt(n - 1, 'P'));   // the ladder's detail layer has no transform of its own
+  const rOH = ringAt(W, [ohL[0], ohL[1] + 8], 18, MC.oh, 4); show(rOH, tA + 1.8, .3); hide(rOH, tLink, .3);
+  const rP = nr.nucs[n - 1].rings.phosphate; tw(rP, { o: 1 }, tA + 1.2, .3); tw(rP, { o: 0 }, tLink + .2, .3);
+  flashAt(W, [ohL[0], (ohL[1] + ph[1] + 40 * s) / 2], tLink, 22);
+  const wt = waterMolecule(W, { x: ohL[0] - 20, y: (ohL[1] + ph[1]) / 2, s: .4, o: 0 });
+  tw(wt, { o: 1 }, tLink + .1, .3); tw(wt, { x: ohL[0] + 110, y: ohL[1] + 120 }, tLink + .6, 1.6, io); hide(wt, tTwo, .4);
+  const o3e = mOut(lad, nr.pt(n - 1, 'O3')), l3 = say(W, '3′ end', o3e[0] - 4, o3e[1] + 40, tLink + .4, { size: 22, fill: NEW, weight: 700 });
+  const la = say(W, 'new nucleotides are added at the 3′ end', o3e[0] + 60, o3e[1] + 90, tLink + .8, { size: 20, fill: NEW });
+  hide(l3, tTwo, .3); hide(la, tTwo, .3);
+  // two: two helices, each one old + one new
+  cam.to({ x: 800, y: 450, z: 1 }, tTwo + .1, 1.8);
+  const cxL = 800 - 330 * s, cxR = 800 + 330 * s;   // the middle of each daughter
+  [cxL, cxR].forEach((cx, i) => {
+    const g = G(W, { o: 0 }); show(g, tTwo + 1.6 + .4 * i, .5);
+    path(g, `M${cx - 100} 660V676H${cx + 100}V660`, { stroke: COL.chalk, 'stroke-width': 3 });
+    const t = wLabel(g, '', { x: cx, y: 716, size: 28, o: 1 });
+    for (const [str, c] of [['one old', OLD], [' + ', COL.chalk], ['one new', NEW]]) { const ts = mk('tspan', { fill: c }, t); ts.textContent = str; }
+  });
+  say(p, 'semiconservative replication', 800, 800, tTwo + 5.7, { size: 42, weight: 700 });
+}],
+
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0), X = i => 500 + 120 * i, YT = 200, YB = 420;
+  wLabel(p, '5′', { x: 410, y: YT + 14, size: 40, weight: 700, o: 1 }); wLabel(p, '3′', { x: X(5) + 100, y: YT + 14, size: 40, weight: 700, o: 1 });
+  wLabel(p, '3′', { x: 410, y: YB + 14, size: 40, weight: 700, o: 1 }); wLabel(p, '5′', { x: X(5) + 100, y: YB + 14, size: 40, weight: 700, o: 1 });
+  path(p, `M${X(0)} ${YT - 58}H${X(5)}`, { stroke: COL.chalk, 'stroke-width': 6 });
+  path(p, `M${X(0)} ${YB + 58}H${X(5)}`, { stroke: COL.dim, 'stroke-width': 6, 'stroke-dasharray': '14 10' });
+  S.q2 = [...Q2_SEQ].map((b, i) => {
+    path(p, `M${X(i)} ${YT - 58}V${YT - 38}M${X(i)} ${YB + 38}V${YB + 58}`, { stroke: COL.chalk, 'stroke-width': 4 });
+    mk('rect', { x: X(i) - 38, y: YT - 38, width: 76, height: 76, rx: 12, fill: MC[b], stroke: mix(MC[b], '#000000', .35), 'stroke-width': 3 }, p);
+    wLabel(p, b, { x: X(i), y: YT + 15, size: 42, fill: MC.ink, weight: 800, o: 1 });
+    path(p, `M${X(i) - 12} ${YT + 50}V${YB - 50}M${X(i) + 12} ${YT + 50}V${YB - 50}`, { stroke: MC.hbond, 'stroke-width': 4, 'stroke-dasharray': '7 6', 'stroke-opacity': .7 });
+    mk('rect', { x: X(i) - 38, y: YB - 38, width: 76, height: 76, rx: 12, fill: 'none', stroke: COL.dim, 'stroke-width': 3, 'stroke-dasharray': '9 7' }, p);
+    const pb = mPair(b), g = G(p, { o: 0 });
+    mk('rect', { x: X(i) - 38, y: YB - 38, width: 76, height: 76, rx: 12, fill: MC[pb], stroke: mix(MC[pb], '#000000', .35), 'stroke-width': 3 }, g);
+    wLabel(g, pb, { x: X(i), y: YB + 15, size: 42, fill: MC.ink, weight: 800, o: 1 });
+    return g;
+  });
+  const ar = G(p); mArrow(ar, [X(5) + 60, 560], [X(0) - 60, 560], { color: NEW, w: 5, head: 18 });
+  wLabel(p, 'the partner, read from its own 5′ end', { x: 800, y: 616, size: 28, fill: NEW, o: 1 });
+  S.q2ar = ar;
+}, { ask: done => quiz(BAND, [{
+  id: 'c-comp',
+  prompt: [`Write the partner of 5′ ${[...Q2_SEQ].join(' ')} 3′, reading it from its own 5′ end.`],
+  build: letterBoxes({ ans: Q2_ANS, pre: '5′', post: '3′',
+    why: `Right. Under the strand the partner reads 3′ ${[...Q2_SEQ].map(b => mPair(b)).join(' ')} 5′; from its 5′ end that is ${[...Q2_ANS].join(' ')}.`,
+    hint: 'Pair each base (A with T, G with C), then read the partner from its 5′ end: right to left in the picture.',
+    fx: () => { S.q2.forEach((g, i) => fx(g, { o: 1 }, .1 + .12 * i, .3)); pulseFx(S.q2ar, 1.1); } }),
+}], done) }],
+
+/* ---------- wrap and practice ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['Large molecules are polymers, built', 'from monomers by dehydration.', g => { polymerChain(g, { x: 175, s: .36, n: 3 }); }],
+    ['Nucleotides join 3′ OH to 5′ phosphate:', 'a sugar-phosphate backbone; the base order is the message.', g => { polynucleotide(g, { seq: 'AT', x: 170, y: -42, s: .22, ends: false }); }],
+    ['Antiparallel strands pair A–T and G–C', 'by hydrogen bonds and twist into a helix.', g => { const l = dnaLadder(g, { seq: 'ATGC', x: 175, y: -60, s: .14, arrows: false }); hideLabels(l); l.twist(1); }],
+    ['Each old strand templates a new one:', 'semiconservative replication.', g => [140, 210].forEach(x => { const l = dnaLadder(g, { seq: 'ATGC', x, y: -54, s: .12, arrows: false }); hideLabels(l); l.twist(1); })],
+  ];
+  const icons = [];
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: -16, y: 190 + i * 160, o: 0 });
+    const ic = G(g); icon(ic); icons.push(ic);
+    T(g, a, { x: 330, y: -6, size: 36, weight: 600 }); T(g, b, { x: 330, y: 40, size: 30, fill: COL.dim });
+    tw(g, { o: 1, x: 0 }, i ? m('w' + (i + 1)) - .1 : .15, .6);   // row 1 comes in with "To sum up"
+  });
+  pulse(icons[0], m('end') - .2, 1.15);
+  say(p, 'Now try the chapter practice.', 800, 850, m('end'), { size: 32, fill: MC.hbond });
+  clockRun(t => icons.forEach((ic, i) => put(ic, { y: 5 * Math.sin(1.6 * t + 1.3 * i) })), D);
+}],
+
+['final1', 'Chapter practice', (m, D) => {
+  // A picture on the right for each practice question; the card's build shows the one it needs (S.pics(key)).
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('pct', g => {
+    const gr = baseGrid(g, { x: 1040, y: 210, cell: 46 }).set(PRACT.A);
+    wLabel(g, `A: ${PRACT.A} %`, { x: 1265, y: 180, size: 36, fill: MC.A, o: 1 });
+    wLabel(g, 'T? G? C?', { x: 1265, y: 750, size: 36, fill: COL.dim, o: 1 });
+  });
+  at('bond', g => {
+    const sd = polynucleotide(g, { seq: 'GC', x: 1240, y: 260, s: .9, ends: false });
+    put(sd.link(0), { o: 1 });
+    const a = sd.pt(0, 'C3'), b = sd.pt(1, 'P');
+    wLabel(g, '?', { x: a[0] - 70, y: (a[1] + b[1]) / 2 + 16, size: 54, fill: MC.hi, weight: 800, o: 1 });
+    wLabel(g, 'one strand', { x: 1260, y: 760, size: 30, fill: COL.dim, weight: 500, o: 1 });
+  });
+  at('copy', g => {
+    const l = dnaLadder(g, { seq: 'ATGCAT', x: 1270, y: 200, s: .34, D: 330, arrows: false }); hideLabels(l);
+    tintSpine(l.left, OLD); tintSpine(l.right, OLD); tintSpine(l.newL, NEW); tintSpine(l.newR, NEW);
+    l.unzip(1); [l.left, l.right, l.newL, l.newR].forEach(sd => put(sd.spine, { o: 1 }));
+    wLabel(g, 'after one round', { x: 1270, y: 650, size: 30, o: 1 });
+    wLabel(g, 'old', { x: 1270 - 520 * .34, y: 700, size: 28, fill: OLD, o: 1 }); wLabel(g, 'old', { x: 1270 + 520 * .34, y: 700, size: 28, fill: OLD, o: 1 });
+    wLabel(g, 'new', { x: 1270 - 140 * .34, y: 700, size: 28, fill: NEW, o: 1 }); wLabel(g, 'new', { x: 1270 + 140 * .34, y: 700, size: 28, fill: NEW, o: 1 });
+  });
+  at('terms', g => {
+    const l = dnaLadder(g, { seq: SEQ8, x: 1270, y: 150, s: .36, perRow: 45, arrows: false, size: ladSize(.36) }); l.twist(1);
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('pct');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-pct', prompt: [`A DNA molecule is ${PRACT_A} % adenine. Find the other bases.`],
+    build: withPic('pct', blanks([
+      { parts: ['thymine: ', { box: String(PRACT.T) }, ' percent'], why: `Every A pairs with a T: ${PRACT.T} %.`, hint: 'A always pairs with T, so they come in equal numbers.' },
+      { parts: ['guanine: ', { box: String(PRACT.G) }, ' percent'], why: `100 − ${PRACT.A} − ${PRACT.T} = ${100 - PRACT.A - PRACT.T}; half of that is ${PRACT.G} %.`, hint: 'Take A and T away from 100, then share what is left between G and C.' },
+      { parts: ['cytosine: ', { box: String(PRACT.C) }, ' percent'], why: `C pairs with G: ${PRACT.C} %.`, hint: 'C pairs with G, so it matches the guanine figure.' },
+    ])) },
+  { id: 'p-bond', prompt: ['Which bond joins neighbouring nucleotides in the same strand?'],
+    build: withPic('bond', choice([
+      ['A hydrogen bond.'], ['A phosphodiester bond, from a 3′ OH to the next 5′ phosphate.'], ['A peptide bond.'], ['An ionic bond.'],
+    ], 1, 'Right. A covalent phosphodiester bond links each 3′ carbon to the next nucleotide’s 5′ phosphate.',
+    ['Hydrogen bonds hold the two strands of the helix together, base to base, not neighbours in one strand.', null,
+     'Peptide bonds join amino acids in a protein.',
+     'The link inside a strand is covalent: a 3′ OH meets a 5′ phosphate and water leaves.'])) },
+  { id: 'p-copy', prompt: ['After one round of replication, each daughter helix contains:'],
+    build: withPic('copy', choice([
+      ['Two old strands.'], ['Two new strands.'], ['One old strand and one new strand.'], ['One DNA strand and one RNA strand.'],
+    ], 2, 'Right. Each old strand stays and templates a new partner: semiconservative replication.',
+    ['Then the other helix would be all new. Each old strand becomes the template for one new strand.',
+     'The old strands are not thrown away: each one stays in a daughter helix.', null,
+     'Both strands are DNA: free DNA nucleotides pair with each old strand.'])) },
+  { id: 'p-terms', prompt: ['True or false?'],
+    build: withPic('terms', grid([
+      { parts: ['The two strands of a double helix run in opposite 5′ → 3′ directions.'], ans: ['t'], why: 'True: they are antiparallel.' },
+      { parts: ['The base pairs are joined by phosphodiester bonds.'], ans: ['f'], why: 'False: base pairs are held by hydrogen bonds; phosphodiester bonds link nucleotides along a strand.' },
+      { parts: ['The sugar-phosphate backbones are outside and the bases point inward.'], ans: ['t'], why: 'True.' },
+      { parts: [`If a DNA molecule is ${RATIO_A} % A, it is ${RATIO_A} % G.`], ans: ['f'], why: `False: it is ${RATIO_A} % T, and G is (100 − ${2 * RATIO_A}) ÷ 2 = ${RATIO.G} %.` },
+      { parts: ['A new nucleotide is added at the 3′ end of a growing strand.'], ans: ['t'], why: 'True: its 5′ phosphate joins the free 3′ OH.' },
+    ], TF, { multi: false, text: true })) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+boot();
+</script>
+</body>
+</html>

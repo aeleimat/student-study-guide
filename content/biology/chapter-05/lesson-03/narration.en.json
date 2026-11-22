@@ -1,0 +1,17 @@
+{
+  "voice": "en-US-AndrewNeural",
+  "rate": "-4%",
+  "beats": {
+    "intro": "Chapter five, lesson three. Nucleotides. [[cell]]Inside the nucleus of a cell sits DNA. [[strand]]Zoom in, and it is a long chain of repeating units. [[unit]]Each unit is a nucleotide, the monomer of nucleic acids. A chain of them is a polynucleotide.",
+    "parts": "Take one nucleotide and pull it apart. [[phos]]First, a phosphate group: a phosphorus atom wrapped in oxygens. [[sugar]]Second, a sugar with five carbons, which is called a pentose. [[base]]Third, a nitrogenous base, a ring built from carbon and nitrogen. [[again]]Phosphate, sugar, base. Put them back together, and you have one nucleotide.",
+    "sugar": "Look closer at the sugar. [[ring]]Four carbons and one oxygen form a ring, and the fifth carbon hangs off the side. [[nums]]Chemists number the carbons one to five, and add a small mark called prime. So we say carbon {{1′|one prime}}, {{2′|two prime}}, and so on up to {{5′|five prime}}. [[base]]The base attaches at {{1′|one prime}}. [[phos]]The phosphate attaches at {{5′|five prime}}, on the carbon that hangs off the ring. [[free]]And {{3′|three prime}} carries a free hydroxyl group. Remember that spot. In the next lesson, it is where the chain grows.",
+    "bases": "Now the bases. [[five]]There are five: adenine, guanine, cytosine, thymine, and uracil. [[rings]]Look at their rings. [[pur]]Adenine and guanine have two rings, a six-sided ring fused to a five-sided ring. These are the {{purines|pyoor-eens}}. [[pyr]]Cytosine, thymine, and uracil have a single six-sided ring. These are the {{pyrimidines|pie-rim-ih-deens}}. [[rule]]So sort them by shape. Two rings, purine. One ring, pyrimidine. [[where]]DNA uses adenine, guanine, cytosine, and thymine. RNA uses uracil in place of thymine.",
+    "q1": "Quick check. Which base has two rings?",
+    "sugars": "The sugar comes in two versions. [[both]]Ribose is the sugar of RNA, and {{deoxyribose|dee-ox-ee-rye-bose}} is the sugar of DNA. [[two]]They look almost the same. The difference is at carbon {{2′|two prime}}. [[rib]]Ribose has a hydroxyl group there, an oxygen and a hydrogen. [[deo]]Deoxyribose has only a hydrogen. That is what deoxy means: one oxygen fewer. [[match]]So DNA has deoxyribose and thymine, while RNA has ribose and uracil.",
+    "names": "Now two names that are easy to mix up. [[bs]]A base joined to a sugar is a {{nucleoside|new-klee-oh-side}}. [[nside]]There is no phosphate yet. [[add]]Add the phosphate group at {{5′|five prime}}. [[ntide]]Base plus sugar plus phosphate is a nucleotide. [[mem]]Nucleoside, no phosphate. Nucleotide, with phosphate.",
+    "q2": "Quick check. Which nucleic acid?",
+    "wrap": "To sum up. [[w1]]A nucleotide is a phosphate group, a pentose sugar, and a nitrogenous base. [[w2]]The sugar's carbons are numbered with primes. The base sits at {{1′|one prime}}, and the phosphate at {{5′|five prime}}. [[w3]]Purines, adenine and guanine, have two rings. Pyrimidines, cytosine, thymine, and uracil, have one. [[w4]]DNA has deoxyribose and thymine. RNA has ribose and uracil. [[w5]]A nucleoside is a base and a sugar. Add the phosphate, and it is a nucleotide. [[end]]Now try the chapter practice.",
+    "final1": "Chapter practice. Four questions on nucleotides.",
+    "finish": "Well done. That's the end of chapter five, lesson three."
+  }
+}

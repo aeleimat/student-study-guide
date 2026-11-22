@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 5, Lesson 3: Nucleotides: Base, Sugar and Phosphate — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 5 (Large Biological Molecules), lesson 3: the nucleotide as the monomer of a polynucleotide, its three
+// parts, the sugar's carbons 1′ to 5′, the five bases sorted into purines and pyrimidines, ribose against deoxyribose,
+// nucleoside against nucleotide, summary, practice. Molecules are the only cast.
+// Plan, errata and storyboard: books/biology/chapters/chapter-05/lesson-03.md.
+const CHAPTER = { number: 503, label: '5, lesson 3', title: 'Nucleotides: Base, Sugar and Phosphate', minutes: 5, language: 'en', lead: false, next: '../lesson-04/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+const NAMES = { A: 'adenine', G: 'guanine', C: 'cytosine', T: 'thymine', U: 'uracil' };
+const PURINES = 'AG', PYRIMIDINES = 'CTU', DNA_BASES = 'AGCT', RNA_BASES = 'AGCU';
+// A point of a nucleotide drawn at (x, y, s), from its local coordinates.
+const at = (x, y, s) => ([lx, ly]) => [x + s * lx, y + s * ly];
+// A text with coloured runs: parts [[str, colour], …].
+function runs(p, parts, { x = 0, y = 0, size = 32, anchor = 'start', weight = 600, o = 1 } = {}) {
+  const t = T(p, '', { x, y, size, weight, anchor, o });
+  for (const [s, c] of parts) { const ts = mk('tspan', { fill: c || COL.chalk }, t); ts.textContent = s; }
+  return t;
+}
+// A base drawn as a tile centred on its origin; .bs the baseShape (scale s), .name its name under it.
+function baseTile(p, letter, { x = 0, y = 0, s = 2, o = 1, name = true, size = 28 } = {}) {
+  const g = G(p, { x, y, o }), bs = baseShape(g, letter, { s });
+  put(bs, { x: -bs.L * s / 2 });
+  const nm = name ? wLabel(g, NAMES[letter], { y: 26 * s + 44, size, fill: COL.dim, weight: 500, o: 1 }) : null;
+  return Object.assign(g, { bs, name: nm, letter });
+}
+// The five-sided ring of a purine (in its baseShape's own frame, dir 0), for a highlight.
+function fiveRing(bs, { color = MC.hi, w = 5 } = {}) {
+  const a = 26, Rp = a * .85065, d = 'M' + [180, -108, -36, 36, 108].map(t => { const r = t * Math.PI / 180; return `${(Rp + Rp * Math.cos(r)).toFixed(1)} ${(Rp * Math.sin(r)).toFixed(1)}`; }).join('L') + 'Z';
+  return path(bs, d, { fill: color, 'fill-opacity': .35, stroke: color, 'stroke-width': w }, { o: 0 });
+}
+// The outline of a base traced in cream (draw() it in).
+const traceRing = bs => path(bs, bs.body.getAttribute('d'), { stroke: COL.chalk, 'stroke-width': 4.5 }, { d: 0 });
+// A sugar alone: a nucleotide with its phosphate, base and both links hidden.
+function sugarOnly(p, kind, o) {
+  const nu = nucleotide(p, { base: kind === 'ribo' ? 'U' : 'T', sugar: kind, ...o });
+  [nu.phosphate, nu.base, nu.links.P, nu.links.B].forEach(e => put(e, { o: 0 }));
+  return nu;
+}
+// A pill of small bases with a name: 'DNA' + AGCT. .tiles[letter] each baseShape.
+function baseChip(p, label, letters, { x = 0, y = 0, o = 1, s = .9 } = {}) {
+  const g = G(p, { x, y, o }), w = 440, h = 92;
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill: '#0b1626', stroke: COL.faint, 'stroke-width': 2.5 }, g);
+  wLabel(g, label, { x: -w / 2 + 34, y: 11, size: 32, anchor: 'start', weight: 700, o: 1 });
+  const tiles = {}; let cx = -w / 2 + 130;
+  for (const L of letters) { const bs = baseShape(g, L, { x: cx, y: 0, s }); tiles[L] = bs; cx += bs.L * s + 14; }
+  return Object.assign(g, { tiles });
+}
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const withPic = (key, build) => (body, api) => { S.pics?.(key); return build(body, api); };
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro: a cell, its nucleus, a strand of nucleotides ---------- */
+['intro', 'Nucleotides', (m, D) => {
+  // The strand is drawn in stage coordinates inside the nucleus at scale K, so at zoom 1/K it reads at stage size.
+  const p = panel(0), cam = camera(p, D), W = cam.world;
+  const cs = cellScene(W, { x: 470, y: 470, w: 820, h: 600, ribos: 5 });
+  const NX = 470 + cs.nucleus.x, NY = 470, K = .14, tCell = m('cell'), tPush = m('strand'), tUnit = m('unit');
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 5: LARGE BIOLOGICAL MOLECULES · LESSON 3', { x: 1210, y: 230, size: 22, fill: COL.dim, o: 1 });
+  wLabel(ttl, 'Nucleotides', { x: 1210, y: 330, size: 80, o: 1, weight: 700 });
+  wLabel(ttl, 'base, sugar and phosphate', { x: 1210, y: 400, size: 40, fill: COL.dim, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tPush, .5);
+  // cell: the nucleus pulses, DNA named
+  const nwrap = G(W, { x: NX, y: NY }); const nring = mk('circle', { r: cs.nucleus.R + 14, fill: 'none', stroke: MC.dna, 'stroke-width': 4 }, nwrap); put(nwrap, { o: 0 });
+  show(nwrap, tCell, .3); pulse(nwrap, tCell + .1, 1.08); hide(nwrap, tPush + .2, .4);
+  const dl = say(W, 'DNA in the nucleus', NX, NY + cs.nucleus.R + 52, tCell + .3, { size: 30, fill: MC.dna }); hide(dl, tPush, .4);
+  // strand: push into the nucleus
+  const tg = G(W, { x: NX - K * 800, y: NY - K * 450, s: K });
+  const bg = mk('circle', { cx: 800, cy: 450, r: 1150, fill: MC.nucleo }, tg); put(bg, { o: 0 }); tw(bg, { o: 1 }, tPush + .6, 1.4, lin);
+  const SX = 720, SY = 150, SS = .62;
+  const strand = polynucleotide(tg, { seq: 'GTACAT', x: SX, y: SY, s: SS, size: 44 });
+  put(strand, { o: .35 }); tw(strand, { o: 1 }, tPush + .8, 1.4);
+  cam.to({ x: NX, y: NY, z: 1 / K }, tPush + .2, 2.6);
+  prog(q => { cs.style.display = q >= 1 ? 'none' : ''; }, tPush + 2.9, .01, lin);   // the cell is covered: stop drawing it
+  const tIn = tPush + 2.9;
+  say(p, 'a chain of repeating units', 1080, 160, tIn, { size: 32 });
+  // unit: one nucleotide boxed and named; the chain named
+  const U = 2, nu = strand.nucs[U], box = nu.enclose('nucleotide', { label: '', color: MC.hi, pad: 18 });
+  show(box, tUnit + .1, .4);
+  [nu.rings.phosphate, nu.rings.sugar, nu.rings.base].forEach((r, i) => { show(r, tUnit + .3 + .25 * i, .3); hide(r, tUnit + 2.4, .5); });
+  const uy = SY + SS * U * NU.step - 12 * SS;
+  leader(p, [1060, uy], [SX + SS * 190, uy], tUnit + .7, MC.hi);
+  say(p, 'nucleotide', 1080, uy - 4, tUnit + .6, { size: 38, fill: MC.hi, anchor: 'start', weight: 700 });
+  say(p, 'the monomer', 1080, uy + 40, tUnit + 1, { size: 28, fill: COL.dim, anchor: 'start', weight: 500 });
+  const top = SY - 104 * SS - 10, bot = SY + SS * (5 * NU.step + 80);
+  const br = path(p, `M560 ${top}h-24V${bot}h24`, { stroke: COL.chalk, 'stroke-width': 4 }, { d: 0 }); draw(br, tUnit + 4.3, .7);
+  say(p, 'polynucleotide', 510, (top + bot) / 2 - 4, tUnit + 4.5, { size: 36, anchor: 'end', weight: 700 });
+  say(p, 'a nucleic acid', 510, (top + bot) / 2 + 36, tUnit + 4.8, { size: 26, anchor: 'end', fill: COL.dim, weight: 500 });
+}],
+
+/* ---------- parts: phosphate, sugar, base ---------- */
+['parts', 'Three parts', (m, D) => {
+  const p = panel(0), X = 700, Y = 490, s = 2.4, L = at(X, Y, s);
+  const tP = m('phos'), tS = m('sugar'), tB = m('base'), tA = m('again');
+  const wrap = G(p, { x: X, y: Y }), nu = nucleotide(wrap, { base: 'A', s });
+  put(wrap, { o: 0 }); show(wrap, .2, .6);
+  const op = say(p, 'one nucleotide', X + 20, 90, .4, { size: 34 }); hide(op, tP, .4);
+  hide(nu.links.P, tP, .3); hide(nu.links.B, tP, .3);
+  // phos: out to the left
+  tw(nu.phosphate, { x: -150 }, tP + .1, 1);
+  const lp = [say(p, 'phosphate group', L([-173, -104])[0], 360, tP + .8, { size: 34, fill: MC.P, weight: 700 }),
+    say(p, 'phosphorus + oxygens', L([-173, -104])[0], 400, tP + 1.4, { size: 26, fill: COL.dim, weight: 500 })];
+  // sugar: down
+  tw(nu.sugar, { y: 30 }, tS + .1, 1);
+  const ls = [say(p, 'sugar: a pentose', X - 170, 590, tS + .8, { size: 34, fill: MC.sugar, weight: 700, anchor: 'end' }),
+    say(p, '5 carbons', X - 170, 630, tS + 1.6, { size: 26, fill: COL.dim, weight: 500, anchor: 'end' })];
+  // base: up and right
+  tw(nu.base, { x: 50, y: -110 }, tB + .1, 1);
+  const bx = L([130 + 42, -122])[0];
+  const lb = [say(p, 'nitrogenous base', bx, 360, tB + .8, { size: 34, fill: MC.A, weight: 700 }),
+    say(p, 'rings of carbon and nitrogen', bx, 400, tB + 1.4, { size: 26, fill: COL.dim, weight: 500 })];
+  // again: back together with a click
+  [...lp, ...ls, ...lb].forEach(e => hide(e, tA + 2, .4));
+  [nu.phosphate, nu.sugar, nu.base].forEach((e, i) => tw(e, { x: 0, y: 0 }, tA + 2.1 + .15 * i, .7, back));
+  show(nu.links.P, tA + 2.8, .2); show(nu.links.B, tA + 2.8, .2);
+  pulse(wrap, tA + 2.9, 1.06);
+  const ln = say(p, 'nucleotide', X + 20, 90, tA + 3, { size: 44, weight: 700 });
+  const sum = runs(p, [['phosphate', MC.P], [' + ', COL.dim], ['sugar', MC.sugar], [' + ', COL.dim], ['base', MC.A]], { x: X + 20, y: 835, size: 34, anchor: 'middle', o: 0 });
+  show(sum, tA + .2, .5); hide(sum, tA + 1.8, .3); show(sum, tA + 3.3, .5);
+}],
+
+/* ---------- sugar: the ring and its numbered carbons ---------- */
+['sugar', 'Carbons 1′ to 5′', (m, D) => {
+  const p = panel(0), X = 600, Y = 440, s = 3, L = at(X, Y, s);
+  const tR = m('ring'), tN = m('nums'), tB = m('base'), tP = m('phos'), tF = m('free');
+  const nu = nucleotide(p, { base: 'G', x: X, y: Y, s });
+  put(nu.phosphate, { x: -90, y: -70, o: 0 }); put(nu.base, { x: 160, o: 0 }); put(nu.links.P, { o: 0 }); put(nu.links.B, { o: 0 });
+  put(nu, { o: 0 }); show(nu, .2, .6);
+  // ring: four carbons and an oxygen; the fifth carbon off the ring
+  show(nu.rings.sugar, tR + .3, .4); hide(nu.rings.sugar, tN, .4);
+  const c5 = G(nu.sugar, { x: NU.C5[0], y: NU.C5[1], o: 0 }); mk('circle', { r: 11, fill: 'none', stroke: MC.hi, 'stroke-width': 3.5 }, c5);
+  show(c5, tR + 3, .3); pulse(c5, tR + 3.1, 1.3); hide(c5, tN + 1, .4);
+  const cap = (str, y, t0, o = {}) => say(p, str, 880, y, t0, { size: 30, anchor: 'start', ...o });
+  const r1 = cap('a ring: 4 carbons + 1 oxygen', 560, tR + .6), r2 = cap('the 5th carbon hangs off the side', 602, tR + 3.2, { fill: COL.dim, weight: 500, size: 28 });
+  hide(r1, tN, .4); hide(r2, tN, .4);
+  // nums: 1′ … 5′ around the ring, one after another as they are said
+  const NUMS = [['1′', [56, -36]], ['2′', [50, 40]], ['3′', [-50, 40]], ['4′', [-62, 2]], ['5′', [-76, -64]]];
+  const nT = [12.6, 13.4, 14.2, 15.0, 15.9].map(t => Math.max(t, tN + 4.8));
+  NUMS.forEach(([str, [lx, ly]], i) => {
+    const g = G(nu.sugar, { x: lx, y: ly, o: 0, s: 0 });
+    wLabel(g, str, { y: 6, size: 16, fill: COL.chalk, weight: 800, o: 1 });
+    pop(g, nT[i]);
+  });
+  cap('carbons numbered 1′ to 5′', 560, tN + .6);
+  cap('′ is “prime”: it marks the sugar’s carbons', 602, tN + 2.5, { fill: COL.dim, weight: 500, size: 28 });
+  // base: docks at 1′
+  tw(nu.base, { x: 0, o: 1 }, tB, .9, out); show(nu.links.B, tB + .8, .2);
+  const bp = L([NU.B[0] + 42, NU.B[1]]);
+  say(p, 'base at 1′', bp[0], bp[1] - 110, tB + .9, { size: 32, fill: MC.G, weight: 700 });
+  // phos: docks at 5′, on the carbon off the ring
+  tw(nu.phosphate, { x: 0, y: 0, o: 1 }, tP, .9, out); show(nu.links.P, tP + .8, .2);
+  const pp = L(NU.P);
+  say(p, 'phosphate at 5′', pp[0] - 110, pp[1] + 12, tP + .9, { size: 32, fill: MC.P, weight: 700, anchor: 'end' });
+  // free: the 3′ OH
+  const oh = G(nu.sugar, { x: NU.C3[0], y: 66, o: 0 }); mk('circle', { r: 20, fill: 'none', stroke: MC.hi, 'stroke-width': 3.5 }, oh);
+  show(oh, tF + .2, .3); pulse(oh, tF + .3, 1.3); pulse(oh, tF + 3.2, 1.25);
+  const op = L([NU.C3[0], 70]);
+  say(p, 'free OH at 3′', op[0] - 80, op[1] + 10, tF + .5, { size: 32, fill: MC.oh, weight: 700, anchor: 'end' });
+  say(p, 'the chain grows here (lesson 4)', op[0] - 80, op[1] + 52, tF + 4.5, { size: 26, fill: COL.dim, weight: 500, anchor: 'end' });
+}],
+
+/* ---------- bases: five shapes, two families ---------- */
+['bases', 'Five bases', (m, D) => {
+  const p = panel(0), t5 = m('five'), tRg = m('rings'), tPu = m('pur'), tPy = m('pyr'), tRu = m('rule'), tW = m('where');
+  const row = { A: 200, G: 490, C: 790, T: 1080, U: 1370 }, shelf = { A: 220, G: 500, C: 960, T: 1180, U: 1400 }, RY = 290, SY = 520;
+  const say5 = [1.0, 1.8, 2.7, 3.6, 4.4];   // the names in the line
+  const tiles = {};
+  [...'AGCTU'].forEach((L, i) => {
+    const tl = baseTile(p, L, { x: row[L], y: RY - 160, o: 0 }); tiles[L] = tl;
+    tw(tl, { y: RY, o: 1 }, t5 + say5[i], .6, out);
+  });
+  say(p, 'five nitrogenous bases', 800, 90, .3, { size: 34 });
+  // rings: trace every outline
+  [...'AGCTU'].forEach((L, i) => draw(traceRing(tiles[L].bs), tRg + .1 + .15 * i, .8));
+  // pur: A and G to the left shelf, their five-sided ring lit
+  const sh = (x1, x2, t0) => { const e = path(p, `M${x1} ${SY + 140}H${x2}`, { stroke: COL.faint, 'stroke-width': 6 }, { d: 0 }); draw(e, t0, .6); };
+  sh(90, 640, tPu); sh(860, 1520, tPy);
+  [...PURINES].forEach((L, i) => { tw(tiles[L], { x: shelf[L], y: SY }, tPu + .2 + .2 * i, .9); const f = fiveRing(tiles[L].bs); show(f, tPu + 2.6 + .2 * i, .4); });
+  const hp = say(p, 'PURINES', 365, 330, tPu + 1.3, { size: 44, weight: 800 });
+  say(p, 'two rings: a 6-ring fused to a 5-ring', 365, 372, tPu + 1.9, { size: 26, fill: COL.dim, weight: 500 });
+  // pyr: C, T, U to the right shelf
+  [...PYRIMIDINES].forEach((L, i) => tw(tiles[L], { x: shelf[L], y: SY }, tPy + .2 + .2 * i, .9));
+  const hy = say(p, 'PYRIMIDINES', 1180, 330, tPy + 1.3, { size: 44, weight: 800 });
+  say(p, 'one 6-ring', 1180, 372, tPy + 1.9, { size: 26, fill: COL.dim, weight: 500 });
+  // rule: two rings → purine, one ring → pyrimidine
+  const b2 = G(p, { x: 365, y: 220, o: 0, s: 0 }); mk('rect', { x: -110, y: -30, width: 220, height: 60, rx: 30, fill: '#0b1626', stroke: MC.hi, 'stroke-width': 3 }, b2);
+  wLabel(b2, 'two rings', { y: 11, size: 30, fill: MC.hi, weight: 700, o: 1 });
+  const b1 = G(p, { x: 1180, y: 220, o: 0, s: 0 }); mk('rect', { x: -100, y: -30, width: 200, height: 60, rx: 30, fill: '#0b1626', stroke: MC.hi, 'stroke-width': 3 }, b1);
+  wLabel(b1, 'one ring', { y: 11, size: 30, fill: MC.hi, weight: 700, o: 1 });
+  pop(b2, tRu + 1.5); pop(b1, tRu + 3.2);
+  // where: which bases each nucleic acid uses
+  const dna = baseChip(p, 'DNA', DNA_BASES, { x: 520, y: 765, o: 0 }), rna = baseChip(p, 'RNA', RNA_BASES, { x: 1080, y: 765, o: 0 });
+  show(dna, tW + .3, .5); show(rna, tW + 2.6, .5);
+  show(dna.tiles.T.ring, tW + 3.4, .3); show(rna.tiles.U.ring, tW + 3.4, .3);
+  const tiT = G(p, { o: 0 }); say(tiT, 'U in place of T', 800, 850, tW + 3.6, { size: 26, fill: MC.hi, weight: 600 }); show(tiT, tW + 3.6, .1);
+}],
+
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0), xs = { C: 230, G: 520, T: 810, A: 1080, U: 1360 };
+  [...'CGTAU'].forEach(L => baseTile(p, L, { x: xs[L], y: 300, name: false }));
+  wLabel(p, 'the five bases, by letter', { x: 800, y: 130, size: 30, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(p, 'two rings or one?', { x: 800, y: 470, size: 32, o: 1 });
+}, { ask: done => quiz(BAND, [{
+  id: 'n-purine',
+  prompt: ['Which base is built from two fused rings, a six-sided ring joined to a five-sided ring?'],
+  build: choice([['cytosine'], ['thymine'], ['guanine'], ['uracil']], 2,
+    'Right. Guanine (G) is a purine, like adenine (A): a six-sided ring fused to a five-sided ring.',
+    ['Cytosine (C) is a pyrimidine: one six-sided ring.', 'Thymine (T) is a pyrimidine: one six-sided ring.', null,
+     'Uracil (U) is a pyrimidine: one six-sided ring.']),
+}], done) }],
+
+/* ---------- sugars: ribose and deoxyribose ---------- */
+['sugars', 'Two sugars', (m, D) => {
+  const p = panel(0), tB = m('both'), t2 = m('two'), tR = m('rib'), tD = m('deo'), tM = m('match'), s = 2.6, Y = 330;
+  const de = sugarOnly(p, 'deoxy', { x: 420, y: Y, s, nums: true }), ri = sugarOnly(p, 'ribo', { x: 1180, y: Y, s, nums: true });
+  put(de, { o: 0 }); put(ri, { o: 0 }); show(de, .2, .6); show(ri, .2, .6);
+  put(de.oh2, { o: 0 }); put(ri.oh2, { o: 0 });
+  const op = say(p, 'the sugar comes in two versions', 800, 70, .4, { size: 32 }); hide(op, tB, .4);
+  say(p, 'ribose', 1180, 120, tB + .2, { size: 40, weight: 700, fill: MC.sugar });
+  say(p, 'in RNA', 1180, 160, tB + .7, { size: 28, fill: COL.dim, weight: 500 });
+  say(p, 'deoxyribose', 420, 120, tB + 2.6, { size: 40, weight: 700, fill: MC.sugar });
+  say(p, 'in DNA', 420, 160, tB + 3.1, { size: 28, fill: COL.dim, weight: 500 });
+  // two: carbon 2′ ringed on both
+  const ring2 = nu => { const g = G(nu.sugar, { x: NU.C2[0] + 2, y: 50, o: 0 }); mk('ellipse', { rx: 17, ry: 27, fill: 'none', stroke: MC.hi, 'stroke-width': 3.5 }, g); return g; };
+  const g1 = ring2(de), g2 = ring2(ri);
+  show(g1, t2 + 2.4, .3); show(g2, t2 + 2.4, .3); pulse(g1, t2 + 2.5, 1.2); pulse(g2, t2 + 2.5, 1.2);
+  say(p, 'the difference: carbon 2′', 800, 70, t2 + 2.4, { size: 32, fill: MC.hi });
+  // rib: OH at 2′
+  show(ri.oh2, tR + .3, .4);
+  const rp = at(1180, Y, s)([NU.C2[0] + 34, 64]);
+  say(p, 'OH at 2′', rp[0], rp[1] + 10, tR + .7, { size: 32, fill: MC.oh, weight: 700, anchor: 'start' });
+  // deo: only H; the missing O shown as a ghost
+  show(de.oh2, tD + .3, .4);
+  const gh = G(de.sugar, { x: NU.C2[0] + 26, y: 64, o: 0 });
+  wLabel(gh, 'O', { y: 8, size: 22, fill: MC.oh, weight: 700, o: 1 }); path(gh, 'M-12 10L12 -12', { stroke: COL.chalk, 'stroke-width': 2.5 });
+  tw(gh, { o: .45 }, tD + 1.2, .5);
+  const dp = at(420, Y, s)([NU.C2[0] + 40, 64]);
+  say(p, 'only H at 2′', dp[0] + 14, dp[1] + 10, tD + .7, { size: 32, fill: COL.chalk, weight: 700, anchor: 'start' });
+  say(p, 'deoxy = one O fewer', dp[0] + 14, dp[1] + 52, tD + 3.3, { size: 28, fill: COL.dim, weight: 500, anchor: 'start' });
+  // match: a nucleotide of each, with its own base
+  const nd = nucleotide(p, { base: 'T', sugar: 'deoxy', x: 300, y: 755, s: .85, o: 0 }), nr = nucleotide(p, { base: 'U', sugar: 'ribo', x: 1060, y: 755, s: .85, o: 0 });
+  show(nd, tM + .3, .5); show(nr, tM + 2.8, .5);
+  show(runs(p, [['DNA: ', COL.chalk], ['deoxyribose', MC.sugar], [' + ', COL.dim], ['thymine', MC.T]], { x: 450, y: 760, size: 30, o: 0 }), tM + .6, .5);
+  show(runs(p, [['RNA: ', COL.chalk], ['ribose', MC.sugar], [' + ', COL.dim], ['uracil', MC.U]], { x: 1210, y: 760, size: 30, o: 0 }), tM + 3.1, .5);
+}],
+
+/* ---------- names: nucleoside and nucleotide ---------- */
+['names', 'Nucleoside or nucleotide', (m, D) => {
+  const p = panel(0), X = 600, Y = 450, s = 2.1, L = at(X, Y, s);
+  const tBS = m('bs'), tNs = m('nside'), tAd = m('add'), tNt = m('ntide'), tMe = m('mem');
+  const nu = nucleotide(p, { base: 'C', x: X, y: Y, s, o: 0 });
+  const boxS = nu.enclose('nucleoside', { color: MC.G, size: 34 }), boxT = nu.enclose('nucleotide', { color: MC.hi, size: 34 });
+  show(nu, .2, .6);
+  put(nu.phosphate, { x: -110, y: 10, o: .3 }); put(nu.links.P, { o: 0 });
+  show(boxS, tBS + .4, .5);
+  show(runs(p, [['base', MC.C], [' + ', COL.dim], ['sugar', MC.sugar]], { x: 1150, y: 300, size: 36, o: 0 }), tBS + 1, .5);
+  // nside: no phosphate
+  const pg = L([-23.51 - 110, -104 + 10]);
+  const np = say(p, 'no phosphate', pg[0], pg[1] + 120, tNs + .2, { size: 30, fill: COL.dim, weight: 600 }); hide(np, tAd, .3);
+  // add: the phosphate swings in and docks at 5′
+  tw(nu.phosphate, { x: 0, y: 0, o: 1 }, tAd + .2, 1, back); show(nu.links.P, tAd + 1.1, .2);
+  hide(boxS, tNt, .4);
+  // ntide: the box grows to all three
+  show(boxT, tNt + .3, .5);
+  show(runs(p, [['base', MC.C], [' + ', COL.dim], ['sugar', MC.sugar], [' + ', COL.dim], ['phosphate', MC.P]], { x: 1150, y: 360, size: 36, o: 0 }), tNt + .9, .5);
+  // mem: the two-row table
+  const tb = G(p, { o: 0, x: 800, y: 770 });
+  mk('rect', { x: -520, y: -70, width: 1040, height: 160, rx: 22, fill: '#0b1626', stroke: COL.faint, 'stroke-width': 2.5 }, tb);
+  path(tb, 'M-500 10H500', { stroke: COL.faint, 'stroke-width': 2 });
+  runs(tb, [['nucleoside', MC.G], ['   base + sugar', COL.chalk], ['   no phosphate', COL.dim]], { x: -480, y: -18, size: 34 });
+  runs(tb, [['nucleotide', MC.hi], ['   base + sugar + phosphate', COL.chalk]], { x: -480, y: 62, size: 34 });
+  show(tb, tMe + .2, .6);
+}],
+
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0), X = 440, Y = 380, s = 2.1, L = at(X, Y, s);
+  const nu = nucleotide(p, { base: 'U', sugar: 'ribo', x: X, y: Y, s });
+  wLabel(p, 'phosphate', { x: L(NU.P)[0] - 80, y: L(NU.P)[1] + 10, size: 30, fill: MC.P, anchor: 'end', o: 1 });
+  wLabel(p, 'ribose', { x: X - 160, y: Y + 60, size: 30, fill: MC.sugar, anchor: 'end', o: 1 });
+  wLabel(p, 'uracil', { x: L(NU.B)[0] + 50, y: Y - 105, size: 30, fill: MC.U, o: 1 });
+  wLabel(p, 'DNA or RNA?', { x: X + 60, y: 720, size: 40, weight: 700, o: 1 });
+}, { ask: done => quiz({ x: 900, y: 110, w: 660, cls: 'side' }, [{
+  id: 'n-rna',
+  prompt: ['A nucleotide has uracil, ribose and one phosphate group. Where would you find it?'],
+  build: choice([['in DNA'], ['in RNA'], ['in both DNA and RNA'], ['in neither']], 1,
+    'Right. Uracil and ribose both belong to RNA; DNA uses thymine and deoxyribose.',
+    ['DNA has thymine where RNA has uracil, and deoxyribose where RNA has ribose.', null,
+     'Both its sugar (ribose) and its base (uracil) fit only RNA.',
+     'It is a normal RNA nucleotide: ribose, uracil and a phosphate group.']),
+}], done) }],
+
+/* ---------- summary ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    [[['A nucleotide = ', COL.chalk], ['phosphate', MC.P], [' + ', COL.dim], ['pentose sugar', MC.sugar], [' + ', COL.dim], ['base', MC.A]], 'the monomer of nucleic acids', g => nucleotide(g, { base: 'A', x: 170, y: 18, s: .45 })],
+    [[['Sugar carbons 1′ to 5′', COL.chalk]], 'base at 1′, phosphate at 5′, free OH at 3′', g => nucleotide(g, { base: 'C', x: 170, y: 18, s: .45, nums: true })],
+    [[['Purines ', COL.chalk], ['A', MC.A], [' ', COL.chalk], ['G', MC.G], [': two rings · pyrimidines ', COL.chalk], ['C', MC.C], [' ', COL.chalk], ['T', MC.T], [' ', COL.chalk], ['U', MC.U], [': one', COL.chalk]], 'sort the bases by ring shape', g => { baseShape(g, 'G', { x: 100, y: 0, s: .8 }); baseShape(g, 'C', { x: 190, y: 0, s: .8 }); }],
+    [[['DNA: deoxyribose + ', COL.chalk], ['T', MC.T], ['   RNA: ribose + ', COL.chalk], ['U', MC.U]], 'deoxy: one O fewer, only H at 2′', g => { sugarOnly(g, 'ribo', { x: 170, y: 0, s: .5 }); }],
+    [[['Nucleoside = base + sugar', COL.chalk]], 'add the phosphate: a nucleotide', g => { const n = nucleotide(g, { base: 'G', x: 170, y: 18, s: .45 }); put(n.phosphate, { o: .3, x: -30 }); put(n.links.P, { o: 0 }); }],
+  ];
+  const icons = [], rowsG = [];
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: -16, y: 130 + i * 140, o: 0 });
+    const ic = G(g); icon(ic); icons.push(ic); rowsG.push(g);
+    runs(g, a, { x: 330, y: -6, size: 34, weight: 600 }); T(g, b, { x: 330, y: 36, size: 28, fill: COL.dim });
+    tw(g, { o: 1, x: 0 }, i ? m('w' + (i + 1)) + .1 : .15, .6);   // row 1 comes in with "To sum up"
+  });
+  pulse(rowsG[0], m('end') + .1, 1.03);
+  say(p, 'Now try the chapter practice.', 800, 860, m('end'), { size: 32, fill: MC.hi });
+  clockRun(t => icons.forEach((ic, i) => put(ic, { y: 4 * Math.sin(1.6 * t + 1.3 * i) })), D);
+}],
+
+/* ---------- practice ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, pic = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  pic('nside', g => {
+    const n = nucleotide(g, { base: 'A', x: 1230, y: 470, s: 2 });
+    put(n.phosphate, { x: -70, y: -60, o: .35 }); put(n.links.P, { o: 0 });
+    wLabel(g, '− phosphate', { x: 1100, y: 152, size: 30, fill: MC.P, anchor: 'start', o: 1 });
+    wLabel(g, 'what is left?', { x: 1280, y: 720, size: 34, o: 1 });
+  });
+  pic('terms', g => {
+    baseTile(g, 'A', { x: 1110, y: 300 }); baseTile(g, 'T', { x: 1330, y: 300 }); baseTile(g, 'U', { x: 1500, y: 300 });
+    sugarOnly(g, 'deoxy', { x: 1130, y: 620, s: 1.6, nums: true }); sugarOnly(g, 'ribo', { x: 1420, y: 620, s: 1.6, nums: true });
+    wLabel(g, 'deoxyribose', { x: 1130, y: 800, size: 26, fill: COL.dim, o: 1 }); wLabel(g, 'ribose', { x: 1420, y: 800, size: 26, fill: COL.dim, o: 1 });
+  });
+  pic('carbons', g => {
+    const n = sugarOnly(g, 'deoxy', { x: 1250, y: 470, s: 2.6, nums: true });
+    const b = baseShape(g, 'G', { x: 1440, y: 200, s: 1.4 }), ph = G(g, { x: 1040, y: 200 });
+    mk('circle', { r: 36, fill: MC.P, stroke: MC.Pedge, 'stroke-width': 3 }, ph); wLabel(ph, 'P', { y: 13, size: 36, fill: MC.ink, weight: 800, o: 1 });
+    wLabel(g, 'where do they attach?', { x: 1280, y: 760, size: 32, o: 1 });
+    wLabel(g, '?', { x: 1400, y: 320, size: 44, fill: MC.hi, weight: 800, o: 1 }); wLabel(g, '?', { x: 1090, y: 300, size: 44, fill: MC.hi, weight: 800, o: 1 });
+  });
+  pic('sugar', g => {
+    sugarOnly(g, 'deoxy', { x: 1110, y: 420, s: 2 }); sugarOnly(g, 'ribo', { x: 1440, y: 420, s: 2 });
+    wLabel(g, 'deoxyribose', { x: 1110, y: 640, size: 30, o: 1 }); wLabel(g, 'ribose', { x: 1440, y: 640, size: 30, o: 1 });
+    wLabel(g, 'spot the difference', { x: 1280, y: 180, size: 32, fill: COL.dim, weight: 500, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('nside');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-nside', prompt: ['A nucleotide loses its phosphate group. What is left?'],
+    build: withPic('nside', choice([
+      ['a nucleoside: a base joined to a sugar'], ['a polynucleotide'], ['a sugar only'], ['a base pair'],
+    ], 0, 'Right. Base + sugar is a nucleoside; adding the phosphate makes it a nucleotide again.',
+    [null, 'A polynucleotide is a chain of many nucleotides; removing one phosphate does not make a chain.',
+     'The base stays on the sugar at 1′: only the phosphate has gone.',
+     'A base pair is two bases from two strands. Here one base is still joined to its sugar.'])) },
+  { id: 'p-terms', prompt: ['True or false?'],
+    build: withPic('terms', grid([
+      { parts: ['Adenine is a purine.'], ans: ['t'], why: 'True: adenine has two fused rings.' },
+      { parts: ['Thymine has two fused rings.'], ans: ['f'], why: 'False: thymine is a pyrimidine, one six-sided ring.' },
+      { parts: ['Uracil takes the place of thymine in RNA.'], ans: ['t'], why: 'True: RNA uses A, G, C and U.' },
+      { parts: ['Deoxyribose has one oxygen more than ribose.'], ans: ['f'], why: 'False: one oxygen fewer; it has only H at carbon 2′.' },
+    ], TF, { multi: false, text: true })) },
+  { id: 'p-carbons', prompt: ['Fill in the carbon numbers of the sugar.'],
+    build: withPic('carbons', blanks([
+      { parts: ['The base is attached to carbon ', { box: '1' }, '′ of the sugar.'], why: 'The base attaches at 1′.', hint: 'Look at the carbon on the ring next to the base.' },
+      { parts: ['The phosphate group is attached to carbon ', { box: '5' }, '′.'], why: 'The phosphate attaches at 5′, the carbon that hangs off the ring.', hint: 'It is the carbon outside the ring.' },
+    ])) },
+  { id: 'p-sugar', prompt: ['What is the difference between ribose and deoxyribose?'],
+    build: withPic('sugar', choice([
+      ['Ribose has one more carbon.'],
+      ['Ribose has an OH on carbon 2′ where deoxyribose has only H.'],
+      ['Deoxyribose has no oxygen at all.'],
+      ['Deoxyribose carries the phosphate group; ribose does not.'],
+    ], 1, 'Right. The only difference is at 2′: OH in ribose, H in deoxyribose, so deoxy means one oxygen fewer.',
+    ['Both are pentoses: five carbons each.', null,
+     'Deoxyribose still has its ring oxygen and the OH at 3′; it lacks only the oxygen at 2′.',
+     'Both sugars carry the phosphate at 5′ in a nucleotide.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+boot();
+</script>
+</body>
+</html>

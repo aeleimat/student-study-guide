@@ -18,7 +18,7 @@
 // buffer, check 1, Ka and pKa (13 of 1000 against a strong acid; direction; a pKa tells little for a strong acid), check 2,
 // monoprotic and polyprotic acids, the working range pKa ± 1, acid precipitation, summary, practice.
 // Plan, errata and storyboard: books/biology/chapters/chapter-03/lesson-05.md.
-const CHAPTER = { number: 305, label: '3, lesson 5', title: 'Buffers, Ka and pKa, Acid Rain', minutes: 7, language: 'en', lead: false };
+const CHAPTER = { number: 305, label: '3, lesson 5', title: 'Buffers, Ka and pKa, Acid Rain', minutes: 7, language: 'en', lead: false, next: '../../chapter-05/lesson-01/' };
 
 /* ---------- small helpers ---------- */
 const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };

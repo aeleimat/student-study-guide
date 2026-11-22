@@ -29,5 +29,22 @@
       Tx(286, 44, 'δ−', 18, 'a') + Tx(338, 140, 'δ+', 18, 'a') +
       P('M240 160H580', 'faint') + Tx(240, 176, 'pH 0', 13, 'faint') + Tx(580, 176, '14', 13, 'faint', 'end') +
       Tx(410, 176, '7', 13, 'faint', 'middle')),
+    // Unit 5 (Chapter 5: Large Biological Molecules): a short double helix drawn sideways, its two backbones crossing,
+    // dashed base-pair rungs between them, the ends marked 5′ and 3′, and a small bead chain (a polymer) above.
+    reset((() => {
+      const x0 = 250, x1 = 570, cy = 104, A = 34, w = 2 * Math.PI / 160;
+      const strand = ph => 'M' + Array.from({ length: 33 }, (_, i) => { const x = x0 + i * 10; return `${x} ${(cy + A * Math.sin(w * (x - x0) + ph)).toFixed(1)}`; }).join('L');
+      let rungs = '';
+      for (let x = x0 + 14; x < x1; x += 22) {
+        const y1 = cy + A * Math.sin(w * (x - x0) - Math.PI / 2), y2 = cy + A * Math.sin(w * (x - x0) + Math.PI / 2);
+        if (Math.abs(y1 - y2) > 12) rungs += P(`M${x} ${y1.toFixed(1)}L${x} ${y2.toFixed(1)}`, 'a', 'stroke-dasharray=".12 .1"');
+      }
+      let beads = '';
+      for (let i = 0; i < 5; i++) beads += C(300 + i * 26, 30, 9, i % 2 ? 'a' : '');
+      return P(strand(-Math.PI / 2)) + P(strand(Math.PI / 2)) + rungs + beads + P('M309 30H317M335 30H343M361 30H369M387 30H395', 'a') +
+        Tx(x0 - 8, cy - A + 5, '5′', 16, 'a', 'end') + Tx(x1 + 8, cy - A + 5, '3′', 16, 'a') +
+        Tx(x0 - 8, cy + A + 5, '3′', 16, 'a', 'end') + Tx(x1 + 8, cy + A + 5, '5′', 16, 'a') +
+        Tx(420, 36, 'A–T  G–C', 14, 'faint');
+    })()),
   ];
 })();
