@@ -18,7 +18,7 @@ Slides cover concept 5.1 (polymers) and concept 5.5 (nucleic acids) only. Slide 
 
 | Lesson | Title | Pages | Minutes | Status |
 |---|---|---|---|---|
-| chapter-05/lesson-01 | Macromolecules, monomers and polymers | 1–6 | 5 | ready |
-| chapter-05/lesson-02 | Nucleic acids: from gene to protein | 7–9 | 5 | ready |
-| chapter-05/lesson-03 | Nucleotides: base, sugar and phosphate | 10–12 | 5 | ready |
-| chapter-05/lesson-04 | Polynucleotides and the double helix | 13–17 | 6 | ready |
+| chapter-05/lesson-01 | Macromolecules, monomers and polymers | 1–6 | 7 | ready |
+| chapter-05/lesson-02 | Nucleic acids: from gene to protein | 7–9 | 7 | ready |
+| chapter-05/lesson-03 | Nucleotides: base, sugar and phosphate | 10–12 | 7 | ready |
+| chapter-05/lesson-04 | Polynucleotides and the double helix | 13–17 | 7 | ready |

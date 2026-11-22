@@ -117,14 +117,15 @@ window.TIMINGS = {
   ]
  },
  "bases": {
-  "dur": 35.304,
+  "dur": 48.336,
   "marks": {
    "five": 1.354,
    "rings": 7.005,
    "pur": 8.255,
    "pyr": 15.456,
    "rule": 22.409,
-   "where": 27.513
+   "where": 27.513,
+   "aid": 35.312
   },
   "cues": [
    [
@@ -174,6 +175,18 @@ window.TIMINGS = {
    [
     32.135,
     "RNA uses uracil in place of thymine."
+   ],
+   [
+    35.312,
+    "A memory aid."
+   ],
+   [
+    36.445,
+    "Pure As Gold: the purines are Adenine and Guanine."
+   ],
+   [
+    40.117,
+    "And Cut the Pie: Cytosine, Thymine, and Uracil are the pyrimidines, and the word pyrimidine even has pie in it."
    ]
   ]
  },
@@ -235,6 +248,61 @@ window.TIMINGS = {
    ]
   ]
  },
+ "build": {
+  "dur": 28.176,
+  "marks": {
+   "sugar": 2.943,
+   "base": 8.177,
+   "nside": 11.029,
+   "phos": 13.516,
+   "done": 16.654,
+   "free": 22.174
+  },
+  "cues": [
+   [
+    0.104,
+    "Let's build one nucleotide, step by step."
+   ],
+   [
+    2.943,
+    "Start with a deoxyribose sugar: five carbons, numbered with primes."
+   ],
+   [
+    8.177,
+    "Join the base adenine to carbon 1\u2032."
+   ],
+   [
+    11.029,
+    "Sugar plus base is a nucleoside."
+   ],
+   [
+    13.516,
+    "Now join a phosphate group to carbon 5\u2032."
+   ],
+   [
+    16.654,
+    "Base at 1\u2032, phosphate at 5\u2032: a complete DNA nucleotide."
+   ],
+   [
+    22.174,
+    "Carbon 3\u2032 still has its free hydroxyl group, ready for the next nucleotide to join."
+   ]
+  ]
+ },
+ "q3": {
+  "dur": 3.888,
+  "marks": {},
+  "cues": [
+   [
+    0.117,
+    "Quick check."
+   ],
+   [
+    1.094,
+    "What turns a nucleoside into a nucleotide?"
+   ]
+  ]
+ },
  "names": {
   "dur": 17.4,
   "marks": {
@@ -272,6 +340,68 @@ window.TIMINGS = {
    [
     15.286,
     "Nucleotide, with phosphate."
+   ]
+  ]
+ },
+ "mystery": {
+  "dur": 47.52,
+  "marks": {
+   "m1": 4.44,
+   "a1": 9.219,
+   "m2": 16.849,
+   "a2": 21.224,
+   "m3": 28.698,
+   "a3": 33.359,
+   "tip": 41.719
+  },
+  "cues": [
+   [
+    0.117,
+    "Time to name some mystery nucleotides."
+   ],
+   [
+    2.487,
+    "Read the parts, and decide."
+   ],
+   [
+    4.44,
+    "Mystery one: guanine, deoxyribose, and a phosphate group."
+   ],
+   [
+    9.219,
+    "Deoxyribose means DNA."
+   ],
+   [
+    11.51,
+    "With the phosphate it is a nucleotide, and guanine has two rings, so it is a purine."
+   ],
+   [
+    16.849,
+    "Mystery two: cytosine and ribose, with no phosphate."
+   ],
+   [
+    21.224,
+    "Ribose means RNA."
+   ],
+   [
+    22.969,
+    "No phosphate makes it a nucleoside, and cytosine's single ring makes it a pyrimidine."
+   ],
+   [
+    28.698,
+    "Mystery three: thymine and deoxyribose, no phosphate."
+   ],
+   [
+    33.359,
+    "Thymine and deoxyribose both say DNA."
+   ],
+   [
+    36.719,
+    "No phosphate, so a nucleoside, and one ring, so a pyrimidine."
+   ],
+   [
+    41.719,
+    "Three questions every time: which sugar, is there a phosphate, and how many rings."
    ]
   ]
  },
@@ -347,7 +477,7 @@ window.TIMINGS = {
   ]
  },
  "final1": {
-  "dur": 3.384,
+  "dur": 3.528,
   "marks": {},
   "cues": [
    [
@@ -355,8 +485,8 @@ window.TIMINGS = {
     "Chapter practice."
    ],
    [
-    1.471,
-    "Four questions on nucleotides."
+    1.497,
+    "Five questions on nucleotides."
    ]
   ]
  },

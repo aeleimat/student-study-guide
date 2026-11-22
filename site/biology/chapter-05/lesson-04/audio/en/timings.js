@@ -178,12 +178,48 @@ window.TIMINGS = {
    ]
   ]
  },
+ "rev": {
+  "dur": 30.36,
+  "marks": {
+   "give": 2.331,
+   "pairit": 10.885,
+   "flip": 17.188,
+   "read": 25.091
+  },
+  "cues": [
+   [
+    0.104,
+    "Let's read a partner strand properly."
+   ],
+   [
+    2.331,
+    "Here is one strand, written five prime to three prime: guanine, adenine, thymine, thymine, cytosine."
+   ],
+   [
+    10.885,
+    "Pair each base underneath: cytosine, thymine, adenine, adenine, guanine."
+   ],
+   [
+    17.188,
+    "But the partner runs the other way, so its left end is the three prime end."
+   ],
+   [
+    21.953,
+    "To read it five prime to three prime, we flip it."
+   ],
+   [
+    25.091,
+    "It reads: guanine, adenine, adenine, thymine, cytosine."
+   ]
+  ]
+ },
  "ratio": {
-  "dur": 19.584,
+  "dur": 29.04,
   "marks": {
    "a": 2.357,
    "t": 7.109,
-   "gc": 12.279
+   "gc": 12.279,
+   "half": 19.622
   },
   "cues": [
    [
@@ -205,15 +241,34 @@ window.TIMINGS = {
    [
     16.432,
     "They pair with each other, so each is twenty percent."
+   ],
+   [
+    19.622,
+    "Notice the pattern: adenine equals thymine, and guanine equals cytosine, so adenine plus guanine always makes exactly fifty percent."
+   ]
+  ]
+ },
+ "q3": {
+  "dur": 3.72,
+  "marks": {},
+  "cues": [
+   [
+    0.117,
+    "Quick check."
+   ],
+   [
+    1.094,
+    "Use the pairing rule on the percentages."
    ]
   ]
  },
  "twist": {
-  "dur": 16.608,
+  "dur": 25.368,
   "marks": {
    "ladder": 2.878,
    "twist": 6.94,
-   "two": 10.404
+   "two": 10.404,
+   "stable": 16.641
   },
   "cues": [
    [
@@ -231,6 +286,10 @@ window.TIMINGS = {
    [
     10.404,
     "That is the double helix: two backbones spiraling on the outside, and the pairs stacked inside."
+   ],
+   [
+    16.641,
+    "Each hydrogen bond is weak, but thousands of them down the helix hold it together, while the covalent backbone keeps each strand intact."
    ]
   ]
  },
@@ -328,7 +387,7 @@ window.TIMINGS = {
   ]
  },
  "final1": {
-  "dur": 3.216,
+  "dur": 3.336,
   "marks": {},
   "cues": [
    [
@@ -336,8 +395,8 @@ window.TIMINGS = {
     "Chapter practice."
    ],
    [
-    1.471,
-    "Four questions that use everything."
+    1.51,
+    "Five questions that use everything."
    ]
   ]
  },

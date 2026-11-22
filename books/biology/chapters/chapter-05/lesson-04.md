@@ -101,9 +101,9 @@ Taught: the 3′ OH to 5′ phosphate link, the strand's 5′ and 3′ ends and 
 
 Dropped: the ester bond labels, the s17 summary table, enzymes and fork details, H-bond counts, leading and lagging strands.
 
-Order: intro, chain, backbone, check 1 (which positions join), helix, ratio, twist, copy, check 2 (write the partner strand), wrap, practice (4 questions), finish.
+Order: intro, chain, backbone, check 1 (which positions join), helix, rev (new: read a partner strand 5′ to 3′), ratio (now ends with A = T, G = C so A + G = 50 %), check 3 (new: percentages), twist (now ends with H-bonds weak one by one, many together), copy, check 2 (write the partner strand), wrap, practice (5 questions), finish.
 
-Pacing: 10 narrated beats plus 2 question beats, wrap, practice and finish; 2 quick checks and 4 practice questions (6 in all). Audio total is in the reply.
+Pacing: 302 s of voice (about 5 min), plus holds and 8 questions (3 quick checks, 5 practice), about 7 to 8 minutes in all.
 
 ## Beats
 
@@ -116,8 +116,10 @@ Shared components (expected in `site/biology/lib/macro.js`, being written): nucl
 | `backbone` | The strand, now eight nucleotides long, horizontal with bases below. | `bb`: the sugar-phosphate line is outlined in cream, "sugar-phosphate backbone". `bases`: the bases pulse one by one, "bases hang off it". `seq`: the letters line up as A T G C C A G T in base colours, "the order is the message". `gene`: brackets over groups of four bases, "one gene", "another gene", "many genes in one molecule". | the backbone, then the letters | letter row, gene brackets |
 | `q1` | The joined pair faded in the top 60 %, 3′ and 5′ labels visible. Card in BAND. | none | the card | `choice` card |
 | `helix` | The strand across the top, 5′ left and 3′ right. | `second`: a second strand slides in below, bases facing the first. `anti`: its ends are labelled the other way round (3′ left, 5′ right); two opposite arrows; the word "antiparallel". `pair`: facing bases take their partners in turn: A-T, T-A, G-C, C-G. `hb`: dashed cyan H-bonds draw between each pair. `fit`: one purine-pyrimidine pair shown with a band "same width" over every rung. | the lower strand, the arrows, the dashed lines | purine and pyrimidine ring shapes (lesson 3), antiparallel arrows |
-| `ratio` | A bar of 100 base-pair squares in four stacks A, T, G, C with labels. | `a`: the A stack grows to 30 %. `t`: the T stack grows to 30 %, a line from A to T labelled "pairs". `gc`: the remaining 40 % highlights and splits into G 20 and C 20, "40 ÷ 2 = 20". | the stacks | percent bars |
-| `twist` | The ladder centred (backbones as sides, pairs as rungs). | `ladder`: the sides glow cream, rungs coloured. `twist`: `dnaLadder.twist` turns it into the helix over about 4 s. `two`: labels "backbones outside", "base pairs inside". | the sides, then the spiral | none |
+| `rev` | The strand 5′ G A T T C 3′ on top, five empty slots below. | `give`: the top strand's bases light with 5′ and 3′ labelled. `pairit`: partners fill the slots left to right (C T A A G), the dashed H-bonds draw, the lower strand's labelled ends read 3′ on the left, 5′ on the right. `flip`: the lower strand rotates 180° in place so its 5′ end is at the left. `read`: the letters read out G A A T C with a 5′ → 3′ arrow. | the top strand, the slots, the flip | strand flip animation |
+| `ratio` | A bar of 100 base-pair squares in four stacks A, T, G, C with labels. | `a`: the A stack grows to 30 %. `t`: the T stack grows to 30 %, a line from A to T labelled "pairs". `gc`: the remaining 40 % highlights and splits into G 20 and C 20, "40 ÷ 2 = 20". `half`: the A and G stacks slide together, a 50 % mark, "A = T, G = C, so A + G = 50 %". | the stacks | percent bars |
+| `q3` | The percent bars, faded in the top 60 %. Card in BAND. | none | the card | `blanks` card |
+| `twist` | The ladder centred (backbones as sides, pairs as rungs). | `ladder`: the sides glow cream, rungs coloured. `twist`: `dnaLadder.twist` turns it into the helix over about 4 s. `two`: labels "backbones outside", "base pairs inside". `stable`: the rung bonds pulse cyan one by one, then the backbone glows cream; "weak one by one, strong together" and "backbone: covalent". | the sides, then the spiral | none |
 | `copy` | The double helix, with room below for daughter helices. | `unzip`: `dnaLadder.unzip` opens a fork, the dashed bonds snap. `tmpl`: each old strand (blue) gets free nucleotides (orange) that pair A-T, G-C. `add`: one free nucleotide's 5′ phosphate meets the 3′ OH of the growing end, cream bond flash, water leaves, "added at the 3′ end". `two`: two helices, each one blue and one orange strand, "one old + one new", "semiconservative replication". | the fork, the incoming nucleotide, the two daughters | fork scene; blue/orange colouring |
 | `q2` | A six-base strand "5′ A T G C C A 3′" at the top, empty slots below. Card in BAND. | none | the card | `blanks` card |
 | `wrap` | Four numbered takeaways with a mini-icon each. | `w1` to `w4`: each fades in; `end`: first line pulses. | the new line | none |
@@ -130,10 +132,12 @@ Camera: `intro` wide; `chain` push into the loose nucleotides; `backbone` pull o
 
 - `q1` id `l4-link`, choice, "In a strand, which two positions are joined by a phosphodiester bond?" Options: (a) the 3′ hydroxyl of one nucleotide and the 5′ phosphate of the next (right); (b) the 5′ phosphates of two neighbours; (c) two bases, by hydrogen bonds; (d) the 1′ carbons of two sugars. Why: the strand is built end to end, OH to phosphate. Wrong (b): two phosphates would not make a sugar-phosphate-sugar line; (c): that holds two strands together; (d): the 1′ carbon holds the base.
 - `q2` id `l4-comp`, blanks, "The partner of 5′ A T G C C A 3′ reads, from its 5′ end: ___ ___ ___ ___ ___ ___". Answer T G G C A T (the partner is 3′ T A C G G T 5′, read from its 5′ end). Hint: pair each base, then flip the ends. Check the answer order against the picture's labels.
-- `final1` ('Chapter practice'):
+- `q3` id `l4-pct2`, blanks, "A DNA molecule is 35 % guanine. Cytosine: ___ %, adenine: ___ %." Answers 35 and 15 (100 - 70 = 30, half is 15). Hint: G pairs with C, then A and T share the rest. Compute in the page's code.
+- `final1` ('Chapter practice', 5 questions):
   - `p-pct` blanks: "A DNA molecule is 22 % adenine. Thymine: ___ %, guanine: ___ %, cytosine: ___ %." Answers 22, 28, 28 (100 - 44 = 56, half is 28). Compute in the page's code.
   - `p-bond` choice: "Which bond joins neighbouring nucleotides in the same strand?" Right: phosphodiester bond (3′ OH to 5′ phosphate). Wrong: hydrogen bond (that is between strands); peptide bond (amino acids); ionic bond.
   - `p-copy` choice: "After one round of replication, each daughter helix contains:" Right: one old strand and one new strand. Wrong: two old strands; two new strands; one DNA strand and one RNA strand.
+  - `p-comp` blanks: "The partner of 5′ T T A G C 3′, read 5′ to 3′: ___ ___ ___ ___ ___" Answer G C T A A (pairs A A T C G under the strand, then flip). Picture: the two strands with the flip.
   - `p-terms` grid, true/false: the two strands of a double helix run in opposite 5′ to 3′ directions (T); the base pairs are joined by phosphodiester bonds (F, hydrogen bonds); the sugar-phosphate backbone is on the outside and the bases point inward (T); if a DNA molecule is 30 % A, it is 30 % G (F, G is 20 %); a new nucleotide is added at the 3′ end of a growing strand (T).
 
 ## Storyboard

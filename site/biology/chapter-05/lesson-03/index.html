@@ -18,7 +18,7 @@
 // parts, the sugar's carbons 1′ to 5′, the five bases sorted into purines and pyrimidines, ribose against deoxyribose,
 // nucleoside against nucleotide, summary, practice. Molecules are the only cast.
 // Plan, errata and storyboard: books/biology/chapters/chapter-05/lesson-03.md.
-const CHAPTER = { number: 503, label: '5, lesson 3', title: 'Nucleotides: Base, Sugar and Phosphate', minutes: 5, language: 'en', lead: false, next: '../lesson-04/' };
+const CHAPTER = { number: 503, label: '5, lesson 3', title: 'Nucleotides: Base, Sugar and Phosphate', minutes: 7, language: 'en', lead: false, next: '../lesson-04/' };
 
 /* ---------- small helpers ---------- */
 const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
@@ -213,6 +213,25 @@ const BEATS = [
   show(dna, tW + .3, .5); show(rna, tW + 2.6, .5);
   show(dna.tiles.T.ring, tW + 3.4, .3); show(rna.tiles.U.ring, tW + 3.4, .3);
   const tiT = G(p, { o: 0 }); say(tiT, 'U in place of T', 800, 850, tW + 3.6, { size: 26, fill: MC.hi, weight: 600 }); show(tiT, tW + 3.6, .1);
+  // aid: memory aids by the shelves (the chips make room)
+  const tA = m('aid');
+  [dna, rna, tiT].forEach(e => hide(e, tA, .4));
+  const aid = (x, parts, sub, t0) => {
+    const g = G(p, { x, y: 770, o: 0 });
+    mk('rect', { x: -250, y: -52, width: 500, height: 120, rx: 26, fill: '#0b1626', stroke: MC.hi, 'stroke-width': 3 }, g);
+    runs(g, parts, { y: 0, size: 46, anchor: 'middle', weight: 800 });
+    wLabel(g, sub, { y: 46, size: 24, fill: COL.dim, weight: 500, o: 1 });
+    tw(g, { o: 1 }, t0, .5); pulse(g, t0 + .1, 1.06); return g;
+  };
+  aid(365, [['Pure ', COL.chalk], ['A', MC.A], ['s ', COL.chalk], ['G', MC.G], ['old', COL.chalk]], 'purines: adenine, guanine', tA + 1.2);
+  aid(1150, [['C', MC.C], ['U', MC.U], ['T', MC.T], [' the Pie', COL.chalk]], 'pyrimidines: cytosine, uracil, thymine', tA + 5.2);
+  // a small pie with a slice cut out, beside the pyrimidine aid
+  const pie = G(p, { x: 1470, y: 770, o: 0, s: 0 });
+  path(pie, 'M0 0L40 0A40 40 0 1 1 20 -34.6Z', { fill: '#e0a85a', stroke: '#9a6a2a', 'stroke-width': 3 });
+  path(pie, 'M10 -8L52 -8A40 40 0 0 0 30 -42Z', { fill: '#e0a85a', stroke: '#9a6a2a', 'stroke-width': 3 });
+  pop(pie, tA + 9.5);
+  [...PURINES].forEach((L, i) => pulse(tiles[L], tA + 2.8 + .5 * i, 1.12));
+  [...PYRIMIDINES].forEach((L, i) => pulse(tiles[L], tA + 6.6 + .5 * i, 1.12));
 }],
 
 ['q1', 'Quick check', (m, D) => {
@@ -264,6 +283,60 @@ const BEATS = [
   show(runs(p, [['RNA: ', COL.chalk], ['ribose', MC.sugar], [' + ', COL.dim], ['uracil', MC.U]], { x: 1210, y: 760, size: 30, o: 0 }), tM + 3.1, .5);
 }],
 
+/* ---------- build: one DNA nucleotide, piece by piece ---------- */
+['build', 'Build a nucleotide', (m, D) => {
+  const p = panel(0), X = 520, Y = 355, s = 2, L = at(X, Y, s);
+  const tS = m('sugar'), tB = m('base'), tN = m('nside'), tP = m('phos'), tD = m('done'), tF = m('free');
+  const nu = nucleotide(p, { base: 'A', sugar: 'deoxy', x: X, y: Y, s, nums: true });
+  const boxS = nu.enclose('nucleoside', { label: '', color: MC.G }), boxT = nu.enclose('nucleotide', { label: '', color: MC.hi });
+  // the pieces wait apart: phosphate up-left, adenine down-right
+  put(nu.phosphate, { x: -130, y: -10, o: 0 }); put(nu.base, { x: 60, y: 130, o: 0 }); put(nu.links.P, { o: 0 }); put(nu.links.B, { o: 0 });
+  put(nu.sugar, { o: 0 });
+  show(nu.sugar, .2, .6); tw(nu.phosphate, { o: .45 }, .5, .6); tw(nu.base, { o: .45 }, .5, .6);
+  const step = (n, parts, t0) => { const e = runs(p, [[n + '  ', COL.dim], ...parts], { x: 960, y: 170 + 72 * (n - 1), size: 32, o: 0 }); show(e, t0, .5); return e; };
+  say(p, 'build a DNA nucleotide', 960, 90, .3, { size: 30, fill: COL.dim, weight: 500, anchor: 'start' });
+  // sugar
+  show(nu.rings.sugar, tS + .2, .3); hide(nu.rings.sugar, tS + 3.5, .4);
+  step(1, [['deoxyribose', MC.sugar], [': carbons 1′ to 5′', COL.chalk]], tS + .4);
+  // base at 1′: a nucleoside
+  tw(nu.base, { x: 0, y: 0, o: 1 }, tB + .2, 1, out); show(nu.links.B, tB + 1.1, .2);
+  step(2, [['adenine', MC.A], [' joins at 1′', COL.chalk]], tB + .5);
+  show(boxS, tN + .2, .4); hide(boxS, tP + .2, .4);
+  step(3, [['sugar + base = ', COL.chalk], ['nucleoside', MC.G]], tN + .4);
+  // phosphate at 5′: a nucleotide
+  tw(nu.phosphate, { x: 0, y: 0, o: 1 }, tP + .3, 1, out); show(nu.links.P, tP + 1.2, .2);
+  step(4, [['phosphate', MC.P], [' joins at 5′', COL.chalk]], tP + .6);
+  show(boxT, tD + .3, .4);
+  step(5, [['= a DNA ', COL.chalk], ['nucleotide', MC.hi]], tD + .5);
+  // free 3′ OH, and the next nucleotide waiting for it
+  const oh = G(nu.sugar, { x: NU.C3[0], y: 66, o: 0 }); mk('circle', { r: 20, fill: 'none', stroke: MC.hi, 'stroke-width': 3.5 }, oh);
+  show(oh, tF + .3, .3); pulse(oh, tF + .4, 1.3); pulse(oh, tF + 3, 1.25);
+  const NY = Y + 2 * 245, nx = nucleotide(p, { base: 'G', sugar: 'deoxy', x: X, y: NY + 20, s, o: 0 });
+  tw(nx, { o: .3, y: NY }, tF + 1.5, 1.2, out);
+  const a = L([NU.C3[0], 92]), b = [X + s * NU.P[0], NY + s * (NU.P[1] - NU.Pr) - 10];
+  const ar = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: MC.hi, 'stroke-width': 4, 'stroke-dasharray': '10 8' }, { d: 0 }); draw(ar, tF + 2.2, .6);
+  say(p, 'next nucleotide', X + 120, NY - 150, tF + 2.4, { size: 26, fill: COL.dim, weight: 500, anchor: 'start' });
+  step(6, [['free OH at 3′', MC.oh], [': the next one joins here', COL.chalk]], tF + 1);
+}],
+
+['q3', 'Quick check', (m, D) => {
+  const p = panel(0), X = 440, Y = 400, s = 2.1, L = at(X, Y, s);
+  const nu = nucleotide(p, { base: 'A', sugar: 'deoxy', x: X, y: Y, s, nums: true });
+  put(nu.phosphate, { o: 0 }); put(nu.links.P, { o: 0 });
+  const [px, py] = L(NU.P);
+  mk('circle', { cx: px, cy: py, r: NU.Pr * s, fill: 'none', stroke: COL.dim, 'stroke-width': 3, 'stroke-dasharray': '8 7' }, p);
+  wLabel(p, '?', { x: px, y: py + 16, size: 46, fill: COL.dim, weight: 800, o: 1 });
+  wLabel(p, 'nucleoside → nucleotide?', { x: X + 80, y: 760, size: 34, weight: 700, o: 1 });
+}, { ask: done => quiz({ x: 900, y: 110, w: 660, cls: 'side' }, [{
+  id: 'n-add',
+  prompt: ['A nucleoside becomes a nucleotide when …'],
+  build: choice([['a phosphate group is added at carbon 5′'], ['a second sugar is added'], ['the base is removed'], ['an OH is added at carbon 2′']], 0,
+    'Right. Base + sugar is a nucleoside; add a phosphate at 5′ and it is a nucleotide.',
+    [null, 'A nucleotide has one sugar. What it gains is a phosphate group, at 5′.',
+     'Without its base it would not be a nucleoside any more. The nucleotide keeps the base and adds a phosphate.',
+     'An OH at 2′ is the difference between deoxyribose and ribose, not between a nucleoside and a nucleotide.']),
+}], done) }],
+
 /* ---------- names: nucleoside and nucleotide ---------- */
 ['names', 'Nucleoside or nucleotide', (m, D) => {
   const p = panel(0), X = 600, Y = 450, s = 2.1, L = at(X, Y, s);
@@ -290,6 +363,48 @@ const BEATS = [
   runs(tb, [['nucleoside', MC.G], ['   base + sugar', COL.chalk], ['   no phosphate', COL.dim]], { x: -480, y: -18, size: 34 });
   runs(tb, [['nucleotide', MC.hi], ['   base + sugar + phosphate', COL.chalk]], { x: -480, y: 62, size: 34 });
   show(tb, tMe + .2, .6);
+}],
+
+/* ---------- mystery: name three molecules from their parts ---------- */
+['mystery', 'Mystery nucleotides', (m, D) => {
+  const p = panel(0), s = 1.35;
+  const CARDS = [
+    { base: 'G', sugar: 'deoxy', P: true, parts: [['G', MC.G], [' + deoxyribose + phosphate', COL.chalk]], stamps: ['DNA', 'nucleotide', 'purine'], tm: 'm1', ta: 'a1', at: [.3, 2.5, 5.4] },
+    { base: 'C', sugar: 'ribo', P: false, parts: [['C', MC.C], [' + ribose', COL.chalk]], stamps: ['RNA', 'nucleoside', 'pyrimidine'], tm: 'm2', ta: 'a2', at: [.2, 2.2, 4.9] },
+    { base: 'T', sugar: 'deoxy', P: false, parts: [['T', MC.T], [' + deoxyribose', COL.chalk]], stamps: ['DNA', 'nucleoside', 'pyrimidine'], tm: 'm3', ta: 'a3', at: [.4, 3.8, 6.2] },
+  ];
+  say(p, 'mystery nucleotides: read the parts', 800, 70, .3, { size: 32 });
+  const SC = { DNA: MC.dna, RNA: MC.U, nucleotide: MC.hi, nucleoside: MC.G, purine: MC.A, pyrimidine: MC.C };
+  CARDS.forEach((c, i) => {
+    const cx = 290 + 510 * i, tM = m(c.tm), tA = m(c.ta), g = G(p, { o: 0 });
+    show(g, .3 + .2 * i, .5);
+    mk('rect', { x: cx - 230, y: 110, width: 460, height: 610, rx: 24, fill: '#0b1626', stroke: COL.faint, 'stroke-width': 2.5 }, g);
+    wLabel(g, 'mystery ' + (i + 1), { x: cx, y: 160, size: 28, fill: COL.dim, weight: 600, o: 1 });
+    const q = wLabel(g, '?', { x: cx, y: 380, size: 90, fill: COL.faint, weight: 800, o: 1 }); hide(q, tM, .3);
+    // the parts arrive and join; a missing phosphate leaves a dashed slot
+    const X = cx - 60, Y = 370, nu = nucleotide(g, { base: c.base, sugar: c.sugar, x: X, y: Y, s, o: 0 });
+    if (!c.P) {
+      put(nu.phosphate, { o: 0 }); put(nu.links.P, { o: 0 });
+      const slot = mk('circle', { cx: X + s * NU.P[0], cy: Y + s * NU.P[1], r: NU.Pr * s, fill: 'none', stroke: COL.dim, 'stroke-width': 2.5, 'stroke-dasharray': '7 6' }, g);
+      put(slot, { o: 0 }); show(slot, tM + 1.6, .4);
+    }
+    show(nu, tM + .2, .3);
+    prog(k => { nu.split(1 - k, { dx: 110, dy: 70 }); if (!c.P) { put(nu.phosphate, { o: 0 }); put(nu.links.P, { o: 0 }); } }, tM + .2, 1.4, io);
+    show(runs(g, c.parts, { x: cx, y: 545, size: 26, anchor: 'middle', o: 0 }), tM + 1, .5);
+    // the stamps, each lit with the clue that gives it
+    const clue = [nu.rings.sugar, c.P ? nu.rings.phosphate : null, nu.rings.base];
+    c.stamps.forEach((w, j) => {
+      const t0 = tA + c.at[j], sg = G(g, { x: cx, y: 600 + 44 * j, r: -4 + 4 * j, s: 0, o: 0 });
+      const wd = 30 + uiW(w.toUpperCase(), 24);
+      mk('rect', { x: -wd / 2, y: -19, width: wd, height: 38, rx: 8, fill: '#0b1626', stroke: SC[w], 'stroke-width': 3 }, sg);
+      wLabel(sg, w.toUpperCase(), { y: 9, size: 24, fill: SC[w], weight: 800, o: 1 });
+      pop(sg, t0);
+      if (clue[j]) { show(clue[j], t0 - .2, .3); hide(clue[j], t0 + 2, .4); }
+    });
+  });
+  // tip: the three questions
+  const tip = G(p, { o: 0 }); show(tip, m('tip') + .3, .5);
+  runs(tip, [['which sugar?', MC.sugar], ['   ·   ', COL.dim], ['a phosphate?', MC.P], ['   ·   ', COL.dim], ['how many rings?', MC.A]], { x: 800, y: 810, size: 38, anchor: 'middle', weight: 700 });
 }],
 
 ['q2', 'Quick check', (m, D) => {
@@ -334,6 +449,13 @@ const BEATS = [
 /* ---------- practice ---------- */
 ['final1', 'Chapter practice', (m, D) => {
   const p = panel(0), pics = {}, pic = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  pic('mystery', g => {
+    nucleotide(g, { base: 'C', sugar: 'deoxy', x: 1200, y: 440, s: 2.1 });
+    wLabel(g, 'cytosine', { x: 1200 + 2.1 * 102, y: 360, size: 30, fill: MC.C, o: 1 });
+    wLabel(g, 'deoxyribose', { x: 1200, y: 650, size: 30, fill: MC.sugar, o: 1 });
+    wLabel(g, 'phosphate', { x: 1060, y: 160, size: 30, fill: MC.P, anchor: 'end', o: 1 });
+    wLabel(g, 'what is it?', { x: 1260, y: 770, size: 34, weight: 700, o: 1 });
+  });
   pic('nside', g => {
     const n = nucleotide(g, { base: 'A', x: 1230, y: 470, s: 2 });
     put(n.phosphate, { x: -70, y: -60, o: .35 }); put(n.links.P, { o: 0 });
@@ -358,8 +480,15 @@ const BEATS = [
     wLabel(g, 'spot the difference', { x: 1280, y: 180, size: 32, fill: COL.dim, weight: 500, o: 1 });
   });
   S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
-  S.pics('nside');
+  S.pics('mystery');
 }, { ask: done => quiz(PRACTICE, [
+  { id: 'p-mystery', prompt: ['A molecule has cytosine, deoxyribose and one phosphate group. What is it?'],
+    build: withPic('mystery', choice([
+      ['an RNA nucleotide'], ['a DNA nucleotide, with a pyrimidine base'], ['a DNA nucleoside'], ['an RNA nucleoside'],
+    ], 1, 'Right. Deoxyribose says DNA, the phosphate makes it a nucleotide, and cytosine has one ring: a pyrimidine.',
+    ['Deoxyribose is the sugar of DNA; RNA would have ribose.', null,
+     'It has a phosphate group, so it is a nucleotide, not a nucleoside.',
+     'Two clues against it: deoxyribose means DNA, and the phosphate makes it a nucleotide.'])) },
   { id: 'p-nside', prompt: ['A nucleotide loses its phosphate group. What is left?'],
     build: withPic('nside', choice([
       ['a nucleoside: a base joined to a sugar'], ['a polynucleotide'], ['a sugar only'], ['a base pair'],

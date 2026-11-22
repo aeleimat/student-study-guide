@@ -18,7 +18,7 @@
 // programs a polypeptide, DNA and RNA, replication in one picture, mRNA as a working copy, then the three steps of the
 // slide-9 figure (mRNA made in the nucleus, out through a pore, a ribosome builds the polypeptide), a check on where each
 // step happens, summary, practice. Plan, errata and storyboard: books/biology/chapters/chapter-05/lesson-02.md.
-const CHAPTER = { number: 502, label: '5, lesson 2', title: 'Nucleic Acids: From Gene to Protein', minutes: 5, language: 'en', lead: false, next: '../lesson-03/' };
+const CHAPTER = { number: 502, label: '5, lesson 2', title: 'Nucleic Acids: From Gene to Protein', minutes: 7, language: 'en', lead: false, next: '../lesson-03/' };
 
 /* ---------- small helpers ---------- */
 const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
@@ -84,6 +84,30 @@ function splitCell(cx, cy, r, d) {
     + `M${(cx + d - r).toFixed(1)} ${cy}a${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(2 * r).toFixed(1)} 0a${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(-2 * r).toFixed(1)} 0`;
   const h = Math.sqrt(r * r - d * d), R = r.toFixed(1);
   return `M${cx} ${(cy - h).toFixed(1)}A${R} ${R} 0 1 1 ${cx} ${(cy + h).toFixed(1)}A${R} ${R} 0 1 1 ${cx} ${(cy - h).toFixed(1)}Z`;
+}
+
+// An X-shaped chromosome (two copies joined at the middle): coiled DNA packed with protein dots in each arm, gene bands
+// across the arms (o 0). Centred on its origin. .bands[k] lists band k on every arm; .bandAt(k, arm) its centre in parent.
+const BANDS = [[.22, '#f07a6a'], [.42, '#8fd6b0'], [.62, '#6c8cff'], [.84, '#ffd27a']];
+const ARMS = [[-20, 1], [20, 1], [200, 1.12], [160, 1.12]];
+function chromosome(p, { x = 0, y = 0, s = 1, o = 1, L = 250, w = 74 } = {}) {
+  const g = G(p, { x, y, s, o }), bands = BANDS.map(() => []);
+  ARMS.forEach(([r, k], ai) => {
+    const a = G(g, { r }), len = L * k;
+    mk('rect', { x: -w / 2, y: -len, width: w, height: len, rx: w / 2, fill: '#2a4a70', stroke: MC.dna, 'stroke-width': 4 }, a);
+    let d = ''; for (let i = 0; i <= 44; i++) d += (i ? 'L' : 'M') + ((w / 2 - 12) * Math.sin(i * 1.9)).toFixed(1) + ' ' + (-16 - (len - 34) * i / 44).toFixed(1);
+    path(a, d, { stroke: MC.dna, 'stroke-width': 3, 'stroke-opacity': .55 });
+    let dd = ''; for (let i = 0; i < 9; i++) { const cx = (wHash(i, ai + 2) - .5) * (w - 26), cy = -22 - (len - 44) * (i + .5) / 9; dd += `M${(cx - 6).toFixed(1)} ${cy.toFixed(1)}a6 6 0 1 0 12 0a6 6 0 1 0 -12 0`; }
+    path(a, dd, { fill: '#8f9bb0' });
+    BANDS.forEach(([f, c], b) => { const e = mk('rect', { x: -w / 2 + 3, y: -len * f - 10, width: w - 6, height: 20, fill: c }, a); put(e, { o: 0 }); bands[b].push(e); });
+  });
+  mk('circle', { r: w * .42, fill: '#2a4a70', stroke: MC.dna, 'stroke-width': 4 }, g);
+  const ch = Object.assign(g, {
+    bands, L, w,
+    armPt(ai, f) { const [r, k] = ARMS[ai], d = L * k * f, a = r * Math.PI / 180; return mOut(g, [d * Math.sin(a), -d * Math.cos(a)]); },
+    bandAt(b, ai) { return ch.armPt(ai, BANDS[b][0]); },
+  });
+  return ch;
 }
 
 /* ---------- backdrops ---------- */
@@ -197,6 +221,45 @@ const BEATS = [
   wLabel(mb, 'gene = DNA, a nucleic acid', { x: 800, y: 116, size: 38, weight: 700, fill: MC.dna, o: 1 });
 }],
 
+/* ---------- scale ---------- */
+['scale', 'Genes on a chromosome', (m, D) => {
+  const p = panel(0), tMo = m('mol'), tCh = m('chrom'), tGe = m('genes'), tB = m('between');
+  // the close-up of one gene, then the view pulls back
+  const A = G(p, { o: 0 }); show(A, .2, .5);
+  flatHelix(A, { x: 800, y: 450, len: 1000, amp: 40, turns: 3, seq: 'GATTCAGCTG', w: 14 });
+  path(A, 'M640 395V372H960V395', { stroke: MC.hi, 'stroke-width': 5 });
+  wLabel(A, 'one gene', { x: 800, y: 350, size: 38, fill: MC.hi, weight: 700, o: 1 });
+  tw(A, { s: .3, x: 560, y: 315 }, tMo - .3, 1.2, io); hide(A, tMo + .5, .5);
+  // mol: one very long double helix (drawn as a thread)
+  const Th = G(p);
+  let d = 'M150 250';
+  [250, 450, 650].forEach((yy, r) => { for (let i = 0; i <= 130; i++) { const x = r % 2 ? 1450 - i * 10 : 150 + i * 10; d += `L${x} ${(yy + 9 * Math.sin(x / 11)).toFixed(1)}`; } if (r < 2) d += `Q${r % 2 ? 60 : 1540} ${yy + 100} ${r % 2 ? 150 : 1450} ${yy + 200}`; });
+  draw(path(Th, d, { stroke: MC.dna, 'stroke-width': 5 }, { d: 0 }), tMo + .2, 3);
+  const l1 = say(p, 'one DNA molecule: a single, very long double helix', 800, 130, tMo + .5, { size: 34 });
+  hide(l1, tCh, .4);
+  tw(Th, { s: .12, x: 800 - .12 * 800, y: 470 - .12 * 450, o: 0 }, tCh + .1, 1.4, io);
+  // chrom: wound up with proteins into a chromosome
+  const C = chromosome(p, { x: 800, y: 470 });
+  const bandPts = [1, 2, 3].map(b => C.bandAt(b, 0)), [ax, ay] = C.armPt(1, .73);   // read at full size, then shrink
+  put(C, { s: .3, o: 0 }); tw(C, { s: 1, o: 1 }, tCh + .6, 1.4, out);
+  say(p, 'chromosome', 1150, 250, tCh + 1.6, { size: 40, weight: 700, anchor: 'start' });
+  say(p, 'DNA wound up with proteins', 1150, 292, tCh + 2.2, { size: 28, fill: COL.dim, weight: 500, anchor: 'start' });
+  // genes: bands along it, many genes like chapters
+  C.bands.forEach((bs, k) => bs.forEach(e => show(e, tGe + .3 + .35 * k, .3)));
+  [1, 2, 3].forEach((b, i) => { const [bx, by] = bandPts[i]; say(p, 'gene', 560, by + 10, tGe + 1 + .4 * i, { size: 28, anchor: 'end', fill: BANDS[b][1] }); leader(p, [572, by], [bx - 40, by], tGe + 1.1 + .4 * i); });
+  say(p, 'many genes, like chapters', 1150, 400, tGe + 1.6, { size: 30, anchor: 'start' });
+  say(p, 'in a long book', 1150, 438, tGe + 2, { size: 30, anchor: 'start' });
+  // between: the DNA between genes
+  const gap = G(p, { x: ax, y: ay, r: 20, o: 0 });
+  mk('rect', { x: -46, y: -22, width: 92, height: 44, rx: 10, fill: 'none', stroke: COL.chalk, 'stroke-width': 4, 'stroke-dasharray': '10 7' }, gap);
+  show(gap, tB + 2.2, .4);
+  say(p, 'between genes:', 1150, 560, tB + 2.4, { size: 30, anchor: 'start', fill: '#c8ccd6' });
+  say(p, 'not a recipe for a polypeptide', 1150, 600, tB + 2.8, { size: 28, anchor: 'start', fill: COL.dim, weight: 500 });
+  leader(p, [1140, 552], [ax + 40, ay + 18], tB + 2.4);
+  notToScale(p, 1570, 40, .3);
+  clockRun(t => { if (t > tCh + 2) put(C, { r: 1.5 * Math.sin(.8 * (t - tCh - 2)) }); }, D);
+}],
+
 /* ---------- roles ---------- */
 ['roles', 'DNA and RNA', (m, D) => {
   const p = panel(0), tD = m('dna'), tR = m('rna'), tRep = m('rep'), tMr = m('mrna'), tW = m('why');
@@ -253,6 +316,117 @@ const BEATS = [
   say(p, 'working copy', 1400, 590, tW + 3.4, { size: 30, fill: MC.U, weight: 700 });
 }],
 
+/* ---------- compare ---------- */
+['compare', 'DNA and RNA compared', (m, D) => {
+  const p = panel(0), RY = i => 215 + i * 136;
+  const hd = G(p, { o: 0 }); show(hd, .3, .5);
+  wLabel(hd, 'DNA', { x: 640, y: 112, size: 50, weight: 800, fill: MC.dna, o: 1 });
+  wLabel(hd, 'RNA', { x: 1190, y: 112, size: 50, weight: 800, fill: MC.U, o: 1 });
+  path(hd, 'M110 140H1510M915 70V870M390 140V870', { stroke: COL.faint, 'stroke-width': 2 });
+  const row = (i, name, t0, f) => {
+    const g = G(p, { o: 0, x: -20 }); tw(g, { o: 1, x: 0 }, t0, .6);
+    wLabel(g, name, { x: 130, y: RY(i) + 10, size: 32, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i < 4) path(g, `M110 ${RY(i) + 68}H1510`, { stroke: COL.faint, 'stroke-width': 1.5 });
+    f(g, RY(i)); return g;
+  };
+  const txt = (g, s, x, y, o = {}) => wLabel(g, s, { x, y, size: 30, anchor: 'start', o: 1, ...o });
+  // sugar
+  row(0, 'sugar', m('sugar'), (g, y) => {
+    const a = nucleotide(g, { base: 'A', sugar: 'deoxy', x: 470, y: y + 8, s: .5 }), b = nucleotide(g, { base: 'A', sugar: 'ribo', x: 1005, y: y + 8, s: .5 });
+    txt(g, 'deoxyribose', 600, y); txt(g, 'no OH at 2′', 600, y + 36, { size: 24, fill: COL.dim });
+    txt(g, 'ribose', 1140, y); txt(g, 'OH at 2′', 1140, y + 36, { size: 24, fill: MC.oh });
+    show(a.rings.sugar, m('sugar') + 1.4, .4); show(b.rings.sugar, m('sugar') + 3, .4);
+  });
+  // bases
+  row(1, 'bases', m('base'), (g, y) => {
+    const put4 = (x0, last) => ['A', 'G', 'C', last].map((L, i) => baseShape(g, L, { x: x0 + [0, 56, 112, 150][i], y, a: 14, size: 16 }));
+    const d = put4(430, 'T'), r = put4(960, 'U');
+    txt(g, 'T: thymine', 640, y + 10); txt(g, 'U: uracil', 1170, y + 10);
+    txt(g, 'both: A, G, C', 1360, y + 48, { size: 22, fill: COL.dim, anchor: 'middle' });
+    pulse(d[3], m('base') + 4.6, 1.5); pulse(r[3], m('base') + 5.8, 1.5);
+  });
+  // strands
+  row(2, 'strands', m('strand'), (g, y) => {
+    flatHelix(g, { x: 530, y, len: 220, amp: 22, turns: 1.5, seq: 'ATGCAT', w: 6 });
+    txt(g, 'double', 670, y + 10);
+    mRNA(g, { seq: 'AUGCU', x: 980, y: y - 18, s: .6, ends: false });
+    txt(g, 'single', 1130, y + 10);
+  });
+  // where
+  row(3, 'where', m('where'), (g, y) => {
+    const nuc = x => { mk('circle', { cx: x, cy: y, r: 40, fill: MC.nucleo, stroke: MC.env, 'stroke-width': 5 }, g); path(g, `M${x - 22} ${y}q6 -12 11 0t11 0t11 0t11 0`, { stroke: MC.dna, 'stroke-width': 3 }); };
+    nuc(470); txt(g, 'nucleus only', 540, y + 10);
+    nuc(1000); path(g, `M1048 ${y - 6}H1100`, { stroke: MC.U, 'stroke-width': 4 });
+    txt(g, 'nucleus and cytoplasm', 1115, y + 10, { size: 28 });
+  });
+  // job
+  row(4, 'job', m('job'), (g, y) => {
+    padlock(g, { x: 470, y: y - 6, s: .85 }); txt(g, 'stores the information', 520, y + 10, { size: 28 });
+    ribosome(g, { x: 1010, y: y + 10, s: .45 }); txt(g, 'takes part in using it', 1070, y + 10, { size: 28 });
+  });
+}],
+
+/* ---------- why ---------- */
+['why', 'Why a copy', (m, D) => {
+  const p = panel(0), tO = m('one'), tR = m('risk'), tM = m('many'), tF = m('fade');
+  const cell = cellScene(p, { x: 800, y: 450, w: 1520, h: 820, pores: 6, ribos: 0 });
+  put(cell.dna, { o: .15 });
+  const NX = 800 + cell.nucleus.x, [PX, PY] = cell.pore(0);
+  // the busy cytoplasm: dots jostle
+  const dots = [];
+  for (let i = 0; dots.length < 30 && i < 200; i++) { const x = 790 + wHash(i, 3) * 700, y = 100 + wHash(i, 4) * 700; if (((x - 800) / 700) ** 2 + ((y - 450) / 370) ** 2 < 1) dots.push([x, y, mk('circle', { r: 5 + 4 * wHash(i, 5), fill: '#3d5f8c' }, p)]); }
+  clockRun(t => dots.forEach(([x, y, e], i) => mPose(e, x + 16 * Math.sin(1.7 * t + i), y + 12 * Math.sin(1.3 * t + 2 * i))), D);
+  // one: the master set, in the nucleus
+  const glow = mk('ellipse', { cx: NX - 10, cy: 420, rx: 190, ry: 64, fill: MC.dna, 'fill-opacity': .18 }, p); put(glow, { o: 0 }); show(glow, tO + .1, .5);
+  flatHelix(p, { x: NX - 10, y: 420, len: 300, amp: 26, turns: 2, seq: 'TACGGATCA', w: 8 });
+  say(p, 'one master set', NX - 10, 330, tO + .3, { size: 36, weight: 700, fill: MC.dna });
+  say(p, 'it has to last', NX - 10, 530, tO + 1.2, { size: 28, fill: COL.dim, weight: 500 });
+  // risk: DNA sent out into the busy cytoplasm: crossed out
+  const R = G(p, { o: 0 }); show(R, tR + .2, .4); hide(R, tM - .3, .4);
+  const ra = wArrow(R, [NX + 160, PY], [PX + 150, PY], { color: COL.dim, w: 5 }); ra.firstChild.setAttribute('stroke-dasharray', '14 10');
+  flatHelix(R, { x: PX + 250, y: PY, len: 140, amp: 16, turns: 1, seq: 'TACG', w: 5, o: .7 });
+  const X = G(R, { x: PX + 250, y: PY, o: 0 }); path(X, 'M-60 -50L60 50M60 -50L-60 50', { stroke: COL.bad, 'stroke-width': 9 }); show(X, tR + 1.6, .3);
+  wLabel(R, 'risky out here', { x: PX + 250, y: PY - 80, size: 30, o: 1 });
+  // many: one gene, many mRNA copies, each read by a ribosome
+  const gb = path(p, `M${NX - 70} 380V362H${NX + 50}V380`, { stroke: MC.hi, 'stroke-width': 4 }, { o: 0 }); show(gb, tM + .1, .3);
+  const lm = say(p, 'one gene, many copies', 1150, 150, tM + .4, { size: 32, fill: MC.U, weight: 700 }); hide(lm, tF, .4);
+  const T = [[900, 360], [1170, 330], [960, 610], [1230, 590], [1330, 450]], start = [NX - 70, 470], via = [PX - 70, PY];
+  T.forEach(([tx, ty], i) => {
+    const ts = tM + .4 + 1.3 * i, mr = mRNA(p, { seq: 'AUGGCUA', x: start[0], y: start[1], s: .5, ends: false }); mr.reveal(0);
+    const rb = ribosome(p, { x: tx + 69, y: ty - 2, s: .6, o: 0 }); show(rb, ts + 2.3, .3);
+    const pp = polypeptide(p, { n: 5, x: tx + 69, y: ty - 2 - 88 * .6, dir: -90, sp: 14, r: 6 }); pp.set(0);
+    prog(q => pp.set(5 * q), ts + 2.6, 3, lin);
+    const tFade = tF + .8 + 1.2 * i;
+    clockRun(t => {
+      const a = io(ramp(t, ts + .6, ts + 1.4)), b = io(ramp(t, ts + 1.4, ts + 2.4));
+      const x = b > 0 ? lerp(via[0], tx, b) : lerp(start[0], via[0], a), y = b > 0 ? lerp(via[1], ty, b) : lerp(start[1], via[1], a);
+      mr.reveal(ramp(t, ts, ts + .6)); mPose(mr, x, y, 1 - ramp(t, tFade, tFade + .8));
+    }, D);
+  });
+  // fade: copies do not last; the supply fades
+  say(p, 'mRNA does not last long', 1150, 150, tF + .4, { size: 32, fill: MC.U, weight: 700 });
+  say(p, 'no new copies: the supply fades', 1150, 188, tF + 3, { size: 26, fill: COL.dim, weight: 500 });
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  flatHelix(p, { x: 420, y: 270, len: 460, amp: 34, turns: 2.5, seq: 'ATGCGATC', w: 9 });
+  wLabel(p, 'DNA', { x: 420, y: 190, size: 40, weight: 800, fill: MC.dna, o: 1 });
+  mRNA(p, { seq: 'AUGCUUAGC', x: 420 - 4 * 46 * .9, y: 560, s: .9, ends: false });
+  wLabel(p, 'RNA', { x: 420, y: 500, size: 40, weight: 800, fill: MC.U, o: 1 });
+}, { ask: done => quiz({ x: 820, y: 60, w: 740, cls: 'side' }, [{
+  id: 'c-compare', prompt: ['DNA, RNA, or both?'],
+  build: grid([
+    { parts: ['contains the sugar deoxyribose'], ans: ['d'], why: 'DNA: deoxyribose. RNA has ribose.' },
+    { parts: ['contains the base uracil (U)'], ans: ['r'], why: 'RNA: it uses U where DNA uses T.' },
+    { parts: ['is usually double-stranded'], ans: ['d'], why: 'DNA: two strands wound together. RNA is usually single.' },
+    { parts: ['is a nucleic acid'], ans: ['b'], why: 'Both: the two nucleic acids are DNA and RNA.' },
+    { parts: ['has the base A'], ans: ['b'], why: 'Both use A, G and C.' },
+    { parts: ['is found in the cytoplasm as well as the nucleus'], ans: ['r'], why: 'RNA: mRNA goes out to the ribosomes; DNA stays in the nucleus.' },
+  ], [['d', 'DNA', null, 'D'], ['r', 'RNA', null, 'R'], ['b', 'both', null, 'B']], { multi: false, text: true }),
+}], done) }],
+
 /* ---------- flow ---------- */
 ['flow', 'Three steps', (m, D) => {
   const p = panel(0), cam = camera(p, D, { x: 560, y: 430, z: 1.3 }), W = cam.world;
@@ -304,6 +478,58 @@ const BEATS = [
   [['DNA', 600, MC.dna], ['mRNA', 790, MC.U], ['protein', 975, '#c9a0dc']].forEach(([s, x, c], i) => say(bar, s, x, 795, tAll + .3 + .9 * i, { size: 34, weight: 700, fill: c }));
   show(wArrow(bar, [645, 783], [725, 783], { o: 0, w: 5, head: 15 }), tAll + .8);
   show(wArrow(bar, [855, 783], [910, 783], { o: 0, w: 5, head: 15 }), tAll + 1.7);
+  notToScale(p, 1570, 40, .3);
+}],
+
+/* ---------- example ---------- */
+['example', 'Insulin', (m, D) => {
+  const p = panel(0), tG = m('gene'), tC = m('copy'), tO = m('out'), tR = m('read'), tF = m('fold'), tS = m('same');
+  const cell = cellScene(p, { x: 600, y: 440, w: 1040, h: 700, pores: 6, ribos: 0 }); put(cell.dna, { o: .2 });
+  const NX = 600 + cell.nucleus.x, [PX, PY] = cell.pore(0);
+  say(p, 'a pancreas cell', 600, 62, .3, { size: 32, weight: 700 });
+  say(p, 'insulin: a protein made here', 600, 850, 2.8, { size: 30, fill: COL.dim, weight: 500 });
+  flatHelix(p, { x: NX, y: 380, len: 300, amp: 24, turns: 2, seq: 'TACGGATCA', w: 8 });
+  // gene: the insulin gene, one stretch
+  draw(path(p, `M${NX - 70} 340V322H${NX + 70}V340`, { stroke: MC.hi, 'stroke-width': 5 }, { d: 0 }), tG + .2, .5);
+  say(p, 'insulin gene', NX, 300, tG + .4, { size: 30, fill: MC.hi, weight: 700 });
+  // copy: an mRNA copy; out: through a pore
+  const mr = mRNA(p, { seq: 'AUGGCCCUG', x: NX - 110, y: 450, s: .6, ends: false }); mr.reveal(0);
+  const RX = 700, RY = 438;
+  const mxx = t => lerp(NX - 110, 660, io(ramp(t, tO + .6, tO + 3.2))) - 90 * ramp(t, tR + 1.2, tR + 5.2);
+  clockRun(t => { mr.reveal(ramp(t, tC + .3, tC + 2.3)); mPose(mr, mxx(t), lerp(450, PY, ramp(t, tO + .2, tO + .6))); }, D);
+  hide(say(p, 'mRNA copy', NX, 540, tC + 1.4, { size: 28, fill: MC.U }), tO + .6, .4);
+  say(p, 'nuclear pore', PX + 4, 290, tO + .4, { size: 26, anchor: 'start' });
+  leader(p, [PX + 20, 300], [PX + 2, PY - 24], tO + .5);
+  // read: a ribosome adds amino acids one at a time
+  const rb = ribosome(p, { x: RX + 70, y: RY - 150, s: .95, o: 0 }); tw(rb, { x: RX, y: RY, o: 1 }, tR + .1, .9, out);
+  say(p, 'a ribosome adds amino acids', RX, 545, tR + .8, { size: 28 });
+  const N = 9, EX = RX, EY = RY - 88 * .95, ang = -35 * Math.PI / 180, SP = 24, cols = ['#c9a0dc', '#f4a48c', '#86c9e8', '#8fd6b0', '#e8a0c8', '#ffd27a'];
+  const bondP = path(p, '', { stroke: WC.stick, 'stroke-width': 5 });
+  const beads = Array.from({ length: N }, (_, j) => { const c = cols[(j * 7 + 3) % 6]; const e = mk('circle', { r: 11, fill: c, stroke: mix(c, '#000000', .3), 'stroke-width': 2.5 }, p); put(e, { o: 0 }); return e; });
+  const loose = [[860, 520], [930, 600], [820, 640], [1000, 520], [960, 680], [880, 720], [1040, 610], [780, 700], [1010, 420]];
+  const fold = j => { const a = j * 2.3, r = 8 + 4.2 * j; return [880 + r * Math.cos(a), 262 + r * Math.sin(a)]; };
+  clockRun(t => {
+    const mm = N * ramp(t, tR + 1.2, tR + 5.2), f = io(ramp(t, tF + .2, tF + 2.4));
+    let d = '';
+    beads.forEach((e, j) => {
+      const tj = tR + 1.2 + 4 * j / N, dd = Math.max(0, mm - 1 - j) * SP;
+      const ux = EX + dd * Math.cos(ang), uy = EY + dd * Math.sin(ang), [fx2, fy2] = fold(j);
+      if (mm > j) { const x = lerp(ux, fx2, f), y = lerp(uy, fy2, f); mPose(e, x, y, 1); d += `${d ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`; }
+      else { const [lx, ly] = loose[j], k = io(ramp(t, tj - .7, tj)); mPose(e, lerp(lx + 5 * Math.sin(1.4 * t + j), EX + 20, k), lerp(ly + 5 * Math.sin(1.2 * t + 2 * j), RY - 20, k), ramp(t, tR + .3, tR + .8)); }
+    });
+    mD(bondP, d);
+  }, D);
+  // fold: the chain folds into the working protein
+  say(p, 'folds into insulin,', 960, 342, tF + 2, { size: 26, fill: '#c9a0dc', weight: 700 });
+  say(p, 'a working protein', 960, 374, tF + 2.3, { size: 26, fill: '#c9a0dc', weight: 700 });
+  // same: another cell has the same gene but makes no mRNA
+  const c2 = cellScene(p, { x: 1360, y: 560, w: 400, h: 330, pores: 4, ribos: 3, o: 0 }); put(c2.dna, { o: .2 }); show(c2, tS + .2, .6);
+  const N2 = 1360 + c2.nucleus.x;
+  const h2 = flatHelix(p, { x: N2, y: 560, len: 130, amp: 12, turns: 1, seq: 'TACG', w: 5, o: 0 }); show(h2, tS + .5, .5);
+  const b2 = path(p, `M${N2 - 34} 540V530H${N2 + 34}V540`, { stroke: MC.hi, 'stroke-width': 4 }, { o: 0 }); show(b2, tS + .8, .3);
+  say(p, 'another body cell', 1360, 370, tS + .4, { size: 30, weight: 700 });
+  say(p, 'same insulin gene, no mRNA', 1360, 772, tS + 2.2, { size: 26 });
+  say(p, 'so no insulin', 1360, 810, tS + 3, { size: 26, fill: COL.dim, weight: 500 });
   notToScale(p, 1570, 40, .3);
 }],
 
@@ -390,6 +616,18 @@ const BEATS = [
     wLabel(g, 'nucleus', { x: NX, y: 700, size: 28, fill: COL.dim, o: 1 });
     wLabel(g, 'cytoplasm', { x: 1440, y: 700, size: 28, fill: COL.dim, o: 1 });
   });
+  at('why', g => {
+    const c = cellPic(g, false), NX = 1270 + c.nucleus.x, [PX, PY] = c.pore(0);
+    flatHelix(g, { x: NX, y: 430, len: 170, amp: 14, turns: 1.5, seq: 'TACGGA', w: 6 });
+    padlock(g, { x: NX, y: 380, s: .8 });
+    [[1330, 330], [1390, 450], [1330, 560]].forEach(([x, y]) => { mRNA(g, { seq: 'AUGGC', x, y, s: .45, ends: false }); ribosome(g, { x: x + 42, y: y - 2, s: .38 }); });
+    wLabel(g, 'nucleus', { x: NX, y: 710, size: 28, fill: COL.dim, o: 1 });
+    wLabel(g, 'cytoplasm', { x: 1440, y: 710, size: 28, fill: COL.dim, o: 1 });
+  });
+  at('gene', g => {
+    const C = chromosome(g, { x: 1280, y: 450, s: .82 }); C.bands.forEach(bs => bs.forEach(e => put(e, { o: 1 })));
+    wLabel(g, 'a chromosome', { x: 1280, y: 790, size: 32, o: 1 });
+  });
   S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
   S.pics('order');
 }, { ask: done => quiz(PRACTICE, [
@@ -407,6 +645,17 @@ const BEATS = [
       { parts: ['DNA itself passes through the nuclear pore to the ribosome.'], ans: ['f'], why: 'False: the DNA stays in the nucleus; mRNA, its working copy, goes out.' },
       { parts: ['RNA is a nucleic acid.'], ans: ['t'], why: 'True: the two nucleic acids are DNA and RNA.' },
     ], TF, { multi: false, text: true })) },
+  { id: 'p-why', prompt: ['Why does a cell make an mRNA copy of a gene instead of sending its DNA to the ribosome?'],
+    build: withPic('why', choice([['DNA is not a nucleic acid, so it cannot leave.'], ['It keeps the master DNA safe in the nucleus, and one gene can give many copies.'], ['Ribosomes cannot read RNA.'], ['mRNA is made in the cytoplasm, next to the ribosomes.']], 1,
+      'Right. The one master set stays safe in the nucleus, and many cheap copies can go out to many ribosomes.',
+      ['DNA is a nucleic acid, like RNA. It stays in the nucleus to keep it safe.', null,
+       'They can: ribosomes read mRNA to build the polypeptide.',
+       'mRNA is made in the nucleus, where the DNA is, and then moves out through a pore.'])) },
+  { id: 'p-gene', prompt: ['Which statement about genes is right?'],
+    build: withPic('gene', choice([['A gene is a whole chromosome.'], ['Genes are made of protein.'], ['A chromosome carries many genes, each a short stretch of DNA.'], ['Each gene is a separate nucleus.']], 2,
+      'Right. One chromosome is one long DNA molecule carrying many genes, with stretches between them.',
+      ['A chromosome is far longer: it carries many genes, each one short stretch.', 'Genes are made of DNA; the proteins in a chromosome only pack it.', null,
+       'A nucleus holds all the chromosomes, and each chromosome holds many genes.'])) },
   { id: 'p-steps', prompt: ['Number the steps of protein synthesis from 1 to 3.'],
     build: withPic('steps', blanks([
       { parts: ['mRNA moves into the cytoplasm: step ', { box: '2' }], why: 'Step 2: the mRNA leaves the nucleus through a nuclear pore.', hint: 'It can only leave after it has been made.', fx: () => stepFx(1, '2') },

@@ -1713,9 +1713,303 @@
    ]
   ]
  },
+ "rev": {
+  "key": "f194a40972802fbefdae7fa5bfbf81ddf832b788",
+  "dur": 30.36,
+  "words": [
+   [
+    0.104166,
+    "Let's"
+   ],
+   [
+    0.273458,
+    "read"
+   ],
+   [
+    0.416666,
+    "a"
+   ],
+   [
+    0.481791,
+    "partner"
+   ],
+   [
+    0.911458,
+    "strand"
+   ],
+   [
+    1.302083,
+    "properly"
+   ],
+   [
+    2.33075,
+    "Here"
+   ],
+   [
+    2.578125,
+    "is"
+   ],
+   [
+    2.721375,
+    "one"
+   ],
+   [
+    2.981791,
+    "strand"
+   ],
+   [
+    3.841166,
+    "written"
+   ],
+   [
+    4.127625,
+    "five"
+   ],
+   [
+    4.51825,
+    "prime"
+   ],
+   [
+    4.947916,
+    "to"
+   ],
+   [
+    5.065125,
+    "three"
+   ],
+   [
+    5.416666,
+    "prime"
+   ],
+   [
+    6.315125,
+    "guanine"
+   ],
+   [
+    7.200541,
+    "adenine"
+   ],
+   [
+    8.112,
+    "thymine"
+   ],
+   [
+    9.0495,
+    "thymine"
+   ],
+   [
+    9.778666,
+    "cytosine"
+   ],
+   [
+    10.885416,
+    "Pair"
+   ],
+   [
+    11.158875,
+    "each"
+   ],
+   [
+    11.40625,
+    "base"
+   ],
+   [
+    11.757833,
+    "underneath"
+   ],
+   [
+    12.669291,
+    "cytosine"
+   ],
+   [
+    13.671875,
+    "thymine"
+   ],
+   [
+    14.609375,
+    "adenine"
+   ],
+   [
+    15.481791,
+    "adenine"
+   ],
+   [
+    16.25,
+    "guanine"
+   ],
+   [
+    17.1875,
+    "But"
+   ],
+   [
+    17.278666,
+    "the"
+   ],
+   [
+    17.369791,
+    "partner"
+   ],
+   [
+    17.8125,
+    "runs"
+   ],
+   [
+    18.072916,
+    "the"
+   ],
+   [
+    18.190125,
+    "other"
+   ],
+   [
+    18.411458,
+    "way"
+   ],
+   [
+    19.0495,
+    "so"
+   ],
+   [
+    19.244791,
+    "its"
+   ],
+   [
+    19.388041,
+    "left"
+   ],
+   [
+    19.739583,
+    "end"
+   ],
+   [
+    20.221375,
+    "is"
+   ],
+   [
+    20.325541,
+    "the"
+   ],
+   [
+    20.429708,
+    "three"
+   ],
+   [
+    20.78125,
+    "prime"
+   ],
+   [
+    21.171875,
+    "end"
+   ],
+   [
+    21.953125,
+    "To"
+   ],
+   [
+    22.03125,
+    "read"
+   ],
+   [
+    22.226583,
+    "it"
+   ],
+   [
+    22.34375,
+    "five"
+   ],
+   [
+    22.695333,
+    "prime"
+   ],
+   [
+    23.020833,
+    "to"
+   ],
+   [
+    23.098958,
+    "three"
+   ],
+   [
+    23.359375,
+    "prime"
+   ],
+   [
+    24.114583,
+    "we"
+   ],
+   [
+    24.21875,
+    "flip"
+   ],
+   [
+    24.492208,
+    "it"
+   ],
+   [
+    25.091166,
+    "It"
+   ],
+   [
+    25.273458,
+    "reads"
+   ],
+   [
+    26.028666,
+    "guanine"
+   ],
+   [
+    26.848958,
+    "adenine"
+   ],
+   [
+    27.65625,
+    "adenine"
+   ],
+   [
+    28.541666,
+    "thymine"
+   ],
+   [
+    29.296875,
+    "cytosine"
+   ]
+  ],
+  "marks": {
+   "give": 2.331,
+   "pairit": 10.885,
+   "flip": 17.188,
+   "read": 25.091
+  },
+  "cues": [
+   [
+    0.104,
+    "Let's read a partner strand properly."
+   ],
+   [
+    2.331,
+    "Here is one strand, written five prime to three prime: guanine, adenine, thymine, thymine, cytosine."
+   ],
+   [
+    10.885,
+    "Pair each base underneath: cytosine, thymine, adenine, adenine, guanine."
+   ],
+   [
+    17.188,
+    "But the partner runs the other way, so its left end is the three prime end."
+   ],
+   [
+    21.953,
+    "To read it five prime to three prime, we flip it."
+   ],
+   [
+    25.091,
+    "It reads: guanine, adenine, adenine, thymine, cytosine."
+   ]
+  ]
+ },
  "ratio": {
-  "key": "4974c70c5d4421309480fb8e0983ec362431dc61",
-  "dur": 19.584,
+  "key": "e3cce3cd0408a98d2064757a75de08423e281b68",
+  "dur": 29.04,
   "words": [
    [
     0.117208,
@@ -1908,12 +2202,89 @@
    [
     18.671875,
     "percent"
+   ],
+   [
+    19.622416,
+    "Notice"
+   ],
+   [
+    19.921875,
+    "the"
+   ],
+   [
+    20.026041,
+    "pattern"
+   ],
+   [
+    20.872416,
+    "adenine"
+   ],
+   [
+    21.484375,
+    "equals"
+   ],
+   [
+    21.875,
+    "thymine"
+   ],
+   [
+    22.695333,
+    "and"
+   ],
+   [
+    22.8125,
+    "guanine"
+   ],
+   [
+    23.4375,
+    "equals"
+   ],
+   [
+    23.789083,
+    "cytosine"
+   ],
+   [
+    24.739583,
+    "so"
+   ],
+   [
+    24.960958,
+    "adenine"
+   ],
+   [
+    25.403666,
+    "plus"
+   ],
+   [
+    25.755208,
+    "guanine"
+   ],
+   [
+    26.328125,
+    "always"
+   ],
+   [
+    26.796875,
+    "makes"
+   ],
+   [
+    27.070333,
+    "exactly"
+   ],
+   [
+    27.734375,
+    "fifty"
+   ],
+   [
+    28.098958,
+    "percent"
    ]
   ],
   "marks": {
    "a": 2.357,
    "t": 7.109,
-   "gc": 12.279
+   "gc": 12.279,
+   "half": 19.622
   },
   "cues": [
    [
@@ -1935,12 +2306,69 @@
    [
     16.432,
     "They pair with each other, so each is twenty percent."
+   ],
+   [
+    19.622,
+    "Notice the pattern: adenine equals thymine, and guanine equals cytosine, so adenine plus guanine always makes exactly fifty percent."
+   ]
+  ]
+ },
+ "q3": {
+  "key": "dedb3b9c84f773faf19fd185ca71783a8848ce22",
+  "dur": 3.72,
+  "words": [
+   [
+    0.117208,
+    "Quick"
+   ],
+   [
+    0.286458,
+    "check"
+   ],
+   [
+    1.09375,
+    "Use"
+   ],
+   [
+    1.328125,
+    "the"
+   ],
+   [
+    1.458333,
+    "pairing"
+   ],
+   [
+    1.901041,
+    "rule"
+   ],
+   [
+    2.34375,
+    "on"
+   ],
+   [
+    2.447916,
+    "the"
+   ],
+   [
+    2.526041,
+    "percentages"
+   ]
+  ],
+  "marks": {},
+  "cues": [
+   [
+    0.117,
+    "Quick check."
+   ],
+   [
+    1.094,
+    "Use the pairing rule on the percentages."
    ]
   ]
  },
  "twist": {
-  "key": "118f80f1b5137318a238429a9c7b312a0f4ace70",
-  "dur": 16.608,
+  "key": "b9b4ca38080c942659680bef42995742ee18f2bf",
+  "dur": 25.368,
   "words": [
    [
     0.117208,
@@ -2121,12 +2549,105 @@
    [
     15.690125,
     "inside"
+   ],
+   [
+    16.640625,
+    "Each"
+   ],
+   [
+    16.835958,
+    "hydrogen"
+   ],
+   [
+    17.395833,
+    "bond"
+   ],
+   [
+    17.851583,
+    "is"
+   ],
+   [
+    17.994791,
+    "weak"
+   ],
+   [
+    18.697916,
+    "but"
+   ],
+   [
+    18.880208,
+    "thousands"
+   ],
+   [
+    19.505208,
+    "of"
+   ],
+   [
+    19.596375,
+    "them"
+   ],
+   [
+    19.739583,
+    "down"
+   ],
+   [
+    20.026041,
+    "the"
+   ],
+   [
+    20.104166,
+    "helix"
+   ],
+   [
+    20.572916,
+    "hold"
+   ],
+   [
+    20.859375,
+    "it"
+   ],
+   [
+    20.950541,
+    "together"
+   ],
+   [
+    21.770833,
+    "while"
+   ],
+   [
+    21.888041,
+    "the"
+   ],
+   [
+    22.005208,
+    "covalent"
+   ],
+   [
+    22.578125,
+    "backbone"
+   ],
+   [
+    23.333333,
+    "keeps"
+   ],
+   [
+    23.802083,
+    "each"
+   ],
+   [
+    24.023458,
+    "strand"
+   ],
+   [
+    24.414083,
+    "intact"
    ]
   ],
   "marks": {
    "ladder": 2.878,
    "twist": 6.94,
-   "two": 10.404
+   "two": 10.404,
+   "stable": 16.641
   },
   "cues": [
    [
@@ -2144,6 +2665,10 @@
    [
     10.404,
     "That is the double helix: two backbones spiraling on the outside, and the pairs stacked inside."
+   ],
+   [
+    16.641,
+    "Each hydrogen bond is weak, but thousands of them down the helix hold it together, while the covalent backbone keeps each strand intact."
    ]
   ]
  },
@@ -2966,8 +3491,8 @@
   ]
  },
  "final1": {
-  "key": "cadd5b2db502c5a225c1b2a63a7d3b6562a3f880",
-  "dur": 3.216,
+  "key": "705f6fcc8fd410041a4b9136db207e1b7eb20979",
+  "dur": 3.336,
   "words": [
    [
     0.104166,
@@ -2978,23 +3503,23 @@
     "practice"
    ],
    [
-    1.471375,
-    "Four"
+    1.510416,
+    "Five"
    ],
    [
-    1.575541,
+    1.71875,
     "questions"
    ],
    [
-    2.03125,
+    2.161458,
     "that"
    ],
    [
-    2.161458,
+    2.291666,
     "use"
    ],
    [
-    2.369791,
+    2.487,
     "everything"
    ]
   ],
@@ -3005,8 +3530,8 @@
     "Chapter practice."
    ],
    [
-    1.471,
-    "Four questions that use everything."
+    1.51,
+    "Five questions that use everything."
    ]
   ]
  },

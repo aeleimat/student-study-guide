@@ -113,6 +113,90 @@ window.TIMINGS = {
    ]
   ]
  },
+ "examples": {
+  "dur": 30.912,
+  "marks": {
+   "starch": 2.031,
+   "protein": 13.229,
+   "dna": 20.508,
+   "table": 26.875
+  },
+  "cues": [
+   [
+    0.13,
+    "Here are three real polymers."
+   ],
+   [
+    2.031,
+    "Starch, the energy store in pasta and bread, is a carbohydrate."
+   ],
+   [
+    6.602,
+    "Its monomer is a sugar called glucose, and one starch chain strings thousands of glucose units together."
+   ],
+   [
+    13.229,
+    "A protein is a chain of amino acids."
+   ],
+   [
+    16.042,
+    "Cells use twenty kinds, and a protein may link hundreds of them."
+   ],
+   [
+    20.508,
+    "And DNA, a nucleic acid, is a chain of nucleotides, which the next lessons open up."
+   ],
+   [
+    26.875,
+    "Three classes, three kinds of monomer, and one way of joining them."
+   ]
+  ]
+ },
+ "lipids": {
+  "dur": 24.888,
+  "marks": {
+   "fat": 1.862,
+   "few": 10.404,
+   "water": 15.99,
+   "none": 22.331
+  },
+  "cues": [
+   [
+    0.117,
+    "So why are lipids left out?"
+   ],
+   [
+    1.862,
+    "A fat, like the oil in a pan, is built from a few small pieces: one glycerol backbone and three fatty acid tails."
+   ],
+   [
+    10.404,
+    "That is a handful of parts of different kinds, not a long chain of the same repeating unit."
+   ],
+   [
+    15.99,
+    "What lipids share is that they mostly avoid water, and that is how they are grouped, not by a repeating pattern."
+   ],
+   [
+    22.331,
+    "Large and important, but not a polymer."
+   ]
+  ]
+ },
+ "q3": {
+  "dur": 2.904,
+  "marks": {},
+  "cues": [
+   [
+    0.117,
+    "Quick check."
+   ],
+   [
+    1.094,
+    "Match monomer to polymer."
+   ]
+  ]
+ },
  "dehy": {
   "dur": 28.824,
   "marks": {
@@ -215,6 +299,50 @@ window.TIMINGS = {
    [
     18.984,
     "Enzymes in your gut chop big polymers back into monomers small enough to use."
+   ]
+  ]
+ },
+ "worked": {
+  "dur": 34.968,
+  "marks": {
+   "ten": 1.901,
+   "bonds": 4.336,
+   "waters": 8.607,
+   "back": 17.552,
+   "rule": 27.643
+  },
+  "cues": [
+   [
+    0.104,
+    "Let's count with a bigger chain."
+   ],
+   [
+    1.901,
+    "Build a chain of ten glucose units."
+   ],
+   [
+    4.336,
+    "Ten units in a row have nine links between them, so nine bonds."
+   ],
+   [
+    8.607,
+    "Each bond forms by dehydration, and each dehydration releases one water."
+   ],
+   [
+    14.036,
+    "So building the chain releases nine water molecules."
+   ],
+   [
+    17.552,
+    "Now digest it fully."
+   ],
+   [
+    19.062,
+    "The same nine bonds break, each hydrolysis uses one water, so nine water molecules are added, and ten glucose units come out."
+   ],
+   [
+    27.643,
+    "The rule: for n units, there are n minus one bonds, and n minus one water molecules, either way."
    ]
   ]
  },
@@ -326,7 +454,7 @@ window.TIMINGS = {
   ]
  },
  "final1": {
-  "dur": 3.216,
+  "dur": 3.36,
   "marks": {},
   "cues": [
    [
@@ -334,8 +462,8 @@ window.TIMINGS = {
     "Chapter practice."
    ],
    [
-    1.471,
-    "Four questions that use everything."
+    1.445,
+    "Six questions that use everything."
    ]
   ]
  },

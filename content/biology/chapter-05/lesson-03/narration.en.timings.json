@@ -858,8 +858,8 @@
   ]
  },
  "bases": {
-  "key": "561c3679c01f0caaab0066cad2780c849eef9b60",
-  "dur": 35.304,
+  "key": "d77d78377c6b445e267bfafdf7591eca08f06f3d",
+  "dur": 48.336,
   "words": [
    [
     0.104166,
@@ -1148,6 +1148,134 @@
    [
     34.335958,
     "thymine"
+   ],
+   [
+    35.3125,
+    "A"
+   ],
+   [
+    35.377625,
+    "memory"
+   ],
+   [
+    35.78125,
+    "aid"
+   ],
+   [
+    36.445333,
+    "Pure"
+   ],
+   [
+    36.744791,
+    "As"
+   ],
+   [
+    36.901041,
+    "Gold"
+   ],
+   [
+    37.65625,
+    "the"
+   ],
+   [
+    37.760416,
+    "purines"
+   ],
+   [
+    38.255208,
+    "are"
+   ],
+   [
+    38.4245,
+    "Adenine"
+   ],
+   [
+    39.075541,
+    "and"
+   ],
+   [
+    39.179708,
+    "Guanine"
+   ],
+   [
+    40.117208,
+    "And"
+   ],
+   [
+    40.260416,
+    "Cut"
+   ],
+   [
+    40.481791,
+    "the"
+   ],
+   [
+    40.598958,
+    "Pie"
+   ],
+   [
+    41.445333,
+    "Cytosine"
+   ],
+   [
+    42.421875,
+    "Thymine"
+   ],
+   [
+    43.28125,
+    "and"
+   ],
+   [
+    43.4375,
+    "Uracil"
+   ],
+   [
+    44.088541,
+    "are"
+   ],
+   [
+    44.21875,
+    "the"
+   ],
+   [
+    44.322916,
+    "pyrimidines"
+   ],
+   [
+    45.546875,
+    "and"
+   ],
+   [
+    45.664083,
+    "the"
+   ],
+   [
+    45.76825,
+    "word"
+   ],
+   [
+    46.067708,
+    "pyrimidine"
+   ],
+   [
+    46.927083,
+    "even"
+   ],
+   [
+    47.161458,
+    "has"
+   ],
+   [
+    47.304708,
+    "pie"
+   ],
+   [
+    47.591166,
+    "in"
+   ],
+   [
+    47.734375,
+    "it"
    ]
   ],
   "marks": {
@@ -1156,7 +1284,8 @@
    "pur": 8.255,
    "pyr": 15.456,
    "rule": 22.409,
-   "where": 27.513
+   "where": 27.513,
+   "aid": 35.312
   },
   "cues": [
    [
@@ -1206,6 +1335,18 @@
    [
     32.135,
     "RNA uses uracil in place of thymine."
+   ],
+   [
+    35.312,
+    "A memory aid."
+   ],
+   [
+    36.445,
+    "Pure As Gold: the purines are Adenine and Guanine."
+   ],
+   [
+    40.117,
+    "And Cut the Pie: Cytosine, Thymine, and Uracil are the pyrimidines, and the word pyrimidine even has pie in it."
    ]
   ]
  },
@@ -1569,6 +1710,375 @@
    ]
   ]
  },
+ "build": {
+  "key": "91d08bc9b6ddd6edeb134c2846f7344cce2c6ed5",
+  "dur": 28.176,
+  "words": [
+   [
+    0.104166,
+    "Let's"
+   ],
+   [
+    0.286458,
+    "build"
+   ],
+   [
+    0.520833,
+    "one"
+   ],
+   [
+    0.742208,
+    "nucleotide"
+   ],
+   [
+    1.666666,
+    "step"
+   ],
+   [
+    1.953125,
+    "by"
+   ],
+   [
+    2.083333,
+    "step"
+   ],
+   [
+    2.942708,
+    "Start"
+   ],
+   [
+    3.307291,
+    "with"
+   ],
+   [
+    3.476583,
+    "a"
+   ],
+   [
+    3.632833,
+    "deoxyribose"
+   ],
+   [
+    4.648458,
+    "sugar"
+   ],
+   [
+    5.45575,
+    "five"
+   ],
+   [
+    5.76825,
+    "carbons"
+   ],
+   [
+    6.614583,
+    "numbered"
+   ],
+   [
+    6.927083,
+    "with"
+   ],
+   [
+    7.083333,
+    "primes"
+   ],
+   [
+    8.177083,
+    "Join"
+   ],
+   [
+    8.398458,
+    "the"
+   ],
+   [
+    8.528666,
+    "base"
+   ],
+   [
+    8.841166,
+    "adenine"
+   ],
+   [
+    9.440125,
+    "to"
+   ],
+   [
+    9.53125,
+    "carbon"
+   ],
+   [
+    9.973958,
+    "one"
+   ],
+   [
+    10.169291,
+    "prime"
+   ],
+   [
+    11.028666,
+    "Sugar"
+   ],
+   [
+    11.328125,
+    "plus"
+   ],
+   [
+    11.614583,
+    "base"
+   ],
+   [
+    12.161458,
+    "is"
+   ],
+   [
+    12.278666,
+    "a"
+   ],
+   [
+    12.317708,
+    "nucleoside"
+   ],
+   [
+    13.515625,
+    "Now"
+   ],
+   [
+    13.710958,
+    "join"
+   ],
+   [
+    13.984375,
+    "a"
+   ],
+   [
+    14.0495,
+    "phosphate"
+   ],
+   [
+    14.6745,
+    "group"
+   ],
+   [
+    15.026041,
+    "to"
+   ],
+   [
+    15.14325,
+    "carbon"
+   ],
+   [
+    15.507833,
+    "five"
+   ],
+   [
+    15.807291,
+    "prime"
+   ],
+   [
+    16.653666,
+    "Base"
+   ],
+   [
+    16.888041,
+    "at"
+   ],
+   [
+    17.005208,
+    "one"
+   ],
+   [
+    17.239583,
+    "prime"
+   ],
+   [
+    17.916666,
+    "phosphate"
+   ],
+   [
+    18.554708,
+    "at"
+   ],
+   [
+    18.671875,
+    "five"
+   ],
+   [
+    19.075541,
+    "prime"
+   ],
+   [
+    19.960958,
+    "a"
+   ],
+   [
+    20.013041,
+    "complete"
+   ],
+   [
+    20.559916,
+    "DNA"
+   ],
+   [
+    20.963541,
+    "nucleotide"
+   ],
+   [
+    22.1745,
+    "Carbon"
+   ],
+   [
+    22.526041,
+    "three"
+   ],
+   [
+    22.8125,
+    "prime"
+   ],
+   [
+    23.320333,
+    "still"
+   ],
+   [
+    23.658875,
+    "has"
+   ],
+   [
+    23.919291,
+    "its"
+   ],
+   [
+    24.0625,
+    "free"
+   ],
+   [
+    24.388041,
+    "hydroxyl"
+   ],
+   [
+    25.104166,
+    "group"
+   ],
+   [
+    25.755208,
+    "ready"
+   ],
+   [
+    25.976583,
+    "for"
+   ],
+   [
+    26.106791,
+    "the"
+   ],
+   [
+    26.197916,
+    "next"
+   ],
+   [
+    26.575541,
+    "nucleotide"
+   ],
+   [
+    27.317708,
+    "to"
+   ],
+   [
+    27.408875,
+    "join"
+   ]
+  ],
+  "marks": {
+   "sugar": 2.943,
+   "base": 8.177,
+   "nside": 11.029,
+   "phos": 13.516,
+   "done": 16.654,
+   "free": 22.174
+  },
+  "cues": [
+   [
+    0.104,
+    "Let's build one nucleotide, step by step."
+   ],
+   [
+    2.943,
+    "Start with a deoxyribose sugar: five carbons, numbered with primes."
+   ],
+   [
+    8.177,
+    "Join the base adenine to carbon 1\u2032."
+   ],
+   [
+    11.029,
+    "Sugar plus base is a nucleoside."
+   ],
+   [
+    13.516,
+    "Now join a phosphate group to carbon 5\u2032."
+   ],
+   [
+    16.654,
+    "Base at 1\u2032, phosphate at 5\u2032: a complete DNA nucleotide."
+   ],
+   [
+    22.174,
+    "Carbon 3\u2032 still has its free hydroxyl group, ready for the next nucleotide to join."
+   ]
+  ]
+ },
+ "q3": {
+  "key": "0a7b87cf4f1e3b3a4be6560879cc14916cf638c3",
+  "dur": 3.888,
+  "words": [
+   [
+    0.117208,
+    "Quick"
+   ],
+   [
+    0.286458,
+    "check"
+   ],
+   [
+    1.09375,
+    "What"
+   ],
+   [
+    1.237,
+    "turns"
+   ],
+   [
+    1.497416,
+    "a"
+   ],
+   [
+    1.5495,
+    "nucleoside"
+   ],
+   [
+    2.408875,
+    "into"
+   ],
+   [
+    2.630208,
+    "a"
+   ],
+   [
+    2.682291,
+    "nucleotide"
+   ]
+  ],
+  "marks": {},
+  "cues": [
+   [
+    0.117,
+    "Quick check."
+   ],
+   [
+    1.094,
+    "What turns a nucleoside into a nucleotide?"
+   ]
+  ]
+ },
  "names": {
   "key": "419821fecf74cb689ddb14430daaf1507df08b10",
   "dur": 17.4,
@@ -1785,6 +2295,479 @@
    [
     15.286,
     "Nucleotide, with phosphate."
+   ]
+  ]
+ },
+ "mystery": {
+  "key": "661d7016f86e1171049a939499b6a47a03f04ed3",
+  "dur": 47.52,
+  "words": [
+   [
+    0.117208,
+    "Time"
+   ],
+   [
+    0.286458,
+    "to"
+   ],
+   [
+    0.377625,
+    "name"
+   ],
+   [
+    0.612,
+    "some"
+   ],
+   [
+    0.807291,
+    "mystery"
+   ],
+   [
+    1.197916,
+    "nucleotides"
+   ],
+   [
+    2.487,
+    "Read"
+   ],
+   [
+    2.669291,
+    "the"
+   ],
+   [
+    2.760416,
+    "parts"
+   ],
+   [
+    3.346375,
+    "and"
+   ],
+   [
+    3.489583,
+    "decide"
+   ],
+   [
+    4.440125,
+    "Mystery"
+   ],
+   [
+    4.84375,
+    "one"
+   ],
+   [
+    5.612,
+    "guanine"
+   ],
+   [
+    6.367208,
+    "deoxyribose"
+   ],
+   [
+    7.695333,
+    "and"
+   ],
+   [
+    7.8125,
+    "a"
+   ],
+   [
+    7.877625,
+    "phosphate"
+   ],
+   [
+    8.476583,
+    "group"
+   ],
+   [
+    9.21875,
+    "Deoxyribose"
+   ],
+   [
+    10.247416,
+    "means"
+   ],
+   [
+    10.520833,
+    "DNA"
+   ],
+   [
+    11.510416,
+    "With"
+   ],
+   [
+    11.627625,
+    "the"
+   ],
+   [
+    11.731791,
+    "phosphate"
+   ],
+   [
+    12.34375,
+    "it"
+   ],
+   [
+    12.473958,
+    "is"
+   ],
+   [
+    12.591166,
+    "a"
+   ],
+   [
+    12.64325,
+    "nucleotide"
+   ],
+   [
+    13.697916,
+    "and"
+   ],
+   [
+    13.815125,
+    "guanine"
+   ],
+   [
+    14.244791,
+    "has"
+   ],
+   [
+    14.492208,
+    "two"
+   ],
+   [
+    14.765625,
+    "rings"
+   ],
+   [
+    15.494791,
+    "so"
+   ],
+   [
+    15.690125,
+    "it"
+   ],
+   [
+    15.76825,
+    "is"
+   ],
+   [
+    15.872416,
+    "a"
+   ],
+   [
+    15.950541,
+    "purine"
+   ],
+   [
+    16.848958,
+    "Mystery"
+   ],
+   [
+    17.265625,
+    "two"
+   ],
+   [
+    18.007833,
+    "cytosine"
+   ],
+   [
+    18.841166,
+    "and"
+   ],
+   [
+    18.984375,
+    "ribose"
+   ],
+   [
+    19.791666,
+    "with"
+   ],
+   [
+    19.947916,
+    "no"
+   ],
+   [
+    20.169291,
+    "phosphate"
+   ],
+   [
+    21.223958,
+    "Ribose"
+   ],
+   [
+    21.679708,
+    "means"
+   ],
+   [
+    21.979166,
+    "RNA"
+   ],
+   [
+    22.96875,
+    "No"
+   ],
+   [
+    23.203125,
+    "phosphate"
+   ],
+   [
+    23.789083,
+    "makes"
+   ],
+   [
+    24.0495,
+    "it"
+   ],
+   [
+    24.127625,
+    "a"
+   ],
+   [
+    24.166666,
+    "nucleoside"
+   ],
+   [
+    25.377625,
+    "and"
+   ],
+   [
+    25.494791,
+    "cytosine's"
+   ],
+   [
+    26.132833,
+    "single"
+   ],
+   [
+    26.5495,
+    "ring"
+   ],
+   [
+    27.070333,
+    "makes"
+   ],
+   [
+    27.304708,
+    "it"
+   ],
+   [
+    27.382833,
+    "a"
+   ],
+   [
+    27.460958,
+    "pyrimidine"
+   ],
+   [
+    28.697916,
+    "Mystery"
+   ],
+   [
+    29.101583,
+    "three"
+   ],
+   [
+    29.934916,
+    "thymine"
+   ],
+   [
+    30.533875,
+    "and"
+   ],
+   [
+    30.651041,
+    "deoxyribose"
+   ],
+   [
+    32.044291,
+    "no"
+   ],
+   [
+    32.252625,
+    "phosphate"
+   ],
+   [
+    33.359375,
+    "Thymine"
+   ],
+   [
+    33.867208,
+    "and"
+   ],
+   [
+    33.984375,
+    "deoxyribose"
+   ],
+   [
+    35.169291,
+    "both"
+   ],
+   [
+    35.481791,
+    "say"
+   ],
+   [
+    35.78125,
+    "DNA"
+   ],
+   [
+    36.71875,
+    "No"
+   ],
+   [
+    36.940125,
+    "phosphate"
+   ],
+   [
+    37.877625,
+    "so"
+   ],
+   [
+    38.059916,
+    "a"
+   ],
+   [
+    38.112,
+    "nucleoside"
+   ],
+   [
+    39.231791,
+    "and"
+   ],
+   [
+    39.348958,
+    "one"
+   ],
+   [
+    39.635416,
+    "ring"
+   ],
+   [
+    40.286458,
+    "so"
+   ],
+   [
+    40.46875,
+    "a"
+   ],
+   [
+    40.546875,
+    "pyrimidine"
+   ],
+   [
+    41.71875,
+    "Three"
+   ],
+   [
+    41.875,
+    "questions"
+   ],
+   [
+    42.617208,
+    "every"
+   ],
+   [
+    42.864583,
+    "time"
+   ],
+   [
+    43.710958,
+    "which"
+   ],
+   [
+    43.841166,
+    "sugar"
+   ],
+   [
+    44.739583,
+    "is"
+   ],
+   [
+    44.83075,
+    "there"
+   ],
+   [
+    44.987,
+    "a"
+   ],
+   [
+    45.039083,
+    "phosphate"
+   ],
+   [
+    46.002625,
+    "and"
+   ],
+   [
+    46.08075,
+    "how"
+   ],
+   [
+    46.276041,
+    "many"
+   ],
+   [
+    46.5625,
+    "rings"
+   ]
+  ],
+  "marks": {
+   "m1": 4.44,
+   "a1": 9.219,
+   "m2": 16.849,
+   "a2": 21.224,
+   "m3": 28.698,
+   "a3": 33.359,
+   "tip": 41.719
+  },
+  "cues": [
+   [
+    0.117,
+    "Time to name some mystery nucleotides."
+   ],
+   [
+    2.487,
+    "Read the parts, and decide."
+   ],
+   [
+    4.44,
+    "Mystery one: guanine, deoxyribose, and a phosphate group."
+   ],
+   [
+    9.219,
+    "Deoxyribose means DNA."
+   ],
+   [
+    11.51,
+    "With the phosphate it is a nucleotide, and guanine has two rings, so it is a purine."
+   ],
+   [
+    16.849,
+    "Mystery two: cytosine and ribose, with no phosphate."
+   ],
+   [
+    21.224,
+    "Ribose means RNA."
+   ],
+   [
+    22.969,
+    "No phosphate makes it a nucleoside, and cytosine's single ring makes it a pyrimidine."
+   ],
+   [
+    28.698,
+    "Mystery three: thymine and deoxyribose, no phosphate."
+   ],
+   [
+    33.359,
+    "Thymine and deoxyribose both say DNA."
+   ],
+   [
+    36.719,
+    "No phosphate, so a nucleoside, and one ring, so a pyrimidine."
+   ],
+   [
+    41.719,
+    "Three questions every time: which sugar, is there a phosphate, and how many rings."
    ]
   ]
  },
@@ -2206,8 +3189,8 @@
   ]
  },
  "final1": {
-  "key": "bd7dfba43215039d6f58286c22c0c06c53c66799",
-  "dur": 3.384,
+  "key": "4db676151cbf9b661b96775566009b728cc64b50",
+  "dur": 3.528,
   "words": [
    [
     0.104166,
@@ -2218,19 +3201,19 @@
     "practice"
    ],
    [
-    1.471375,
-    "Four"
+    1.497416,
+    "Five"
    ],
    [
-    1.575541,
+    1.70575,
     "questions"
    ],
    [
-    2.03125,
+    2.161458,
     "on"
    ],
    [
-    2.161458,
+    2.291666,
     "nucleotides"
    ]
   ],
@@ -2241,8 +3224,8 @@
     "Chapter practice."
    ],
    [
-    1.471,
-    "Four questions on nucleotides."
+    1.497,
+    "Five questions on nucleotides."
    ]
   ]
  },

@@ -18,7 +18,7 @@
 // molecules; monomers and polymers (lipids the exception); dehydration step by step; enzymes; hydrolysis and digestion;
 // check 1; variety from a small set of monomers; check 2; summary; practice. Molecules are the only cast.
 // Plan, errata and storyboard: books/biology/chapters/chapter-05/lesson-01.md.
-const CHAPTER = { number: 501, label: '5, lesson 1', title: 'Macromolecules, Monomers and Polymers', minutes: 5, language: 'en', lead: false, next: '../lesson-02/' };
+const CHAPTER = { number: 501, label: '5, lesson 1', title: 'Macromolecules, Monomers and Polymers', minutes: 7, language: 'en', lead: false, next: '../lesson-02/' };
 
 /* ---------- small helpers ---------- */
 const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
@@ -210,9 +210,44 @@ function orderPic(p, { y0, ys, x0 = 330, r = 26, sp = 72, t0 = null, lc = 800, l
 const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
 const withPic = (key, build) => (body, api) => { S.pics?.(key); return build(body, api); };
 
+// Three real polymers (examples, q3): the monomer drawn at a group's origin, and the chain grown from x 580 at row y
+// (t0 null: drawn at once). Starch from glucose rings, protein from amino acids of many kinds, DNA from nucleotides.
+const AMINO_HUES = ['#c9a0dc', '#f4a48c', '#86c9e8', '#8fd6b0', '#e8a0c8', '#ffd27a', '#a8c66c', '#6c8cff', '#f39a2b', '#bba8ee'];
+function growChain(p, y, t0, n, sp, stroke, drawBead) {
+  const g = G(p), pts = Array.from({ length: n }, (_, i) => [580 + i * sp, y + 8 * Math.sin(i * 1.3)]);
+  const st0 = path(g, ptsPath(pts), { stroke, 'stroke-width': 7, 'stroke-linejoin': 'round' }, t0 === null ? {} : { d: 0 });
+  if (t0 !== null) draw(st0, t0, .12 * n, lin);
+  pts.forEach(([x, yy], i) => { const b = G(g, { x, y: yy, o: t0 === null ? 1 : 0 }); drawBead(b, i); if (t0 !== null) show(b, t0 + .12 * i, .25); });
+  return g;
+}
+const EXAMPLES = [
+  { cls: 'carbohydrate', monoName: 'glucose', poly: 'starch', note: 'thousands of glucose units',
+    mono: g => path(g, mPoly(6, 34, 0), { fill: MC.sugar, stroke: MC.sugarEdge, 'stroke-width': 3 }),
+    chain: (p, y, t0) => growChain(p, y, t0, 9, 60, WC.stick, b => path(b, mPoly(6, 24, 0), { fill: MC.sugar, stroke: MC.sugarEdge, 'stroke-width': 2.5 })) },
+  { cls: 'protein', monoName: 'amino acid (20 kinds)', poly: 'protein', note: 'hundreds of amino acids',
+    mono: g => bead(g, 'amino', 0, 0, 32),
+    chain: (p, y, t0) => growChain(p, y, t0, 11, 52, '#9a7fb0', (b, i) => { mk('circle', { r: 19, fill: AMINO_HUES[(i * 7) % 10], stroke: '#14233a', 'stroke-opacity': .35, 'stroke-width': 2 }, b); }) },
+  { cls: 'nucleic acid', monoName: 'nucleotide', poly: 'DNA', note: 'opened up in the next lessons',
+    mono: g => nucleotide(g, { base: 'A', x: -14, y: 14, s: .45 }),
+    chain: (p, y, t0) => growChain(p, y, t0, 11, 52, MC.dna, (b, i) => { const L = 'AGCTTAGCAGT'[i]; path(b, 'M0 0V30', { stroke: MC[L], 'stroke-width': 10 }); path(b, mPoly(5, 15, -90), { fill: MC.sugar, stroke: MC.sugarEdge, 'stroke-width': 2 }); }) },
+];
+// A fat: a glycerol bar with three fatty acid tails, the bar centred at (x, y).
+function fatMolecule(p, x, y) {
+  const g = G(p);
+  [-100, 0, 100].forEach((dy, i) => {
+    let d = `M${x + 26} ${y + dy}`; for (let k = 1; k <= 10; k++) d += `L${x + 26 + k * 48} ${y + dy + (k % 2 ? -14 : 14) + (i === 2 && k > 5 ? 9 * (k - 5) : 0)}`;
+    path(g, d, { stroke: LIPID.tail, 'stroke-width': 12, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+  });
+  mk('rect', { x: x - 34, y: y - 140, width: 68, height: 280, rx: 24, fill: LIPID.head, stroke: LIPID.headEdge, 'stroke-width': 4 }, g);
+  mk('ellipse', { cx: x - 12, cy: y - 100, rx: 10, ry: 22, fill: '#fff', 'fill-opacity': .25 }, g);
+  return g;
+}
+// The worked count (worked): 10 units, n − 1 bonds, n − 1 water out to build and in to break.
+const WK_N = 10;
+
 /* ---------- shared numbers (computed, never typed twice) ---------- */
 const bondsIn = n => n - 1;                   // n monomers in one chain are held by n − 1 bonds
-const Q1_N = 5, P_BUILD = 6, P_BREAK = 8;
+const Q1_N = 5, P_BUILD = 6, P_BREAK = 8, P_SPLIT = 9;
 
 /* ---------- beats ---------- */
 const BEATS = [
@@ -308,6 +343,76 @@ const BEATS = [
   const x = crossMark(p, { x: xs[1], y: 140, s: .6, o: 0 }); show(x, tLip + .3, .3);
   say(p, 'large, but not a chain', xs[1], 290, tLip + 1.6, { size: 26, fill: '#ff9b8a' });
 }],
+
+/* ---------- three real polymers ---------- */
+['examples', 'Three real polymers', (m, D) => {
+  // Three rows that become a table: class | monomer | polymer (chain) | polymer name. Each chain grows from its monomer.
+  const p = panel(0), tS = m('starch'), tP = m('protein'), tD = m('dna'), tT = m('table');
+  say(p, 'three real polymers', 800, 90, .3, { size: 34 });
+  const rows = EXAMPLES.map((ex, k) => {
+    const y = 270 + k * 200, t0 = [tS, tP, tD][k];
+    const mono = G(p, { x: 420, y, o: 0 }); ex.mono(mono); show(mono, t0 + .2);
+    say(p, ex.monoName, 420, y + 70, t0 + .5, { size: 26, fill: COL.dim, weight: 500 });
+    ex.chain(p, y, t0 + 1.2);
+    say(p, ex.poly, 1170, y + 10, t0 + 2.6, { size: 32, anchor: 'start' });
+    say(p, ex.note, 1170, y + 46, t0 + 3.2, { size: 24, fill: COL.dim, anchor: 'start', weight: 500 });
+    return y;
+  });
+  // table: column heads, class names and rules settle around the three rows
+  const tb = G(p, { o: 0 }); show(tb, tT + .2, .6);
+  [['class', 90, 'start'], ['monomer', 420, 'middle'], ['polymer', 860, 'middle']].forEach(([s, x, a]) => wLabel(tb, s, { x, y: 165, size: 26, fill: MC.hi, anchor: a, weight: 700, o: 1 }));
+  path(tb, 'M80 182H1520M80 375H1520M80 575H1520', { stroke: COL.faint, 'stroke-width': 2 });
+  EXAMPLES.forEach((ex, k) => wLabel(tb, ex.cls, { x: 90, y: rows[k] + 10, size: 30, anchor: 'start', o: 1 }));
+  say(p, 'three classes, three monomers, one way of joining', 800, 850, tT + 1.6, { size: 30 });
+}],
+
+/* ---------- why lipids are not polymers ---------- */
+['lipids', 'Lipids', (m, D) => {
+  const p = panel(0), tFat = m('fat'), tFew = m('few'), tW = m('water'), tN = m('none');
+  say(p, 'why are lipids left out?', 800, 90, .3, { size: 34 });
+  // fat: one glycerol bar, three tails
+  const fat = G(p, { o: 0 }); show(fat, tFat + .2, .6);
+  fatMolecule(fat, 300, 420);
+  const lg = say(p, 'glycerol', 300, 620, tFat + 1.4, { size: 28 });
+  say(p, 'three fatty acid tails', 560, 230, tFat + 2.4, { size: 28 });
+  say(p, 'a fat (oil in a pan)', 470, 690, tFat + 3.2, { size: 26, fill: COL.dim, weight: 500 });
+  // few: 4 parts of 2 kinds, against a polymer's same unit again and again
+  say(p, '4 parts, 2 kinds', 470, 760, tFew + .3, { size: 32, fill: MC.hi });
+  const poly = G(p, { o: 0 }); show(poly, tFew + 1.2, .6);
+  beadString(poly, Array.from({ length: 8 }, (_, i) => [1010 + i * 64, 420]), ['circle'], { r: 24 });
+  wLabel(poly, 'a polymer', { x: 1234, y: 340, size: 30, o: 1 });
+  wLabel(poly, 'the same unit, again and again', { x: 1234, y: 500, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  // water: water molecules slide away from the tails
+  const ws = [[850, 300], [880, 470], [860, 540], [890, 380]].map(([x, y], i) => { const w = waterMolecule(p, { x, y, s: .5, r: 30 * i, o: 0 }); return [w, x, y]; });
+  clockRun(t => ws.forEach(([w, x, y], i) => { const a = ramp(t, tW + .2, tW + .6), d = io(ramp(t, tW + .6 + .15 * i, tW + 2.4 + .15 * i)); w.pose(x + 30 * d, y + (y > 420 ? 150 : -150) * d); mO(w, a); }), D);
+  say(p, 'lipids mostly avoid water:', 1234, 640, tW + 1.4, { size: 28 });
+  say(p, 'that is how they are grouped', 1234, 680, tW + 2, { size: 26, fill: COL.dim, weight: 500 });
+  // none: "polymer" crossed out
+  const pw = G(p, { x: 470, y: 160, o: 0 }); show(pw, tN + .1, .4);
+  wLabel(pw, 'polymer', { y: 12, size: 40, weight: 700, o: 1 });
+  const cx = path(pw, 'M-90 -18L90 18M-90 18L90 -18', { stroke: COL.chalk, 'stroke-width': 6, 'stroke-linecap': 'round' }, { d: 0 }); draw(cx, tN + .5, .5);
+  say(p, 'large and important, but not a polymer', 800, 850, tN + 1.2, { size: 32 });
+}],
+
+['q3', 'Quick check', (m, D) => {
+  // The three monomers and polymers of examples, unnamed, on the left.
+  const p = panel(0);
+  wLabel(p, 'monomer', { x: 130, y: 140, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(p, 'polymer', { x: 500, y: 140, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  EXAMPLES.forEach((ex, k) => {
+    const y = 260 + k * 200, mono = G(p, { x: 130, y, s: .8 }); ex.mono(mono);
+    mArrow(p, [180, y], [228, y], { color: COL.dim, w: 4, head: 12 });
+    const c = G(p, { x: -265, y: 0, s: .9 }); ex.chain(c, y / .9, null);
+    wLabel(p, '?', { x: 130, y: y + 80, size: 34, fill: WC.bond, weight: 700, o: 1 });
+  });
+}, { ask: done => quiz({ x: 860, y: 90, w: 700, cls: 'side' }, [{
+  id: 'c-pair',
+  prompt: ['Which monomer and polymer pairing is correct?'],
+  build: choice([['amino acid and carbohydrate'], ['glucose and protein'], ['nucleotide and nucleic acid'], ['fatty acid and nucleic acid']], 2,
+    'Right. Nucleotides join into nucleic acids such as DNA; amino acids make proteins; glucose makes starch.',
+    ['Amino acids join into proteins, not carbohydrates.', 'Glucose joins into starch, a carbohydrate. Proteins are chains of amino acids.', null,
+     'Fatty acids are tails of fats, which are not polymers. Nucleic acids are chains of nucleotides.']),
+}], done) }],
 
 /* ---------- dehydration ---------- */
 ['dehy', 'Dehydration', (m, D) => {
@@ -410,6 +515,44 @@ const BEATS = [
   say(B, 'enzymes', 1180, 200, tEat + .8, { size: 30, fill: MC.enzyme, anchor: 'start' });
   say(B, 'big polymers chopped into monomers,', 800, 790, tEat + 4, { size: 32 });
   say(B, 'small enough to use', 800, 836, tEat + 5, { size: 30, fill: COL.dim, weight: 500 });
+}],
+
+/* ---------- a worked count ---------- */
+['worked', 'Counting bonds and water', (m, D) => {
+  // One function of t gives every bead, link and water, and the counter panel reads the same function.
+  const p = panel(0), tTen = m('ten'), tB = m('bonds'), tW = m('waters'), tBk = m('back'), tR = m('rule');
+  const n = WK_N, nb = bondsIn(n), sp = 124, y0 = 380, X = j => 800 + (j - (n - 1) / 2) * sp;
+  say(p, `build a chain of ${n} glucose units, then digest it`, 800, 90, .3, { size: 32 });
+  const tUnit = j => tTen + .2 + .2 * j, tLink = j => tB + .4 + .42 * j, tOut = j => tW + .6 + .62 * j, tIn = j => tBk + 1.4 + .74 * j;
+  const links = Array.from({ length: nb }, () => path(p, '', { stroke: MC.flash, 'stroke-width': 10 }, { o: 0 }));
+  const beads = Array.from({ length: n }, () => { const g = G(p, { o: 0 }); path(g, mPoly(6, 34, 0), { fill: MC.sugar, stroke: MC.sugarEdge, 'stroke-width': 3 }); return g; });
+  const outs = Array.from({ length: nb }, () => waterMolecule(p, { s: .42, o: 0 }));
+  const ins = Array.from({ length: nb }, () => waterMolecule(p, { s: .42, o: 0 }));
+  // the counter panel
+  mk('rect', { x: 140, y: 620, width: 1320, height: 170, rx: 22, fill: '#0f2338', stroke: COL.faint, 'stroke-width': 2 }, p);
+  const cells = [['units', COL.chalk], ['bonds', MC.flash], ['water released', WC.bond], ['water used', WC.heat]].map(([lab, c], k) => {
+    const x = 305 + k * 330; wLabel(p, lab, { x, y: 670, size: 26, fill: COL.dim, weight: 500, o: 1 });
+    return wLabel(p, '0', { x, y: 755, size: 64, fill: c, weight: 800, o: 1 });
+  });
+  const count = (t, f) => Array.from({ length: nb }, (_, j) => f(j)).filter(t0 => t >= t0).length;
+  clockRun(t => {
+    const units = Array.from({ length: n }, (_, j) => j).filter(j => t >= tUnit(j)).length;
+    const lit = count(t, tLink), out = count(t, j => tOut(j) + .2), used = count(t, j => tIn(j) + .5), bonds = lit - used;
+    const spread = io(ramp(t, tIn(nb - 1) + .6, tIn(nb - 1) + 1.6));
+    const bx = j => X(j) + 26 * (j - (n - 1) / 2) * spread * .9, by = j => y0 + 14 * Math.sin(1.5 * t + j) * spread;
+    beads.forEach((b, j) => place(b, bx(j), by(j), ramp(t, tUnit(j), tUnit(j) + .2), .7 + .3 * ramp(t, tUnit(j), tUnit(j) + .2)));
+    links.forEach((l, j) => {
+      mD(l, mSeg([bx(j) + 30, by(j)], [bx(j + 1) - 30, by(j + 1)]));
+      mO(l, ramp(t, tLink(j), tLink(j) + .15) * (1 - ramp(t, tIn(j) + .45, tIn(j) + .6)));
+    });
+    outs.forEach((w, j) => { const d = io(ramp(t, tOut(j), tOut(j) + 1.6)); w.pose(X(j) + sp / 2 + 30 * d, y0 - 30 - 170 * d); mO(w, ramp(t, tOut(j) - .1, tOut(j) + .1) * (1 - ramp(t, tOut(j) + 1.3, tOut(j) + 1.7))); });
+    ins.forEach((w, j) => { const d = io(ramp(t, tIn(j) - .3, tIn(j) + .45)); w.pose(X(j) + sp / 2, y0 - 200 + 160 * d); mO(w, ramp(t, tIn(j) - .3, tIn(j) - .1) * (1 - ramp(t, tIn(j) + .45, tIn(j) + .6))); });
+    [units, bonds, out, used].forEach((v, k) => { const s = String(v); if (cells[k].textContent !== s) cells[k].textContent = s; });
+  }, D);
+  hide(say(p, `${n} units in a row: ${nb} links`, 800, 520, tB + 3.7, { size: 30, fill: MC.flash }), tW + .6, .3);
+  const bl = say(p, `building: one water out per bond`, 800, 520, tW + 1, { size: 30, fill: WC.bond }); hide(bl, tBk, .4);
+  say(p, `digesting: one water in per bond`, 800, 520, tBk + .6, { size: 30, fill: WC.heat });
+  say(p, 'n units: n − 1 bonds, n − 1 water, either way', 800, 860, tR + .5, { size: 34, fill: COL.chalk, weight: 700 });
 }],
 
 ['q1', 'Quick check', (m, D) => {
@@ -556,6 +699,18 @@ const BEATS = [
   at('lipid', g => {
     GLYPHS.forEach(([name, f], i) => { const x = 1130 + (i % 2) * 290, y = 230 + Math.floor(i / 2) * 300; f(g, { x, y, s: .85 }); wLabel(g, '?', { x, y: y + 120, size: 36, fill: WC.bond, weight: 700, o: 1 }); });
   });
+  at('split', g => {
+    Array.from({ length: P_SPLIT }, (_, i) => waterMolecule(g, { x: 1100 + (i % 5) * 85, y: 200 + Math.floor(i / 5) * 100, s: .45 }));
+    wLabel(g, `${P_SPLIT} water used`, { x: 1270, y: 120, size: 30, o: 1 });
+    mArrow(g, [1270, 360], [1270, 480], { color: COL.dim });
+    wLabel(g, 'hydrolysis', { x: 1295, y: 430, size: 26, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+    wLabel(g, '? monomers', { x: 1270, y: 580, size: 40, fill: WC.bond, weight: 700, o: 1 });
+  });
+  at('pairs', g => {
+    EXAMPLES.forEach((ex, k) => { const y = 180 + k * 190, mono = G(g, { x: 1060, y, s: .8 }); ex.mono(mono); mArrow(g, [1120, y], [1200, y], { color: COL.dim, w: 4, head: 12 }); wLabel(g, '?', { x: 1300, y: y + 14, size: 40, fill: WC.bond, weight: 700, o: 1 }); });
+    fatMolecule(G(g, { x: 1080 * .6, y: 760 * .6, s: .4 }), 1080, 760);
+    wLabel(g, 'a fat', { x: 1400, y: 770, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  });
   S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
   S.pics('terms');
 }, { ask: done => quiz(PRACTICE, [
@@ -577,6 +732,17 @@ const BEATS = [
       { parts: ['water molecules used: ', { box: String(bondsIn(P_BREAK)) }], why: `${P_BREAK} monomers have ${bondsIn(P_BREAK)} bonds, and each break uses one water.`, hint: 'One water goes in for every bond broken.' },
       { parts: ['monomers released: ', { box: String(P_BREAK) }], why: `Every one of the ${P_BREAK} monomers ends up on its own.`, hint: 'Fully hydrolysed: every bond is broken.' },
     ])) },
+  { id: 'p-split', prompt: [`A polymer is fully hydrolysed using ${P_SPLIT} water molecules, one per bond.`],
+    build: withPic('split', blanks([
+      { parts: ['it had ', { box: String(P_SPLIT + 1) }, ' monomers'], why: `${P_SPLIT} bonds join ${P_SPLIT + 1} monomers: one more monomer than bonds.`, hint: 'One water per bond, and a chain has one more monomer than bonds.' },
+    ])) },
+  { id: 'p-pairs', prompt: ['True or false?'],
+    build: withPic('pairs', grid([
+      { parts: ['Starch is made of glucose.'], ans: ['t'], why: 'True: starch is a chain of glucose units.' },
+      { parts: ['A protein is made of nucleotides.'], ans: ['f'], why: 'False: a protein is a chain of amino acids.' },
+      { parts: ['DNA is made of nucleotides.'], ans: ['t'], why: 'True: DNA is a nucleic acid, a chain of nucleotides.' },
+      { parts: ['A fat is a long chain of identical fatty acids.'], ans: ['f'], why: 'False: a fat is one glycerol plus three fatty acid tails, not a chain of repeating units.' },
+    ], TF, { multi: false, text: true })) },
   { id: 'p-lipid', prompt: ['Which class of large biological molecule is NOT built from repeating monomers?'],
     build: withPic('lipid', choice([['carbohydrates'], ['lipids'], ['proteins'], ['nucleic acids']], 1,
       'Right. Lipids are large, but they are not chains of repeating units, so they are not true polymers.',

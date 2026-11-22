@@ -70,6 +70,41 @@ window.TIMINGS = {
    ]
   ]
  },
+ "scale": {
+  "dur": 24.624,
+  "marks": {
+   "mol": 2.852,
+   "chrom": 7.487,
+   "genes": 13.542,
+   "between": 18.268
+  },
+  "cues": [
+   [
+    0.104,
+    "A gene is only a small part of the story."
+   ],
+   [
+    2.852,
+    "One DNA molecule is a single, very long double helix."
+   ],
+   [
+    7.487,
+    "In a cell, each long molecule is wound up with proteins into a package called a chromosome."
+   ],
+   [
+    13.542,
+    "One chromosome carries many genes, a little like chapters in a long book."
+   ],
+   [
+    18.268,
+    "A gene is just one short stretch."
+   ],
+   [
+    20.56,
+    "The DNA between genes is not a recipe for a polypeptide."
+   ]
+  ]
+ },
  "roles": {
   "dur": 31.32,
   "marks": {
@@ -111,6 +146,115 @@ window.TIMINGS = {
    [
     28.125,
     "The master recipe stays safe in the nucleus."
+   ]
+  ]
+ },
+ "compare": {
+  "dur": 34.416,
+  "marks": {
+   "sugar": 3.164,
+   "base": 8.477,
+   "strand": 16.914,
+   "where": 23.698,
+   "job": 29.896
+  },
+  "cues": [
+   [
+    0.104,
+    "Now put the two nucleic acids side by side."
+   ],
+   [
+    3.164,
+    "Their sugars differ."
+   ],
+   [
+    4.492,
+    "DNA has deoxyribose, and RNA has ribose."
+   ],
+   [
+    8.477,
+    "Both use A, G, and C."
+   ],
+   [
+    11.263,
+    "But DNA uses T, thymine, where RNA uses U, uracil."
+   ],
+   [
+    16.914,
+    "DNA is usually double-stranded, two chains wound together."
+   ],
+   [
+    21.159,
+    "RNA is usually a single strand."
+   ],
+   [
+    23.698,
+    "DNA stays in the nucleus."
+   ],
+   [
+    25.794,
+    "RNA is found in the nucleus, and out in the cytoplasm too."
+   ],
+   [
+    29.896,
+    "DNA stores the genetic information."
+   ],
+   [
+    32.383,
+    "RNA takes part in using it."
+   ]
+  ]
+ },
+ "why": {
+  "dur": 27.576,
+  "marks": {
+   "one": 1.628,
+   "risk": 5.651,
+   "many": 9.557,
+   "fade": 18.307
+  },
+  "cues": [
+   [
+    0.117,
+    "Why make a copy at all?"
+   ],
+   [
+    1.628,
+    "A cell has one master set of DNA, and it has to last."
+   ],
+   [
+    5.651,
+    "Sending it into the busy cytoplasm would risk damaging it."
+   ],
+   [
+    9.557,
+    "A copy is cheap."
+   ],
+   [
+    10.964,
+    "One gene can give many mRNA strands, and each one can be read by a ribosome, again and again."
+   ],
+   [
+    18.307,
+    "And mRNA does not last long."
+   ],
+   [
+    20.612,
+    "When a cell stops making copies of a gene, the supply fades, so the cell can change which proteins it makes."
+   ]
+  ]
+ },
+ "q2": {
+  "dur": 3.912,
+  "marks": {},
+  "cues": [
+   [
+    0.117,
+    "Quick check."
+   ],
+   [
+    1.094,
+    "Sort the facts about DNA and RNA."
    ]
   ]
  },
@@ -172,6 +316,51 @@ window.TIMINGS = {
    ]
   ]
  },
+ "example": {
+  "dur": 35.376,
+  "marks": {
+   "gene": 5.964,
+   "copy": 9.779,
+   "out": 14.141,
+   "read": 18.424,
+   "fold": 23.802,
+   "same": 27.812
+  },
+  "cues": [
+   [
+    0.104,
+    "Let's walk through one example."
+   ],
+   [
+    1.836,
+    "Take insulin, a protein made by cells in the pancreas."
+   ],
+   [
+    5.964,
+    "The insulin gene is a stretch of DNA in the nucleus."
+   ],
+   [
+    9.779,
+    "When the cell needs insulin, it makes an mRNA copy of that gene."
+   ],
+   [
+    14.141,
+    "The mRNA slips out through a nuclear pore into the cytoplasm."
+   ],
+   [
+    18.424,
+    "There, a ribosome reads the mRNA, and adds amino acids one at a time."
+   ],
+   [
+    23.802,
+    "The finished polypeptide then folds up and works as a protein."
+   ],
+   [
+    27.812,
+    "Cells elsewhere in the body hold the same insulin gene, but they do not make this mRNA, so they do not make the protein."
+   ]
+  ]
+ },
  "q1": {
   "dur": 2.832,
   "marks": {},
@@ -227,7 +416,7 @@ window.TIMINGS = {
   ]
  },
  "final1": {
-  "dur": 5.496,
+  "dur": 6.552,
   "marks": {},
   "cues": [
    [
@@ -235,8 +424,8 @@ window.TIMINGS = {
     "Chapter practice."
    ],
    [
-    1.484,
-    "Three questions on genes, DNA, and protein synthesis."
+    1.523,
+    "Five questions on genes, DNA, RNA, and protein synthesis."
    ]
   ]
  },

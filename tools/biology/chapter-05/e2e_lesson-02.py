@@ -13,9 +13,12 @@ URL = os.environ.get("URL", "http://localhost:8765/biology/chapter-05/lesson-02/
 # '@2' clicks the 2nd target ring on the stage (tap, tapEls, pickEls: in the order of their values, idx or items).
 ANSWERS = {
     "q1": ["@1", "@2", "@3"],                 # c-made: nucleus; c-pore: nuclear pore; c-where: ribosome
+    "q2": ["#1;2;1;3;3;2"],                 # c-compare: DNA, RNA, DNA, both, both, RNA
     "final1": [
         "2",                                  # p-order: DNA -> mRNA -> protein (index 1)
         "#1;2;1;2;1",                         # p-terms: T F T F T
+        "2",                                  # p-why: master safe, many copies
+        "3",                                  # p-gene: many genes per chromosome
         "=2,1,3",                             # p-steps: moves out 2, made 1, built 3
     ],
 }

@@ -14,7 +14,9 @@ URL = os.environ.get("URL", "http://localhost:8765/biology/chapter-05/lesson-03/
 ANSWERS = {
     "q1": ["3"],                              # n-purine: guanine (index 2)
     "q2": ["2"],                              # n-rna: in RNA (index 1)
+    "q3": ["1"],                              # n-add: a phosphate at carbon 5' (index 0)
     "final1": [
+        "2",                                  # p-mystery: a DNA nucleotide, pyrimidine (index 1)
         "1",                                  # p-nside: a nucleoside (index 0)
         "#1;2;1;2",                           # p-terms: T F T F
         "=1,5",                               # p-carbons: base at 1', phosphate at 5'

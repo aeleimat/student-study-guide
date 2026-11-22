@@ -13,11 +13,13 @@ URL = os.environ.get("URL", "http://localhost:8765/biology/chapter-05/lesson-04/
 # '@2' clicks the 2nd target ring on the stage (tap, tapEls, pickEls: in the order of their values, idx or items).
 ANSWERS = {
     "q1": ["1"],                              # c-link: 3' OH to the next 5' phosphate (index 0)
+    "q3": ["=35,15"],                         # c-pct2: 35 % G -> C 35, A 15
     "q2": ["=T,G,G,C,A,T"],                   # c-comp: partner of 5' ATGCCA 3', from its 5' end
     "final1": [
         "=22,28,28",                          # p-pct: 22 % A -> T 22, G 28, C 28
         "2",                                  # p-bond: phosphodiester bond (index 1)
         "3",                                  # p-copy: one old + one new (index 2)
+        "=G,C,T,A,A",                         # p-comp: partner of 5' TTAGC 3', read 5' to 3'
         "#1;2;1;2;1",                         # p-terms: T F T F T
     ],
 }
@@ -109,7 +111,7 @@ async def main():
         if "Correct" in await pg.inner_text(".card .fb"): found.append("q2 accepts the partner read 3' to 5'")
         await key("Escape"); await key("s"); vals = await ev("[...document.querySelectorAll('.card input.box')].map(b => b.value).join('')")
         if vals != "TGGCAT": found.append(f"q2 Show answer fills {vals!r}")
-        if await ev("Q2_ANS") != "TGGCAT" or await ev("JSON.stringify(PRACT)") != '{"A":22,"T":22,"G":28,"C":28}': found.append("computed answers changed")
+        if await ev("Q2_ANS") != "TGGCAT" or await ev("JSON.stringify(PRACT)") != '{"A":22,"T":22,"G":28,"C":28}' or await ev("[REV_READ, PC_ANS, Q3.C, Q3.A].join()") != "GAATC,GCTAA,35,15": found.append("computed answers changed")
 
         for i in range(len(ids)): await ev(f"seek({i}, false)")   # every beat rebuilds without errors
         assert not errs, errs

@@ -68,11 +68,13 @@ None on slides 7-9. From the practice set (slides 19-28) these test this lesson,
 
 ## Plan
 
-Taught: a gene as a recipe; the nucleus holds DNA; DNA and RNA; replication in one sentence; the three-step path DNA to mRNA to polypeptide at a ribosome. Dropped: transcription and translation mechanics, codons, base pairing (lessons 3-4), semiconservative replication.
+Taught: a gene as a recipe; the nucleus holds DNA; a gene versus a DNA molecule and a chromosome (outside background, no numbers); DNA and RNA side by side (sugar, T for U, strands, where found); replication in one sentence; why the cell sends an mRNA copy (master set kept safe, many copies, short-lived so the cell can change what it makes); the three-step path DNA to mRNA to polypeptide at a ribosome; one concrete walk-through (insulin in a pancreas cell; other cells hold the gene but make no mRNA). Dropped: transcription and translation mechanics, codons, base pairing (lessons 3-4), semiconservative replication.
 
-Order: intro (recipe and cell), gene (push into the nucleus), roles (DNA, RNA, replication, mRNA), flow (three steps, one picture), q1, wrap, practice (3 questions), finish.
+Order: intro, gene, scale (new), roles, compare (new), why (new), q2 (new), flow, example (new), q1, wrap, practice (5 questions), finish.
 
-Pacing: about 450 words of voice, 8 beats, 4 questions (1 check, 3 practice). Audio length is in timings.js; holds and questions add roughly 1.5 minutes.
+Pacing (second pass): about 800 words of voice, 13 beats, 7 questions (2 checks inside, q1 and q2, plus 5 practice). Target 260-310 s of voice, 6-8 minutes with holds and questions.
+
+Revision log: new beats scale, compare, why, q2, example; changed final1 (text only, no marks); intro, gene, roles, flow, q1, wrap, finish untouched.
 
 ## Beats
 
@@ -84,6 +86,12 @@ Library: `site/biology/lib/macro.js` (cell, nucleus, nuclear pore, ribosome, DNA
 | `gene` | Camera pushes from the cell into the nucleus, then onto the DNA. | `nucleus`: push, label NUCLEUS. `gene`: bracket on one stretch of helix, label "gene". `poly`: a row of amino acid beads appears, label "polypeptide". `prog`: the bead colours match coloured marks on the bracket, "order is programmed". `made`: label "gene = DNA, a nucleic acid". | nucleus, bracket, beads | gene bracket, coloured order |
 | `roles` | Two cards: DNA (double, cream) left, RNA (single, thin, orange U) right. | `dna`, `rna`: name cards. `rep`: the DNA ladder unzips and is drawn twice, a cell splits with a copy in each half, "a copy for each new cell". `mrna`: a single strand peels off the DNA, label "mRNA". `why`: lock mark on the DNA, the mRNA leaves, "working copy". | DNA, split cell, peeling strand | replication sketch, lock mark |
 | `flow` | The p9 picture redrawn: nucleus top, cytoplasm below, three numbered stations. | `one`: mRNA forms at the DNA, number 1. `pore`: mRNA slides through a nuclear pore, number 2, label "nuclear pore". `ribo`: ribosome appears, mRNA threads in, number 3. `aa`: amino acid beads drift in, label "amino acids". `chain`: beads join into a polypeptide leaving the ribosome. `name`: label "protein synthesis". `all`: bar "DNA, mRNA, protein" with drawn arrows. | strand, then ribosome | "not to scale" tag |
+| `scale` (new, after `gene`) | Zoom out from the nucleus: one long helix drawn as a line, wound up into an X-shaped chromosome; along it several coloured bands. | `mol`: a single long helix. `chrom`: it coils up with dots (proteins) into a chromosome. `genes`: bands on the chromosome labelled "gene" (several, like chapters). `between`: grey stretches between the genes, labelled "not a recipe for a polypeptide". | helix, chromosome, bands | `chromosomeSketch` |
+| `compare` (new, after `roles`) | Two columns, DNA and RNA, rows appear in turn: sugar (deoxyribose vs ribose, the 2' OH differs), bases (T gold vs U orange), strands (double vs single), where (nucleus only vs nucleus and cytoplasm), job. | `sugar`, `base`, `strand`, `where`, `job`: one row each, matching icons from macro.js. | the row that just appeared | comparison table |
+| `why` (new) | Nucleus with a vault-like DNA; a cytoplasm full of moving dots. | `one`: DNA in the nucleus glows, label "one master set". `risk`: a dashed arrow carrying DNA out, crossed, collisions in the cytoplasm. `many`: one gene, five mRNA copies going out to ribosomes. `fade`: the mRNA copies fade out one by one, copy production stops. | DNA, copies | copy fan-out |
+| `q2` (new) | Compare table faded, grid card in the side. | none | the card | `grid` card |
+| `example` (new, after `flow`) | Flow picture reused with the label "insulin gene" in a pancreas-cell outline; then a second cell outline (not insulin) with the same gene greyed, no mRNA. | `gene`, `copy`, `out`, `read`, `fold`, `same`. | gene, mRNA, ribosome, folded chain, second cell | pancreas-cell label, polypeptide folding |
+
 | `q1` | Flow picture faded in the top 60 %; card in BAND. | none | the card | pickEls or choice card |
 | `wrap` | Four takeaways with mini-icons. | `w1` to `w4`, `end`. | new line | none |
 | `final1` | Practice (SCREEN), 3 questions, a picture each. | none | the card | cards |
@@ -97,6 +105,9 @@ Camera: wide cell, push into nucleus, split in roles, wide flow view.
 - `final1` ('Chapter practice'):
   - `p-order` choice: "Which shows the flow of information in protein synthesis?" Right: DNA, mRNA, protein. Wrong: protein, RNA, DNA (reversed); RNA, DNA, lipid (not a flow the cell uses); DNA, protein, mRNA (skips the message).
   - `p-terms` grid, true/false: genes are made of DNA (T); mRNA is made at the ribosome (F, in the nucleus); a gene programs the amino acid sequence of a polypeptide (T); DNA itself passes through the nuclear pore to the ribosome (F, mRNA does); RNA is a nucleic acid (T).
+  - `c-compare` (q2) grid, DNA / RNA / both: contains deoxyribose (DNA); contains uracil (RNA); is usually double-stranded (DNA); is a nucleic acid (both); has the base A (both); is found in the cytoplasm as well as the nucleus (RNA).
+  - `p-why` choice: "Why does a cell make an mRNA copy of a gene instead of sending DNA to the ribosome?" Right: it keeps the master DNA safe in the nucleus, and one gene can give many copies. Wrong: ribosomes cannot read RNA (they read it); DNA is not a nucleic acid (it is); mRNA is made in the cytoplasm (nucleus).
+  - `p-gene` choice: "Which statement about genes is right?" Right: a chromosome carries many genes, each a short stretch of DNA. Wrong: a gene is a whole chromosome; genes are made of protein; each gene is a separate nucleus.
   - `p-steps` blanks, number the steps 1 to 3: "mRNA moves into the cytoplasm" = 2; "mRNA is made in the nucleus" = 1; "a polypeptide is built at a ribosome" = 3.
 
 ## Storyboard (review/chapter-05/lesson-02/storyboard.jpg)

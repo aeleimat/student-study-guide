@@ -18,7 +18,7 @@
 // strand with 5′ and 3′ ends, the sugar-phosphate backbone and the base sequence, check 1, the antiparallel partner and
 // A–T / G–C pairing by hydrogen bonds, the percent rule, the ladder twisted into the helix, semiconservative replication,
 // check 2, the chapter wrap and practice. Plan and errata: books/biology/chapters/chapter-05/lesson-04.md.
-const CHAPTER = { number: 504, label: '5, lesson 4', title: 'Polynucleotides and the Double Helix', minutes: 6, language: 'en', lead: false };
+const CHAPTER = { number: 504, label: '5, lesson 4', title: 'Polynucleotides and the Double Helix', minutes: 7, language: 'en', lead: false };
 
 /* ---------- small helpers ---------- */
 const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
@@ -85,8 +85,21 @@ const Q2_SEQ = 'ATGCCA', Q2_ANS = mComp(Q2_SEQ);  // the partner read from its 5
 const pct = a => ({ A: a, T: a, G: (100 - 2 * a) / 2, C: (100 - 2 * a) / 2 });   // the pairing rule: A = T, G = C
 const RATIO_A = 30, RATIO = pct(RATIO_A);         // ratio beat: 30, 30, 20, 20
 const PRACT_A = 22, PRACT = pct(PRACT_A);         // practice: 22, 22, 28, 28
+const REV_SEQ = 'GATTC', REV_UNDER = [...REV_SEQ].map(b => mPair(b)).join(''), REV_READ = mComp(REV_SEQ);   // CTAAG under it, read GAATC
+const Q3_G = 35, Q3 = { G: Q3_G, C: Q3_G, A: (100 - 2 * Q3_G) / 2, T: (100 - 2 * Q3_G) / 2 };            // check 3: C 35, A 15
+const PC_SEQ = 'TTAGC', PC_ANS = mComp(PC_SEQ);   // practice: GCTAA
 
 /* ---------- pictures used in more than one beat ---------- */
+// A base as a coloured tile with its letter, drawn around its centre.
+function baseBox(p, b, { x = 0, y = 0, o = 1, w = 76, size = 42 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('rect', { x: -w / 2, y: -w / 2, width: w, height: w, rx: 12, fill: MC[b], stroke: mix(MC[b], '#000000', .35), 'stroke-width': 3 }, g);
+  wLabel(g, b, { y: size * .36, size, fill: MC.ink, weight: 800, o: 1 });
+  return g;
+}
+const slotBox = (p, x, y, w = 76) => mk('rect', { x: x - w / 2, y: y - w / 2, width: w, height: w, rx: 12, fill: 'none', stroke: COL.dim, 'stroke-width': 3, 'stroke-dasharray': '9 7' }, p);
+// An end label (5′ / 3′) in a group, so it can be moved with put.
+const endLab = (p, str, x, y, { size = 40, fill = COL.chalk, o = 1 } = {}) => { const g = G(p, { x, y, o }); wLabel(g, str, { y: size * .36, size, fill, weight: 700, o: 1 }); return g; };
 // A 10 × 10 grid of base squares: counts {A, T, G, C} fill in that order, row by row; .set(cA, cT, cG, cC) poses it.
 function baseGrid(p, { x = 150, y = 220, cell = 44, gap = 5, o = 1 } = {}) {
   const g = G(p, { x, y, o }), sq = i => { const c = i % 10, r = Math.floor(i / 10); return `M${c * cell} ${r * cell}h${cell - gap}v${cell - gap}h${-(cell - gap)}Z`; };
@@ -296,6 +309,43 @@ const BEATS = [
   R.nucs.forEach(nu => { const e = nu.rings.base; if (nu.bs.purine) { tw(e, { o: 1 }, tF + .9, .2); tw(e, { o: 0 }, tF + 3, .4); } });
 }],
 
+/* ---------- reading a partner strand ---------- */
+['rev', 'Reading the partner', (m, D) => {
+  // The strand 5′ GATTC 3′, its partners under it (3′ … 5′), then a copy of the partner row turns half a circle about a
+  // point below (letters stay upright) so that it reads 5′ → 3′ from the left.
+  const p = panel(0), N = REV_SEQ.length, X = i => 560 + 120 * i, YT = 240, YB = 430, CX = X((N - 1) / 2), CY = 545;
+  const tG = m('give'), tP = m('pairit'), tF = m('flip'), tR = m('read');
+  say(p, 'one strand, written 5′ → 3′', 800, 110, .3, { size: 32, fill: COL.dim, weight: 500 });
+  path(p, `M${X(0)} ${YT - 58}H${X(N - 1)}`, { stroke: COL.chalk, 'stroke-width': 6 });
+  endLab(p, '5′', X(0) - 100, YT); endLab(p, '3′', X(N - 1) + 100, YT);
+  const tops = [...REV_SEQ].map((b, i) => { path(p, `M${X(i)} ${YT - 58}V${YT - 38}`, { stroke: COL.chalk, 'stroke-width': 4 }); return baseBox(p, b, { x: X(i), y: YT }); });
+  tops.forEach((e, i) => pulse(e, tG + 3.6 + .75 * i, 1.15));
+  // pairit: partners fill the slots left to right
+  const low = G(p);
+  [...REV_UNDER].forEach((b, i) => {
+    slotBox(low, X(i), YB);
+    const t0 = tP + 1.7 + .8 * i, hb = path(low, `M${X(i) - 12} ${YT + 48}V${YB - 48}M${X(i) + 12} ${YT + 48}V${YB - 48}`, { stroke: MC.hbond, 'stroke-width': 4, 'stroke-dasharray': '7 6' }, { o: 0 });
+    show(hb, t0, .3); show(baseBox(low, b, { x: X(i), y: YB, o: 0 }), t0, .3);
+  });
+  const lowBB = path(low, `M${X(0)} ${YB + 58}H${X(N - 1)}`, { stroke: NEW, 'stroke-width': 6 }, { o: 0 }); show(lowBB, tP + 5.6, .4);
+  const lo3 = endLab(low, '3′', X(0) - 100, YB, { fill: NEW, o: 0 }), lo5 = endLab(low, '5′', X(N - 1) + 100, YB, { fill: NEW, o: 0 });
+  show(lo3, tP + 5.8, .4); show(lo5, tP + 5.8, .4);
+  pulse(lo3, tF + 2, 1.4);
+  // flip: a copy of the partner turns half a circle about (CX, CY); the original row dims
+  const cp = G(p, { o: 0 }), items = [];
+  [...REV_UNDER].forEach((b, i) => items.push([baseBox(cp, b, { x: X(i), y: YB }), X(i), YB]));
+  items.push([endLab(cp, '3′', X(0) - 100, YB, { fill: NEW }), X(0) - 100, YB], [endLab(cp, '5′', X(N - 1) + 100, YB, { fill: NEW }), X(N - 1) + 100, YB]);
+  const t0 = tF + 4.9, YF = 2 * CY - YB;
+  show(cp, t0 - .3, .3); tw(low, { o: 0 }, t0 - .3, .3); tw(low, { o: .3 }, t0 + 2.3, .5);   // the copy lifts off the row; the row returns dimmed
+  // a card flip about the vertical axis through CX while the row drops to YF; letters stay upright
+  prog(q => { const c = Math.cos(Math.PI * q), dip = 40 * Math.sin(Math.PI * q); items.forEach(([e, x0]) => { const dx = x0 - CX; put(e, { x: CX + dx * c, y: lerp(YB, YF, q) + dip * dx / 240 }); }); }, t0, 2.2, io);
+  const bbF = path(p, `M${X(0)} ${YF - 58}H${X(N - 1)}`, { stroke: NEW, 'stroke-width': 6 }, { o: 0 }); show(bbF, t0 + 2.2, .4);
+  // read: 5′ → 3′ along the flipped copy (left to right it holds the copies of bases N−1 … 0)
+  const ar = mArrow(p, [X(0) - 60, YF + 90], [X(N - 1) + 60, YF + 90], { color: NEW, w: 5, head: 18, o: 0 }); show(ar, tR + .2, .4);
+  for (let i = 0; i < N; i++) pulse(items[N - 1 - i][0], tR + 1 + .55 * i, 1.15);
+  say(p, `reads 5′ ${[...REV_READ].join(' ')} 3′`, 800, YF + 160, tR + .6, { size: 36, fill: NEW, weight: 700 });
+}],
+
 /* ---------- the percent rule ---------- */
 ['ratio', 'Counting bases', (m, D) => {
   const p = panel(0), grid = baseGrid(p, { x: 150, y: 230 }).set();
@@ -316,16 +366,48 @@ const BEATS = [
   say(p, `adenine: ${RATIO.A} %`, 370, 720, tA + 1.2, { size: 32, fill: MC.A });
   grow('T', tT + .6);
   const arc = path(p, `M${BX(0) + 65} ${BY - K * RATIO.A - 60}Q${(BX(0) + BX(1)) / 2 + 65} ${BY - K * RATIO.A - 160} ${BX(1) + 65} ${BY - K * RATIO.T - 60}`, { stroke: MC.hbond, 'stroke-width': 4, 'stroke-dasharray': '10 8' }, { d: 0 });
-  draw(arc, tT + 2.2, .6);
-  say(p, 'pairs: A = T', (BX(0) + BX(1)) / 2 + 65, BY - K * RATIO.A - 130, tT + 2.4, { size: 30, fill: MC.hbond });
+  draw(arc, tT + 2.2, .6); hide(arc, m('half'), .3);
+  const pl = say(p, 'pairs: A = T', (BX(0) + BX(1)) / 2 + 65, BY - K * RATIO.A - 130, tT + 2.4, { size: 30, fill: MC.hbond });
   // gc: what is left, shared equally
   const left = 100 - RATIO.A - RATIO.T;
   let dr = ''; for (let i = RATIO.A + RATIO.T; i < 100; i++) dr += grid.sq(i);
   mD(grid.rest, dr); tw(grid.rest, { o: 1 }, tG + .3, .4); tw(grid.rest, { o: 0 }, tS + 1.8, .4);
-  say(p, `100 − ${RATIO.A} − ${RATIO.T} = ${left} % left`, 1140, 150, tG + .5, { size: 34 });
+  const c1 = say(p, `100 − ${RATIO.A} − ${RATIO.T} = ${left} % left`, 1140, 150, tG + .5, { size: 34 });
   grow('G', tS + .3); grow('C', tS + .3);
-  say(p, `${left} ÷ 2 = ${RATIO.G} % each, G and C`, 1140, 200, tS + .6, { size: 34, fill: MC.G });
+  const c2 = say(p, `${left} ÷ 2 = ${RATIO.G} % each, G and C`, 1140, 200, tS + .6, { size: 34, fill: MC.G });
+  // half: G stacks onto A; with A = T and G = C, A + G is half of all bases
+  const tH = m('half'), AG = RATIO.A + RATIO.G;
+  [c1, c2, pl, labs.A, labs.G].forEach(e => hide(e, tH, .3));
+  tw(bars.G, { a_y: BY - K * AG }, tH + .4, .6, io); tw(bars.G, { a_x: BX(0) }, tH + 1, .8, io);   // up over the T bar, then across
+  say(p, `A ${RATIO.A} %`, BX(0) + 65, BY - K * RATIO.A / 2 + 10, tH + 1.6, { size: 28, fill: MC.ink, weight: 800 });
+  say(p, `G ${RATIO.G} %`, BX(0) + 65, BY - K * (RATIO.A + RATIO.G / 2) + 10, tH + 1.6, { size: 28, fill: MC.ink, weight: 800 });
+  const fifty = path(p, `M720 ${BY - K * 50}H1520`, { stroke: MC.flash, 'stroke-width': 3, 'stroke-dasharray': '12 9' }, { d: 0 }); draw(fifty, tH + 1.8, .6);
+  say(p, 'A = T and G = C', 1180, BY - K * 50 - 60, tH + 1, { size: 32 });
+  say(p, `so A + G = ${AG} %`, 1180, BY - K * 50 - 16, tH + 3.4, { size: 34, fill: MC.flash, weight: 700 });
 }],
+
+['q3', 'Quick check', (m, D) => {
+  const p = panel(0), BY = 640, K = 9, BX = j => 150 + 170 * j;
+  path(p, `M110 ${BY}H${BX(3) + 160}`, { stroke: COL.dim, 'stroke-width': 3 });
+  wLabel(p, 'the bases of one DNA molecule', { x: 430, y: 120, size: 30, fill: COL.dim, weight: 500, o: 1 });
+  [...'GCAT'].forEach((b, j) => {
+    if (b === 'G') {
+      mk('rect', { x: BX(j), y: BY - K * Q3_G, width: 120, height: K * Q3_G, rx: 6, fill: MC.G }, p);
+      wLabel(p, `${Q3_G} %`, { x: BX(j) + 60, y: BY - K * Q3_G - 16, size: 34, o: 1 });
+    } else {
+      mk('rect', { x: BX(j), y: BY - K * 50, width: 120, height: K * 50, rx: 6, fill: 'none', stroke: MC[b], 'stroke-width': 3, 'stroke-dasharray': '10 8' }, p);
+      wLabel(p, '?', { x: BX(j) + 60, y: BY - K * 25 + 16, size: 46, fill: MC[b], weight: 800, o: 1 });
+    }
+    wLabel(p, b, { x: BX(j) + 60, y: BY + 50, size: 44, fill: MC[b], weight: 800, o: 1 });
+  });
+}, { ask: done => quiz({ x: 860, y: 90, w: 700, cls: 'side' }, [{
+  id: 'c-pct2',
+  prompt: [`A DNA molecule is ${Q3_G} % guanine. Find the cytosine and the adenine.`],
+  build: blanks([
+    { parts: ['cytosine: ', { box: String(Q3.C) }, ' percent'], why: `C pairs with G: ${Q3.C} %.`, hint: 'Every G faces a C.' },
+    { parts: ['adenine: ', { box: String(Q3.A) }, ' percent'], why: `100 − ${Q3.G} − ${Q3.C} = ${100 - Q3.G - Q3.C}; A and T share it: ${Q3.A} % each.`, hint: 'Take G and C away from 100, then share the rest between A and T.' },
+  ]),
+}], done) }],
 
 /* ---------- ladder to helix ---------- */
 ['twist', 'The double helix', (m, D) => {
@@ -352,6 +434,12 @@ const BEATS = [
   say(p, 'base pairs,', 640, yIn - 52, tw2 + 2.4, { size: 30, anchor: 'end' });
   say(p, 'stacked inside', 640, yIn - 12, tw2 + 2.8, { size: 30, anchor: 'end' });
   leader(p, [650, yIn - 22], [740, yIn - 4], tw2 + 2.4);
+  // stable: the rung bonds light one by one (every rung's middle is on the axis), then the covalent backbone
+  const tS = m('stable');
+  for (let r = 0; r < SEQ8.length; r++) { const e = ringAt(W, [800, Y + s * (r * 206 - 12.36)], 16, MC.hbond, 4); tw(e, { o: 1 }, tS + .3 + .3 * r, .15); tw(e, { o: 0 }, tS + .8 + .3 * r, .4); }
+  say(p, 'each hydrogen bond is weak; thousands together hold the helix', 800, 62, tS + .4, { size: 30, fill: MC.hbond });
+  [lad.schema.firstChild, lad.schema.lastChild].forEach(e => { put(e, { 'a_stroke-width': 14 }); tw(e, { 'a_stroke-width': 24 }, tS + 4.6, .4); tw(e, { 'a_stroke-width': 14 }, tS + 5.6, .6); });
+  say(p, 'the backbone is covalent: each strand stays whole', 800, 866, tS + 4.6, { size: 30 });
 }],
 
 /* ---------- replication ---------- */
@@ -485,6 +573,14 @@ const BEATS = [
     const l = dnaLadder(g, { seq: SEQ8, x: 1270, y: 150, s: .36, perRow: 45, arrows: false, size: ladSize(.36) }); l.twist(1);
   });
   S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  at('comp', g => {
+    const X = i => 1080 + 100 * i;
+    [...PC_SEQ].forEach((b, i) => { baseBox(g, b, { x: X(i), y: 250, w: 66, size: 36 }); slotBox(g, X(i), 420, 66); path(g, `M${X(i)} 290V380`, { stroke: MC.hbond, 'stroke-width': 4, 'stroke-dasharray': '7 6' }); });
+    endLab(g, '5′', X(0) - 80, 250, { size: 36 }); endLab(g, '3′', X(4) + 80, 250, { size: 36 });
+    endLab(g, '3′', X(0) - 80, 420, { size: 36, fill: NEW }); endLab(g, '5′', X(4) + 80, 420, { size: 36, fill: NEW });
+    wLabel(g, 'pair, then flip:', { x: 1280, y: 560, size: 30, fill: NEW, o: 1 });
+    wLabel(g, 'read the partner 5′ → 3′', { x: 1280, y: 600, size: 30, fill: NEW, o: 1 });
+  });
   S.pics('pct');
 }, { ask: done => quiz(PRACTICE, [
   { id: 'p-pct', prompt: [`A DNA molecule is ${PRACT_A} % adenine. Find the other bases.`],
@@ -507,6 +603,10 @@ const BEATS = [
     ['Then the other helix would be all new. Each old strand becomes the template for one new strand.',
      'The old strands are not thrown away: each one stays in a daughter helix.', null,
      'Both strands are DNA: free DNA nucleotides pair with each old strand.'])) },
+  { id: 'p-comp', prompt: [`Write the partner of 5′ ${[...PC_SEQ].join(' ')} 3′, read from its own 5′ end.`],
+    build: withPic('comp', letterBoxes({ ans: PC_ANS, pre: '5′', post: '3′',
+      why: `Right. Under the strand it reads 3′ ${[...PC_SEQ].map(b => mPair(b)).join(' ')} 5′; flipped, 5′ ${[...PC_ANS].join(' ')} 3′.`,
+      hint: 'Pair each base (A with T, G with C), then read the partner from its 5′ end: right to left.' })) },
   { id: 'p-terms', prompt: ['True or false?'],
     build: withPic('terms', grid([
       { parts: ['The two strands of a double helix run in opposite 5′ → 3′ directions.'], ans: ['t'], why: 'True: they are antiparallel.' },

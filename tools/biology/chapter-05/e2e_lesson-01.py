@@ -13,11 +13,14 @@ URL = os.environ.get("URL", "http://localhost:8765/biology/chapter-05/lesson-01/
 # '@2' clicks the 2nd target ring on the stage (tap, tapEls, pickEls: in the order of their values, idx or items).
 ANSWERS = {
     "q1": ["2"],                              # c-count: hydrolysis, 4 water added (index 1)
+    "q3": ["3"],                              # c-pair: nucleotide and nucleic acid (index 2)
     "q2": ["2"],                              # c-diverse: same monomers, different orders and lengths (index 1)
     "final1": [
         "#1;2;1;2;1",                         # p-terms: T F T F T
         "=5,5",                               # p-build: 6 monomers -> 5 bonds, 5 water
         "=7,8",                               # p-break: 8 monomers -> 7 water used, 8 monomers
+        "=10",                                # p-split: 9 water -> 10 monomers
+        "#1;2;1;2",                           # p-pairs: T F T F
         "2",                                  # p-lipid: lipids (index 1)
     ],
 }
