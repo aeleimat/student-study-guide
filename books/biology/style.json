@@ -62,6 +62,22 @@
           "chapter-07/lesson-06",
           "chapter-07/lesson-07"
         ]
+      },
+      {
+        "unit": 8,
+        "title": "Chapter 8: An Introduction to Metabolism",
+        "source": "books/biology/source/chapter-08-an-introduction-to-metabolism.pdf",
+        "sections": "books/biology/source/chapter-08-sections.json",
+        "lessons": [
+          "chapter-08/lesson-01",
+          "chapter-08/lesson-02",
+          "chapter-08/lesson-03",
+          "chapter-08/lesson-04",
+          "chapter-08/lesson-05",
+          "chapter-08/lesson-06",
+          "chapter-08/lesson-07",
+          "chapter-08/lesson-08"
+        ]
       }
     ],
     "pilot": "chapter-03/lesson-02",
@@ -126,7 +142,18 @@
       "K+": "#c07ae0 rounded square",
       "Cl-": "#8fd6b0",
       "membrane potential": "+ #e5533d outside, − #6c8cff inside",
-      "red blood cell": "#d9534f"
+      "red blood cell": "#d9534f",
+      "free energy": "height on the diagram (G up, progress across)",
+      "exergonic / ΔG < 0": "#f39a2b downhill",
+      "endergonic / ΔG > 0": "#6c8cff uphill",
+      "ATP": "#ffd27a spark, adenine #f07a6a, ribose #f3c95c, phosphates #bba8ee",
+      "enzyme": "#a8c66c (edge #6f8a3d), active-site notch",
+      "substrate": "#f07a6a (products coral + gold #f3c95c)",
+      "activation energy": "#ff7aa8 bracket on the hump",
+      "competitive inhibitor": "#e5533d",
+      "noncompetitive inhibitor": "#9a6cd0",
+      "allosteric activator": "#5bbf5b (allosteric inhibitor #e5533d)",
+      "cofactor": "metal ion #4fa3a5, coenzyme #e8a87c"
     },
     "fonts": {
       "text": "system UI",
@@ -310,6 +337,11 @@
       "name": "membrane.js (chapter 7 kit)",
       "file": "site/biology/lib/membrane.js",
       "what": "adds chapter 7 colours to MC; solute ions, bilayer and phospholipid, membranePatch (.focus/.build), membrane proteins and six functions, channel/aquaporin/carrier/naKPump/protonPump/cotransporter, particleCloud, uTube, redCell/plantCell/paramecium, voltmeter/membranePotential, exocytosis/endocytosis; API in its header"
+    },
+    {
+      "name": "metab.js (chapter 8 kit)",
+      "file": "site/biology/lib/metab.js",
+      "what": "pathway strip, energy diagrams (E_A, ΔG), ATP/ADP/Pi and the ATP cycle, enzyme with active site and induced fit, catalytic cycle, inhibitors, cofactors, rate curves, allosteric enzyme, feedback pathway; API in its header"
     }
   ],
   "images": {

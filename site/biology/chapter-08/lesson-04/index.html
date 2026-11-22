@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 8, Lesson 4: ATP and Energy Coupling — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 8 (An Introduction to Metabolism), lesson 4: a rechargeable battery, then a cell and the shared
+// pathway strip with an ATP spark beside its uphill step; the three kinds of work and energy coupling; ATP's parts;
+// hydrolysis to ADP + Pᵢ and where the energy comes from (the drop in free energy); the worked glutamine coupling
+// (+3.4, −7.3, net −3.9 kcal/mol, a phosphorylated intermediate); transport and mechanical work; the ATP cycle; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-08/lesson-04.md.
+const CHAPTER = { number: 804, label: '8, lesson 4', title: 'ATP and Energy Coupling', minutes: 7, language: 'en', lead: false, next: '../lesson-05/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const rk = k => Math.round(mClamp(k) * 2000) / 2000;
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0; null: shown).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g);
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A title and a dim second line, centred; fades in at t0.
+function banner(p, a, b, x, y, t0, { color = COL.chalk, size = 40, subColor = COL.dim } = {}) {
+  const g = G(p, { o: 0 });
+  wLabel(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wLabel(g, b, { x, y: y + size * .95, size: size * .62, fill: subColor, weight: 500, o: 1 });
+  show(g, t0, .5);
+  return g;
+}
+// A numbered step badge; .t is its text, .disc its circle.
+function badge(p, str, x, y, { o = 0, r = 24 } = {}) {
+  const g = G(p, { x, y, o });
+  const disc = mk('circle', { r, fill: '#3b8fd9', stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t, disc });
+}
+// Text whose content is set only when it changes.
+function setText(e, str) { if (e._txt !== str) { e.textContent = str; e._txt = str; } }
+// Piecewise-linear map of t through [[t, v], …] (flat outside).
+function lerpTable(tab, t) {
+  if (t <= tab[0][0]) return tab[0][1];
+  for (let i = 1; i < tab.length; i++) if (t < tab[i][0]) { const [a, va] = tab[i - 1], [b, vb] = tab[i]; return va + (vb - va) * (t - a) / (b - a); }
+  return tab[tab.length - 1][1];
+}
+// A dark rounded card.
+const boardCard = (g, x, y, w, h, stroke = COL.faint) => mk('rect', { x, y, width: w, height: h, rx: 22, fill: '#0b1828', stroke, 'stroke-width': 3 }, g);
+// A plain arrow from a to b, drawn on.
+const arrowAB = (p, a, b, color, o = {}) => mArrow(p, a, b, { color, w: 6, head: 20, ...o });
+// The pump's ATP chip fades out before its ADP chip fades in (the kit crossfades them on one spot, q 1.5 to 1.6).
+const atpThenAdp = (pu, k) => { const q = rk(k) * 6; mO(pu.atp, q < 1.45 ? 1 : 1 - mRamp(q, 1.45, 1.5)); };
+// The pump's third Na⁺ leaves to NA3OUT, not the kit's spot (85, −148), which lies on the second K⁺'s way in.
+const NA3OUT = [55, -150];
+const na3Out = (pu, k) => { const l = io(mRamp(rk(k) * 6, 2.65, 3)); if (l > 0) mPose(pu.na[2], mLerp(0, NA3OUT[0], l), mLerp(38, NA3OUT[1], l)); };
+
+/* ---------- page pieces ---------- */
+// The backdrop: a rechargeable battery wired to a small bulb; .set(t) its charge rises and falls (pure in t).
+function battery(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M0 -172V-230H260V-86M0 172V230H260V34', { stroke: '#8fa3bd', 'stroke-width': 6 });
+  mk('rect', { x: -30, y: -176, width: 60, height: 26, rx: 6, fill: '#c8d2de' }, g);
+  mk('rect', { x: -84, y: -154, width: 168, height: 330, rx: 26, fill: '#16263c', stroke: COL.chalk, 'stroke-width': 6 }, g);
+  const H = 300, lvl = mk('rect', { x: -68, y: 162, width: 136, height: 0, rx: 14, fill: '#5bbf5b' }, g);
+  path(g, 'M12 -60L-30 20H4L-14 92L34 2H0L18 -60Z', { fill: '#fff6d8', 'fill-opacity': .85, stroke: '#14233a', 'stroke-width': 3 });
+  wLabel(g, '+', { x: 0, y: -186, size: 30, fill: '#14233a', weight: 800, o: 1 });
+  // the bulb it powers
+  const bulb = G(g, { x: 260, y: -40 });
+  const glow = mk('circle', { r: 86, fill: '#ffe9a6', 'fill-opacity': .22 }, bulb);
+  const glass = mk('circle', { r: 46, fill: '#ffe9a6', stroke: '#c8b47a', 'stroke-width': 4 }, bulb);
+  mk('rect', { x: -22, y: 40, width: 44, height: 34, rx: 6, fill: '#8fa3bd' }, bulb);
+  const read = wLabel(g, '', { x: 0, y: 236 + 60, size: 30, weight: 700, o: 1 });
+  let lastL = -1;
+  return Object.assign(g, {
+    set(t) {
+      t = Math.round(t * 60) / 60;
+      const L = Math.round((.52 + .4 * Math.cos(t * .75)) * 200) / 200, spending = Math.sin(t * .75) >= 0;
+      if (L !== lastL) {
+        lastL = L;
+        const h = Math.round(H * L);
+        cAttr(lvl, 'height', h); cAttr(lvl, 'y', 162 - h); cAttr(lvl, 'fill', zMix('#e5533d', '#5bbf5b', mRamp(L, .15, .8)));
+      }
+      mO(glow, spending ? .3 + .7 * L : .05); cAttr(glass, 'fill', spending ? '#ffe9a6' : '#6b6450');
+      setText(read, spending ? 'spending: the bulb is lit' : 'charging again');
+      return g;
+    },
+  }).set(0);
+}
+// The three kinds of work as small moving icons; .set(t) pure in t. kind 'chem' | 'trans' | 'mech'.
+function workIcon(p, kind, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('circle', { r: 92, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+  if (kind === 'chem') {
+    const a = G(g), b = G(g), bond = path(g, 'M-6 0H6', { stroke: COL.chalk, 'stroke-width': 6 });
+    path(a, roundRect(50, 50, 12), { fill: MC.sub, stroke: '#a84d40', 'stroke-width': 3 });
+    path(b, roundRect(50, 50, 12), { fill: MC.prod2, stroke: '#b8902e', 'stroke-width': 3 });
+    return Object.assign(g, { set(t) { t = Math.round(t * 60) / 60; const u = cFrac(t * .22), j = io(mRamp(u, .15, .45)) * (1 - io(mRamp(u, .88, 1))), d = 31 + 22 * (1 - j); mPose(a, -d, 0, 1); mPose(b, d, 0, 1); mO(bond, j); return g; } }).set(0);
+  }
+  if (kind === 'trans') {
+    const mem = G(g);
+    mk('rect', { x: -86, y: -16, width: 62, height: 32, rx: 8, fill: '#c9a4d8' }, mem); mk('rect', { x: 24, y: -16, width: 62, height: 32, rx: 8, fill: '#c9a4d8' }, mem);
+    mk('rect', { x: -22, y: -34, width: 44, height: 68, rx: 12, fill: '#7d88e0', stroke: '#4f58a8', 'stroke-width': 3 }, mem);
+    mArrow(g, [60, 56], [60, -56], { color: MC.endo, w: 5, head: 16 });
+    const sol = solute(g, 'Na', { r: 13, label: false });
+    return Object.assign(g, { set(t) { t = Math.round(t * 60) / 60; const u = cFrac(t * .3); mPose(sol, -2, 62 - 124 * io(u), Math.sin(Math.PI * u) ** .5); return g; } }).set(0);
+  }
+  const wrap = G(g), mp = motorProtein(wrap, { y: 50, s: .42, len: 300, steps: 4 });
+  return Object.assign(g, { set(t) { t = Math.round(t * 60) / 60; const u = cFrac(t * .12); mp.walk(u); mO(wrap, Math.min(mRamp(u, 0, .06), 1 - mRamp(u, .94, 1))); return g; } }).set(0);
+}
+// a rounded rectangle path centred on the origin (page copy; the kit's is internal)
+function roundRect(w, h, r) { const x = -w / 2, y = -h / 2; return `M${x + r} ${y}H${x + w - r}Q${x + w} ${y} ${x + w} ${y + r}V${y + h - r}Q${x + w} ${y + h} ${x + w - r} ${y + h}H${x + r}Q${x} ${y + h} ${x} ${y + h - r}V${y + r}Q${x} ${y} ${x + r} ${y}Z`; }
+// A free-energy ladder: axis up at x, a high level and a low level, an orange drop arrow and its value.
+function ladder(p, { x = 0, y0 = 700, y1 = 160, hi = 240, lo = 560, w = 220, hiLab = 'ATP + H_2O', loLab = 'ADP + P_i', val = ['ΔG = −7.3', 'kcal/mol'], size = 30, o = 1 } = {}) {
+  const g = G(p, { o });
+  mArrow(g, [x, y0], [x, y1], { color: COL.chalk, w: 4, head: 16 });
+  const yl = G(g, { x: x - 24, y: (y0 + y1) / 2, r: -90 }); wChem(yl, 'free energy, G', { size: size * .8, fill: COL.dim, o: 1 });
+  const H = G(g, { o: 0 }), L = G(g, { o: 0 }), A = G(g, { o: 0 }), V = G(g, { o: 0 });
+  path(H, `M${x + 30} ${hi}H${x + 30 + w}`, { stroke: COL.chalk, 'stroke-width': 6 });
+  wChem(H, hiLab, { x: x + 30 + w / 2, y: hi - 18, size, fill: COL.chalk, weight: 700, o: 1 });
+  path(L, `M${x + 30} ${lo}H${x + 30 + w}`, { stroke: COL.chalk, 'stroke-width': 6 });
+  wChem(L, loLab, { x: x + 30 + w / 2, y: lo + size * 1.25, size, fill: COL.chalk, weight: 700, o: 1 });
+  mArrow(A, [x + 60 + w, hi + 8], [x + 60 + w, lo - 8], { color: MC.exo, w: 7, head: 22 });
+  val.forEach((s, i) => wChem(V, s, { x: x + 84 + w, y: (hi + lo) / 2 + (i - (val.length - 1) / 2) * size * 1.2 + size * .35, size, fill: MC.exo, weight: 700, anchor: 'start', o: 1 }));
+  return Object.assign(g, { H, L, A, V });
+}
+// Signed ΔG bars on a zero line: [{v, x, color, label}] stacked when `from` is given; scale px per kcal/mol.
+function dgBars(p, bars, { x0 = 0, x1 = 500, y0 = 500, scale = 40, size = 26, zero = true, o = 1 } = {}) {
+  const g = G(p, { o });
+  if (zero) { path(g, `M${x0} ${y0}H${x1}`, { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '10 8' }); wLabel(g, '0', { x: x0 - 14, y: y0 + 9, size: 24, anchor: 'end', fill: COL.dim, o: 1 }); }
+  const out = bars.map(({ v, from = 0, x, w = 70, color, label, sub }) => {
+    const b = G(g, { o: 0 }), yA = y0 - from * scale, yB = y0 - (from + v) * scale;
+    const rect = mk('rect', { x: x - w / 2, y: Math.min(yA, yB), width: w, height: Math.abs(yB - yA), rx: 8, fill: color, 'fill-opacity': .85 }, b);
+    mArrow(b, [x, yA], [x, yB + (v > 0 ? 6 : -6)], { color: '#0b1626', w: 4, head: 14 });
+    const ly = v > 0 ? yB - 16 : yB + size + 8;
+    wLabel(b, label, { x, y: ly, size, weight: 800, fill: color, o: 1 });
+    if (sub) wLabel(b, sub, { x, y: v > 0 ? ly - size * 1.05 : ly + size * 1.05, size: size * .78, weight: 500, fill: COL.dim, o: 1 });
+    return Object.assign(b, { rect, yA, yB });
+  });
+  return Object.assign(g, { bars: out });
+}
+// A membrane strip: cytoplasm shading below, the kit's bilayer; origin on the midline.
+function memStrip(p, { x = 0, y = 0, w = 600, s = 1, gaps = [], depth = 260, seed = 3, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -w / 2, y: 46, width: w, height: depth, fill: MC.cyto }, g);
+  bilayer(g, { w, gaps, seed, unsat: .3 });
+  return g;
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Batteries and sparks', (m, D) => {
+  const p = panel(0), tB = m('battery'), tC = m('cells'), tS = m('strip'), tSp = m('spark'), tW = m('work'), tN = m('need'), tCo = m('coupling'), tA = m('byatp');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const bat = battery(W, { x: 380, y: 430, o: 0 }); show(bat, 0, .3);
+  clockRun(t => bat.set(Math.min(t, tC + .6)), D);   // still once it has faded, but always written (replay)
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 8 · LESSON 4', { x: 1170, y: 300, size: 26, fill: COL.dim, o: 1 });
+  ['ATP and', 'energy coupling'].forEach((s, i) => wLabel(ttl, s, { x: 1170, y: 385 + i * 70, size: 56, o: 1 }));
+  wLabel(ttl, 'An introduction to metabolism:', { x: 1170, y: 540, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(ttl, 'the cell’s rechargeable energy', { x: 1170, y: 576, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .2, .5);
+  const bl = say(p, 'a rechargeable battery', 380, 800, tB + .2, { size: 32, weight: 700 }); hide(bl, tC, .4);
+  pulse(bat, tB + .3, 1.04);
+  // cells: a cell appears and the camera pushes into its cytoplasm
+  hide(bat, tC, .5);
+  const cm = cellMap(W, { kind: 'animal', x: 800, y: 470, s: .62, o: 0 });
+  show(cm, tC + .2, .6);
+  prog(k => cm.focus('cytoplasm', k), tC + .6, .7, io);
+  const [cx, cy] = cm.pt('cytoplasm');
+  const lc = tag(p, 'inside a cell', [cx + 40, cy - 120], [cx, cy], tC + .9, { size: 30, weight: 700 }); hide(lc, tC + 1.8, .3);
+  cam.to({ x: cx, y: cy, z: 4.2 }, tC + 1.8, tS - tC - 2);
+  hide(cam.el, tS - .4, .35);
+  // strip: the shared pathway strip, then its uphill step and the spark
+  const st = pathwayStrip(p, { x: 800, y: 330, w: 1100, dirs: [1, -1, 1], drop: 60 });
+  const upL = G(p, { o: 0 }); show(upL, tS + 4.2, .4); hide(upL, tSp + .2, .3);
+  wLabel(upL, 'uphill: it won’t go on its own', { x: 800, y: 500, size: 26, weight: 700, fill: MC.endo, o: 1 });
+  const spL = G(p, { o: 0 }); show(spL, tSp + 1.2, .4);
+  wLabel(spL, 'a push of energy from ATP', { x: 800, y: 500, size: 26, weight: 700, fill: MC.spark, o: 1 });
+  clockRun(t => {
+    st.build(io(mRamp(t, tS + .1, tS + 2.6)));
+    st.tilt(io(mRamp(t, tS + 3, tS + 4)));
+    st.focus(['step2', 'B', 'C'], io(mRamp(t, tS + 3.4, tS + 4.2)));
+    const sk = mRamp(t, tSp + .3, tSp + 1.3);
+    st.spark(1, sk);
+    st.flow(Math.max(0, t - tS), [mRamp(t, tS + 2.6, tS + 3), mRamp(t, tSp + 1, tSp + 1.6), mRamp(t, tS + 2.6, tS + 3)]);
+  }, D);
+  // work: three icons under the strip; need: all three endergonic
+  const XS = [400, 800, 1200], NM = [['chemical work', 'builds molecules'], ['transport work', 'moves substances across membranes'], ['mechanical work', 'moves things, like a vesicle']];
+  const icons = ['chem', 'trans', 'mech'].map((k, i) => workIcon(p, k, { x: XS[i], y: 650, o: 0 }));
+  const tI = [m('chem'), m('trans'), m('mech')];
+  icons.forEach((ic, i) => { show(ic, tI[i], .4); pulse(ic, tI[i] + .1, 1.06); });
+  clockRun(t => icons.forEach(ic => ic.set(t)), D);
+  NM.forEach(([a, b], i) => { const g = G(p, { o: 0 }); wLabel(g, a, { x: XS[i], y: 776, size: 28, weight: 700, o: 1 }); wLabel(g, b, { x: XS[i], y: 808, size: 21, fill: COL.dim, weight: 500, o: 1 }); show(g, tI[i] + .2, .4); });
+  hide(spL, tW, .3);
+  XS.forEach((x, i) => {
+    const c = G(p, { o: 0 }); show(c, tN + .3 + .3 * i, .4);
+    mk('rect', { x: x - 110, y: 828, width: 220, height: 40, rx: 20, fill: '#152447', stroke: MC.endo, 'stroke-width': 2.5 }, c);
+    wLabel(c, 'endergonic', { x, y: 857, size: 24, weight: 700, fill: MC.endo, o: 1 });
+  });
+  banner(p, 'energy coupling', 'an exergonic process drives an endergonic one', 800, 64, tCo + .2, { size: 40, color: MC.exo });
+  const by = say(p, 'most coupling in cells is done by ATP', 800, 146, tA + .2, { size: 28, weight: 700, fill: MC.spark });
+  pulse(by, tA + .4, 1.06);
+}],
+
+/* ---------- atp ---------- */
+['atp', 'ATP', (m, D) => {
+  const p = panel(0), tP = m('parts'), tAd = m('aden'), tRi = m('ribo'), tNo = m('nosine'), tPh = m('phos'), tTr = m('tri'), tT = m('tail');
+  const X0 = 880, Y0 = 500, SC = 2.4;
+  const J = G(p, { o: 0 }); show(J, 0, .3);
+  const A = atpMolecule(J, { x: X0, y: Y0, s: SC });
+  const L = (lx, ly) => [X0 + lx * SC, Y0 + ly * SC];
+  banner(p, 'ATP, the cell’s energy shuttle', 'adenosine triphosphate', 800, 80, .4, { size: 44, color: MC.spark });
+  // parts, in turn
+  tag(p, 'adenine', [1300, 200], L(98, -80), tAd + .1, { size: 32, weight: 700, fill: MC.adenine, line: MC.adenine, sub: 'a nitrogenous base' });
+  tag(p, 'ribose', [1150, 700], L(14, 18), tRi + .1, { size: 32, weight: 700, fill: MC.ribose, line: MC.ribose, sub: 'a five-carbon sugar' });
+  const ring = G(p, { o: 0 }); show(ring, tNo + .2, .4);
+  const [ax0, ay0] = L(-40, -100), [ax1, ay1] = L(124, 40);
+  mk('rect', { x: ax0, y: ay0, width: ax1 - ax0, height: ay1 - ay0, rx: 30, fill: 'none', stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '12 10' }, ring);
+  wLabel(ring, 'adenosine', { x: ax1 + 18, y: ay1 - 40, size: 30, weight: 700, anchor: 'start', o: 1 });
+  wLabel(ring, '= adenine + ribose', { x: ax1 + 18, y: ay1 - 6, size: 22, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+  tag(p, 'phosphate groups', [L(-110, 0)[0], 230], L(-110, -64), tPh + .1, { size: 32, weight: 700, fill: MC.P, line: MC.P });
+  const nums = G(p, { o: 0 }); show(nums, tTr + .2, .4);
+  [0, 1, 2].forEach(i => wLabel(nums, String(i + 1), { x: L(-60 - 50 * i, 0)[0], y: L(0, 6)[1] + 26, size: 34, weight: 800, fill: MC.P, o: 1 }));
+  wLabel(nums, 'tri-phosphate: three', { x: L(-110, 0)[0], y: L(0, 6)[1] + 72, size: 26, weight: 600, fill: COL.dim, o: 1 });
+  // tail: a negative charge on each phosphate; they push apart
+  const chg = G(p, { o: 0 }); show(chg, tT + .2, .4);
+  const minus = [0, 1, 2].map(i => { const [bx, by] = L(-60 - 50 * i, -42); const e = G(chg, { x: bx + 30, y: by - 52 }); mk('circle', { r: 17, fill: '#152447', stroke: MC.endo, 'stroke-width': 2.5 }, e); wLabel(e, '−', { y: 10, size: 30, weight: 800, fill: MC.endo, o: 1 }); return e; });
+  const push = G(p, { o: 0 }); show(push, tT + 2.5, .4);
+  const pushA = [0, 1].map(i => { const [bx, by] = L(-85 - 50 * i, -42); const e = G(push, { x: bx, y: by - 92 }); mArrow(e, [6, 0], [36, 0], { color: COL.chalk, w: 3.5, head: 12 }); mArrow(e, [-6, 0], [-36, 0], { color: COL.chalk, w: 3.5, head: 12 }); return e; });
+  const note = say(p, 'like charges repel: a crowded tail, like springs pressed tight', 800, 860, tT + 3.2, { size: 28, weight: 600 });
+  clockRun(t => {
+    const tt = Math.round(t * 60) / 60, j = mRamp(tt, tT + 1.5, tT + 2.5);
+    mPose(A, X0 + j * 2.5 * Math.sin(tt * 23), Y0, 1);
+    minus.forEach((e, i) => { const [bx, by] = L(-60 - 50 * i, -42); mPose(e, bx + 30 + j * 2 * Math.sin(tt * 19 + i), by - 52, 1); });
+    pushA.forEach((e, i) => { const [bx, by] = L(-85 - 50 * i, -42); cSet(e, { x: bx, y: by - 92, s: 1 + .12 * j * Math.sin(tt * 9 + i * 2) }); });
+  }, D);
+  void tP; void note;
+}],
+
+/* ---------- hydro ---------- */
+['hydro', 'Hydrolysis', (m, D) => {
+  const p = panel(0), tWa = m('water'), tSp = m('split'), tPi = m('pi'), tDr = m('drop'), tNb = m('notbond'), tLo = m('lower'), tBa = m('ball'), tH = m('height');
+  const X0 = 520, Y0 = 400, SC = 2;
+  const A = atpMolecule(p, { x: X0, y: Y0, s: SC });
+  const L = (lx, ly) => [X0 + lx * SC, Y0 + ly * SC];
+  say(p, 'hydrolysis: splitting with water', 450, 130, tWa + .3, { size: 32, weight: 700 });
+  const wl = tag(p, 'water', [120, 650], L(-200, 78), tWa + 1, { size: 26, fill: '#7ec0ff', line: '#7ec0ff' }); hide(wl, tSp, .3);
+  const KH = [[tWa + .3, 0], [tWa + 4.4, .4], [tSp + .2, .4], [tSp + 3.6, 1]];
+  clockRun(t => A.hydrolyse(lerpTable(KH, t)), D);
+  const eq = G(p, { o: 0 }); show(eq, tSp + 2.4, .5);
+  wChem(eq, 'ATP + H_2O → ADP + P_i', { x: 470, y: 720, size: 40, weight: 700, o: 1 });
+  tag(p, 'inorganic phosphate', [190, 610], L(-224, 62), tPi + .2, { size: 24, fill: MC.P, line: MC.P });
+  // drop: the energy ladder
+  const ld = ladder(p, { x: 1010, y0: 700, y1: 170, hi: 250, lo: 560, w: 230, o: 0 });
+  show(ld, tDr, .4); show(ld.H, tDr + .2, .4); show(ld.L, tDr + .9, .4); show(ld.A, tDr + 1.5, .4); show(ld.V, tDr + 2.4, .4); pulse(ld.V, tDr + 2.6, 1.08);
+  const rel = say(p, 'energy released', 1360, 230, tDr + 1.8, { size: 26, weight: 700, fill: MC.exo });
+  // notbond: not the bond itself; lower: the drop in free energy
+  const nb = G(p, { o: 0 }); show(nb, tNb + .2, .4);
+  wLabel(nb, '✕ not from the bond itself', { x: 330, y: 205, size: 28, weight: 700, fill: '#ff8a76', o: 1 });
+  banner(p, 'from the drop to lower free energy', 'the products are more stable than ATP was', 1200, 70, tLo + .3, { size: 34, color: MC.exo });
+  hide(rel, tLo, .3);
+  // ball: a ball that has rolled downhill
+  const bs = ballSlope(p, { x: 1290, y: 800, s: .42, bars: false, o: 0 }); show(bs, tBa, .4);
+  clockRun(t => bs.set(mRamp(t, tBa + .6, tBa + 3.8)), D);
+  say(p, 'like a ball rolling downhill', 1290, 850, tBa + .3, { size: 22, fill: COL.dim, weight: 600 });
+  pulse(ld.A, tH + .3, 1.06);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const ld = ladder(p, { x: 110, y0: 720, y1: 160, hi: 260, lo: 590, w: 220, val: ['energy', 'released'] });
+  [ld.H, ld.L, ld.A, ld.V].forEach(e => put(e, { o: 1 }));
+  wLabel(p, 'where does it come from?', { x: 300, y: 820, size: 28, weight: 700, fill: MC.spark, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-source', prompt: ['Where does the energy released by ATP hydrolysis come from?'],
+  build: choice([['the change to products with lower free energy: ADP + Pᵢ are more stable than ATP'], ['breaking the phosphate bonds, which are special high-energy bonds'], ['the water molecule that is added'], ['the adenine base']], 0,
+    'Right. The products sit lower in free energy than ATP did. The energy released is that difference in height, like a ball that has rolled downhill.',
+    [null, 'Breaking any bond takes energy. The energy comes from the lower free energy of the products, not from the bond.',
+      'Water is only a reactant here; it holds no stored energy to give.',
+      'The adenine is not changed by hydrolysis; only the end phosphate comes off.']),
+}], done) }],
+
+/* ---------- couple ---------- */
+['couple', 'Coupling: glutamine', (m, D) => {
+  const p = panel(0), tG = m('glu'), tAl = m('alone'), tAj = m('atpjoin'), t1 = m('step1'), t2 = m('step2'), tN = m('net'), tSu = m('sum'), tO = m('overall');
+  // row 1: on its own (uphill, won't go)
+  const r1 = G(p, { o: 0 }); show(r1, 0, .3);
+  boardCard(r1, 40, 60, 880, 250);
+  wLabel(r1, 'on its own', { x: 64, y: 100, size: 24, weight: 700, anchor: 'start', fill: COL.dim, o: 1 });
+  gluShape(r1, { x: 170, y: 200, size: 96 });
+  wLabel(r1, '+', { x: 268, y: 212, size: 40, o: 1 });
+  ammoniaShape(r1, { x: 350, y: 196 });
+  mArrow(r1, [440, 196], [600, 196], { color: MC.endo, w: 6, head: 20 });
+  gluShape(r1, { x: 720, y: 200, size: 96, label: 'Gln' }).set({ nh: 1 });
+  [['glutamic acid', 170], ['ammonia', 350], ['glutamine', 735]].forEach(([s, x]) => wLabel(r1, s, { x, y: 282, size: 22, fill: COL.dim, weight: 600, o: 1 }));
+  const dg1 = say(p, 'ΔG = +3.4 kcal/mol', 520, 160, tG + 5.5, { size: 26, weight: 700, fill: MC.endo });
+  const no = G(p, { o: 0 }); show(no, tAl + .1, .4);
+  mk('rect', { x: 432, y: 214, width: 176, height: 40, rx: 20, fill: '#2a1720', stroke: '#ff8a76', 'stroke-width': 2.5 }, no);
+  wLabel(no, 'won’t go', { x: 520, y: 242, size: 24, weight: 700, fill: '#ff8a76', o: 1 });
+  void dg1;
+  // row 2: coupled with ATP
+  const r2 = G(p, { o: 0 }); show(r2, tAj - .2, .5);
+  boardCard(r2, 40, 340, 880, 530);
+  wLabel(r2, 'coupled with ATP', { x: 64, y: 380, size: 24, weight: 700, anchor: 'start', fill: COL.dim, o: 1 });
+  const cr = coupledReaction(p, { x: 480, y: 610, s: 1.2, o: 0 }); show(cr, tAj, .4);
+  const KC = [[t1 + .4, 0], [t1 + 2.4, .22], [t1 + 5, .4], [t1 + 13, .43], [t2 + .1, .47], [t2 + 2.6, .7], [t2 + 5, .86], [t2 + 7, 1]];
+  clockRun(t => cr.set(lerpTable(KC, t)), D);
+  const atpV = say(p, 'ATP hydrolysis: ΔG = −7.3 kcal/mol', 480, 840, tAj + 1.5, { size: 26, weight: 700, fill: MC.exo });
+  void atpV;
+  const b1 = badge(p, '1', 250, 450); show(b1, t1, .3); pulse(b1, t1 + .1, 1.2);
+  const b2 = badge(p, '2', 640, 440); show(b2, t2, .3); pulse(b2, t2 + .1, 1.2);
+  // right: the bars and the ledger
+  const bars = dgBars(p, [
+    { v: 3.4, x: 1080, color: MC.endo, label: '+3.4', sub: 'Glu → Gln' },
+    { v: -7.3, from: 3.4, x: 1230, color: MC.exo, label: '−7.3', sub: 'ATP' },
+    { v: -3.9, x: 1420, w: 90, color: MC.exo, label: 'net −3.9' },
+  ], { x0: 1000, x1: 1540, y0: 590, scale: 40, o: 0 });
+  show(bars, tG + 5, .4);
+  const tBars = [tG + 5.4, tAj + 1.8, tSu + 4];
+  bars.bars.forEach((b, i) => { show(b, tBars[i], .4); pulse(b, tBars[i] + .1, 1.03); });
+  const lk = G(p, { o: 0 }); show(lk, tAj + 2.2, .4);
+  path(lk, `M1115 ${590 - 3.4 * 40}H1195`, { stroke: COL.dim, 'stroke-width': 2.5, 'stroke-dasharray': '6 6' });
+  wLabel(bars, 'ΔG, kcal/mol', { x: 1000, y: 380, size: 24, fill: COL.dim, weight: 600, anchor: 'start', o: 1 });
+  const led = kcalLedger(p, { x: 1000, y: 80, size: 30, o: 0 }); show(led, tN, .4);
+  const KL = [[tSu - .2, 0], [tSu + 1.4, .3], [tSu + 1.8, .35], [tSu + 3.4, .65], [tSu + 3.7, .72], [tSu + 5.6, 1]];
+  clockRun(t => led.set(lerpTable(KL, t)), D);
+  const ov = G(p, { o: 0 }); show(ov, tO + .2, .5);
+  mk('rect', { x: 1120, y: 826, width: 400, height: 56, rx: 28, fill: '#2a1a08', stroke: MC.exo, 'stroke-width': 2.5 }, ov);
+  wLabel(ov, 'overall exergonic: it goes', { x: 1320, y: 864, size: 28, weight: 700, fill: MC.exo, o: 1 });
+}],
+
+/* ---------- movers ---------- */
+['movers', 'Transport and mechanical work', (m, D) => {
+  const p = panel(0), tT = m('transport'), tPg = m('pg'), tOf = m('off'), tM = m('motor'), tWk = m('walks'), tS = m('same'), tF = m('fuel'), tE = m('each');
+  const left = G(p), right = G(p);
+  path(p, 'M800 90V760', { stroke: COL.faint, 'stroke-width': 3, 'stroke-dasharray': '10 10' });
+  // transport work: the sodium-potassium pump, paid with ATP
+  wLabel(left, 'transport work', { x: 400, y: 80, size: 36, weight: 700, o: 1 });
+  const PX = 400, MY = 440, PS = 1.25;
+  memStrip(left, { x: PX, y: MY, s: PS, w: 600, gaps: [[0, 72]], depth: 220 });
+  wLabel(left, 'outside the cell', { x: 40, y: 200, size: 22, anchor: 'start', fill: COL.dim, weight: 700, o: 1 });
+  wLabel(left, 'cytoplasm', { x: 40, y: 740, size: 22, anchor: 'start', fill: COL.dim, weight: 700, o: 1 });
+  const pu = naKPump(left, { x: PX, y: MY, s: PS });
+  const QT = [[tT + .2, 0], [tT + 1.2, 1], [tT + 3.8, 2], [tPg + 2.8, 3], [tOf - .3, 4], [tOf + 1.6, 5], [tM - .3, 6]];
+  pu.cycle(2.5 / 6); const pP = pu.pt('p'); pu.cycle(0);
+  clockRun(t => { const k = rk(lerpTable(QT, t) / 6); pu.cycle(k); atpThenAdp(pu, k); na3Out(pu, k); }, D);
+  const tp = tag(left, 'transport protein', [170, 300], [PX - 40, MY - 60], tT + .4, { size: 26, weight: 700, fill: '#9aa8ff', line: '#9aa8ff' }); hide(tp, tPg + 1.5, .4);
+  const pg = tag(left, 'phosphate group', [640, 560], [pP[0] + 12, pP[1] + 6], tPg + .1, { size: 26, weight: 700, fill: MC.P, line: MC.P, sub: 'changes its shape' });
+  hide(pg, tOf + 1.2, .3);
+  const sx = say(left, 'the solute crosses the membrane', 400, 820, tPg + 2.4, { size: 24, weight: 600 }); hide(sx, tS, .3);
+  // mechanical work: a motor protein walks a vesicle along its track
+  wLabel(right, 'mechanical work', { x: 1200, y: 80, size: 36, weight: 700, o: 1 });
+  const mp = motorProtein(right, { x: 1200, y: 600, s: .85, len: 700, steps: 8, o: .35 });
+  show(mp, tM, .4);
+  const vl = G(right, { o: 0 }), ml = G(right, { o: 0 });
+  wLabel(vl, 'vesicle', { y: 0, size: 26, weight: 700, fill: YC.vesicle, o: 1 });
+  wLabel(ml, 'motor protein', { size: 24, weight: 700, fill: YC.motor, o: 1 });
+  show(vl, tM + .6, .4); show(ml, tM + 1.2, .4);
+  say(right, 'cytoskeletal track', 1200, 730, tM + 1.8, { size: 24, weight: 600, fill: COL.dim });
+  const adp = G(right, { o: 0 });
+  solute(adp, 'ADP', { x: -26, r: 18 }); solute(adp, 'Pi', { x: 26, r: 16 });
+  clockRun(t => {
+    const k = io(mRamp(t, tWk - 3.4, tS - .3)); mp.walk(k);
+    const [vx, vy] = mp.pt('vesicle'), [hx, hy] = mp.pt('motor');
+    mPose(vl, vx, vy - 66); mPose(ml, hx, 668);
+    const [ax, ay] = mp.pt('atp'), f = cFrac(k * 8);
+    mPose(adp, ax - 10, ay - 30 - 40 * f, k > 0 && k < 1 ? mBump(f, .35, 1) : 0);
+  }, D);
+  // same: three kinds of work, one fuel
+  tw(left, { o: .06 }, tS, .4); tw(right, { o: .06 }, tS, .4);
+  const sm = G(p, { o: 0 }); show(sm, tS + .2, .5);
+  boardCard(sm, 220, 170, 1160, 560, COL.dim);
+  const XS = [480, 800, 1120];
+  const icons = ['chem', 'trans', 'mech'].map((k, i) => workIcon(sm, k, { x: XS[i], y: 400 }));
+  ['chemical', 'transport', 'mechanical'].forEach((s, i) => wLabel(sm, s, { x: XS[i], y: 540, size: 30, weight: 700, o: 1 }));
+  const sparks = XS.map((x, i) => { const e = solute(p, 'ATP', { x: x + 82, y: 320, r: 26, o: 0 }); show(e, tF + .3 + .35 * i, .3); pulse(e, tF + .4 + .35 * i, 1.25); return e; });
+  void sparks;
+  clockRun(t => icons.forEach(ic => ic.set(t)), D);
+  banner(p, 'three kinds of work, one fuel: ATP', null, 800, 640, tF + .4, { size: 34, color: MC.spark });
+  say(p, 'each endergonic job is paid for by exergonic ATP hydrolysis', 800, 820, tE + .3, { size: 28, weight: 600 });
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const bars = dgBars(p, [
+    { v: 3.4, x: 160, color: MC.endo, label: '+3.4', sub: 'Glu → Gln' },
+    { v: -7.3, from: 3.4, x: 320, color: MC.exo, label: '−7.3', sub: 'ATP' },
+    { v: -3.9, x: 490, w: 90, color: MC.exo, label: 'net −3.9' },
+  ], { x0: 80, x1: 590, y0: 450, scale: 40 });
+  bars.bars.forEach(b => put(b, { o: 1 }));
+  wLabel(p, 'ΔG, kcal/mol', { x: 80, y: 240, size: 24, fill: COL.dim, weight: 600, anchor: 'start', o: 1 });
+  wLabel(p, 'ΔG < 0: exergonic · ΔG > 0: endergonic', { x: 330, y: 760, size: 22, fill: COL.dim, weight: 600, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-direction', prompt: ['Exergonic or endergonic?'],
+  build: grid([
+    { parts: ['glutamic acid + ammonia → glutamine, on its own'], ans: ['n'], why: 'Endergonic: its ΔG is +3.4 kcal/mol, so it needs energy and will not go alone.' },
+    { parts: ['ATP hydrolysis'], ans: ['x'], why: 'Exergonic: ΔG is about −7.3 kcal/mol; energy is released.' },
+    { parts: ['the coupled glutamine reaction, overall'], ans: ['x'], why: 'Exergonic: +3.4 and −7.3 give a net ΔG of −3.9 kcal/mol, so it goes.' },
+    { parts: ['a motor protein walking a vesicle (the work itself)'], ans: ['n'], why: 'Endergonic: the work needs energy, which ATP hydrolysis pays for.' },
+    { parts: ['catabolism that remakes ATP'], ans: ['x'], why: 'Exergonic: catabolic reactions release the energy that recharges ADP + Pᵢ.' },
+  ], [['x', 'exergonic', null, 'X'], ['n', 'endergonic', null, 'N']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- cycle ---------- */
+['cycle', 'The ATP cycle', (m, D) => {
+  const p = panel(0), tR = m('renew'), tRg = m('regen'), tCa = m('catab'), tD = m('door'), tWo = m('workout'), tF = m('fast'), tE = m('end'), tS1 = m('s1'), tS2 = m('s2'), tS3 = m('s3');
+  const W = G(p, { x: 800, y: 440 });
+  const cyc = atpCycle(W, { R: 180, o: 0 }); show(cyc, 0, .4);
+  const rn = banner(p, 'ATP is renewable', null, 800, 90, tR + .3, { size: 40, color: MC.spark });
+  // u: down the right (hydrolysis) during renew, up the left (regeneration) at regen, then round and round, faster
+  const uAt = t => {
+    if (t < tRg) return .5 * io(mRamp(t, tR + .4, tRg - .1));
+    if (t < tD) return .5 + .5 * io(mRamp(t, tRg + .3, tD - .3));
+    const dt = t - tD, x = Math.max(0, dt - (tF - tD)), ramp = x < 3 ? .9 * x * x / 6 : .9 * 1.5 + .9 * (x - 3);
+    return 1 + .3 * dt + ramp;
+  };
+  clockRun(t => cyc.set(uAt(Math.round(t * 120) / 120)), D);
+  const rg = say(p, 'a phosphate group is added back onto ADP', 800, 860, tRg + .3, { size: 28, weight: 600 }); hide(rg, tD, .3);
+  const [ix, iy] = cyc.pt('in'), [ox, oy] = cyc.pt('out');
+  const ci = G(W, { o: 0 }); show(ci, tCa + .3, .3); hide(ci, tCa + 2.2, .3);
+  mk('rect', { x: ix - 200, y: iy + 44, width: 400, height: 90, rx: 18, fill: 'none', stroke: MC.exo, 'stroke-width': 3 }, ci);
+  const co = G(W, { o: 0 }); show(co, tWo + .3, .3); hide(co, tWo + 2.2, .3);
+  mk('rect', { x: ox - 200, y: oy + 44, width: 400, height: 90, rx: 18, fill: 'none', stroke: MC.endo, 'stroke-width': 3 }, co);
+  const door = say(p, 'a revolving door', 800, 870, tD + .3, { size: 30, weight: 700 });
+  const fast = say(p, 'a busy cell: millions of times a second', 800, 870, tF + .3, { size: 30, weight: 700, fill: MC.spark });
+  hide(door, tF, .3); hide(fast, tE, .3); hide(rn, tE, .3);
+  // end: the ring moves up and three summary cards come in
+  tw(W, { s: .75, y: 270 }, tE, .9, io);
+  const SUM = [['hydrolysis', 'exergonic: ATP → ADP + Pᵢ', MC.exo, tS1], ['coupling', 'drives endergonic work', MC.endo, tS2], ['catabolism', 'recharges ADP + Pᵢ to ATP', MC.spark, tS3]];
+  SUM.forEach(([a, b, col, t0], i) => {
+    const g = G(p, { o: 0 }), x = 300 + 500 * i; show(g, t0 + .1, .5);
+    boardCard(g, x - 230, 560, 460, 200, col);
+    wLabel(g, a, { x, y: 640, size: 36, weight: 700, fill: col, o: 1 });
+    wLabel(g, b, { x, y: 700, size: 25, weight: 600, o: 1 });
+  });
+  say(p, 'Now try the practice.', 800, 850, tS3 + 3, { size: 30, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, icons = [], at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('work', g => {
+    boardCard(g, 990, 90, 560, 720);
+    ['chem', 'trans', 'mech'].forEach((k, i) => { const ic = workIcon(g, k, { x: 1270, y: 220 + 230 * i }); icons.push(ic); });
+    wLabel(g, 'which kind of work?', { x: 1270, y: 790, size: 26, weight: 700, fill: MC.spark, o: 1 });
+  });
+  at('atpadp', g => {
+    boardCard(g, 990, 90, 560, 720);
+    atpMolecule(g, { x: 1340, y: 300, s: 1.3, name: false });
+    atpMolecule(g, { x: 1340, y: 610, s: 1.3, n: 2, name: false });
+    wLabel(g, '1', { x: 1040, y: 250, size: 34, weight: 800, fill: COL.dim, o: 1 });
+    wLabel(g, '2', { x: 1040, y: 560, size: 34, weight: 800, fill: COL.dim, o: 1 });
+    wLabel(g, 'ATP or ADP?', { x: 1270, y: 790, size: 26, weight: 700, fill: MC.spark, o: 1 });
+  });
+  at('net', g => {
+    boardCard(g, 990, 90, 560, 720);
+    const b = dgBars(g, [
+      { v: 5, x: 1150, color: MC.endo, label: '+5.0', sub: 'the reaction' },
+      { v: -7.3, from: 5, x: 1300, color: MC.exo, label: '−7.3', sub: 'ATP' },
+    ], { x0: 1060, x1: 1520, y0: 470, scale: 36 });
+    b.bars.forEach(e => put(e, { o: 1 }));
+    wLabel(g, 'net ΔG = ?', { x: 1450, y: 470 + 2.3 * 36 + 10, size: 30, weight: 800, fill: MC.spark, o: 1 });
+    wLabel(g, 'ΔG, kcal/mol', { x: 1020, y: 150, size: 22, fill: COL.dim, weight: 600, anchor: 'start', o: 1 });
+  });
+  at('inter', g => {
+    boardCard(g, 990, 90, 560, 720);
+    coupledReaction(g, { x: 1300, y: 450, s: 1.15, labels: false }).set(.42);
+    wLabel(g, '?', { x: 1300, y: 640, size: 64, weight: 800, fill: MC.spark, o: 1 });
+    wLabel(g, 'step 1 of the glutamine reaction', { x: 1270, y: 790, size: 24, weight: 700, o: 1 });
+  });
+  at('regen', g => {
+    boardCard(g, 990, 90, 560, 720);
+    atpCycle(g, { x: 1305, y: 420, s: .5, labels: false }).set(.75);
+    wLabel(g, 'energy from ?', { x: 1110, y: 500, size: 26, weight: 700, fill: MC.exo, o: 1 });
+    wLabel(g, 'ADP + Pᵢ → ATP', { x: 1270, y: 700, size: 28, weight: 700, o: 1 });
+  });
+  at('order', g => {
+    boardCard(g, 990, 90, 560, 720);
+    atpCycle(g, { x: 1305, y: 420, s: .5, labels: false }).set(.25);
+    const pos = [[1440, 362], [1450, 482], [1505, 362], [1170, 362]];
+    const names = ['hydrolysis', 'energy released', 'cellular work', 'recharged by catabolism'];
+    // the names fill a legend under the ring, clear of the arrows
+    S.ordB = pos.map(([x, y], i) => { const b = badge(g, '?', x, y, { o: 1, r: 26 }); b.lab = wLabel(g, (i + 1) + '  ' + names[i], { x: 1110, y: 590 + 40 * i, size: 24, weight: 600, anchor: 'start', o: 0 }); return b; });
+    wLabel(g, 'follow the ring clockwise', { x: 1270, y: 790, size: 26, weight: 700, fill: MC.spark, o: 1 });
+  });
+  clockRun(t => icons.forEach(ic => ic.set(t)), D);
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('work');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-work', prompt: ['A pump pushes Na⁺ out of a cell; a motor protein carries a vesicle. Which kinds of work?'],
+    build: withPic('work', choice([['transport work, then mechanical work'], ['mechanical work, then transport work'], ['chemical work, then mechanical work'], ['chemical work, both times']], 0,
+      'Right. Moving a substance across a membrane is transport work; moving something along a track is mechanical work. Building molecules would be chemical work.',
+      [null, 'Swapped: the pump moves sodium across the membrane (transport); the motor moves a vesicle (mechanical).',
+        'The pump builds nothing: it moves sodium across the membrane, which is transport work.',
+        'Chemical work builds molecules, like glutamine from glutamic acid. Neither of these builds anything.'])) },
+  { id: 'p-atpadp', prompt: ['ATP or ADP?'],
+    build: withPic('atpadp', grid([
+      { parts: ['three phosphates'], ans: ['a'], why: 'ATP: triphosphate, three.' },
+      { parts: ['two phosphates'], ans: ['d'], why: 'ADP: diphosphate, two.' },
+      { parts: ['made by hydrolysis'], ans: ['d'], why: 'ADP: ATP + H₂O → ADP + Pᵢ.' },
+      { parts: ['rebuilt by catabolism'], ans: ['a'], why: 'ATP: a phosphate goes back onto ADP.' },
+    ], [['a', 'ATP', null, 'A'], ['d', 'ADP', null, 'D']], { multi: false, text: true })) },
+  { id: 'p-net', prompt: ['A reaction has ΔG = +5.0 kcal/mol. It is coupled to ATP hydrolysis (−7.3 kcal/mol). What is the net ΔG?'],
+    build: withPic('net', choice([['−2.3 kcal/mol, exergonic, so it goes'], ['+12.3 kcal/mol'], ['+2.3 kcal/mol'], ['−12.3 kcal/mol']], 0,
+      'Right. +5.0 + (−7.3) = −2.3 kcal/mol. The net ΔG is negative, so the coupled reaction goes.',
+      [null, 'That adds the sizes and ignores the sign: −7.3 is a release, so it counts negative.',
+        'The sign is wrong: −7.3 is larger than +5.0, so the sum is negative.',
+        'That subtracts +5.0 instead of adding it: +5.0 + (−7.3) = −2.3.'])) },
+  { id: 'p-inter', prompt: ['In the glutamine reaction, what is the phosphorylated intermediate?'],
+    build: withPic('inter', choice([['ATP itself'], ['glutamic acid carrying a phosphate group from ATP'], ['glutamine'], ['the free inorganic phosphate']], 1,
+      'Right. In step 1, ATP hands a phosphate group to glutamic acid. That less stable, more reactive molecule is the intermediate.',
+      ['ATP is the donor: it gives the phosphate away and becomes ADP.', null,
+        'Glutamine is the final product, and it carries no phosphate.',
+        'The inorganic phosphate is only released at the end, when ammonia takes its place.'])) },
+  { id: 'p-regen', prompt: ['What supplies the energy to rebuild ATP from ADP + Pᵢ?'],
+    build: withPic('regen', choice([['anabolic reactions'], ['the hydrolysis of ADP'], ['catabolic reactions in the cell'], ['the water molecule']], 2,
+      'Right. Catabolic, exergonic reactions such as cellular respiration release the energy that adds a phosphate back onto ADP.',
+      ['Anabolic reactions build molecules: they use ATP, they do not make it.', 'ADP + Pᵢ is what hydrolysis leaves behind; it cannot pay for its own recharge.', null,
+        'Water gives no energy; in the cycle it is used in hydrolysis.'])) },
+  { id: 'p-order', prompt: ['Number the cycle’s steps, 1 to 4.'],
+    build: withPic('order', blanks([
+      { parts: ['hydrolysis: ', { box: '1' }], why: 'Step 1: hydrolysis, ATP → ADP + Pᵢ.', hint: 'Start at ATP, the top of the ring.', fx: () => ordFx(0, '1') },
+      { parts: ['energy released: ', { box: '2' }], why: 'Step 2: the drop in free energy is released.', hint: 'It follows the split.', fx: () => ordFx(1, '2') },
+      { parts: ['work done: ', { box: '3' }], why: 'Step 3: the energy pays for work.', hint: 'The energy is spent before ATP is rebuilt.', fx: () => ordFx(2, '3') },
+      { parts: ['recharged: ', { box: '4' }], why: 'Step 4: energy from catabolism remakes ATP.', hint: 'This closes the ring.', fx: () => ordFx(3, '4') },
+    ])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+function ordFx(i, str) { const b = S.ordB?.[i]; if (!b) return; fxp(q => { b.t.textContent = q > 0 ? str : '?'; put(b.lab, { o: q }); }, 0, .3); pulseFx(b, 1.4); }
+
+boot();
+</script>
+</body>
+</html>

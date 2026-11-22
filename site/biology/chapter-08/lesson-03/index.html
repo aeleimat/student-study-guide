@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 8, Lesson 3: Free Energy, Stability and Equilibrium — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 8 (An Introduction to Metabolism), lesson 3: a ball on a ledge, then a cell and the shared pathway
+// strip with its energy drop lit; free energy and ΔG = ΔH − TΔS with a worked example; free energy as instability,
+// equilibrium (ΔG = 0, no work); exergonic and endergonic diagrams; a sealed flask settles, a cell never does; the three
+// water systems; a summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-08/lesson-03.md.
+const CHAPTER = { number: 803, label: '8, lesson 3', title: 'Free Energy, Stability and Equilibrium', minutes: 7, language: 'en', lead: false, next: '../lesson-04/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const BOARD = '#0b1828';
+const GREEN = '#5bbf5b';
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  if (ax !== null) { path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g); }
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A title and a dim second line, centred; fades in at t0.
+function banner(p, a, b, x, y, t0, { color = COL.chalk, size = 40 } = {}) {
+  const g = G(p, { o: 0 });
+  wLabel(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wLabel(g, b, { x, y: y + size * .95, size: size * .62, fill: COL.dim, weight: 500, o: 1 });
+  show(g, t0, .5);
+  return g;
+}
+// A rounded pill with one line of text, centred at x, y.
+function pill(p, str, x, y, { size = 30, color = COL.chalk, edge, o = 0, fill = '#0b1626', pad = 28 } = {}) {
+  const g = G(p, { o }), w = uiW(str, size) * 1.08 + pad * 2, h = size * 1.7;
+  mk('rect', { x: x - w / 2, y: y - h / 2, width: w, height: h, rx: h / 2, fill, stroke: edge || color, 'stroke-width': 2.5 }, g);
+  wLabel(g, str, { x, y: y + size * .36, size, weight: 700, fill: color, o: 1 });
+  return g;
+}
+const board = (g, x, y, w, h) => mk('rect', { x, y, width: w, height: h, rx: 22, fill: BOARD, stroke: COL.faint, 'stroke-width': 3 }, g);
+// Text whose content is set only when it changes.
+function setText(e, str) { if (e._txt !== str) { e.textContent = str; e._txt = str; } }
+// A vertical bar whose height is set from a value; origin at the base, growing up (dir −1) or down (dir 1).
+function meter(p, x, y, { w = 44, H = 300, color = MC.exo, dir = -1, frame = true } = {}) {
+  const g = G(p);
+  if (frame) mk('rect', { x: x - w / 2 - 4, y: dir < 0 ? y - H - 4 : y, width: w + 8, height: H + 4, rx: 8, fill: 'none', stroke: COL.faint, 'stroke-width': 2.5 }, g);
+  const bar = mk('rect', { x: x - w / 2, y, width: w, height: 0, rx: 5, fill: color }, g);
+  return Object.assign(g, {
+    set(k) { const hh = Math.round(H * mClamp(k)); cAttr(bar, 'height', hh); cAttr(bar, 'y', dir < 0 ? y - hh : y); return g; },
+  });
+}
+
+/* ---------- local pieces: a sealed flask, a small cell with materials in and out, a paddle wheel ---------- */
+// The flask: origin at its base centre. .set(f) f 0..1 of the reactants converted up to the equilibrium mix.
+function flaskArt(p, { x = 0, y = 0, s = 1, o = 1, n = 18, conv = 11 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const outline = 'M-40 -330V-235L-170 -30Q-185 0 -150 0H150Q185 0 170 -30L40 -235V-330';
+  path(g, outline + 'Z', { fill: '#1a3556', stroke: 'none' });
+  path(g, 'M-138 -40L-30 -205H30L138 -40Q148 -14 120 -12H-120Q-148 -14 -138 -40Z', { fill: '#2a5a8a', 'fill-opacity': .55 });
+  path(g, outline, { stroke: '#a9c2df', 'stroke-width': 6 });
+  mk('rect', { x: -52, y: -372, width: 104, height: 50, rx: 10, fill: '#8f6a48', stroke: '#5e432c', 'stroke-width': 3 }, g);   // the stopper
+  const pts = [[-90, -40], [-40, -55], [10, -38], [60, -52], [105, -36], [-110, -78], [-62, -100], [-10, -88], [42, -104], [88, -84],
+    [-70, -140], [-22, -150], [28, -136], [60, -168], [-30, -190], [8, -112], [-118, -30], [120, -70]].slice(0, n);
+  const dots = pts.map(([px, py], i) => {
+    const d = G(g, { x: px, y: py });
+    const a = mk('circle', { r: 14, fill: MC.sub, stroke: MC.subEdge, 'stroke-width': 2.5 }, d);
+    const b = mk('rect', { x: -13, y: -13, width: 26, height: 26, rx: 6, fill: MC.prod2, stroke: MC.prod2Edge, 'stroke-width': 2.5 }, d);
+    put(b, { o: 0 });
+    return { d, a, b, px, py };
+  });
+  return Object.assign(g, {
+    dots,
+    set(f, t = 0) {
+      const c = Math.round(mClamp(f) * conv), tt = Math.round(t * 15) / 15;
+      dots.forEach((q, i) => {
+        const on = i < c ? 1 : 0;
+        mO(q.a, 1 - on); mO(q.b, on);
+        mPose(q.d, q.px + 3 * Math.sin(tt * 2.1 + i * 1.7), q.py + 3 * Math.cos(tt * 1.7 + i * 2.3));
+      });
+      return g;
+    },
+  });
+}
+// A cell with materials coming in on the left and waste and heat leaving on the right; .set(t) runs the flow.
+function openCell(p, { x = 0, y = 0, s = 1, o = 1, r = 170, labels = true } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('circle', { r, fill: MC.cyto, stroke: CC.membrane, 'stroke-width': 10 }, g);
+  mk('circle', { cx: r * .18, cy: r * .12, r: r * .3, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 5 }, g);
+  mArrow(g, [-r - 150, -40], [-r - 20, -40], { color: COL.chalk, w: 6, head: 18 });
+  mArrow(g, [r + 20, 50], [r + 150, 50], { color: COL.chalk, w: 6, head: 18 });
+  const ins = [0, 1, 2].map(() => solute(g, 'sugar', { r: 15 }));
+  const outs = [0, 1, 2].map(() => solute(g, 'CO2', { r: 13, label: false }));
+  const heat = heatArrow(g, [r * .55, -r * .6], [r + 90, -r - 50], { waves: 2, amp: 9, w: 7, o: 1 });
+  if (labels) {
+    wLabel(g, 'materials in', { x: -r - 85, y: -70, size: 24, fill: COL.chalk, weight: 600, o: 1 });
+    wLabel(g, 'waste out', { x: r + 85, y: 100, size: 24, fill: COL.chalk, weight: 600, o: 1 });
+    wLabel(g, 'heat out', { x: r + 105, y: -r - 62, anchor: 'start', size: 24, fill: WC.heat, weight: 600, o: 1 });
+  }
+  return Object.assign(g, {
+    heat,
+    set(t) {
+      const tt = Math.round(t * 30) / 30;
+      ins.forEach((e, i) => { const u = cFrac(tt * .28 + i / 3); mPose(e, mLerp(-r - 150, -r * .35, u), -40 + 8 * Math.sin(u * 6 + i), Math.sin(Math.PI * u)); });
+      outs.forEach((e, i) => { const u = cFrac(tt * .28 + i / 3 + .17); mPose(e, mLerp(r * .45, r + 150, u), 50 + 8 * Math.sin(u * 5 + i), Math.sin(Math.PI * u)); });
+      return g;
+    },
+  }).set(0);
+}
+// A small paddle wheel; .set(deg) turns it.
+function paddle(p, { x = 0, y = 0, r = 40, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('rect', { x: -6, y: -r - 34, width: 12, height: r + 34, fill: '#6b7f99' }, g);
+  const wh = G(g);
+  let d = ''; for (let j = 0; j < 6; j++) { const an = j * Math.PI / 3; d += `M0 0L${cF(Math.cos(an) * r)} ${cF(Math.sin(an) * r)}`; }
+  path(wh, d, { stroke: '#e3d2a2', 'stroke-width': 9 });
+  mk('circle', { r: 10, fill: '#8f7a48' }, wh);
+  return Object.assign(g, { set(deg) { cSet(wh, { r: Math.round(deg * 10) / 10 }); return g; } });
+}
+// A small water tank pair icon (no turbine), for the practice picture.
+function tankIcon(p, { x = 0, y = 0, s = 1, open = false } = {}) {
+  const g = G(p, { x, y, s });
+  [[-90, -60, 70], [40, 0, 40]].forEach(([tx, ty, lv]) => {
+    mk('rect', { x: tx, y: ty - 100, width: 60, height: 100, fill: '#16304f' }, g);
+    mk('rect', { x: tx, y: ty - lv, width: 60, height: lv, fill: '#3a8fd0' }, g);
+    path(g, `M${tx} ${ty - 100}V${ty}H${tx + 60}V${ty - 100}`, { stroke: '#a9c2df', 'stroke-width': 4 });
+  });
+  path(g, 'M-30 -70L40 -40', { stroke: '#3a8fd0', 'stroke-width': 10 });
+  if (open) {
+    path(g, 'M-110 -140H-60V-120', { stroke: '#8fa3bd', 'stroke-width': 9 });
+    path(g, 'M-60 -116V-70', { stroke: '#3a8fd0', 'stroke-width': 6, 'stroke-dasharray': '10 6' });
+    path(g, 'M100 -10H130V30', { stroke: '#3a8fd0', 'stroke-width': 9 });
+  }
+  return g;
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A ball on a ledge', (m, D) => {
+  const p = panel(0), tB = m('ball'), tC = m('cells'), tS = m('strip'), tD = m('drop');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const bs = ballSlope(W, { x: 560, y: 720, w: 860, h: 380, bars: false, o: 0 });
+  show(bs, .2, .6);
+  const tRoll = tB + 3.1, tStop = tB + 6.7;   // "nudge" … "never rolls back up"
+  clockRun(t => bs.set(mRamp(t, tRoll, tStop)), D);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 8 · LESSON 3', { x: 1260, y: 250, size: 26, fill: COL.dim, o: 1 });
+  ['Free energy, stability', 'and equilibrium'].forEach((s, i) => wLabel(ttl, s, { x: 1260, y: 335 + i * 70, size: 52, o: 1 }));
+  wLabel(ttl, 'An introduction to metabolism:', { x: 1260, y: 490, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(ttl, 'which reactions run by themselves', { x: 1260, y: 526, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .2, .5);
+  // ball: high and unstable; a nudge; it rolls down and stays
+  const l1 = tag(W, 'high: unstable', [300, 200], [222, 300], tB + 1.4, { size: 32, weight: 700, fill: MC.endo, line: MC.endo });
+  const push = G(W, { o: 0 }); mArrow(push, [120, 312], [182, 312], { color: COL.chalk, w: 6, head: 18 });
+  wLabel(push, 'nudge', { x: 140, y: 280, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  show(push, tRoll - .5, .3); hide(push, tRoll + .5, .3);
+  const l2 = say(W, 'low: stable', 940, 790, tStop - 1.1, { size: 32, weight: 700, fill: MC.exo });
+  const l3 = say(W, 'it never rolls back up on its own', 560, 850, tB + 5.4, { size: 26, fill: COL.dim, weight: 500 });
+  [l1, l2, l3].forEach(e => hide(e, tC, .4));
+  // cells: a cell; the camera pushes into its cytoplasm
+  hide(bs, tC, .5);
+  const cm = cellMap(W, { kind: 'animal', x: 800, y: 450, s: .62, o: 0 });
+  show(cm, tC + .2, .6);
+  prog(k => cm.focus('cytoplasm', k), tC + .6, .7, io);
+  const [cx, cy] = cm.pt('mitochondria');
+  const lc = tag(p, 'inside: the cell’s chemistry', [cx, cy - 150], [cx, cy - 20], tC + .9, { size: 30, weight: 700 });
+  hide(lc, tC + 2, .3);
+  cam.to({ x: cx, y: cy, z: 4 }, tC + 2, tS - tC - 2.1);
+  hide(cam.el, tS - .4, .35);
+  // strip: the shared pathway strip; drop: free energy falls along it, step by step
+  const ps = pathwayStrip(p, { x: 840, y: 420, w: 1100, o: 0 });
+  show(ps, tS, .3);
+  ps.tilt(1);
+  const ap = [1, 2, 3].map(i => ps.pt('arrow' + i));
+  ps.tilt(0);
+  dotOrder(ps);
+  clockRun(t => {
+    ps.build(io(mRamp(t, tS, tS + 1.5)));
+    ps.focus(['molecules'], 1 - io(mRamp(t, tD + .4, tD + 1)));
+    ps.tilt(io(mRamp(t, tD + .4, tD + 2.2)));
+    ps.flow(t, mRamp(t, tD + 2.6, tD + 3.2));
+  }, D);
+  ap.forEach(([x, y], i) => { const c = wChem(p, 'ΔG < 0', { x: x + 30, y: y + 64, size: 26, fill: MC.exo, weight: 700, o: 0 }); show(c, tD + 3.3 + .3 * i, .3); });
+  say(p, 'each step: downhill', 840, 720, tD + 3.6, { size: 30, weight: 700, fill: MC.exo });
+  banner(p, 'free energy decides', 'whether a step runs by itself', 840, 800, tD + 5.4, { size: 36 });
+}],
+
+/* ---------- formula ---------- */
+['formula', 'ΔG = ΔH − TΔS', (m, D) => {
+  const p = panel(0), tF = m('free'), tE = m('eq'), tK = m('kelvin'), tN = m('neg'), tX = m('ex'), tM = m('more');
+  // free: the definition, top left; a cell with one temperature everywhere, right
+  say(p, 'Free energy, G', 90, 100, tF + .1, { size: 44, weight: 700, anchor: 'start', fill: MC.spark });
+  say(p, 'the energy of a system that can do work', 90, 146, tF + 2.6, { size: 28, anchor: 'start' });
+  say(p, 'when temperature and pressure are uniform, as in a cell', 90, 184, tF + 4.1, { size: 24, anchor: 'start', fill: COL.dim, weight: 500 });
+  const cellG = G(p, { o: 0 }); show(cellG, tF + 6.6, .5); hide(cellG, tE + 3.2, .4);
+  mk('circle', { cx: 1290, cy: 310, r: 140, fill: MC.cyto, stroke: CC.membrane, 'stroke-width': 9 }, cellG);
+  [[1230, 270], [1340, 250], [1300, 360], [1210, 370], [1370, 330]].forEach(([x, y], i) => wLabel(cellG, '37 °C', { x, y, size: 22, fill: i % 2 ? '#ffb070' : '#ffcf99', weight: 600, o: 1 }));
+  wLabel(cellG, 'a living cell: the same', { x: 1290, y: 500, size: 26, weight: 600, o: 1 });
+  wLabel(cellG, 'temperature and pressure throughout', { x: 1290, y: 534, size: 26, weight: 600, o: 1 });
+  // eq: the equation, built term by term in a card
+  const card = G(p, { o: 0 }); show(card, tF + 9.9, .4);
+  mk('rect', { x: 80, y: 220, width: 880, height: 330, rx: 24, fill: BOARD, stroke: COL.faint, 'stroke-width': 3 }, card);
+  const SZ = 88, EY = 400, terms = [['ΔG', MC.spark, tF + 10.1], ['=', COL.chalk, tE + .9], ['ΔH', '#ffcf6a', tE + 1.3], ['−', COL.chalk, tE + 2.5], ['T', '#ff8a76', tE + 2.9], ['ΔS', '#d9d1bd', tE + 3.6]];
+  const gap = 30, widths = terms.map(([s]) => uiW(s, SZ) * 1.06), tot = widths.reduce((a, b) => a + b, 0) + gap * (terms.length - 1);
+  let xx = 520 - tot / 2; const cxs = [];
+  terms.forEach(([s, col, t0], i) => { cxs.push(xx + widths[i] / 2); const e = wLabel(p, s, { x: xx + widths[i] / 2, y: EY, size: SZ, weight: 800, fill: col, o: 0 }); show(e, t0, .3); xx += widths[i] + gap; });
+  tag(p, 'change in total energy', [cxs[2] - 50, 480], [cxs[2], EY + 14], tE + 4.7, { size: 26, fill: '#ffcf6a', line: '#ffcf6a', sub: '(enthalpy)' });
+  tag(p, 'change in entropy', [cxs[5] + 50, 480], [cxs[5], EY + 14], tE + 9, { size: 26, fill: '#d9d1bd', line: '#d9d1bd', sub: '(disorder)' });
+  tag(p, 'temperature, in kelvin', [cxs[4] - 10, 270], [cxs[4], EY - 66], tE + 12.7, { size: 26, fill: '#ff8a76', line: '#ff8a76' });
+  // ΔS: rows of dots that scatter (more disorder)
+  const dotsG = G(p, { o: 0 }); show(dotsG, tE + 3.5, .4);
+  const ed = entropyDots(dotsG, { x: 1290, y: 300, w: 440, h: 260, n: 36, seed: 5 });
+  wLabel(dotsG, 'entropy, S: order → disorder', { x: 1290, y: 470, size: 26, fill: '#d9d1bd', weight: 600, o: 1 });
+  // kelvin: a thermometer at body temperature
+  const kg = G(p, { o: 0 }); show(kg, tK + .2, .4); hide(kg, tX - .2, .4);
+  const th = thermometer(kg, { x: 1090, y: 790, h: 210, min: 0, max: 50, size: 30 }); th.set(37);
+  wLabel(kg, '37 °C = 310 K', { x: 1150, y: 690, size: 40, weight: 800, anchor: 'start', o: 1 });
+  wLabel(kg, 'kelvin = °C + 273', { x: 1150, y: 734, size: 26, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+  // neg: the rule
+  const rule = pill(p, 'only a negative ΔG is spontaneous', 520, 612, { size: 32, color: MC.exo }); show(rule, tN + 2.2, .4);
+  say(p, 'and a spontaneous process can be harnessed to do work', 520, 682, tN + 6.9, { size: 24, fill: COL.dim, weight: 500 });
+  // ex: made-up numbers; more: a bigger TΔS
+  const ex = G(p, { o: 0 }); show(ex, tX + .1, .4);
+  wLabel(ex, 'worked example (made-up numbers, kcal/mol)', { x: 100, y: 730, size: 24, fill: COL.dim, weight: 600, anchor: 'start', o: 1 });
+  const rH = say(p, 'ΔH = −5', 100, 784, tX + 3.1, { size: 34, weight: 700, anchor: 'start', fill: '#ffcf6a' });
+  const rS = say(p, 'TΔS = +3', 330, 784, tX + 6.6, { size: 34, weight: 700, anchor: 'start', fill: '#d9d1bd' });
+  const rG = say(p, 'ΔG = −5 − 3 = −8', 100, 846, tX + 9.4, { size: 40, weight: 800, anchor: 'start', fill: MC.exo });
+  const rN = say(p, 'negative: it runs by itself', 640, 846, tX + 14.1, { size: 26, weight: 700, fill: MC.exo });
+  // the ΔG gauge, right: down from zero, as the numbers are read
+  const gg = G(p, { o: 0 }); show(gg, tX + 9.3, .4);
+  path(gg, 'M1180 600H1400', { stroke: COL.chalk, 'stroke-width': 3 });
+  wLabel(gg, '0', { x: 1166, y: 609, size: 24, anchor: 'end', fill: COL.dim, o: 1 });
+  wLabel(gg, 'ΔG', { x: 1290, y: 580, size: 30, weight: 700, fill: MC.exo, o: 1 });
+  const gm = meter(gg, 1290, 600, { w: 70, H: 220, color: MC.exo, dir: 1, frame: false });
+  const gv = wLabel(gg, '', { x: 1345, y: 660, size: 30, weight: 800, anchor: 'start', fill: MC.exo, o: 1 });
+  const tTS = t => Math.round(3 + 3 * io(mRamp(t, tM + .7, tM + 2.4)));
+  clockRun(t => {
+    ed.set(.55 * io(mRamp(t, tE + 9, tE + 11)) + .45 * io(mRamp(t, tM + .7, tM + 2.4)), t);
+    const v = tTS(t), dg = -(5 + v);
+    setText(rS, 'TΔS = +' + v);
+    setText(rG, `ΔG = −5 − ${v} = −${5 + v}`);
+    const shown = t < tX + 10.9 ? 0 : t < tX + 12 ? -5 : dg;
+    gm.set(-shown / 14); setText(gv, shown ? '−' + (-shown) : '');
+  }, D);
+  say(p, 'more disorder: ΔG more negative', 1290, 860, tM + 2.5, { size: 26, weight: 700, fill: '#d9d1bd' });
+}],
+
+/* ---------- stable ---------- */
+['stable', 'Instability and equilibrium', (m, D) => {
+  const p = panel(0), tI = m('inst'), tDn = m('down'), tEq = m('equil'), tW = m('nowork');
+  const bs = ballSlope(p, { x: 620, y: 740, w: 1000, h: 460, bars: false });
+  mArrow(p, [70, 780], [70, 220], { color: COL.dim, w: 4, head: 16 });
+  const ax = G(p, { x: 46, y: 500, r: -90 }); wLabel(ax, 'free energy', { size: 24, fill: COL.dim, o: 1 });
+  // the paddle wheel, where the ball rolls under it at mid-slope
+  const KW = .5, ptAt = k => { bs.set(k); return bs.pt('ball'); };
+  const [wx, wy] = ptAt(KW), [ax1, ay1] = ptAt(KW - .02), [ax2, ay2] = ptAt(KW + .02); bs.set(0);
+  const nl = Math.hypot(ax2 - ax1, ay2 - ay1) || 1, nx = (ay2 - ay1) / nl, ny = -(ax2 - ax1) / nl;   // the slope's upward normal
+  const pw = paddle(p, { x: wx + nx * 56, y: wy + ny * 56, r: 40 });
+  // the gauges: free energy and stability, read from the ball's height
+  const fm = meter(p, 1300, 740, { H: 380, color: MC.exo }), sm = meter(p, 1440, 740, { H: 380, color: GREEN });
+  wLabel(p, 'free energy', { x: 1300, y: 776, size: 24, fill: MC.exo, weight: 700, o: 1 });
+  wLabel(p, 'stability', { x: 1440, y: 776, size: 24, fill: GREEN, weight: 700, o: 1 });
+  const t0 = tDn + .5, t1 = tDn + 7.4;
+  clockRun(t => {
+    const k = rkB(mRamp(t, t0, t1));
+    bs.set(k);
+    const by = bs.ball._st.y, pe = mClamp(-(by + 28) / 460);
+    fm.set(.08 + .92 * pe); sm.set(1 - .92 * pe);
+    pw.set(360 * io(mRamp(k, KW - .1, KW + .2)));
+  }, D);
+  // inst: high, unstable
+  tag(p, 'unstable: tends to change', [420, 180], [222, 250], tI + 2.7, { size: 32, weight: 700, fill: MC.endo, line: MC.endo, sub: 'high free energy' });
+  // down: free energy falls, stability rises
+  const dA = G(p, { o: 0 }); show(dA, tDn + 2, .4);
+  mArrow(dA, [430, 330], [860, 620], { color: MC.exo, w: 7, head: 22 });
+  wLabel(dA, 'spontaneous change', { x: 760, y: 420, size: 28, weight: 700, fill: MC.exo, anchor: 'start', o: 1 });
+  say(p, 'free energy falls', 1370, 280, tDn + 2.2, { size: 28, weight: 700, fill: MC.exo });
+  say(p, 'stability rises', 1370, 320, tDn + 4.1, { size: 28, weight: 700, fill: GREEN });
+  // equil: the bottom
+  say(p, 'equilibrium', 1050, 820, tEq + .1, { size: 36, weight: 800 });
+  say(p, 'maximum stability · ΔG = 0', 1050, 858, tEq + 6.8, { size: 26, weight: 600, fill: COL.dim });
+  // nowork: work only on the way down
+  tag(p, 'work done while it rolled', [wx + nx * 56 + 200, wy + ny * 56 - 50], [wx + nx * 56 + 42, wy + ny * 56 - 22], tW + 1, { size: 26, weight: 700, fill: '#e3d2a2', line: '#e3d2a2' });
+  const nw = pill(p, 'at the bottom: no work', 1100, 636, { size: 26, color: COL.chalk }); show(nw, tW + 4.4, .4);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const bs = ballSlope(p, { x: 320, y: 640, w: 560, h: 300, bars: false }); bs.set(0);
+  wLabel(p, 'spontaneous:', { x: 320, y: 150, size: 32, weight: 700, fill: MC.exo, o: 1 });
+  wLabel(p, 'runs by itself, no energy put in', { x: 320, y: 192, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  path(p, 'M150 300Q330 300 470 560', { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '10 10' });
+  wLabel(p, '?', { x: 420, y: 400, size: 54, weight: 800, fill: MC.exo, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-spont', prompt: ['Is each change spontaneous?'],
+  build: grid([
+    { parts: ['ΔG = −12 kcal/mol'], ans: ['s'], why: 'Spontaneous: ΔG is negative, so free energy falls and the change runs by itself.' },
+    { parts: ['ΔG = +4 kcal/mol'], ans: ['n'], why: 'Nonspontaneous: a positive ΔG means energy must be put in.' },
+    { parts: ['a ball rolling off a ledge'], ans: ['s'], why: 'Spontaneous: it goes downhill by itself, to lower energy.' },
+    { parts: ['a system at equilibrium, ΔG = 0'], ans: ['n'], why: 'Not spontaneous: at equilibrium nothing changes on balance, so it can do no work. Only a negative ΔG is spontaneous.' },
+  ], [['s', 'spontaneous', null, 'S'], ['n', 'nonspontaneous', null, 'N']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- diagram ---------- */
+['diagram', 'Exergonic and endergonic', (m, D) => {
+  const p = panel(0), tX = m('exer'), tN = m('endo'), tR = m('rev'), tG = m('glu');
+  const W2 = 480, H2 = 430, BY = 630;
+  const dL = energyDiagram(p, { x: 130, y: BY, w: W2, h: H2, size: 26 }), dR = energyDiagram(p, { x: 930, y: BY, w: W2, h: H2, size: 26 });
+  const gL = G(p, { o: .25 }), gR = G(p, { o: .25 });
+  // the two diagrams light in turn; each pose is a function of time
+  banner(p, 'exergonic reaction', 'energy released · spontaneous', 370, 100, tX + .2, { size: 40, color: MC.exo });
+  banner(p, 'endergonic reaction', 'energy required · nonspontaneous', 1170, 100, tN + .2, { size: 40, color: MC.endo });
+  put(dR, { o: .2 });
+  tw(dR, { o: 1 }, tN, .5);
+  const XL = u => 130 + dL.X(u), XR = u => 930 + dR.X(u), YB = lv => BY + dL.Y(lv);
+  // energy out (exergonic) and in (endergonic): wavy arrows at the step
+  const hOut = heatArrow(p, [XL(.55), YB(.47)], [XL(.82), YB(.62)], { waves: 2, amp: 10, w: 8, color: MC.spark, o: 0 }); hOut.in(tX + 7.6, .7);
+  const lOut = say(p, 'energy out', 460, 480, tX + 7.8, { size: 26, weight: 700, fill: MC.spark });
+  const hIn = heatArrow(p, [XR(.14), YB(.62)], [XR(.42), YB(.47)], { waves: 2, amp: 10, w: 8, color: MC.spark, o: 0 }); hIn.in(tN + 5.2, .7);
+  const lIn = say(p, 'energy in', XR(.12), YB(.66), tN + 5.4, { size: 26, weight: 700, fill: MC.spark, anchor: 'start' });
+  diaLabels(p, dL, .8, .2, 26);
+  const lr = G(p, { o: 0 }); diaLabels(lr, dR, .2, .8, 26); show(lr, tN, .5);
+  clockRun(t => {
+    dL.set({ r: .8, p: .2, lab: 0, dg: mRamp(t, tX + 9.2, tX + 9.8), ball: io(mRamp(t, tX + 3.9, tX + 6.6)) });
+    dR.set({ r: .2, p: .8, lab: 0, dg: mRamp(t, tN + 7.8, tN + 8.4), ball: io(mRamp(t, tN + 12.4, tN + 14.4)) });
+  }, D);
+  // rev: out and in
+  pulse(lOut, tR + 1.1, 1.15); pulse(lIn, tR + 3.5, 1.15);
+  say(p, 'exergonic: energy out', 370, 740, tR + .9, { size: 30, weight: 700, fill: MC.exo });
+  say(p, 'endergonic: energy in', 1170, 740, tR + 3.3, { size: 30, weight: 700, fill: MC.endo });
+  // glu: examples
+  const e1 = pill(p, 'breaking down glucose (cellular respiration)', 370, 820, { size: 24, color: COL.chalk, edge: MC.exo }); show(e1, tG + .4, .4);
+  const e2 = pill(p, 'building a protein', 1170, 820, { size: 24, color: COL.chalk, edge: MC.endo }); show(e2, tG + 4.3, .4);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  diaLabels(p, energyDiagram(p, { x: 100, y: 390, w: 330, h: 260, size: 22 }).set({ r: .8, p: .2, lab: 0 }), .8, .2, 22);
+  diaLabels(p, energyDiagram(p, { x: 100, y: 800, w: 330, h: 260, size: 22 }).set({ r: .2, p: .8, lab: 0 }), .2, .8, 22);
+  wLabel(p, 'which one needs energy put in?', { x: 320, y: 60, size: 28, weight: 700, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-needs', prompt: ['Which reaction needs an input of energy?'],
+  build: choice([['an exergonic reaction'], ['an endergonic reaction, ΔG > 0'], ['any reaction with ΔG < 0'], ['a system at equilibrium']], 1,
+    'Right. In an endergonic reaction the products hold more free energy than the reactants, so energy must be put in: ΔG > 0.',
+    ['An exergonic reaction releases free energy: its products sit lower. It runs by itself.', null,
+      'A negative ΔG is spontaneous: the reaction gives energy out, it does not need it.',
+      'At equilibrium ΔG = 0: there is no net reaction at all.']),
+}], done) }],
+
+/* ---------- cells ---------- */
+['cells', 'Cells are open systems', (m, D) => {
+  const p = panel(0), tCl = m('closed'), tO = m('open'), tNv = m('never'), tCt = m('cat');
+  // closed: a sealed flask settles to equilibrium; its ΔG meter runs to zero
+  const fl = flaskArt(p, { x: 360, y: 760, o: 0 }); show(fl, tCl + .1, .5);
+  const fT = say(p, 'nothing flows in or out', 360, 340, tCl + .3, { size: 28, weight: 700 });
+  const tA = tCl + 1.5, tZ = tCl + 5.6;
+  const fm = G(p, { o: 0 }); show(fm, tCl + .8, .4);
+  path(fm, 'M570 420H690', { stroke: COL.chalk, 'stroke-width': 3 });
+  wLabel(fm, 'ΔG', { x: 630, y: 402, size: 28, weight: 700, fill: MC.exo, o: 1 });
+  const fb = meter(fm, 630, 420, { w: 46, H: 220, color: MC.exo, dir: 1, frame: false });
+  const fv = wChem(fm, 'ΔG < 0', { x: 630, y: 690, size: 26, weight: 700, fill: MC.exo, o: 1 });
+  const eqL = G(p, { o: 0 }); show(eqL, tCl + 7.3, .4);
+  wLabel(eqL, 'equilibrium: no work', { x: 400, y: 820, size: 30, weight: 700, o: 1 });
+  clockRun(t => {
+    const f = Math.round(mRamp(t, tA, tZ) * 11) / 11;
+    fl.set(f, t);
+    fb.set(1 - f); setText(fv, f >= 1 ? 'ΔG = 0' : 'ΔG < 0'); cAttr(fv, 'fill', f >= 1 ? COL.chalk : MC.exo);
+  }, D);
+  // open: a cell, with materials in and waste and heat out
+  const oc = openCell(p, { x: 1180, y: 560, r: 170, o: 0 }); show(oc, tO + .2, .5);
+  clockRun(t => oc.set(t), D);
+  say(p, 'an open system', 1180, 340, tO + 2.2, { size: 32, weight: 700, fill: CC.membrane });
+  // never: a banner
+  const nv = pill(p, 'metabolism is never at equilibrium', 1000, 850, { size: 32, color: MC.spark }); show(nv, tNv + 1.5, .4);
+  // cat: the strip, a catabolic pathway: a series of drops
+  const ps = pathwayStrip(p, { x: 780, y: 150, w: 1000, s: .5, o: 0 });
+  ps.build(1); ps.tilt(1); show(ps, tCt, .4);
+  dotOrder(ps);
+  clockRun(t => ps.flow(t, mRamp(t, tCt + .5, tCt + 1)), D);
+  const cl = G(p, { o: 0 }); show(cl, tCt + 1, .4);
+  wLabel(cl, 'catabolic pathway:', { x: 1120, y: 140, size: 28, weight: 700, fill: MC.exo, anchor: 'start', o: 1 });
+  wLabel(cl, 'a series of drops', { x: 1120, y: 176, size: 28, weight: 600, anchor: 'start', o: 1 });
+}],
+
+/* ---------- hydro ---------- */
+['hydro', 'Three water systems', (m, D) => {
+  const p = panel(0), tA = m('a'), tB = m('b'), tC = m('c');
+  // a: isolated, two tanks even out and the bulb goes dark
+  const ha = hydroDam(p, { kind: 'isolated', x: 420, y: 620, s: 1, o: 0 }); show(ha, .2, .5);
+  const la = banner(p, 'isolated', 'nothing flows in or out', 420, 190, .4, { size: 36 });
+  const t0 = tA + 1, t1 = tA + 6.6;
+  clockRun(t => ha.set(io(mRamp(t, t0, t1)), t), D);
+  const z = say(p, 'levels match: ΔG = 0, no work', 420, 790, t1 + .3, { size: 26, weight: 700 });
+  // b: open, a tap and a drain keep it flowing
+  const hb = hydroDam(p, { kind: 'open', x: 1180, y: 620, s: 1, o: 0 }); show(hb, tB, .5);
+  const lb = banner(p, 'open', 'a tap in, a drain out', 1180, 190, tB + .2, { size: 36, color: CC.membrane });
+  clockRun(t => hb.set(0, t), D);
+  const nz = say(p, 'never levels: the bulb stays lit', 1180, 850, tB + 5.6, { size: 26, weight: 700, fill: MC.spark });
+  // c: a staircase, every step ΔG < 0
+  [ha, hb, la, lb, z, nz].forEach(e => hide(e, tC - .2, .4));
+  const hc = hydroDam(p, { kind: 'multi', x: 760, y: 500, s: 1.1, o: 0 }); show(hc, tC + .3, .5);
+  clockRun(t => hc.set(0, t), D);
+  banner(p, 'multistep open system', 'water falls through several steps', 800, 90, tC + .4, { size: 36, color: MC.exo });
+  const cap = G(p, { o: 0 }); show(cap, tC + 5, .4);
+  wLabel(cap, 'every step:', { x: 1425, y: 360, size: 28, weight: 600, o: 1 });
+  wChem(cap, 'ΔG < 0', { x: 1425, y: 404, size: 34, weight: 800, fill: MC.exo, o: 1 });
+  const cap2 = G(p, { o: 0 }); show(cap2, tC + 8, .4);
+  wLabel(cap2, 'like a', { x: 1425, y: 500, size: 28, weight: 600, o: 1 });
+  wLabel(cap2, 'metabolic pathway', { x: 1425, y: 540, size: 30, weight: 700, fill: MC.exo, o: 1 });
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), ts = [1, 2, 3, 4].map(i => m('s' + i));
+  wLabel(p, 'Summary', { x: 800, y: 80, size: 40, weight: 700, o: 1 });
+  const RY = [200, 375, 550, 725];   // four rows spread down the stage, the content centred in each board
+  const rows = RY.map((y, i) => { const g = G(p, { o: 0 }); board(g, 230, y - 78, 1140, 156); show(g, ts[i] + .1, .5); return G(g, { x: 170 }); });
+  // 1: the formula, an orange down arrow
+  mArrow(rows[0], [250, RY[0] - 50], [250, RY[0] + 50], { color: MC.exo, w: 8, head: 22 });
+  wLabel(rows[0], 'ΔG = ΔH − TΔS', { x: 380, y: RY[0] - 6, size: 38, weight: 800, anchor: 'start', fill: MC.spark, o: 1 });
+  wLabel(rows[0], 'a negative ΔG means spontaneous', { x: 380, y: RY[0] + 40, size: 28, weight: 600, anchor: 'start', o: 1 });
+  // 2: a valley with a ball at the bottom
+  path(rows[1], `M170 ${RY[1] - 50}Q250 ${RY[1] + 90} 330 ${RY[1] - 50}`, { stroke: '#5f8f6a', 'stroke-width': 6 });
+  mk('circle', { cx: 250, cy: RY[1] + 2, r: 18, fill: MC.exo, stroke: '#a85f12', 'stroke-width': 3 }, rows[1]);
+  wLabel(rows[1], 'free energy falls, stability rises', { x: 380, y: RY[1] - 6, size: 34, weight: 700, anchor: 'start', o: 1 });
+  wLabel(rows[1], 'until equilibrium: ΔG = 0, no work', { x: 380, y: RY[1] + 40, size: 28, weight: 600, anchor: 'start', fill: COL.dim, o: 1 });
+  // 3: down and up
+  mArrow(rows[2], [205, RY[2] - 50], [205, RY[2] + 50], { color: MC.exo, w: 8, head: 22 });
+  mArrow(rows[2], [295, RY[2] + 50], [295, RY[2] - 50], { color: MC.endo, w: 8, head: 22 });
+  wLabel(rows[2], 'exergonic releases energy (ΔG < 0)', { x: 380, y: RY[2] - 6, size: 32, weight: 700, anchor: 'start', fill: MC.exo, o: 1 });
+  wLabel(rows[2], 'endergonic absorbs energy (ΔG > 0)', { x: 380, y: RY[2] + 40, size: 32, weight: 700, anchor: 'start', fill: MC.endo, o: 1 });
+  // 4: an open cell
+  const oc = openCell(rows[3], { x: 250, y: RY[3], r: 170, s: .28, labels: false });
+  oc.set(.8);
+  wLabel(rows[3], 'cells are open systems', { x: 380, y: RY[3] - 6, size: 34, weight: 700, anchor: 'start', fill: CC.membrane, o: 1 });
+  wLabel(rows[3], 'so they never reach equilibrium', { x: 380, y: RY[3] + 40, size: 28, weight: 600, anchor: 'start', o: 1 });
+  say(p, 'Now try the chapter practice.', 800, 860, ts[3] + 3.9, { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('calc', g => {
+    board(g, 980, 90, 580, 720);
+    wLabel(g, 'ΔG = ΔH − TΔS', { x: 1270, y: 230, size: 60, weight: 800, fill: MC.spark, o: 1 });
+    wLabel(g, 'ΔG < 0: spontaneous', { x: 1270, y: 300, size: 26, weight: 600, fill: MC.exo, o: 1 });
+    const th = thermometer(g, { x: 1180, y: 700, h: 260, min: 0, max: 50, size: 30 }); th.set(37);
+    wLabel(g, '? K', { x: 1330, y: 560, size: 48, weight: 800, fill: '#ff8a76', o: 1 });
+    wLabel(g, 'K = °C + 273', { x: 1330, y: 610, size: 24, weight: 500, fill: COL.dim, o: 1 });
+  });
+  at('bars', g => {
+    board(g, 980, 90, 580, 720);
+    diaLabels(g, energyDiagram(g, { x: 1060, y: 640, w: 330, h: 440, size: 24 }).set({ r: .82, p: .2, lab: 0 }), .82, .2, 24);
+    wLabel(g, 'which kind?', { x: 1270, y: 770, size: 28, weight: 700, o: 1 });
+  });
+  at('equil', g => {
+    board(g, 980, 90, 580, 720);
+    const bs = ballSlope(g, { x: 1270, y: 620, w: 540, h: 320, bars: false }); bs.set(1);
+    wLabel(g, 'at the bottom of the hill', { x: 1270, y: 700, size: 28, weight: 700, o: 1 });
+  });
+  at('open', g => {
+    board(g, 980, 90, 580, 720);
+    const f = flaskArt(g, { x: 1110, y: 300, s: .5 }); f.set(1);
+    wLabel(g, 'sealed flask', { x: 1110, y: 340, size: 22, fill: COL.dim, weight: 600, o: 1 });
+    tankIcon(g, { x: 1390, y: 270, s: .9 });
+    wLabel(g, 'two tanks, no tap', { x: 1390, y: 340, size: 22, fill: COL.dim, weight: 600, o: 1 });
+    tankIcon(g, { x: 1100, y: 590, s: .8, open: true });
+    wLabel(g, 'tap and drain', { x: 1110, y: 650, size: 22, fill: COL.dim, weight: 600, o: 1 });
+    openCell(g, { x: 1375, y: 575, r: 170, s: .3, labels: false }).set(1.3);
+    wLabel(g, 'a living cell', { x: 1375, y: 650, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  });
+  at('cell', g => {
+    board(g, 980, 90, 580, 720);
+    openCell(g, { x: 1270, y: 520, r: 120, labels: false }).set(1.3);
+    wLabel(g, 'in', { x: 1050, y: 470, size: 26, weight: 700, o: 1 });
+    wLabel(g, 'out', { x: 1490, y: 610, size: 26, weight: 700, o: 1 });
+    const ps = pathwayStrip(g, { x: 1270, y: 210, w: 400, s: .5 }); ps.tilt(1);
+  });
+  at('steps', g => {
+    board(g, 980, 90, 580, 720);
+    hydroDam(g, { kind: 'multi', x: 1250, y: 480, s: .5 }).set(0, 1);
+    wLabel(g, 'each turbine step: ΔG = ?', { x: 1270, y: 740, size: 28, weight: 700, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('calc');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-calc', prompt: ['Use ΔG = ΔH − TΔS (made-up numbers, in kcal/mol).'],
+    build: withPic('calc', blanks([
+      { parts: ['ΔH = −5, TΔS = +3:  ΔG = ', { box: '-8' }], why: 'ΔG = −5 − 3 = −8 kcal/mol: negative, so spontaneous.', hint: 'Subtract TΔS from ΔH: −5 − 3.' },
+      { parts: ['ΔH = +2, TΔS = +6:  ΔG = ', { box: '-4' }], why: 'ΔG = 2 − 6 = −4 kcal/mol: the rise in disorder wins, so it is still spontaneous.', hint: 'Subtract TΔS from ΔH: 2 − 6.' },
+      { parts: ['37 °C in kelvin:  ', { box: '310' }, ' kelvin'], why: '273 + 37 = 310 K.', hint: 'Kelvin adds 273 to the Celsius temperature.' },
+    ])) },
+  { id: 'p-bars', prompt: ['Reactants are drawn high and products low. This reaction is…'],
+    build: withPic('bars', choice([['endergonic'], ['at equilibrium'], ['exergonic: ΔG < 0, spontaneous'], ['nonspontaneous']], 2,
+      'Right. Free energy falls from reactants to products, so energy is released and ΔG is negative.',
+      ['Endergonic reactions have the products higher than the reactants.', 'At equilibrium there is no drop: the two levels would be the same.', null,
+        'It releases energy, so it runs by itself: it is spontaneous.'])) },
+  { id: 'p-equil', prompt: ['What is true of a system at equilibrium?'],
+    build: withPic('equil', choice([['its free energy is highest'], ['ΔG is negative'], ['it does the most work'], ['its free energy is lowest, ΔG = 0, and it can do no work']], 3,
+      'Right. Equilibrium is the most stable state: nothing changes on balance, so no work can be done.',
+      ['Highest free energy is the least stable state, at the top of the hill.', 'ΔG is negative while a system moves toward equilibrium; at equilibrium it is zero.',
+        'It can do none: work is done only while moving toward equilibrium.', null])) },
+  { id: 'p-open', prompt: ['Does each system reach equilibrium, or stay away from it?'],
+    build: withPic('open', grid([
+      { parts: ['two tanks joined, with no tap'], ans: ['r'], why: 'Reaches it: nothing flows in or out, so the levels even out and stop.' },
+      { parts: ['a tank with a tap in and a drain out'], ans: ['a'], why: 'Stays away: the tap keeps the top full and the drain keeps the bottom low.' },
+      { parts: ['a living cell'], ans: ['a'], why: 'Stays away: a cell is an open system, with materials flowing in and out.' },
+      { parts: ['a sealed flask of reacting chemicals'], ans: ['r'], why: 'Reaches it: an isolated or closed system (nothing flows in or out) settles at equilibrium.' },
+      { parts: ['a multistep pathway with a steady input'], ans: ['a'], why: 'Stays away: with steady input and output, every step keeps running downhill.' },
+    ], [['r', 'reaches', null, 'R'], ['a', 'stays away', null, 'A']], { multi: false, text: true })) },
+  { id: 'p-cell', prompt: ['Why can a cell keep doing work for as long as it lives?'],
+    build: withPic('cell', choice([['it is at equilibrium, which stores energy'], ['every reaction in it has ΔG > 0'], ['it is an open system with a constant flow of materials, so it never reaches equilibrium'], ['it is a closed system']], 2,
+      'Right. Materials keep flowing in and out, so its reactions never settle, and the downhill steps keep running.',
+      ['A system at equilibrium can do no work at all.', 'A positive ΔG needs energy put in for every step: that cannot be what powers the cell.', null,
+        'A closed system would settle at equilibrium and stop.'])) },
+  { id: 'p-steps', prompt: ['In the three-step water system, each turbine step has ΔG…'],
+    build: withPic('steps', choice([['equal to zero'], ['less than zero, like the steps of a catabolic pathway'], ['greater than zero'], ['zero at the first step and negative at the last']], 1,
+      'Right. Water falls at every step, so each step releases energy: ΔG < 0 each time, as along a catabolic pathway.',
+      ['With ΔG = 0 the water would be still and the bulbs dark.', null, 'Water does not run uphill by itself: that would need energy put in.',
+        'Every step falls the same way, so every step has a negative ΔG.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// A flow dot passing (0, 0) loses its transform attribute and gets it back after its opacity, so a played and a seeked
+// frame would differ in attribute order: put every dot through (0, 0) once now, so all of them carry opacity first.
+function dotOrder(ps) { ps.arrows.forEach(a => a.querySelectorAll('circle').forEach(c => put(c, { x: 0, y: 0 }))); ps.flow(0, 0); }
+// Reactants / Products for an energyDiagram drawn with lab: 0 (the kit puts both under their plateaus, where the curve
+// crosses a long label at the high end): the high level's label stands above its line (clear of the ball), the low level's below.
+function diaLabels(p, d, r, pp, size) {
+  const [ox, oy] = [st(d).x, st(d).y], sc = st(d).s;
+  const at = (u, lv, up, anchor, str) => wLabel(p, str, { x: ox + sc * d.X(u), y: oy + sc * (d.Y(lv) + (up ? -46 : size * 1.25)), size: size * sc, anchor, o: 1 });
+  at(0, r, r > pp, 'start', 'Reactants'); at(1, pp, pp > r, 'end', 'Products');
+}
+// The ball's roll, rounded like the kit's own k, so a seek and a step draw the same frame.
+function rkB(k) { return Math.round(mClamp(k) * 2000) / 2000; }
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

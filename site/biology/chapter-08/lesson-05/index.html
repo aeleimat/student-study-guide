@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 8, Lesson 5: Enzymes and the Activation Energy Barrier — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 8 (An Introduction to Metabolism), lesson 5: a sugar cube that will not burn on its own, a cell
+// where sugar goes in a blink, and the shared pathway strip with enzyme 1 lit; catalysts and enzymes (sucrase splits
+// sucrose and water into glucose and fructose, and comes out unchanged); every reaction breaks and forms bonds; the
+// energy curve with its transition state and activation energy, a ball in a dip behind a ridge; heat as the push, and
+// why a cell can't just heat up; enzymes lower the barrier and leave ΔG alone; a worked example (20 → 8 kcal/mol,
+// ΔG −5 both ways); a summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-08/lesson-05.md.
+const CHAPTER = { number: 805, label: '8, lesson 5', title: 'Enzymes and the Activation Energy Barrier', minutes: 7, language: 'en', lead: false, next: '../lesson-06/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const sayC = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const rk = k => Math.round(mClamp(k) * 2000) / 2000;
+// A label (centred text) with a leader to the thing it names; fades in at t0 (null: shown at once).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600 } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + size * .3; }
+  else { sx = tx; sy = ty - size * 1.05; }
+  path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 });
+  mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g);
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A title and a dim second line, centred; fades in at t0.
+function banner(p, a, b, x, y, t0, { color = COL.chalk, size = 40 } = {}) {
+  const g = G(p, { o: 0 });
+  wLabel(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wLabel(g, b, { x, y: y + size * .95, size: size * .62, fill: COL.dim, weight: 500, o: 1 });
+  show(g, t0, .5);
+  return g;
+}
+const panelBox = (g, x, y, w, h) => mk('rect', { x, y, width: w, height: h, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+// A straight vertical bracket arrow (y1 → y2) with an end tick, drawn in place.
+function vBracket(p, x, y1, y2, color, { w = 5, head = 16, tick = true } = {}) {
+  const g = G(p);
+  mArrow(g, [x, y1], [x, y2], { color, w, head });
+  if (tick) path(g, `M${x - 12} ${y1}H${x + 12}`, { stroke: color, 'stroke-width': 3 });
+  return g;
+}
+// Reactants / Products / Transition state labels for an energyDiagram at (x, y) drawn with lab: 0 (the kit's
+// "Transition state" sits low enough for the hump and its outline to strike it); returns { g, ts }.
+function edLab(p, [x, y], ed, { r, pp, peak, size = 28, ts = true } = {}) {
+  const g = G(p);
+  wLabel(g, 'Reactants', { x: x + ed.X(0) + 4, y: y + ed.Y(r) + size * 1.25, size, anchor: 'start', o: 1 });
+  wLabel(g, 'Products', { x: x + ed.X(1), y: y + ed.Y(pp) + size * 1.25, size, anchor: 'end', o: 1 });
+  const tl = ts ? wLabel(g, 'Transition state', { x: x + ed.X(.5), y: y + ed.Y(peak) - size * 1.7, size, o: 1 }) : null;
+  return { g, ts: tl };
+}
+const dashH = (p, x1, x2, y, color = COL.dim, w = 2.5) => path(p, `M${x1} ${y}H${x2}`, { stroke: color, 'stroke-width': w, 'stroke-dasharray': '9 8' });
+
+/* ---------- the atoms of the slide-38 figure ---------- */
+const ATOM = { A: '#f07a6a', B: '#f3c95c', C: '#8fd6b0', D: '#6c8cff' };
+function atom(p, L, x, y, r = 15) {
+  const g = G(p, { x, y });
+  mk('circle', { r, fill: ATOM[L], stroke: mix(ATOM[L], '#000000', .35), 'stroke-width': 2.5 }, g);
+  wLabel(g, L, { y: r * .4, size: r * 1.15, fill: '#14233a', weight: 800, o: 1 });
+  return g;
+}
+const wavyD = (x1, y1, x2, y2, n = 3, a = 5) => {
+  const L = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / L, uy = (y2 - y1) / L; let d = `M${x1} ${y1}`;
+  for (let i = 1; i <= 24; i++) { const f = i / 24, s = a * Math.sin(f * n * 2 * Math.PI); d += `L${(x1 + ux * L * f - uy * s).toFixed(1)} ${(y1 + uy * L * f + ux * s).toFixed(1)}`; }
+  return d;
+};
+// Two atoms joined by a bond (a pair of the reaction): origin = the bond's middle.
+function pair(p, a, b, { x = 0, y = 0, o = 1, gap = 42, r = 15, wavy = false } = {}) {
+  const g = G(p, { x, y, o });
+  if (wavy) path(g, wavyD(-gap / 2, 0, gap / 2, 0), { stroke: '#e8e2d0', 'stroke-width': 3.5 });
+  else path(g, `M${-gap / 2} 0H${gap / 2}`, { stroke: '#e8e2d0', 'stroke-width': 6 });
+  atom(g, a, -gap / 2, 0, r); atom(g, b, gap / 2, 0, r);
+  return g;
+}
+// The transition state: A~B over C~D, all four held by wavy, half-made bonds.
+function transitionArt(p, { x = 0, y = 0, o = 1, gap = 44, r = 15 } = {}) {
+  const g = G(p, { x, y, o }), h = gap / 2;
+  const st = { stroke: '#e8e2d0', 'stroke-width': 3.5 };
+  path(g, wavyD(-h, -h, h, -h), st); path(g, wavyD(-h, h, h, h), st); path(g, wavyD(-h, -h, -h, h), st); path(g, wavyD(h, -h, h, h), st);
+  atom(g, 'A', -h, -h, r); atom(g, 'B', h, -h, r); atom(g, 'C', -h, h, r); atom(g, 'D', h, h, r);
+  return g;
+}
+
+/* ---------- backdrops: a sugar cube on a table, a flame crossed out, a flame, a cell ---------- */
+function sugarCube(p, { x = 0, y = 0, s = 1, o = 1, a = 70 } = {}) {
+  const g = G(p, { x, y, s, o }), c = a * .87;
+  const st = { stroke: '#a89f8a', 'stroke-width': 3, 'stroke-linejoin': 'round' };
+  path(g, `M0 ${-a}L${c} ${-a / 2}L0 0L${-c} ${-a / 2}Z`, { fill: '#fbf7ee', ...st });
+  path(g, `M${-c} ${-a / 2}L0 0L0 ${a}L${-c} ${a / 2}Z`, { fill: '#e6dfcf', ...st });
+  path(g, `M${c} ${-a / 2}L0 0L0 ${a}L${c} ${a / 2}Z`, { fill: '#d4ccb9', ...st });
+  // sugar grains on the faces
+  for (let i = 0; i < 14; i++) mk('circle', { cx: (wHash(i, 5) - .5) * c * 1.6, cy: -a * .2 + (wHash(i, 9) - .5) * a * 1.1 + a * .35, r: 2.2, fill: '#ffffff', 'fill-opacity': .7 }, g);
+  return g;
+}
+const FLAME = s => `M0 ${-62 * s}C${30 * s} ${-32 * s} ${38 * s} ${-6 * s} ${30 * s} ${14 * s}C${22 * s} ${34 * s} ${-22 * s} ${34 * s} ${-30 * s} ${14 * s}C${-38 * s} ${-6 * s} ${-12 * s} ${-26 * s} 0 ${-62 * s}Z`;
+function flameNo(p, { x = 0, y = 0, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  path(g, FLAME(1), { fill: MC.exo }); path(g, FLAME(.55), { fill: '#f3c95c', transform: 'translate(0 10)' });
+  mk('circle', { r: 66, fill: 'none', stroke: '#e5533d', 'stroke-width': 9 }, g);
+  path(g, 'M-47 -47L47 47', { stroke: '#e5533d', 'stroke-width': 9 });
+  return g;
+}
+// A live flame (pure in t): three layered tongues that sway.
+function flame(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const L = [[MC.exo, 1], ['#f3c95c', .68], ['#fff1c2', .38]].map(([c, k]) => Object.assign(path(g, '', { fill: c }), { k }));
+  return Object.assign(g, {
+    set(t) {
+      t = Math.round(t * 30) / 30;
+      L.forEach((f, i) => {
+        const k = f.k, sw = 12 * Math.sin(t * 5 + i * 1.7) + 5 * Math.sin(t * 8.3 + i), hh = 150 * k * (1 + .08 * Math.sin(t * 6.1 + i * 2)), bw = 62 * k;
+        mD(f, `M${cF(-bw)} 0Q${cF(-bw * 1.05)} ${cF(-hh * .55)} ${cF(sw * k)} ${cF(-hh)}Q${cF(bw * 1.05)} ${cF(-hh * .55)} ${cF(bw)} 0Q0 ${cF(14 * k)} ${cF(-bw)} 0Z`);
+      });
+      return g;
+    },
+  }).set(0);
+}
+// A cell under heat: outline, heat arrows in from four sides, a limp enzyme inside; .set(k) the enzyme bends and greys.
+function hotCell(p, { x = 0, y = 0, s = 1, o = 1, R = 180, cross = true } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('circle', { r: R, fill: '#153050', stroke: '#7fb8d8', 'stroke-width': 9 }, g);
+  [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dx, dy]) => {
+    const a = [dx * (R + 120), dy * (R + 110)], b = [dx * (R - 30), dy * (R - 30)];
+    heatArrow(g, a, b, { waves: 2, amp: 9, w: 7 }).in(0, .01);
+  });
+  const enz = enzymeBlob(g, { R: 70, y: 18 });
+  const x1 = G(g, { o: cross ? 1 : 0 });
+  path(x1, `M${-R * .75} ${-R * .75}L${R * .75} ${R * .75}M${R * .75} ${-R * .75}L${-R * .75} ${R * .75}`, { stroke: '#e5533d', 'stroke-width': 12, 'stroke-linecap': 'round', 'stroke-opacity': .85 });
+  return Object.assign(g, { enz, x1, set(k) { enz.bend(k); enz.tint(.55 * k); return g; } });
+}
+// The dip-and-ridge landscape of the ball analogy, in a card; .set(k) k 0 rests in the dip, .2–.5 pushed over the
+// ridge, .5–1 rolling down the long slope. origin = the card's top left.
+function dipRidge(p, { x = 0, y = 0, o = 1, W = 420, H = 380 } = {}) {
+  const g = G(p, { x, y, o });
+  panelBox(g, 0, 0, W, H);
+  const K = [[20, 120], [110, 236], [205, 140], [400, 330]];
+  const yAt = xx => { for (let i = 1; i < K.length; i++) if (xx <= K[i][0]) { const [a, b] = [K[i - 1], K[i]], f = (xx - a[0]) / (b[0] - a[0]); return a[1] + (b[1] - a[1]) * (1 - Math.cos(Math.PI * f)) / 2; } return K[K.length - 1][1]; };
+  let d = `M20 ${H - 10}`; for (let xx = 20; xx <= 400; xx += 5) d += `L${xx} ${cF(yAt(xx))}`; d += `L400 ${H - 10}Z`;
+  path(g, d, { fill: '#24463a', stroke: '#5f8f6a', 'stroke-width': 4 });
+  const r = 18, ball = G(g);
+  mk('circle', { r, fill: MC.sub, stroke: MC.subEdge, 'stroke-width': 3 }, ball);
+  mk('circle', { cx: -r * .35, cy: -r * .38, r: r * .24, fill: '#fff', 'fill-opacity': .45 }, ball);
+  const push = G(g, { o: 0 }); mArrow(push, [24, 200], [76, 214], { color: COL.chalk, w: 6, head: 18 });
+  return Object.assign(g, {
+    set(k) {
+      k = rk(k);
+      const a = io(mRamp(k, .2, .5)), b = mRamp(k, .5, 1) ** 1.6;
+      const xx = k < .5 ? mLerp(110, 205, a) : mLerp(205, 380, b);
+      const yy = yAt(xx) - r - 1;
+      cSet(ball, { x: xx, y: yy, r: (xx - 110) / r * 57.3 });
+      mO(push, mRamp(k, .05, .15) * (1 - mRamp(k, .35, .45)));
+      return g;
+    },
+  }).set(0);
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A sugar cube that will not burn', (m, D) => {
+  const p = panel(0), tCu = m('cube'), tC = m('cells'), tS = m('strip'), tL = m('lit');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W);
+  mk('rect', { x: -400, y: 650, width: 2400, height: 600, fill: '#4a382b' }, back);
+  mk('rect', { x: -400, y: 642, width: 2400, height: 14, fill: '#6d5340' }, back);
+  const cube = G(back, { x: 430, y: 528 }); sugarCube(cube, { s: 1.7 });   // pulse the holder: pulse() sets s back to 1
+  const air = [[250, 300], [560, 250], [700, 470], [180, 520], [380, 200], [620, 560], [150, 380], [520, 380]].map(([x, y]) => ({ x, y, e: solute(back, 'O2', { x, y, r: 13, label: false }) }));
+  const no = flameNo(back, { x: 700, y: 330, o: 0 });
+  const lc = G(back, { o: 0 });
+  wLabel(lc, 'sugar in air, full of oxygen', { x: 430, y: 730, size: 30, weight: 700, o: 1 });
+  wLabel(lc, 'it will not start burning on its own', { x: 430, y: 770, size: 24, fill: '#e6d3b8', weight: 500, o: 1 });
+  show(lc, tCu + .3, .4); pulse(cube, tCu + .2, 1.06); show(no, tCu + 4, .4); pulse(no, tCu + 4.1, 1.1);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 8 · LESSON 5', { x: 1230, y: 240, size: 26, fill: COL.dim, o: 1 });
+  ['Enzymes and the', 'activation energy', 'barrier'].forEach((s, i) => wLabel(ttl, s, { x: 1230, y: 325 + i * 66, size: 52, o: 1 }));
+  wLabel(ttl, 'An introduction to metabolism', { x: 1230, y: 545, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .2, .5);
+  hide(back, tC, .5);
+  // cells: a cell, its cytoplasm lit, sugars that come and go in a blink; the camera pushes in
+  const cm = cellMap(W, { kind: 'animal', x: 800, y: 460, s: .62, o: 0 });
+  show(cm, tC + .2, .6);
+  prog(k => cm.focus('cytoplasm', k), tC + .6, .7, io);
+  const [cx, cy] = cm.pt('cytoplasm');
+  const sp = [[-70, -40], [40, -70], [80, 30], [-30, 60], [-110, 20]].map(([dx, dy]) => ({ dx, dy, e: solute(W, 'sucrose', { x: cx + dx, y: cy + dy, r: 9, o: 0 }) }));
+  const lb = G(p, { o: 0 }); show(lb, tC + 1, .4); hide(lb, tS - .5, .3);
+  wLabel(lb, 'inside a cell: sugar broken down in a blink,', { x: 800, y: 830, size: 30, weight: 700, o: 1 });
+  wLabel(lb, 'at body temperature', { x: 800, y: 868, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  cam.to({ x: cx, y: cy, z: 3 }, tC + 1.4, tS - tC - 1.6);
+  hide(cam.el, tS - .4, .35);
+  // strip: the shared pathway strip; lit: enzyme 1 lit, the rest dimmed
+  const st = pathwayStrip(p, { x: 800, y: 440 });
+  const q = G(p, { o: 0 }); show(q, tL + 1.2, .5);
+  wLabel(q, 'today: enzyme 1', { x: 800, y: 700, size: 34, weight: 700, fill: MC.enzyme, o: 1 });
+  wLabel(q, 'how does it make a reaction fast?', { x: 800, y: 744, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  clockRun(t => {
+    const u = Math.min(t, tC + .5);   // always written; still once the backdrop has gone
+    air.forEach((a, i) => mPose(a.e, a.x + 8 * Math.sin(u * (1.1 + .3 * (i % 3)) + i), a.y + 8 * Math.cos(u * (.9 + .2 * (i % 4)) + i * 1.7), 1));
+    sp.forEach((s, i) => { const ph = cFrac(t * .5 + i / 5); mPose(s.e, cx + s.dx, cy + s.dy, t > tC + 1.2 ? Math.sin(Math.PI * mClamp(ph * 2)) * (ph < .5 ? 1 : 0) : 0); });
+    st.build(io(mRamp(t, tS - .3, tS + 1.8)));
+    st.focus(['enzyme1'], io(mRamp(t, tL + .2, tL + 1.1)));
+  }, D);
+  const e1 = st.pt('enzyme1');
+  const r1 = G(p, { x: e1[0], y: e1[1], o: 0 }); mk('circle', { cy: 6, r: 40, fill: 'none', stroke: MC.enzyme, 'stroke-width': 4 }, r1);
+  show(r1, tL + .8, .3); pulse(r1, tL + .9, 1.15);
+}],
+
+/* ---------- catalyst ---------- */
+['catalyst', 'Catalysts and enzymes', (m, D) => {
+  const p = panel(0), tCa = m('cat'), tE = m('enz'), tSu = m('sucrose'), tSp = m('split'), tAf = m('after');
+  banner(p, 'catalyst: speeds up a reaction, not used up', null, 800, 70, 0, { size: 38 });
+  const b2 = G(p, { o: 0 }); show(b2, tE + .2, .5);
+  wLabel(b2, 'enzyme = a catalytic protein', { x: 800, y: 124, size: 30, weight: 700, fill: MC.enzyme, o: 1 });
+  const sc = sucrase(p, { x: 800, y: 600, R: 180, o: 0 });
+  const enzA = enzymeBlob(p, { x: 800, y: 600, R: 180, label: 'sucrase', o: 0 });   // the enzyme alone until sucrose comes (the kit draws both)
+  show(enzA, tE + .3, .5); show(sc, tSu, .05); hide(enzA, tSu, .05);
+  // the equation of slide 36, under the picture
+  const eq = G(p);
+  const part = (str, f, x, t0, col = COL.chalk) => { const g = G(eq, { o: 0 }); wLabel(g, str, { x, y: 830, size: 30, weight: 700, fill: col, o: 1 }); wChem(g, f, { x, y: 866, size: 24, fill: COL.dim, weight: 600, o: 1 }); show(g, t0, .4); return g; };
+  part('sucrose', 'C_{12}H_{22}O_{11}', 330, tSu + .3, MC.carb);
+  say(eq, '+', 455, 835, tSu + 2, { size: 34 });
+  part('water', 'H_2O', 560, tSu + 2, '#cfeefa');
+  const ar = G(eq, { o: 0 }); show(ar, tSp + .3, .4);
+  mArrow(ar, [670, 824], [930, 824], { color: COL.chalk, w: 5, head: 16 });
+  wLabel(ar, 'sucrase', { x: 800, y: 808, size: 24, weight: 700, fill: MC.enzyme, o: 1 });
+  part('glucose', 'C_6H_{12}O_6', 1050, tSp + 9, MC.carb);
+  say(eq, '+', 1165, 835, tSp + 9, { size: 34 });
+  part('fructose', 'C_6H_{12}O_6', 1280, tSp + 9, '#f6d98a');
+  say(p, 'hydrolysis: split by water', 800, 860, tSp + 2.5, { size: 24, fill: COL.dim, weight: 600 });
+  // the reaction, one step per narrated phrase: drop in, water joins, the bond breaks, the sugars leave
+  const KT = [[tSu, 0], [tSp + .2, 0], [tSp + 2.6, .3], [tSp + 5.6, .48], [tSp + 8.2, .58], [tAf - .6, 1]];
+  const kAt = t => { if (t <= KT[0][0]) return 0; for (let i = 1; i < KT.length; i++) if (t < KT[i][0]) return KT[i - 1][1] + (KT[i][1] - KT[i - 1][1]) * (t - KT[i - 1][0]) / (KT[i][0] - KT[i - 1][0]); return 1; };
+  const hO = G(p, { o: 0 }), oH = G(p, { o: 0 });
+  wLabel(hO, '+ OH', { x: 557, y: 376, size: 22, weight: 700, fill: '#cfeefa', o: 1 });
+  wLabel(oH, '+ H', { x: 1043, y: 376, size: 22, weight: 700, fill: '#cfeefa', o: 1 });
+  clockRun(t => { const k = kAt(t); sc.set(rk(k)); mO(hO, mRamp(k, .9, 1)); mO(oH, mRamp(k, .9, 1)); }, D);
+  // after: sucrase comes out unchanged
+  pulse(sc.enz, tAf + .3, 1.05);
+  tag(p, 'sucrase: unchanged', [1250, 660], [985, 630], tAf + .4, { size: 30, weight: 700, fill: MC.enzyme, line: MC.enzyme });
+  say(p, 'ready for the next sucrose', 1250, 700, tAf + 1.2, { size: 24, fill: COL.dim, weight: 500 });
+  const one = G(p, { o: 0 }); show(one, Math.min(tAf + 11, D - 4), .5);
+  mk('rect', { x: 1090, y: 440, width: 470, height: 80, rx: 18, fill: '#0b1626', stroke: MC.enzyme, 'stroke-width': 2.5 }, one);
+  wLabel(one, 'one enzyme for one reaction', { x: 1325, y: 474, size: 26, weight: 700, fill: MC.enzyme, o: 1 });
+  wLabel(one, 'every pathway step has its own', { x: 1325, y: 506, size: 22, fill: COL.dim, weight: 500, o: 1 });
+}],
+
+/* ---------- barrier ---------- */
+['barrier', 'The activation energy barrier', (m, D) => {
+  const p = panel(0), tBo = m('bonds'), tGr = m('graph'), tH = m('hump'), tEa = m('ea'), tBa = m('ball');
+  banner(p, 'every reaction: bonds break, bonds form', null, 800, 66, 0, { size: 36 });
+  const ed = energyDiagram(p, { x: 220, y: 790, w: 900, h: 560, o: 0 });
+  const bl = edLab(p, [220, 790], ed, { r: .65, pp: .25, peak: .9 });
+  show(ed, tGr + .2, .5);
+  // the pairs: A–B and C–D at the reactants, A–C and B–D at the products, the four held loosely at the top
+  const rA = pair(p, 'A', 'B', { x: 300, y: 362, o: 0 }), rC = pair(p, 'C', 'D', { x: 300, y: 410, o: 0 });
+  const pA = pair(p, 'A', 'C', { x: 850, y: 562, o: 0 }), pB = pair(p, 'B', 'D', { x: 850, y: 608, o: 0 });
+  const ts = transitionArt(p, { x: 593, y: 192, o: 0 });
+  // bonds: first shown large in the middle, then they settle onto the reactant level
+  const big = G(p, { o: 0 });
+  pair(big, 'A', 'B', { x: -60, y: 0 }); pair(big, 'C', 'D', { x: 60, y: 0 });
+  mArrow(big, [125, 0], [195, 0], { color: COL.chalk, w: 5, head: 16 });
+  pair(big, 'A', 'C', { x: 260, y: -26 }); pair(big, 'B', 'D', { x: 260, y: 26 });
+  put(big, { x: 680, y: 420, s: 1.6 });
+  show(big, tBo + 1, .5); hide(big, tGr, .4);
+  [rA, rC].forEach(e => show(e, tGr + .6, .4)); [pA, pB].forEach(e => show(e, tGr + 3, .4));
+  clockRun(t => {
+    const hk = io(mRamp(t, tH + .2, tH + 2.2));
+    ed.set({ r: .65, p: .25, hump: .25 * hk, dg: io(mRamp(t, tGr + 9, tGr + 10)), ea: io(mRamp(t, tEa + .2, tEa + 1)), lab: 0, ts: mRamp(t, tH + 2.5, tH + 3), t });
+    mO(bl.g, mRamp(t, tGr + .5, tGr + 1.2)); mO(bl.ts, mRamp(t, tH + 1.6, tH + 2.2));
+    // the transition state trembles: unstable
+    mPose(ts, 593 + 2.5 * Math.sin(t * 23), 192 + 2 * Math.cos(t * 19), mRamp(t, tH + 3, tH + 3.5));
+  }, D);
+  say(p, 'downhill overall', 1008, 574, tGr + 10.4, { size: 24, fill: MC.exo, weight: 700, anchor: 'start' });
+  say(p, 'unstable: old bonds strained, new ones half made', 593, 140, tH + 4, { size: 24, fill: COL.dim, weight: 500 });
+  sayC(p, 'activation energy, E_A', 236, 298, tEa + .7, { size: 26, fill: MC.ea, weight: 700, anchor: 'start' });
+  // ball: a ball in a dip behind a ridge
+  const dr = dipRidge(p, { x: 1150, y: 160, o: 0 }); show(dr, tBa + .2, .5);
+  say(dr, 'a ball in a dip, behind a ridge', 210, 46, tBa + .6, { size: 24, weight: 700 });
+  const lb = G(p, { o: 0 }); show(lb, tBa + 5.5, .4);
+  wLabel(lb, 'first a push, then downhill', { x: 1380, y: 596, size: 26, weight: 700, fill: MC.ea, o: 1 });
+  say(p, 'downhill is not always fast', 1380, 640, Math.min(tBa + 12, D - 3), { size: 26, weight: 700, fill: COL.chalk });
+  clockRun(t => dr.set(mRamp(t, tBa + 4.6, tBa + 9.6)), D);
+}],
+
+/* ---------- heat ---------- */
+['heat', 'Heat supplies the push', (m, D) => {
+  const p = panel(0), tH = m('heat'), tCu = m('cube2'), tCe = m('cell'), tN = m('need');
+  banner(p, 'heat can supply the activation energy', null, 800, 66, 0, { size: 36 });
+  const ed = energyDiagram(p, { x: 140, y: 770, w: 720, h: 520, size: 26 });
+  const rA = pair(p, 'A', 'B', { x: 215, y: 372 }), rC = pair(p, 'C', 'D', { x: 215, y: 420 });
+  const ha = [heatArrow(p, [190, 720], [196, 470], { waves: 3, amp: 9, w: 7 }), heatArrow(p, [270, 720], [265, 470], { waves: 3, amp: 9, w: 7 })];
+  ha.forEach((a, i) => a.in(tH + 1 + .3 * i, .8));
+  say(p, 'heat in', 330, 650, tH + 1.6, { size: 26, fill: MC.exo, weight: 700, anchor: 'start' });
+  // need: an arrow pressing down on the hump: make the hill lower
+  const nd = G(p, { o: 0 }); show(nd, tN + .3, .4);
+  mArrow(nd, [439, 168], [439, 312], { color: MC.ea, w: 7, head: 22 });
+  wLabel(nd, 'make the hill lower', { x: 470, y: 200, size: 28, weight: 700, fill: MC.ea, anchor: 'start', o: 1 });
+  clockRun(t => {
+    const hot = mRamp(t, tH + 1, tH + 2.5), amp = 1.5 + 5 * hot;
+    mPose(rA, 215 + amp * Math.sin(t * 17), 372 + amp * Math.cos(t * 13), 1);
+    mPose(rC, 215 + amp * Math.sin(t * 15 + 1), 420 + amp * Math.cos(t * 19 + 2), 1);
+    const run = t >= tH + 2.6 ? cFrac((t - tH - 2.6) / 3.2) : -1;
+    ed.set({ r: .65, p: .25, hump: .25, lab: 0, ball: run, ea: 0 });
+  }, D);
+  // cube2: the sugar cube burns
+  const cu = G(p, { o: 0 }); show(cu, tCu, .5); hide(cu, tCe, .4);
+  mk('rect', { x: 990, y: 650, width: 580, height: 22, rx: 8, fill: '#6d5340' }, cu);
+  const cube = sugarCube(cu, { x: 1280, y: 560, s: 1.1 });
+  const fl = flame(cu, { x: 1280, y: 500, s: 1.2 });
+  wLabel(cu, 'a flame: a very large push', { x: 1280, y: 730, size: 28, weight: 700, fill: MC.exo, o: 1 });
+  // cell: heat strong enough would damage proteins and speed every reaction
+  const hc = hotCell(p, { x: 1280, y: 400, R: 160, o: 0 }); show(hc, tCe + .2, .5);
+  put(hc.x1, { o: 0 }); show(hc.x1, tCe + 4.5, .3);
+  const cl = G(p, { o: 0 }); show(cl, tCe + 1.5, .4);
+  wLabel(cl, 'heat would damage proteins', { x: 1280, y: 760, size: 28, weight: 700, fill: '#ff8a76', o: 1 });
+  wLabel(cl, 'and speed up every reaction at once', { x: 1280, y: 800, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  clockRun(t => { fl.set(t); hc.set(io(mRamp(t, tCe + 1.5, tCe + 3.5))); }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const e1 = energyDiagram(p, { x: 110, y: 720, w: 400, h: 480, size: 22 }).set({ r: .65, p: .25, hump: .25, ea: 1, lab: 0 });
+  edLab(p, [110, 720], e1, { r: .65, pp: .25, peak: .9, size: 22 });
+  wLabel(p, 'the pink climb = ?', { x: 330, y: 160, size: 30, weight: 700, fill: MC.ea, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-ea', prompt: ['What is activation energy?'],
+  build: choice([['the energy the reaction releases'], ['the energy needed to start the reaction: the climb up to the transition state'], ['the energy stored inside an enzyme'], ['the free energy of the products']], 1,
+    'Right. Activation energy is the climb from the reactants up to the unstable transition state, before the reaction can run downhill.',
+    ['That is the drop from the reactants to the products, ΔG. Activation energy is the climb that comes first: look for the hill.', null,
+      'An enzyme is not a store of energy. Activation energy belongs to the reaction: the hill it must climb.',
+      'The products sit low, after the hill. Activation energy is the climb at the start.']),
+}], done) }],
+
+/* ---------- lower ---------- */
+['lower', 'Enzymes lower the barrier', (m, D) => {
+  const p = panel(0), tC = m('curve'), tT = m('two'), tD = m('dg'), tO = m('only');
+  banner(p, 'enzymes lower the activation energy barrier', null, 800, 66, 0, { size: 36, color: MC.enzyme });
+  const ed = energyDiagram(p, { x: 220, y: 800, w: 900, h: 600 });
+  const lR = wLabel(p, 'Reactants', { x: 269, y: 458, size: 28, anchor: 'start', o: 1 });
+  const lP = wLabel(p, 'Products', { x: 922, y: 664, size: 28, anchor: 'end', o: 1 });
+  clockRun(t => {
+    const k = io(mRamp(t, tT + .3, tT + 2.8));
+    ed.set({ r: .65, p: .25, hump: .3 - .18 * k, ghost: .3, ghostO: k, eaG: k, ea: 1, enz: k, dg: io(mRamp(t, tD + .2, tD + .9)), lab: 0, ball: t >= tT + 3.5 ? .22 + .78 * cFrac((t - tT - 3.5) / 3) : -1 });
+  }, D);
+  tag(p, 'without enzyme', [800, 250], [600, 266], tT + 2.4, { size: 28, weight: 700 });
+  tag(p, 'with enzyme: lower', [840, 340], [606, 360], tT + 2.8, { size: 28, weight: 700, fill: MC.enzyme, line: MC.enzyme });
+  const more = say(p, 'more molecules get over at 37 °C', 800, 880, tT + 4.5, { size: 26, fill: COL.dim, weight: 500 });
+  // dg: start and finish did not move
+  pulse(lR, tD + .3, 1.12); pulse(lP, tD + .6, 1.12);
+  say(p, 'unchanged', 1008, 576, tD + 1, { size: 26, fill: MC.exo, weight: 700, anchor: 'start' });
+  // only: an uphill reaction, crossed out
+  const up = G(p, { o: 0 }); show(up, tO + .3, .5);
+  panelBox(up, 1170, 130, 410, 430);
+  energyDiagram(up, { x: 1215, y: 420, w: 230, h: 240, size: 17 }).set({ r: .25, p: .65, hump: .12, enz: 1, dg: 1, lab: 0 });
+  path(up, 'M1225 170L1445 400M1445 170L1225 400', { stroke: '#e5533d', 'stroke-width': 9, 'stroke-linecap': 'round', 'stroke-opacity': .85 });
+  wLabel(up, 'uphill: an enzyme', { x: 1375, y: 505, size: 24, weight: 700, o: 1 });
+  wLabel(up, 'can’t make it go', { x: 1375, y: 535, size: 24, weight: 700, o: 1 });
+  const ob = G(p, { o: 0 }); show(ob, tO + 4.5, .5); hide(more, tO + 4, .4);
+  // ex2: an everyday case, hydrogen peroxide alone (slow) and with catalase from a potato slice (it fizzes)
+  const tX = m('ex2'), tK = m('cat2');
+  hide(up, tX - .2, .4);
+  const cx = G(p, { o: 0 }); show(cx, tX + .2, .5);
+  panelBox(cx, 1170, 130, 410, 430);
+  wChem(cx, 'H_2O_2 → H_2O + O_2', { x: 1375, y: 178, size: 26, weight: 700, o: 1 });
+  const tube = (x0, lab, col) => {
+    path(cx, `M${x0 - 46} 230V440A46 46 0 0 0 ${x0 + 46} 440V230`, { stroke: '#cfe6ff', 'stroke-width': 5, fill: 'none' });
+    path(cx, `M${x0 - 42} 300V440A42 42 0 0 0 ${x0 + 42} 440V300Z`, { fill: '#5fd3e8', 'fill-opacity': .28 });
+    wLabel(cx, lab, { x: x0, y: 530, size: 24, weight: 700, fill: col, o: 1 });
+  };
+  tube(1270, 'alone: slow', COL.chalk); tube(1480, '+ catalase: fast', MC.enzyme);
+  const slice = G(p, { x: 1480, y: 200, o: 0 }); mk('ellipse', { rx: 26, ry: 10, fill: '#efe2b8', stroke: '#b9a46e', 'stroke-width': 3 }, slice);
+  show(slice, tK, .3); tw(slice, { y: 455 }, tK + .2, .9, io);
+  const bub = (x0, n, seed) => Array.from({ length: n }, (_, i) => ({ x: x0 - 30 + 60 * wHash(i, seed), ph: wHash(i, seed + 7), e: mk('circle', { r: 5 + 4 * wHash(i, seed + 3), fill: 'none', stroke: '#e8f6ff', 'stroke-width': 2.5 }, cx) }));
+  const slow = bub(1270, 2, 11), fast = bub(1480, 14, 21);
+  const foam = G(cx, { o: 0 }); [-30, -12, 6, 24].forEach((dx, i) => mk('circle', { cx: 1480 + dx, cy: 296 - 6 * (i % 2), r: 13, fill: '#e8f6ff', 'fill-opacity': .8 }, foam));
+  say(p, 'same products, same ΔG: only faster', 800, 880, tK + 6, { size: 28, weight: 700, fill: MC.enzyme });
+  hide(ob, tK + 5.6, .4);
+  clockRun(t => {
+    slow.forEach(b => { const u = cFrac(t * .12 + b.ph); cSet(b.e, { x: b.x, y: 440 - 140 * u, o: Math.sin(Math.PI * u) }); });
+    const on = mRamp(t, tK + 1.1, tK + 1.6);
+    fast.forEach(b => { const u = cFrac(t * .9 + b.ph); cSet(b.e, { x: b.x + 4 * Math.sin(t * 6 + b.ph * 9), y: 440 - 140 * u, o: on * Math.sin(Math.PI * u) }); });
+    mO(foam, mRamp(t, tK + 2, tK + 3));
+  }, D);
+  wLabel(ob, 'it only hastens reactions that would occur eventually', { x: 800, y: 880, size: 28, weight: 700, o: 1 });
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  energyDiagram(p, { x: 110, y: 720, w: 400, h: 480, size: 22 }).set({ r: .65, p: .25, hump: .12, ghost: .3, ghostO: 1, eaG: 1, ea: 1, enz: 1, dg: 1, lab: 0 });
+  wLabel(p, 'enzyme added: what changes?', { x: 330, y: 150, size: 28, weight: 700, fill: MC.enzyme, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-change', prompt: ['An enzyme joins the reaction. What changes?'],
+  build: grid([
+    { parts: ['the activation energy'], ans: ['c'], why: 'Changes: it is lower. That is the one thing an enzyme does to the curve.' },
+    { parts: ['ΔG of the reaction'], ans: ['s'], why: 'Stays the same: ΔG depends only on the start and end levels, and they did not move.' },
+    { parts: ['the products formed'], ans: ['s'], why: 'Stays the same: the enzyme makes the same products, only sooner.' },
+    { parts: ['how fast the reaction runs'], ans: ['c'], why: 'Changes: with a lower hill, many more molecules cross, so it runs faster.' },
+    { parts: ['the enzyme itself'], ans: ['s'], why: 'Stays the same: a catalyst is not consumed; it comes out unchanged.' },
+  ], [['c', 'changes', null, 'C'], ['s', 'stays the same', null, 'S']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- example ---------- */
+['example', 'A worked example', (m, D) => {
+  const p = panel(0), tN = m('no'), tY = m('yes'), tS = m('same'), tF = m('fast');
+  banner(p, 'one reaction, with and without an enzyme', null, 800, 62, 0, { size: 36 });
+  say(p, 'an example, not from the slides', 800, 104, .5, { size: 22, fill: COL.dim, weight: 500 });
+  const ed = energyDiagram(p, { x: 220, y: 800, w: 900, h: 600 });
+  ed.set({ r: .55, p: .45, hump: .16, ghost: .4, ghostO: 1, enz: 1, lab: 0 });
+  const yR = 474, yG = 268, yM = 392, yP = 526;
+  wLabel(p, 'Reactants', { x: 269, y: yR + 36, size: 28, anchor: 'start', o: 1 });
+  wLabel(p, 'Products', { x: 922, y: yP + 36, size: 28, anchor: 'end', o: 1 });
+  wLabel(p, 'without enzyme', { x: 593, y: yG - 50, size: 24, weight: 700, o: 1 });
+  tag(p, 'with enzyme', [360, 424], [516, 420], null, { size: 24, weight: 700, fill: MC.enzyme, line: MC.enzyme });
+  dashH(p, 410, 975, yR);
+  // no: the climb without the enzyme
+  const n1 = G(p, { o: 0 }); show(n1, tN + .3, .4);
+  dashH(n1, 600, 862, yG, MC.ea); vBracket(n1, 850, yR, yG + 4, MC.ea);
+  wLabel(n1, '20 kcal/mol', { x: 836, y: 306, size: 28, weight: 800, fill: MC.ea, anchor: 'end', o: 1 });
+  // yes: the climb with it, and the difference
+  const n2 = G(p, { o: 0 }); show(n2, tY + .3, .4);
+  dashH(n2, 600, 902, yM, MC.enzyme); vBracket(n2, 890, yR, yM + 4, MC.enzyme);
+  wLabel(n2, '8 kcal/mol', { x: 906, y: 444, size: 28, weight: 800, fill: MC.enzyme, anchor: 'start', o: 1 });
+  const n3 = G(p, { o: 0 }); show(n3, tY + 3, .4);
+  path(n3, `M890 ${yM - 4}V${yG + 4}M878 ${yG + 4}H902M878 ${yM - 4}H902`, { stroke: COL.chalk, 'stroke-width': 3.5, 'stroke-dasharray': '6 5' });
+  wLabel(n3, '12 less', { x: 906, y: 338, size: 28, weight: 800, anchor: 'start', o: 1 });
+  // same: ΔG −5 both ways
+  const n4 = G(p, { o: 0 }); show(n4, tS + .3, .4);
+  dashH(n4, 922, 975, yP, MC.exo); vBracket(n4, 962, yR, yP, MC.exo, { w: 5, head: 14 });
+  wLabel(n4, 'ΔG = −5 kcal/mol', { x: 980, y: 512, size: 28, weight: 800, fill: MC.exo, anchor: 'start', o: 1 });
+  wLabel(n4, 'with or without', { x: 980, y: 548, size: 22, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+  // fast: faster, the same energy balance; only the top of the hill moved
+  const ff = G(p, { o: 0 }); show(ff, tF + .3, .4);
+  mk('rect', { x: 1080, y: 640, width: 480, height: 130, rx: 22, fill: '#0b1626', stroke: MC.enzyme, 'stroke-width': 2.5 }, ff);
+  path(ff, 'M1110 680L1140 705L1110 730ZM1142 680L1172 705L1142 730Z', { fill: MC.enzyme });
+  wLabel(ff, 'faster, same products,', { x: 1195, y: 698, size: 28, weight: 700, anchor: 'start', o: 1 });
+  wLabel(ff, 'same energy balance', { x: 1195, y: 738, size: 28, weight: 700, anchor: 'start', o: 1 });
+  const pk = G(p, { o: 0 }); show(pk, tF + 4.5, .4);
+  [yG, yM].forEach(y => mk('circle', { cx: 593, cy: y, r: 30, fill: 'none', stroke: MC.ea, 'stroke-width': 4 }, pk));
+  say(p, 'only the top of the hill moved', 800, 880, tF + 4.8, { size: 28, weight: 700, fill: MC.ea });
+  clockRun(t => ed.set({ r: .55, p: .45, hump: .16, ghost: .4, ghostO: 1, enz: 1, lab: 0, ball: t >= tF + .3 ? cFrac((t - tF - .3) / 2.2) : -1 }), D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tE = m('end');
+  wLabel(p, 'Summary: enzymes and the barrier', { x: 800, y: 70, size: 36, weight: 700, o: 1 });
+  const ROWS = [
+    ['s1', 'A catalyst speeds up a reaction, not used up', 'an enzyme is a catalytic protein', MC.enzyme],
+    ['s2', 'Every reaction first climbs the E_A barrier', 'heat can supply it, but a cell can’t just heat up', MC.ea],
+    ['s3', 'Enzymes lower the barrier', 'ΔG is unchanged: they only speed up what would happen anyway', MC.exo],
+  ];
+  ROWS.forEach(([mk_, a, b, col], i) => {
+    const y = 200 + i * 205, g = G(p, { o: 0 });
+    panelBox(g, 150, y - 85, 1300, 175);
+    wChem(g, a, { x: 450, y: y - 6, size: 34, weight: 700, fill: col, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 450, y: y + 40, size: 26, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i === 0) enzymeBlob(g, { x: 300, y: y + 22, R: 58 });
+    if (i === 1) {
+      path(g, `M215 ${y + 30}H245C270 ${y + 30} 280 ${y - 55} 300 ${y - 55}C322 ${y - 55} 332 ${y + 60} 360 ${y + 60}H385`, { stroke: COL.chalk, 'stroke-width': 6 });
+      heatArrow(g, [196, y + 82], [240, y + 36], { waves: 2, amp: 5, w: 5 }).in(0, .01);
+    }
+    if (i === 2) {
+      path(g, `M215 ${y + 10}H245C270 ${y + 10} 280 ${y - 62} 300 ${y - 62}C322 ${y - 62} 332 ${y + 50} 360 ${y + 50}H385`, { stroke: COL.chalk, 'stroke-width': 4, 'stroke-dasharray': '10 8' });
+      path(g, `M215 ${y + 10}H245C270 ${y + 10} 280 ${y - 18} 300 ${y - 18}C322 ${y - 18} 332 ${y + 50} 360 ${y + 50}H385`, { stroke: MC.enzyme, 'stroke-width': 6 });
+    }
+    show(g, m(mk_) + .1, .5);
+  });
+  say(p, 'Now try the chapter practice.', 800, 840, tE, { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('sucrase', g => {
+    panelBox(g, 980, 90, 580, 720);
+    sucrase(g, { x: 1270, y: 560, R: 125 }).set(.36);
+    wLabel(g, '?', { x: 1270, y: 230, size: 80, weight: 800, fill: MC.carb, o: 1 });
+    wLabel(g, 'sucrose + water → ?', { x: 1270, y: 770, size: 28, weight: 700, o: 1 });
+  });
+  at('heat', g => {
+    panelBox(g, 980, 90, 580, 720);
+    hotCell(g, { x: 1270, y: 420, R: 150, cross: false }).set(1);
+    wLabel(g, 'why not just heat up?', { x: 1270, y: 760, size: 28, weight: 700, fill: MC.exo, o: 1 });
+  });
+  at('curve', g => {
+    panelBox(g, 980, 90, 580, 720);
+    const ec = energyDiagram(g, { x: 1050, y: 700, w: 340, h: 520, size: 22 }).set({ r: .65, p: .25, hump: .12, ghost: .3, ghostO: 1, eaG: 1, ea: 1, enz: 1, dg: 1, lab: 0 });
+    edLab(g, [1050, 700], ec, { r: .65, pp: .25, peak: .95, size: 22 });
+    wLabel(g, 'dashed: without · olive: with', { x: 1270, y: 140, size: 22, weight: 600, fill: COL.dim, o: 1 });
+  });
+  at('num', g => {
+    panelBox(g, 980, 90, 580, 720);
+    energyDiagram(g, { x: 1050, y: 700, w: 340, h: 520, size: 22 }).set({ r: .55, p: .45, hump: .16, ghost: .4, ghostO: 1, eaG: 1, ea: 1, enz: 1, dg: 1, lab: 0 });
+    wLabel(g, 'without: 20 · with: 8', { x: 1270, y: 140, size: 24, weight: 700, fill: MC.ea, o: 1 });
+    wLabel(g, 'kcal/mol', { x: 1270, y: 172, size: 22, weight: 500, fill: COL.dim, o: 1 });
+  });
+  at('uphill', g => {
+    panelBox(g, 980, 90, 580, 720);
+    const eu = energyDiagram(g, { x: 1050, y: 640, w: 340, h: 440, size: 22 }).set({ r: .25, p: .65, hump: .12, enz: 1, dg: 1, lab: 0 });
+    edLab(g, [1050, 640], eu, { r: .25, pp: .65, peak: .77, size: 22 });
+    enzymeBlob(g, { x: 1150, y: 140 + 20, R: 34 });
+    wLabel(g, '+ enzyme', { x: 1200, y: 170, size: 26, weight: 700, fill: MC.enzyme, anchor: 'start', o: 1 });
+    wLabel(g, '?', { x: 1460, y: 300, size: 70, weight: 800, fill: MC.endo, o: 1 });
+    wLabel(g, 'an uphill reaction', { x: 1270, y: 770, size: 26, weight: 700, fill: MC.endo, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('sucrase');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-sucrase', prompt: ['Sucrase acts on sucrose and water. What does the reaction make?'],
+    build: withPic('sucrase', choice([['glucose and water'], ['glucose and fructose'], ['sucrase and fructose'], ['starch']], 1,
+      'Right. Hydrolysis splits sucrose into glucose and fructose; the water is split into H and OH, one piece on each sugar.',
+      ['Water is a reactant here: it is split into H and OH, and both pieces end up on the sugars.', null,
+        'Sucrase is the catalyst: it comes out unchanged, it is not turned into a product.',
+        'Nothing is being joined into a long chain: one sugar is split into two.'])) },
+  { id: 'p-heat', prompt: ['Why can’t a cell simply heat up to cross the activation energy barrier?'],
+    build: withPic('heat', choice([['heat cannot supply activation energy'], ['a cell has no energy to spare'], ['heat strong enough would damage its proteins and speed up every reaction at once'], ['activation energy does not matter inside cells']], 2,
+      'Right. A flame-sized push would denature the cell’s proteins, and it would speed every reaction, wanted or not. Enzymes lower the hill for one reaction instead.',
+      ['Heat can supply it: that is how a flame lights a sugar cube. The trouble is what heat does to the cell.',
+        'Energy is not the problem: heat would damage the cell’s proteins, and speed up every reaction at once.', null,
+        'It matters a great deal: the barrier is why enzymes exist.'])) },
+  { id: 'p-curve', prompt: ['With an enzyme added, the…'],
+    build: withPic('curve', grid([
+      { parts: ['the hill'], ans: ['l'], why: 'Lower: the enzyme lowers the activation energy barrier.' },
+      { parts: ['reactant level'], ans: ['s'], why: 'The same: the starting level did not move.' },
+      { parts: ['product level'], ans: ['s'], why: 'The same: the end level did not move.' },
+      { parts: ['ΔG'], ans: ['s'], why: 'The same: both levels stayed, so the drop between them did too.' },
+    ], [['l', 'lower', null, 'L'], ['s', 'same', null, 'S'], ['h', 'higher', null, 'H']], { multi: false, text: true })) },
+  { id: 'p-num', prompt: ['The climb is 20 kcal/mol without an enzyme and 8 with one. ΔG is −5 kcal/mol without it. In kcal/mol:'],
+    build: withPic('num', blanks([
+      { parts: ['the barrier drops by ', { box: '12' }], why: '20 − 8 = 12 kcal/mol less to climb.', hint: 'Subtract the two climbs.' },
+      { parts: ['with it, ΔG = ', { box: '-5' }], why: 'An enzyme does not change ΔG: still −5 kcal/mol.', hint: 'Did the start and end levels move?' },
+    ])) },
+  { id: 'p-uphill', prompt: ['A reaction is uphill (ΔG > 0): it will not go without added energy. You add the right enzyme. What happens?'],
+    build: withPic('uphill', choice([['it now runs downhill'], ['it runs uphill on its own, only faster'], ['the enzyme supplies the energy it needs'], ['it still won’t go on its own']], 3,
+      'Right. An enzyme lowers the hill but cannot change ΔG, so an uphill reaction still needs energy from somewhere else.',
+      ['An enzyme cannot change ΔG: the start and end levels stay where they are.',
+        'It does not help an uphill reaction go at all: it only speeds up reactions that would occur eventually.',
+        'An enzyme is not an energy source: it is a catalyst, and it comes out unchanged.', null])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

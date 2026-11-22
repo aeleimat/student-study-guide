@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 8, Lesson 6: The Active Site and How Enzymes Catalyse — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 8 (An Introduction to Metabolism), lesson 6: a key in a lock and a glove, then a cell and the shared
+// pathway strip with enzyme 1 lit, zoomed in to its active site; substrate, active site, enzyme-substrate complex and
+// specificity; induced fit; the four ways an active site lowers E_A (delta G unchanged); the six-step catalytic cycle;
+// a worked example of saturation (checkout counters); a summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-08/lesson-06.md.
+const CHAPTER = { number: 806, label: '8, lesson 6', title: 'The Active Site and How Enzymes Catalyse', minutes: 7, language: 'en', lead: false, next: '../lesson-07/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const sayC = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+// E with a subscript A, for card text
+const EA = () => { const e = document.createElement('span'); e.append('E'); const b = document.createElement('sub'); b.textContent = 'A'; e.append(b); return e; };
+const rk = k => Math.round(mClamp(k) * 2000) / 2000;
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const GLOW = '#fff6d8', WRONG = '#9aa7b8', BADGE = '#3b8fd9', BADGE_OFF = '#1d3a5c';
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = Math.max(uiW(str, size), sub ? uiW(sub, size * .8) : 0);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  if (ax !== null) { path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g); }
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A title and a dim second line, centred; fades in at t0.
+function banner(p, a, b, x, y, t0, { color = COL.chalk, size = 40 } = {}) {
+  const g = G(p, { o: 0 });
+  wChem(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wChem(g, b, { x, y: y + size * .95, size: size * .62, fill: COL.dim, weight: 500, o: 1 });
+  show(g, t0, .5);
+  return g;
+}
+// A numbered step badge; .t is its text, .disc its circle.
+function badge(p, str, x, y, { o = 0, r = 24 } = {}) {
+  const g = G(p, { x, y, o });
+  const disc = mk('circle', { r, fill: BADGE, stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t, disc });
+}
+// Text whose content is set only when it changes.
+function setText(e, str) { if (e._txt !== str) { e.textContent = str; e._txt = str; } }
+// Piecewise-linear map from beat time to a phase: keys [[t, u], …] in time order.
+function keyed(keys, t) {
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) if (t < keys[i][0]) { const [a, u] = keys[i - 1], [b, v] = keys[i]; return u + (v - u) * (t - a) / (b - a); }
+  return keys[keys.length - 1][1];
+}
+// The enzymeBlob's notch walls (the kit's own geometry): a point at fraction f up the left (sd −1) or right wall.
+function wallPt(R, fit, sd, f, inset = 8) {
+  const W = .62 * R, b = W * .5, top = -R * (.9 + .1 * fit), nb = top + R * .5, a = W * (.8 - .32 * fit);
+  return [sd * (b + (a - b) * f) - sd * inset, nb + (top - nb) * f];
+}
+// Small chemical groups lining the pocket; .set(fit, lit) poses them on the walls and lights them.
+// Drawn in p (pass the layer above the substrate), placed on the enzyme.
+function pocketGroups(p, enz, { r = 9 } = {}) {
+  const R = enz.R, g = G(p, { x: enz._st.x, y: enz._st.y });
+  const ds = [[-1, .25], [-1, .7], [1, .25], [1, .7]].map(([sd, f]) => ({ sd, f, e: mk('circle', { r, fill: MC.enzymeEdge, stroke: '#26360f', 'stroke-width': 2 }, g) }));
+  return Object.assign(g, {
+    set(fit, lit) {
+      const fk = rk(fit), lk = rk(lit);
+      ds.forEach(d => { const [x, y] = wallPt(R, fk, d.sd, d.f, r + 3); cAttr(d.e, 'cx', cF(x)); cAttr(d.e, 'cy', cF(y)); cAttr(d.e, 'fill', zMix(MC.enzymeEdge, GLOW, lk)); });
+      return g;
+    },
+  }).set(0, 0);
+}
+// A molecule of the wrong shape (a grey triangle or circle), origin at its centre.
+function wrongPiece(p, kind, { x = 0, y = 0, r = 40, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  if (kind === 'tri') path(g, `M0 ${-r}L${cF(r * .95)} ${cF(r * .7)}L${cF(-r * .95)} ${cF(r * .7)}Z`, { fill: WRONG, stroke: '#5d6876', 'stroke-width': 3 });
+  else mk('circle', { r: r * .8, fill: WRONG, stroke: '#5d6876', 'stroke-width': 3 }, g);
+  return g;
+}
+// A red cross or a green tick, centred.
+function mark(p, ok, x, y, { o = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, o, s });
+  path(g, ok ? 'M-16 2L-4 14L18 -14' : 'M-14 -14L14 14M14 -14L-14 14', { stroke: ok ? '#5bbf5b' : '#e5533d', 'stroke-width': 7 });
+  return g;
+}
+// The glow in an enzyme's pocket.
+function siteGlow(p, enz, { o = 0 } = {}) {
+  const [x, y] = enz.site(), g = G(p, { x, y, o });
+  mk('circle', { r: enz.R * .4, fill: '#ffe27a', 'fill-opacity': .16, stroke: '#ffe27a', 'stroke-width': 5, 'stroke-dasharray': '10 7' }, g);
+  return g;
+}
+// A small energy hump (local): .set(h) its height, ghost the uncatalysed hump dashed behind it.
+function miniHump(p, { x = 0, y = 0, w = 200, h = 80, ghost = 0, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  const curveD = hh => { let d = ''; for (let i = 0; i <= 40; i++) { const u = i / 40, v = mClamp((u - .2) / .6), L = 0 - 30 * (v * v * (3 - 2 * v)), b = Math.sin(Math.PI * v) ** 2; d += (i ? 'L' : 'M') + cF(u * w) + ' ' + cF(L - b * hh); } return d; };
+  if (ghost) path(g, curveD(ghost), { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '8 7', 'stroke-opacity': .7 });
+  const c = path(g, '', { stroke: MC.enzyme, 'stroke-width': 5 });
+  return Object.assign(g, { set(hh) { mD(c, curveD(Math.round(hh * 4) / 4)); return g; } }).set(h);
+}
+
+/* ---------- backdrops: a padlock and its key, a glove ---------- */
+function lockArt(p, { x = 0, y = 0, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  const key = G(g);   // drawn first: its tip slides behind the lock's body
+  const sh = G(g);
+  path(sh, 'M-58 -50V-118A58 58 0 0 1 58 -118V-50', { stroke: '#aab4bf', 'stroke-width': 22 });
+  path(g, rrectD(210, 170, 26), { fill: '#e0b84f', stroke: '#9a7a26', 'stroke-width': 4, transform: 'translate(0 30)' });
+  mk('circle', { cx: 0, cy: 18, r: 18, fill: '#2a2416' }, g);
+  path(g, 'M-9 26L-14 66H14L9 26Z', { fill: '#2a2416' });
+  // the key, origin at its tip, pointing right
+  mk('circle', { cx: -150, cy: 0, r: 34, fill: 'none', stroke: '#c9ced6', 'stroke-width': 14 }, key);
+  path(key, 'M-118 0H0', { stroke: '#c9ced6', 'stroke-width': 14 });
+  path(key, 'M-48 6V26M-30 6V20M-14 6V30', { stroke: '#c9ced6', 'stroke-width': 10 });
+  return Object.assign(g, {
+    key, sh,
+    set(k) { const a = rk(k), b = io(mRamp(a, .55, .8)); cSet(key, { x: mLerp(-150, -10, io(mRamp(a, 0, .5))), y: 18 }); cSet(sh, { y: -44 * b }); return g; },
+  }).set(0);
+}
+// a rounded rectangle path centred on the origin (local; the kit's own is internal)
+function rrectD(w, h, r) { return `M${-w / 2 + r} ${-h / 2}H${w / 2 - r}Q${w / 2} ${-h / 2} ${w / 2} ${-h / 2 + r}V${h / 2 - r}Q${w / 2} ${h / 2} ${w / 2 - r} ${h / 2}H${-w / 2 + r}Q${-w / 2} ${h / 2} ${-w / 2} ${h / 2 - r}V${-h / 2 + r}Q${-w / 2} ${-h / 2} ${-w / 2 + r} ${-h / 2}Z`; }
+const GLOVE_D = 'M-70 110V-20C-70 -40 -96 -36 -112 -60C-124 -78 -112 -96 -96 -88C-78 -78 -74 -60 -66 -52V-110C-66 -130 -40 -130 -40 -110V-40'
+  + 'V-140C-40 -160 -14 -160 -14 -140V-40V-150C-14 -170 12 -170 12 -150V-40V-134C12 -154 38 -154 38 -134V-40V-100C38 -120 64 -120 64 -100V110Z';
+function gloveArt(p, { x = 0, y = 0, o = 1, hand = true } = {}) {
+  const g = G(p, { x, y, o });
+  const gl = G(g);
+  path(gl, GLOVE_D, { fill: '#d98b5f', stroke: '#8a5530', 'stroke-width': 4 });
+  path(gl, 'M-40 -40V20M-14 -40V20M12 -40V20M38 -40V20', { stroke: '#8a5530', 'stroke-width': 2.5, 'stroke-opacity': .6 });
+  mk('rect', { x: -78, y: 96, width: 150, height: 44, rx: 10, fill: '#b86f45', stroke: '#8a5530', 'stroke-width': 4 }, gl);
+  const hd = hand ? path(g, GLOVE_D, { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '8 7', transform: 'scale(.86)', 'stroke-opacity': .8 }) : null;
+  return Object.assign(g, {
+    gl, hd,
+    set(k) { const s = Math.round((1.14 - .14 * io(mClamp(k))) * 500) / 500; cSet(gl, { s }); return g; },   // loose (big) → snug
+  }).set(1);
+}
+
+/* ---------- the four ways (insets, built for ways and for the practice picture) ---------- */
+const WAYS = [['orienting', 'lines the substrates up'], ['straining bonds', 'stretches them to break'], ['microenvironment', 'e.g. a more acidic pocket'], ['covalent bonding', 'a brief bond, then let go']];
+function wayInset(p, i, { x, y, w = 470, h = 150, o = 1, capO = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('rect', { x: 0, y: 0, width: w, height: h, rx: 18, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+  const ex = 80, ey = 98, R = 52;
+  const enz = enzymeBlob(g, { x: ex, y: ey, R });
+  const [sx, sy] = enz.site();
+  const parts = { enz };
+  if (i === 0) parts.sub = substrateShape(g, { R, two: true });   // .place takes positions in the inset's frame
+  if (i === 1) {
+    parts.bond = path(g, '', { stroke: MC.ea, 'stroke-width': 5 });
+    parts.a = mk('circle', { r: 10, fill: MC.sub, stroke: MC.subEdge, 'stroke-width': 2.5 }, g);
+    parts.b = mk('circle', { r: 10, fill: MC.sub, stroke: MC.subEdge, 'stroke-width': 2.5 }, g);
+  }
+  if (i === 2) {
+    parts.tint = mk('rect', { x: sx - 18, y: sy - 18, width: 36, height: 40, rx: 6, fill: MC.ea, 'fill-opacity': .35 }, g);
+    parts.h = [0, 1, 2].map(j => wLabel(g, 'H⁺', { size: 16, weight: 800, fill: '#ffd0e0', o: 1 }));
+  }
+  if (i === 3) {
+    parts.sub = substrateShape(g, { x: sx, y: sy, R });
+    parts.bond = path(g, `M${cF(sx - 30)} ${cF(sy + 6)}H${cF(sx - 14)}`, { stroke: GLOW, 'stroke-width': 5 });
+  }
+  const cap = G(g, { o: capO });
+  wLabel(cap, WAYS[i][0], { x: 160, y: 66, size: 28, weight: 700, anchor: 'start', o: 1 });
+  wLabel(cap, WAYS[i][1], { x: 160, y: 102, size: 22, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+  const num = wLabel(g, String(i + 1), { x: 172, y: 92, size: 40, weight: 800, fill: COL.dim, o: 1 - capO });
+  return Object.assign(g, {
+    cap, num,
+    // k 0..1 the inset's own action; t keeps it moving afterwards
+    set(k, t) {
+      k = rk(k); t = Math.round(t * 60) / 60;
+      if (i === 0) {
+        const j = io(k), hw = parts.sub.hw;
+        parts.sub.place([sx - hw / 2 - 14 * (1 - j), sy - 6 * (1 - j), 40 * (1 - j)], [sx + hw / 2 + 14 * (1 - j), sy - 10 * (1 - j), -35 * (1 - j)]);
+      }
+      if (i === 1) {
+        const sep = 12 + 9 * k + (k > .99 ? 3 * Math.sin(t * 6) : 0);
+        cAttr(parts.a, 'cx', cF(sx - sep)); cAttr(parts.a, 'cy', cF(sy)); cAttr(parts.b, 'cx', cF(sx + sep)); cAttr(parts.b, 'cy', cF(sy));
+        mD(parts.bond, `M${cF(sx - sep)} ${cF(sy)}H${cF(sx + sep)}`); cAttr(parts.bond, 'stroke', zMix(COL.chalk, MC.ea, k));
+        cAttr(parts.bond, 'stroke-width', cF(6 - 3 * k));
+      }
+      if (i === 2) {
+        mO(parts.tint, k);
+        parts.h.forEach((e, j) => cSet(e, { x: sx - 30 + 30 * j + 2 * Math.sin(t * 2 + j * 2), y: sy - 26 - 12 * (j % 2) + 2 * Math.cos(t * 1.7 + j), o: k }));
+      }
+      if (i === 3) mO(parts.bond, k * (k > .99 ? (Math.sin(t * 1.6) > 0 ? 1 : .15) : 1));
+      return g;
+    },
+  }).set(1, 0);
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A key and a lock', (m, D) => {
+  const p = panel(0), tL = m('lock'), tC = m('cells'), tS = m('strip'), tZ = m('zoom');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const lock = lockArt(W, { x: 360, y: 460, o: 0 }), glove = gloveArt(W, { x: 800, y: 470, o: 0, hand: false });
+  show(lock, .2, .6); show(glove, .5, .6);
+  prog(k => lock.set(k), tL + .2, 2.4, lin);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 8 · LESSON 6', { x: 1270, y: 250, size: 26, fill: COL.dim, o: 1 });
+  ['The active site and', 'how enzymes catalyse'].forEach((s, i) => wLabel(ttl, s, { x: 1270, y: 335 + i * 70, size: 52, o: 1 }));
+  wLabel(ttl, 'An introduction to metabolism:', { x: 1270, y: 490, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(ttl, 'substrates, induced fit, the cycle', { x: 1270, y: 526, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tL - .3, .5);
+  const l1 = G(p, { o: 0 }), l2 = G(p, { o: 0 });
+  wLabel(l1, 'a key fits one lock', { x: 330, y: 720, size: 32, o: 1 }); wLabel(l1, 'and no other', { x: 330, y: 760, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(l2, 'a glove fits one hand', { x: 800, y: 720, size: 32, o: 1 }); wLabel(l2, 'and hugs it', { x: 800, y: 760, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  show(l1, tL + .2, .4); show(l2, tL + 3.4, .4); pulse(glove, tL + 3.5, 1.08);
+  // two keys that don't fit, hung to the right of the title's place
+  const others = G(W, { x: 1250, y: 470, o: 0 }); show(others, tL + 1.2, .5);
+  [[-90, '#8c939c'], [90, '#8c939c']].forEach(([dx, c]) => {
+    const kk = G(others, { x: dx, y: 0, r: 90 });
+    mk('circle', { cx: -110, cy: 0, r: 28, fill: 'none', stroke: c, 'stroke-width': 12 }, kk);
+    path(kk, 'M-82 0H0', { stroke: c, 'stroke-width': 12 });
+    path(kk, dx < 0 ? 'M-40 6V24M-14 6V14' : 'M-50 6V14M-24 6V28M-8 6V18', { stroke: c, 'stroke-width': 9 });
+  });
+  mark(others, false, 0, 150, { o: 1 });
+  wLabel(others, 'other keys: no', { y: 250, size: 26, fill: COL.dim, weight: 600, o: 1 });
+  [l1, l2].forEach(e => hide(e, tC, .4));
+  // cells: the cell appears; the camera pushes into its cytoplasm
+  [lock, glove, others].forEach(e => hide(e, tC, .5));
+  const cm = cellMap(W, { kind: 'animal', x: 800, y: 470, s: .62, o: 0 });
+  show(cm, tC + .2, .6);
+  const [cx, cy] = cm.pt('cytoplasm');
+  prog(k => cm.focus('cytoplasm', k), tC + .6, .7, io);
+  const lc = tag(p, 'inside a cell', [cx + 40, cy - 110], [cx, cy - 6], tC + .9, { size: 30, weight: 700 });
+  hide(lc, tC + 1.8, .3);
+  cam.to({ x: cx, y: cy, z: 4.5 }, tC + 1.6, tS - tC - 1.7);
+  // strip: the shared pathway strip; enzyme 1 lit, the rest dimmed
+  hide(cam.el, tS - .4, .35);
+  const Z = G(p, { o: 0 });
+  const ps = pathwayStrip(Z, { x: 800, y: 500, w: 1100 });
+  show(Z, tS, .5);
+  prog(k => ps.focus(['enzyme1'], k), tS + .7, .8, io);
+  clockRun(t => ps.flow(t, .9), D);
+  const [ex, ey] = ps.pt('enzyme1');
+  // zoom: the strip grows about enzyme 1 and fades, the large enzyme takes its place
+  tw(Z, { x: 800 - 3 * ex, y: 560 - 3 * ey, s: 3 }, tZ, 1.3, io); hide(Z, tZ + .9, .5);
+  const enz = enzymeBlob(p, { x: 800, y: 620, R: 190, o: 0 }); show(enz, tZ + .9, .6);
+  const gl = siteGlow(p, enz);
+  clockRun(t => mO(gl, mRamp(t, tZ + 1.8, tZ + 2.2) * (.55 + .45 * Math.sin((t - tZ) * 3))), D);
+  const [sx, sy] = enz.site();
+  tag(p, 'active site', [sx + 300, sy - 120], [sx + 70, sy - 20], tZ + 2.1, { size: 34, weight: 700, fill: GLOW, line: GLOW });
+  say(p, 'enzyme 1', 800, 880, tZ + 1.2, { size: 30, weight: 700, fill: MC.enzyme });
+}],
+
+/* ---------- spec ---------- */
+['spec', 'Substrate and active site', (m, D) => {
+  const p = panel(0), tSu = m('sub'), tSi = m('site'), tCo = m('complex'), tSh = m('shape');
+  const R = 180, enz = enzymeBlob(p, { x: 520, y: 620, R });
+  wLabel(p, 'enzyme', { x: 520, y: 700, size: 30, weight: 800, fill: '#26360f', o: 1 });
+  const [sx, sy] = enz.site();
+  const gl = siteGlow(p, enz);
+  const sub = substrateShape(p, { R, o: 0 });
+  const H0 = [250, 210], H1 = [300, 270];
+  const lS = tag(p, 'substrate', [130, 400], [H1[0] - 40, H1[1] + 60], tSu + 1.6, { size: 32, weight: 700, fill: MC.sub, line: MC.sub, sub: 'the reactant it acts on' });
+  hide(lS, tCo + .2, .3);
+  const lA = tag(p, 'active site', [960, 250], [sx + 70, sy - 30], tSi + .4, { size: 32, weight: 700, fill: GLOW, line: GLOW, sub: 'a pocket of a few amino acids' });
+  hide(lA, tSh - .2, .3);
+  const lC = G(p, { o: 0 }); show(lC, tCo + 2, .5);
+  wLabel(lC, 'enzyme-substrate complex', { x: 520, y: 860, size: 34, weight: 700, o: 1 });
+  // the second enzyme: wrong shapes bounce off its pocket, the matching one fits
+  const R2 = 120, e2 = enzymeBlob(p, { x: 1260, y: 640, R: R2, o: 0 }); show(e2, tSh + .2, .5);
+  const [s2x, s2y] = e2.site();
+  const tri = wrongPiece(p, 'tri', { r: 40, o: 0 }), cir = wrongPiece(p, 'cir', { r: 40, o: 0 });
+  const right = substrateShape(p, { R: R2, o: 0 });
+  const x1 = mark(p, false, s2x + 90, s2y - 130), x2 = mark(p, false, s2x - 90, s2y - 130), ok = mark(p, true, s2x + 100, s2y - 30);
+  const B1 = [tSh + 1.2, tSh + 3.4], B2 = [tSh + 3.6, tSh + 5.8], tR = tSh + 6.8;
+  const lSp = G(p, { o: 0 }); show(lSp, tSh + 1, .4);
+  wLabel(lSp, 'specific: fits one shape', { x: 1260, y: 860, size: 32, weight: 700, o: 1 });
+  clockRun(t => {
+    // the substrate drifts in, hovers, then settles into the pocket
+    const a = io(mRamp(t, tSu + .1, tSu + 1.6)), b = io(mRamp(t, tCo + .2, tCo + 1.8));
+    const hx = mLerp(H0[0], H1[0], a) + 6 * Math.sin(t * 1.3) * (1 - b), hy = mLerp(H0[1], H1[1], a) + 8 * Math.cos(t * 1.1) * (1 - b);
+    sub.pose(mLerp(hx, sx, b), mLerp(hy, sy, b)); mO(sub, mRamp(t, tSu, tSu + .4));
+    enz.fit(.35 * io(mRamp(t, tCo + 1.4, tCo + 2.2)));
+    mO(gl, t < tSi ? 0 : (.6 + .4 * Math.sin((t - tSi) * 3)) * (1 - mRamp(t, tCo + 1.4, tCo + 1.8)));
+    // wrong shapes: in, bounce, out
+    const bounce = ([u0, u1], e, from, xm) => {
+      const u = mClamp((t - u0) / (u1 - u0)), down = u < .5 ? io(u / .5) : 1 - io((u - .5) / .5);
+      const top = [s2x + from, s2y - 210], hit = [s2x + from * .1, s2y - R2 * .3 - 40];
+      mPose(e, mLerp(top[0], hit[0], down), mLerp(top[1], hit[1], down), mRamp(t, u0 - .3, u0) * (1 - mRamp(t, u1, u1 + .3)));
+      mO(xm, mRamp(t, u0 + (u1 - u0) * .45, u0 + (u1 - u0) * .5) * (1 - mRamp(t, u1, u1 + .3)));
+    };
+    bounce(B1, tri, -160, x2); bounce(B2, cir, 160, x1);
+    const c = io(mRamp(t, tR, tR + 1.4));
+    right.pose(mLerp(s2x - 200, s2x, c), mLerp(s2y - 200, s2y, c)); mO(right, mRamp(t, tR - .3, tR));
+    e2.fit(.35 * mRamp(t, tR + 1.2, tR + 1.8)); mO(ok, mRamp(t, tR + 1.4, tR + 1.7));
+  }, D);
+  // sucrase leaves other sugars alone
+  say(p, 'like sucrase: sucrose only', 1260, 894, m('sucr') + .3, { size: 24, fill: COL.dim, weight: 600 });
+}],
+
+/* ---------- fit ---------- */
+['fit', 'Induced fit', (m, D) => {
+  const p = panel(0), tO = m('open'), tC = m('close'), tG = m('glove'), tB = m('back');
+  const R = 200, enz = enzymeBlob(p, { x: 540, y: 620, R });
+  const [sx, sy] = enz.site();
+  const sub = substrateShape(p, { R });
+  const grp = pocketGroups(p, enz);
+  // closing arrows at the lips, and the wide gap shown before the substrate comes in
+  const jaws = G(p, { o: 0 }), lipY = 620 - R * .98;
+  mArrow(jaws, [540 - 190, lipY], [540 - 120, lipY], { color: GLOW, w: 6, head: 18 }); mArrow(jaws, [540 + 190, lipY], [540 + 120, lipY], { color: GLOW, w: 6, head: 18 });
+  const gapL = G(p, { o: 0 }); show(gapL, tO + 1.5, .4); hide(gapL, tC + .2, .3);
+  wLabel(gapL, 'a loose pocket', { x: 540, y: lipY - 40, size: 28, weight: 700, fill: GLOW, o: 1 });
+  const lI = tag(p, 'induced fit', [1010, 260], [sx + 80, sy - 40], tC + .6, { size: 36, weight: 700, fill: GLOW, line: GLOW, sub: 'the pocket closes round the substrate' });
+  const lG = G(p, { o: 0 }); show(lG, tC + 6, .5);
+  wLabel(lG, 'its chemical groups line up', { x: 540, y: 870, size: 28, weight: 600, fill: COL.dim, o: 1 });
+  hide(lG, tB, .3);
+  // the glove: loose, then snug round the dashed hand
+  const gv = gloveArt(p, { x: 1300, y: 560, o: 0 }); show(gv, tG + .1, .5);
+  const lV = G(p, { o: 0 }); show(lV, tG + .4, .4);
+  wLabel(lV, 'loose, then it hugs', { x: 1300, y: 760, size: 28, weight: 600, o: 1 });
+  hide(lI, tB - .2, .3);
+  const lB = G(p, { o: 0 }); show(lB, tB + 3, .5);
+  wLabel(lB, 'not used up', { x: 540, y: 860, size: 36, weight: 700, fill: MC.enzyme, o: 1 });
+  wLabel(lB, 'it springs back to its first shape', { x: 540, y: 896 - 6, size: 24, weight: 500, fill: COL.dim, o: 1 });
+  clockRun(t => {
+    // open: from above into the loose pocket; close: induced fit; back: products made, released, the enzyme relaxes
+    const a = io(mRamp(t, tC + .1, tC + 1.3)), bob = (1 - a) * 10 * Math.sin(t * 1.4);
+    const fit = io(mRamp(t, tC + 1.3, tC + 2.8)) * (1 - io(mRamp(t, tB + 1.6, tB + 2.6)));
+    const cv = mRamp(t, tB + .2, tB + .8), sp = io(mRamp(t, tB + 1, tB + 2.2)), up = io(mRamp(t, tB + 1.4, tB + 3));
+    sub.pose(sx, mLerp(sy - 280 + bob, sy, a) - 200 * up);
+    mO(jaws, mBump(t, tC + 1.1, tC + 3.2)); sub.convert(cv); sub.split(sp);
+    mO(sub, 1 - mRamp(t, tB + 2.4, tB + 3));
+    enz.fit(fit); grp.set(fit, fit);
+    gv.set(mRamp(t, tG + 1.2, tG + 2.8));
+  }, D);
+  hide(say(p, 'products', sx + 390, sy - 130, tB + 1.4, { size: 26, fill: MC.prod2, weight: 700 }), tB + 2.8, .4);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const enz = enzymeBlob(p, { x: 320, y: 520, R: 150 });
+  const sub = substrateShape(p, { R: 150 }), grp = pocketGroups(p, enz); const [sx, sy] = enz.site();
+  clockRun(t => { const k = .5 - .5 * Math.cos(t * 1.6); enz.fit(k); grp.set(k, k); sub.pose(sx, sy - 40 * (1 - k)); }, D);
+  wLabel(p, 'the pocket, closing', { x: 320, y: 760, size: 28, weight: 700, fill: GLOW, o: 1 });
+  wLabel(p, 'substrate', { x: 160, y: 250, size: 26, weight: 700, fill: MC.sub, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-induced', prompt: ['What does induced fit mean?'],
+  build: choice([['the substrate turns the enzyme into a different protein, for good'], ['the active site changes shape slightly as the substrate binds, closing round it'],
+    ['the substrate makes the enzyme'], ['the substrate is so small that it fits any enzyme']], 1,
+    'Right. Like a hand in a glove: the pocket is loose, then it hugs the substrate, bringing its chemical groups into place.',
+    ['The change is small and it does not last: when the products leave, the enzyme springs back to its first shape.', null,
+      'An enzyme is made by the cell, not by its substrate. Induced fit is a change of shape as the substrate binds.',
+      'Enzymes are specific: the pocket fits one substrate, or a few close ones. Induced fit is the pocket closing round it.']),
+}], done) }],
+
+/* ---------- ways ---------- */
+['ways', 'Four ways to lower E_A', (m, D) => {
+  const p = panel(0), tE = m('ea'), tW = ['orient', 'strain', 'micro', 'cov'].map(k => m(k)), tLo = m('lower');
+  banner(p, 'How the active site lowers E_A', null, 800, 64, .1, { size: 38 });
+  const ed = energyDiagram(p, { x: 140, y: 780, w: 760, h: 600, size: 28 });
+  const lW = say(p, 'without enzyme', 560, 290, tLo + 1, { size: 24, anchor: 'start', fill: COL.dim, weight: 600 });
+  const lE = say(p, 'with enzyme', 560, 385, tLo + 1.4, { size: 24, anchor: 'start', fill: MC.enzyme, weight: 700 });
+  const ins = WAYS.map((_, i) => wayInset(p, i, { x: 1090, y: 120 + 170 * i, o: .3 }));
+  ins.forEach((g, i) => tw(g, { o: 1 }, tW[i], .4));
+  clockRun(t => {
+    const lo = io(mRamp(t, tLo + .3, tLo + 1.8));
+    ed.set({ r: .62, p: .22, hump: mLerp(.3, .12, lo), ea: mRamp(t, tE + 1, tE + 1.6), dg: mRamp(t, tE + 5.5, tE + 6.1),
+      ghost: .3, ghostO: lo > 0 ? 1 : 0, eaG: mRamp(t, tLo + 1.6, tLo + 2.2), enz: lo, ball: -1, lab: 1, ts: 1, t });
+    ins.forEach((g, i) => g.set(mRamp(t, tW[i] + .3, tW[i] + 1.8), Math.max(0, t - tW[i])));
+  }, D);
+  const cap = G(p, { o: 0 }); show(cap, tLo + 2.6, .5);
+  mk('rect', { x: 1090, y: 806, width: 470, height: 64, rx: 32, fill: '#0b1626', stroke: MC.exo, 'stroke-width': 2.5 }, cap);
+  wChem(cap, 'E_A lower · ΔG unchanged', { x: 1325, y: 848, size: 30, weight: 700, o: 1 });
+}],
+
+/* ---------- cycle ---------- */
+['cycle', 'The catalytic cycle', (m, D) => {
+  const p = panel(0), tc = [1, 2, 3, 4, 5, 6].map(i => m('c' + i)), tLp = m('loop');
+  banner(p, 'The catalytic cycle', null, 560, 70, .1, { size: 40 });
+  const cc = catalyticCycle(p, { x: 560, y: 500, R: 130, labels: false });
+  const [sx, sy] = cc.pt('site'), hw = cc.sub.hw;
+  // weak interactions: short dashes across the pocket walls
+  const weak = G(p, { o: 0 });
+  [-22, 8, 36].forEach(dy => [-1, 1].forEach(sd => path(weak, `M${cF(sx + sd * (hw - 10))} ${cF(sy + dy)}H${cF(sx + sd * (hw + 26))}`, { stroke: '#ffe27a', 'stroke-width': 5, 'stroke-dasharray': '6 6' })));
+  const wl = say(p, 'weak bonds', sx - hw - 40, sy + 8, tc[1] + 1, { size: 24, weight: 700, fill: '#ffe27a', anchor: 'end' }); hide(wl, tc[2], .4);
+  // step 3: a small hump lowers under the ring
+  const mh = miniHump(p, { x: 460, y: 850, w: 200, h: 70, ghost: 70, o: 0 });
+  const mhL = wChem(p, 'E_A', { x: 440, y: 820, size: 26, weight: 700, fill: MC.ea, anchor: 'end', o: 0 });
+  // the step list
+  const ST = [['substrates enter', 'the active site'], ['held by weak interactions', 'hydrogen and ionic bonds'], ['the active site lowers E_A', 'the reaction speeds up'],
+    ['converted to products', 'a new pair of molecules'], ['products released', 'they leave the pocket'], ['active site free again', 'ready for two new substrates']];
+  const rows = ST.map(([a, b], i) => {
+    const g = G(p, { o: 0 }), y = 190 + 98 * i;
+    const bd = badge(g, String(i + 1), 1040, y, { o: 1, r: 26 });
+    wChem(g, a, { x: 1085, y: y + 2, size: 28, weight: 700, anchor: 'start', o: 1 });
+    wLabel(g, b, { x: 1085, y: y + 34, size: 22, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    return Object.assign(g, { bd });
+  });
+  // time → the kit's phase: each narrated step starts at its own phase
+  const K = [[tc[0], 0], [tc[0] + 1.8, .17], [tc[1], .18], [tc[1] + 1.6, .31], [tc[2], .34], [tc[2] + 3, .47], [tc[3], .48], [tc[3] + 1.6, .58],
+    [tc[4], .62], [tc[4] + 2.2, .82], [tc[5], .84], [tLp, .995], [tLp + 7, 1.995]];
+  const uAt = t => keyed(K, t) + (t > tLp + 7 ? (t - tLp - 7) / 7 : 0);
+  clockRun(t => {
+    const u = Math.round(uAt(t) * 2000) / 2000;
+    cc.set(u);
+    const uw = cFrac(u), st = cc.step(u), seen = t >= tLp ? 6 : (t < tc[0] ? 0 : st);
+    rows.forEach((g, i) => { mO(g, i + 1 === st && t >= tc[0] ? 1 : i < seen ? .55 : .2); cAttr(g.bd.disc, 'fill', i + 1 === st && t >= tc[0] ? BADGE : BADGE_OFF); });
+    mO(weak, mRamp(uw, .18, .24) * (1 - mRamp(uw, .58, .64)));
+    const h3 = mRamp(t, tc[2] + .3, tc[2] + 2.5), on = mRamp(t, tc[2], tc[2] + .4) * (1 - mRamp(t, tc[4], tc[4] + .5));
+    mh.set(70 - 40 * io(h3)); mO(mh, on); mO(mhL, on);
+  }, D);
+  const lp = G(p, { o: 0 }); show(lp, tLp + .3, .5);
+  wLabel(lp, 'round again, not used up', { x: 560, y: 860, size: 30, weight: 700, fill: MC.enzyme, o: 1 });
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  catalyticCycle(p, { x: 320, y: 500, R: 85, labels: false }).set(.25);
+  [-120, -60, 0, 60, 120, 180].forEach((a, i) => { const r = a * Math.PI / 180; badge(p, '?', 320 + 215 * Math.cos(r), 500 + 200 * Math.sin(r), { o: 1, r: 24 }); });
+  wLabel(p, 'which step comes when?', { x: 320, y: 790, size: 28, weight: 700, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-order', prompt: ['Number these steps of the catalytic cycle (1 to 6).'],
+  build: blanks([
+    { parts: ['Products are released: step ', { box: '5' }], why: 'Step 5: the products leave the active site.', hint: 'The products come out near the end, just before the site is free again.' },
+    { parts: ['Substrates enter the active site: step ', { box: '1' }], why: 'Step 1: everything starts with the substrates coming in.', hint: 'Nothing can happen before the substrate is in the pocket.' },
+    { parts: ['Substrates are converted to products: step ', { box: '4' }], why: 'Step 4: once the barrier is lowered, the substrates become products.', hint: ['It comes after the active site lowers ', EA(), ' (step 3).'] },
+    { parts: ['Substrates are held by weak interactions: step ', { box: '2' }], why: 'Step 2: hydrogen and ionic bonds hold them, forming the enzyme-substrate complex.', hint: 'The substrate goes in first, then it is held.' },
+  ]),
+}], done) }],
+
+/* ---------- sat ---------- */
+['sat', 'Saturation', (m, D) => {
+  const p = panel(0), tF = m('few'), tM = m('more'), tU = m('full'), tA = m('add');
+  banner(p, 'Worked example: more and more substrate', 'a fixed number of enzymes', 800, 62, .1, { size: 38 });
+  const EX = i => 110 + 120 * i, EY = 560, R = 50;
+  const ens = [0, 1, 2, 3, 4, 5, 6].map(i => enzymeBlob(p, { x: EX(i), y: EY, R, o: i < 5 ? 1 : 0 }));
+  [5, 6].forEach(i => { show(ens[i], tA + .3, .5); });
+  const sites = ens.map(e => e.site());
+  const QS = [0, 1, 2, 3].map(k => [150 + 72 * k, 330]);
+  // each substrate: arrival time, where it lands; queued ones move on to the new enzymes
+  const L = [[tF + .6, 0], [tF + 2, 1], [tM + .6, 2], [tM + 1.8, 3], [tU + .6, 4], [tU + 2.4, 'q0'], [tU + 3.2, 'q1'], [tU + 4, 'q2'], [tU + 4.8, 'q3']];
+  const subs = L.map(([ta, d]) => ({ ta, d, e: substrateShape(p, { R, o: 0 }) }));
+  const move = { 5: [tA + 1.2, 5], 6: [tA + 1.6, 6] };   // q0 → enzyme 6, q1 → enzyme 7
+  const queueLab = G(p, { o: 0 }); show(queueLab, tU + 3, .4); hide(queueLab, tA + 2.2, .4);
+  wLabel(queueLab, 'waiting in line', { x: 450, y: 340, size: 26, weight: 600, anchor: 'start', fill: MC.sub, o: 1 });
+  wLabel(p, 'enzymes, like checkout counters', { x: 470, y: 660, size: 24, weight: 600, fill: COL.dim, o: 1 });
+  const busyT = wLabel(p, '', { x: 470, y: 720, size: 32, weight: 700, o: 1 });
+  // the rate graph: axes from the kit, curves drawn here (five enzymes, then seven)
+  const GX = 1020, GY = 740, rc = rateCurve(p, { x: GX, y: GY, w: 500, h: 520, kind: 'substrate', labels: false }).draw(0);
+  const f = v => rc.rate(0, v) / .96, R5 = .62, R7 = .87;
+  const pt = (sc, v) => [GX + rc.X(v), GY + rc.Y(sc * f(v))];
+  const c5 = path(p, '', { stroke: MC.enzyme, 'stroke-width': 6 }), c7 = path(p, '', { stroke: '#9fd8ff', 'stroke-width': 6 });
+  const curveTo = (sc, v) => { let d = ''; const n = Math.max(1, Math.round(v * 80)); for (let j = 0; j <= n; j++) { const q = pt(sc, v * j / n); d += (j ? 'L' : 'M') + cF(q[0]) + ' ' + cF(q[1]); } return d; };
+  const ball = G(p, { o: 0 }); mk('circle', { r: 13, fill: MC.sub, stroke: MC.subEdge, 'stroke-width': 3 }, ball);
+  clockRun(t => {
+    let busy = 0;
+    subs.forEach((s, j) => {
+      let dest = typeof s.d === 'number' ? sites[s.d] : QS[+s.d.slice(1)];
+      const a = io(mRamp(t, s.ta, s.ta + 1));
+      let x = mLerp(dest[0], dest[0], a), y = mLerp(170, dest[1], a);
+      if (move[j]) { const [tm, ei] = move[j], b = io(mRamp(t, tm, tm + 1)); x = mLerp(dest[0], sites[ei][0], b); y = mLerp(dest[1], sites[ei][1], b); }
+      s.e.pose(x, y); mO(s.e, mRamp(t, s.ta - .2, s.ta + .2));
+      const there = (typeof s.d === 'number' && t >= s.ta + 1) || (move[j] && t >= move[j][0] + 1);
+      if (there) busy++;
+    });
+    // the busy enzymes close round their substrate
+    ens.forEach((e, i) => {
+      const j = subs.findIndex((s, jj) => s.d === i || (move[jj] && move[jj][1] === i));
+      const s = subs[j], ta = move[j] ? move[j][0] : s ? s.ta : 1e9;
+      e.fit(.6 * mRamp(t, ta + .9, ta + 1.3));
+    });
+    const nE = t >= tA + .3 ? 7 : 5;
+    setText(busyT, `busy: ${busy} of ${nE}`);
+    const v = Math.round(keyed([[tF, 0], [tF + .6, 0], [tF + 2.6, .12], [tM + .6, .12], [tM + 2.6, .32], [tU + .6, .32], [tU + 4.8, 1]], t) * 500) / 500;
+    mD(c5, v > 0 ? curveTo(R5, v) : '');
+    const v7 = Math.round(mRamp(t, tA + .4, tA + 1.8) * 500) / 500;
+    mD(c7, v7 > 0 ? curveTo(R7, v7) : '');
+    const up = io(mRamp(t, tA + 1.6, tA + 2.6)), q = pt(mLerp(R5, R7, up), v);
+    mPose(ball, q[0], q[1], t >= tF + .6 ? 1 : 0);
+  }, D);
+  const sl = G(p, { o: 0 }); show(sl, tU + 4.5, .5);
+  const [px, py] = pt(R5, .85);
+  wLabel(sl, 'saturation', { x: px - 20, y: py + 50, size: 30, weight: 700, fill: MC.enzyme, o: 1 });
+  wLabel(sl, 'every active site busy', { x: px - 20, y: py + 82, size: 22, weight: 500, fill: COL.dim, o: 1 });
+  const [qx, qy] = pt(R7, .7);
+  say(p, 'more enzyme, higher rate', qx - 40, qy - 30, tA + 1.8, { size: 26, weight: 700, fill: '#9fd8ff' });
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tw4 = ['w1', 'w2', 'w3', 'w4'].map(k => m(k)), tE = m('end');
+  const ttl = G(p, { o: 0 }); show(ttl, 0, .3);
+  wLabel(ttl, 'Summary: the active site', { x: 800, y: 64, size: 36, weight: 700, o: 1 });
+  const YS = [190, 360, 530, 700];
+  const rowsT = [['substrate + active site', '= the enzyme-substrate complex'], ['specific shapes, induced fit', 'the pocket closes round its substrate'],
+    ['E_A lowered four ways; ΔG unchanged', 'orienting, straining, microenvironment, covalent bonding'], ['the cycle repeats', 'the rate levels off at saturation']];
+  const rows = YS.map((y, i) => {
+    const g = G(p, { o: 0 });
+    mk('rect', { x: 120, y: y - 78, width: 1360, height: 150, rx: 20, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+    wChem(g, rowsT[i][0], { x: 420, y: y - 6, size: 34, weight: 700, anchor: 'start', o: 1 });
+    wLabel(g, rowsT[i][1], { x: 420, y: y + 34, size: 24, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    show(g, tw4[i] + .1, .5);
+    return g;
+  });
+  // icons
+  const e1 = enzymeBlob(rows[0], { x: 270, y: YS[0] + 18, R: 50 }); substrateShape(rows[0], { R: 50 }).pose(...e1.site());
+  const e2 = enzymeBlob(rows[1], { x: 270, y: YS[1] + 18, R: 50 }), s2 = substrateShape(rows[1], { R: 50 }); const [s2x, s2y] = e2.site();
+  miniHump(rows[2], { x: 180, y: YS[2] + 40, w: 180, h: 30, ghost: 70 });
+  const sc = rows[3]; path(sc, `M180 ${YS[3] + 50}H370M180 ${YS[3] + 50}V${YS[3] - 60}`, { stroke: COL.chalk, 'stroke-width': 3 });
+  let d = ''; for (let j = 0; j <= 40; j++) { const v = j / 40, r = v * 1.16 / (.16 + v); d += (j ? 'L' : 'M') + cF(185 + 180 * v) + ' ' + cF(YS[3] + 45 - 80 * r); }
+  path(sc, d, { stroke: MC.enzyme, 'stroke-width': 5 });
+  clockRun(t => { const k = .5 - .5 * Math.cos(t * 1.8); e2.fit(k); s2.pose(s2x, s2y - 16 * (1 - k)); }, D);
+  say(p, 'Now try the chapter practice.', 800, 850, tE, { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const card = g => mk('rect', { x: 980, y: 90, width: 580, height: 720, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+  at('terms', g => {
+    card(g);
+    const e = enzymeBlob(g, { x: 1270, y: 560, R: 150 }); const [sx, sy] = e.site(); e.fit(.4);
+    substrateShape(g, { R: 150 }).pose(sx, sy);
+    tag(g, 'substrate', [1090, 200], [sx - 30, sy - 60], null, { size: 28, weight: 700, fill: MC.sub, line: MC.sub });
+    tag(g, 'active site', [1440, 230], [sx + 60, sy - 10], null, { size: 28, weight: 700, fill: GLOW, line: GLOW });
+    wLabel(g, 'enzyme-substrate complex', { x: 1270, y: 770, size: 28, weight: 700, o: 1 });
+  });
+  at('spec', g => {
+    card(g);
+    const e = enzymeBlob(g, { x: 1270, y: 600, R: 130 }); const [sx, sy] = e.site(); e.fit(.35);
+    substrateShape(g, { R: 130 }).pose(sx, sy);
+    mark(g, true, sx + 110, sy + 10, { o: 1 });
+    wrongPiece(g, 'tri', { x: 1090, y: 220, r: 40 }); mark(g, false, 1090, 300, { o: 1 });
+    wrongPiece(g, 'cir', { x: 1450, y: 220, r: 40 }); mark(g, false, 1450, 300, { o: 1 });
+    wLabel(g, 'one fits, two do not', { x: 1270, y: 790, size: 26, weight: 700, o: 1 });
+  });
+  at('ways', g => {
+    card(g);
+    // unnamed until the answer is right (the captions would give it away)
+    S.ways = WAYS.map((_, i) => wayInset(g, i, { x: 1035, y: 120 + 170 * i, capO: 0 }).set(1, 0));
+  });
+  at('dg', g => {
+    card(g);
+    energyDiagram(g, { x: 1060, y: 690, w: 330, h: 500, size: 22 }).set({ r: .62, p: .22, hump: .12, ghost: .3, ghostO: 1, enz: 1, ea: 1, dg: 1, lab: 0 });
+    wLabel(g, 'with an enzyme', { x: 1270, y: 780, size: 24, weight: 700, fill: MC.enzyme, o: 1 });
+  });
+  at('sat', g => {
+    card(g);
+    [0, 1, 2, 3, 4].forEach(i => { const e = enzymeBlob(g, { x: 1070 + 100 * i, y: 420, R: 40 }); e.fit(.6); substrateShape(g, { R: 40 }).pose(...e.site()); });
+    [0, 1, 2, 3].forEach(k => substrateShape(g, { R: 40 }).pose(1100 + 60 * k, 250));
+    wLabel(g, 'waiting', { x: 1400, y: 262, size: 24, weight: 600, fill: MC.sub, anchor: 'start', o: 1 });
+    path(g, 'M1080 760H1460M1080 760V540', { stroke: COL.chalk, 'stroke-width': 3 });
+    let d = ''; for (let j = 0; j <= 40; j++) { const v = j / 40, r = v * 1.16 / (.16 + v); d += (j ? 'L' : 'M') + cF(1085 + 370 * v) + ' ' + cF(755 - 170 * r); }
+    path(g, d, { stroke: MC.enzyme, 'stroke-width': 5 });
+    wLabel(g, 'substrate →', { x: 1270, y: 792, size: 22, fill: COL.dim, o: 1 });
+    wLabel(g, 'rate', { x: 1066, y: 560, size: 22, fill: COL.dim, anchor: 'end', o: 1 });
+  });
+  at('after', g => {
+    card(g);
+    const e = enzymeBlob(g, { x: 1270, y: 600, R: 150 }); const [sx, sy] = e.site();
+    substrateShape(g, { R: 150, two: true }).place([-60, 0, -25], [60, -30, 20]).pose(sx - 150, sy - 230);
+    mArrow(g, [sx - 100, sy - 130], [sx - 20, sy - 50], { color: COL.dim, w: 4, head: 14 });
+    wLabel(g, 'after step 5', { x: 1270, y: 790, size: 26, weight: 700, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('terms');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-terms', prompt: ['Match each term to what it is.'],
+    build: withPic('terms', grid([
+      { parts: ['substrate'], ans: ['r'], why: 'The substrate is the reactant the enzyme acts on.' },
+      { parts: ['active site'], ans: ['e'], why: 'The active site is a place on the enzyme: the pocket where the substrate binds.' },
+      { parts: ['enzyme-substrate complex'], ans: ['b'], why: 'The complex is the two joined: the enzyme with its substrate in the pocket.' },
+    ], [['e', 'enzyme part', null, 'E'], ['r', 'reactant', null, 'R'], ['b', 'pair', null, 'B']], { multi: false, text: true })) },
+  { id: 'p-spec', prompt: ['Why does an enzyme usually work on only one substrate?'],
+    build: withPic('spec', choice([['it only meets that one molecule in the cell'], ['the shape and chemistry of its active site match that substrate'], ['other molecules destroy it'], ['the substrate makes the enzyme']], 1,
+      'Right. The pocket fits one shape, like a lock fits one key, so molecules of the wrong shape cannot bind.',
+      ['Where it is is not the reason: a molecule of the wrong shape cannot bind, even when it is right beside the enzyme.', null,
+        'Other molecules do not destroy an enzyme; they simply do not fit its active site, so it ignores them.',
+        'The cell makes its enzymes. Specificity comes from the shape of the active site.'])) },
+  { id: 'p-ways', prompt: ['A bond in the substrate is stretched, so it breaks more easily. Which way of lowering the activation energy is this?'],
+    build: withPic('ways', choice([['orienting the substrates'], ['straining the substrate’s bonds'], ['a favourable microenvironment'], ['covalent bonding to the substrate']], 1,
+      'Right. Straining: the active site pulls on the bond that must break. The other three ways are orienting, a favourable microenvironment and a brief covalent bond.',
+      ['Orienting lines two substrates up so they meet in the right position; it does not stretch a bond.', null,
+        'A microenvironment means conditions in the pocket, such as being more acidic than the cell around it.',
+        'Covalent bonding is a brief bond between the active site and the substrate, made and then let go.'],
+      () => (S.ways || []).forEach(w => fxp(q => { put(w.cap, { o: q }); put(w.num, { o: 1 - q }); }, 0, .5)))) },
+  { id: 'p-dg', prompt: ['An enzyme lowers the activation energy of a reaction. What happens to its ΔG?'],
+    build: withPic('dg', choice([['ΔG becomes more negative'], ['ΔG becomes zero'], ['nothing: ΔG stays the same, the reaction is just faster'], ['ΔG becomes positive']], 2,
+      'Right. The enzyme lowers only the hump. The start and the finish stay where they were, so ΔG is unchanged.',
+      ['The enzyme moves only the hump, not the reactant and product levels, so ΔG does not change.',
+        'ΔG = 0 is equilibrium. An enzyme does not change where the reaction ends up, only how fast it gets there.', null,
+        'An enzyme cannot make a downhill reaction uphill: ΔG keeps its sign and its size.'])) },
+  { id: 'p-sat', prompt: ['More and more substrate is added to a fixed amount of enzyme, and the rate stops rising. Why?'],
+    build: withPic('sat', choice([['every active site is already occupied: the enzyme is saturated'], ['the enzyme has been used up'], ['the substrate has changed shape'], ['the activation energy has gone up']], 0,
+      'Right. With every active site busy, extra substrate just waits in line. Only more enzyme raises the rate.',
+      [null, 'Enzymes are not used up: each one goes round its cycle again and again.',
+        'The substrate is the same molecule; the limit is the number of active sites.',
+        'An enzyme lowers the activation energy, and more substrate does not raise it again.'])) },
+  { id: 'p-after', prompt: ['At the end of one cycle, the products have left. The enzyme is…'],
+    build: withPic('after', choice([['used up, and must be made again'], ['free again, with its active site ready for new substrate'], ['stuck to the products'], ['changed into a different enzyme']], 1,
+      'Right. Step 6: the active site is free for two new substrate molecules, and the cycle repeats.',
+      ['Enzymes are not consumed by the reaction; the same molecule works again and again.', null,
+        'The products are released at step 5, so the pocket is empty.',
+        'Induced fit is only a brief change: the enzyme springs back to its first shape.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

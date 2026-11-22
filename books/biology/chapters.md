@@ -51,3 +51,18 @@ Slides cover concept 5.1 (polymers) and concept 5.5 (nucleic acids) only. Slide 
 | chapter-07/lesson-05 | Facilitated diffusion and active transport | 29–35 | 7 | ready |
 | chapter-07/lesson-06 | Membrane potential, ion pumps and cotransport | 36–41 | 7 | ready |
 | chapter-07/lesson-07 | Bulk transport: exocytosis and endocytosis | 42–48 | 7 | ready |
+
+## Unit 8: Chapter 8: An Introduction to Metabolism (source/chapter-08-an-introduction-to-metabolism.pdf, slides)
+
+58 slides, concepts 8.1–8.5 (8.5 marked "Self study" on the slides, taught anyway). No question slides: each lesson writes its own checks and practice. The student's highlighter and Arabic/English notes were checked; loose ones are decided per lesson (e.g. slide 19 "unspontaneous" → nonspontaneous, slide 20's unbalanced glucose equation not used, slide 32's chemical-work notes beside the motor protein). Slide 50 prints sarin under noncompetitive inhibitors; it is taught as an irreversible poison that binds the active site. Every lesson after the first opens on the same metabolic pathway strip (A → B → C → D, enzymes 1–3) with its part lit (the pathway thread); lesson 1 pushes in from a firefly, lesson 8 closes it with feedback inhibition. Shared kit: site/biology/lib/metab.js. Team brief: chapters/chapter-08/BRIEF.md.
+
+| Lesson | Title | Pages | Minutes | Status |
+|---|---|---|---|---|
+| chapter-08/lesson-01 | Metabolism, pathways and forms of energy | 1–10 | 7 | ready |
+| chapter-08/lesson-02 | The laws of thermodynamics | 11–16 | 7 | ready |
+| chapter-08/lesson-03 | Free energy, stability and equilibrium | 17–24 | 7 | ready |
+| chapter-08/lesson-04 | ATP and energy coupling | 25–34 | 7 | ready |
+| chapter-08/lesson-05 | Enzymes and the activation energy barrier | 35–40 | 7 | ready |
+| chapter-08/lesson-06 | The active site and how enzymes catalyse | 41–44 | 7 | ready |
+| chapter-08/lesson-07 | Temperature, pH, cofactors and inhibitors | 45–51 | 7 | ready |
+| chapter-08/lesson-08 | Allosteric regulation and feedback inhibition | 52–58 | 7 | ready |

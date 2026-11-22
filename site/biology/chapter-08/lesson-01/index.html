@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 8, Lesson 1: Metabolism, Pathways and Forms of Energy — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 8 (An Introduction to Metabolism), lesson 1: a firefly at night, pushed into one cell of its tail, the
+// cell as a chemical factory; metabolism as all the reactions, an emergent property; the metabolic pathway strip
+// (A → B → C → D, one specific enzyme per step), which every later lesson of the chapter opens on; catabolic and
+// anabolic pathways, bioenergetics; energy and its forms (kinetic, heat, potential, chemical); a worked example, a ball
+// on a ledge and the firefly's own chain; summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-08/lesson-01.md.
+const CHAPTER = { number: 801, label: '8, lesson 1', title: 'Metabolism, Pathways and Forms of Energy', minutes: 7, language: 'en', lead: false, next: '../lesson-02/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+// The start of the narrated sentence holding str, in beat id (from the voice's own cues).
+const cue = (id, str, off = 0) => { const c = TIMINGS[id].cues.find(q => q[1].includes(str)); if (!c) throw new Error(`${id}: no cue "${str}"`); return c[0] + off; };
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g);
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A title and a dim second line, centred; fades in at t0 (null: shown at once).
+function banner(p, a, b, x, y, t0, { color = COL.chalk, size = 40 } = {}) {
+  const g = G(p, { o: 0 });
+  wLabel(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wLabel(g, b, { x, y: y + size * .95, size: size * .62, fill: COL.dim, weight: 500, o: 1 });
+  if (t0 !== null) show(g, t0, .5); else put(g, { o: 1 });
+  return g;
+}
+// A dark pill with one line of text, centred on x.
+function pill(p, str, x, y, t0, { size = 30, color = COL.chalk, edge = COL.chalk } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size) + 70;
+  mk('rect', { x: x - w / 2, y: y - size * 1.05, width: w, height: size * 1.9, rx: size * .95, fill: '#0b1626', stroke: edge, 'stroke-opacity': .6, 'stroke-width': 2.5 }, g);
+  wLabel(g, str, { x, y: y + size * .02, size, weight: 700, fill: color, o: 1 });
+  if (t0 !== null) show(g, t0, .5); else put(g, { o: 1 });
+  return g;
+}
+const panelCard = (g, x, y, w, h) => mk('rect', { x, y, width: w, height: h, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+
+// pathwayStrip's flow dots on the middle arrow pass x = 0 on the strip's centre line, where the engine drops their
+// transform attribute and later adds it back after the opacity: a seek and a step-through then write the markup in a
+// different order (the replay check compares it). A scale of .999, which the kit never writes, keeps the transform.
+function primeDots(sp) { sp.arrows.forEach(a => a.querySelectorAll('circle').forEach(c => put(c, { s: .999 }))); return sp; }
+
+/* ---------- local pieces ---------- */
+// A cell drawn flat: membrane, cytoplasm, a nucleus on the left, small molecules with reaction arrows between pairs.
+// .arrs (one group each), .mols (their group), .halo (a soft glow round the whole cell, o 0).
+function cellArt(p, { x = 800, y = 480, rx = 600, ry = 300, n = 22, seed = 4, o = 1, minD = 78, nuc = true, r = 14 } = {}) {
+  const g = G(p, { x, y, o });
+  const halo = G(g, { o: 0 });
+  [70, 44, 22].forEach((d, i) => mk('ellipse', { rx: rx + d, ry: ry + d, fill: 'none', stroke: MC.glow, 'stroke-width': 26, 'stroke-opacity': [.12, .2, .32][i] }, halo));
+  mk('ellipse', { rx, ry, fill: MC.cyto, stroke: CC.membrane, 'stroke-width': 12 }, g);
+  const NX = -rx * .62, NR = Math.min(ry * .42, 130);
+  if (nuc) mk('circle', { cx: NX, cy: 0, r: NR, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 6 }, g);
+  const pts = [];
+  for (let i = 0; pts.length < n && i < n * 120; i++) {
+    const px = (wHash(i, seed) - .5) * 2 * rx * .86, py = (wHash(i, seed + 17) - .5) * 2 * ry * .8;
+    if ((px / (rx * .86)) ** 2 + (py / (ry * .8)) ** 2 > 1) continue;
+    if (nuc && Math.hypot(px - NX, py) < NR + 40) continue;
+    if (pts.some(q => Math.hypot(q[0] - px, q[1] - py) < minD)) continue;
+    pts.push([px, py]);
+  }
+  const arrL = G(g), mols = G(g), KINDS = ['sugar', 'dye1', 'dye2', 'sugar', 'dye2', 'dye1'];
+  pts.forEach(([px, py], i) => solute(mols, KINDS[i % KINDS.length], { x: px, y: py, r, label: false }));
+  // each molecule points at its nearest neighbour not yet used as a target
+  const arrs = [], used = new Set();
+  pts.forEach((a, i) => {
+    let best = -1, bd = 1e9;
+    pts.forEach((b, j) => { if (j === i || used.has(j)) return; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (d < bd) { bd = d; best = j; } });
+    if (best < 0 || bd > minD * 2.2) return;
+    used.add(best);
+    const b = pts[best], L = bd, ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
+    const ag = G(arrL, { o: 1 });
+    mArrow(ag, [cF(a[0] + ux * (r + 8)), cF(a[1] + uy * (r + 8))].map(Number), [cF(b[0] - ux * (r + 8)), cF(b[1] - uy * (r + 8))].map(Number), { color: COL.chalk, w: 4, head: 12 });
+    arrs.push(ag);
+  });
+  return Object.assign(g, { arrs, mols, halo, pts });
+}
+// A gear around its origin; .spin(deg).
+function gear(p, { x = 0, y = 0, R = 60, teeth = 10, color = '#c9b27a', edge = '#8f7a48' } = {}) {
+  const g = G(p, { x, y }), rot = G(g);
+  let d = '';
+  for (let i = 0; i < teeth * 4; i++) {
+    const a = i / (teeth * 4) * 2 * Math.PI, r = (i % 4 < 2) ? R : R * .78;
+    d += (i ? 'L' : 'M') + cF(r * Math.cos(a)) + ' ' + cF(r * Math.sin(a));
+  }
+  path(rot, d + 'Z', { fill: color, stroke: edge, 'stroke-width': 3 });
+  mk('circle', { r: R * .28, fill: MC.cyto, stroke: edge, 'stroke-width': 3 }, rot);
+  return Object.assign(g, { spin(deg) { cSet(rot, { r: deg }); return g; } });
+}
+// A short row of amino acids that joins into a chain: .join(k) (0 apart, 1 bonded).
+function aminoRow(p, { x = 0, y = 0, n = 5, R = 28, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o }), sp = 2 * R + 16;
+  const FROM = [[-170, -60], [-90, 50], [0, -70], [90, 60], [175, -40]];
+  const bonds = [], beads = [];
+  for (let i = 1; i < n; i++) bonds.push(path(g, `M${(i - 1 - (n - 1) / 2) * sp + R - 4} 0H${(i - (n - 1) / 2) * sp - R + 4}`, { stroke: WC.stick, 'stroke-width': 9 }, { o: 0 }));
+  for (let i = 0; i < n; i++) beads.push(monomerBead(g, 'amino', { R }));
+  return Object.assign(g, {
+    beads,
+    join(k) {
+      k = rk(k);
+      beads.forEach((b, i) => { const a = io(mRamp(k, i * .12, i * .12 + .5)), f = FROM[i % FROM.length]; mPose(b, mLerp(f[0] * 1.3, (i - (n - 1) / 2) * sp, a), mLerp(f[1], 0, a), 1); });
+      bonds.forEach((bd, i) => mO(bd, mRamp(k, (i + 1) * .12 + .4, (i + 1) * .12 + .5)));
+      return g;
+    },
+  }).join(0);
+}
+const rk = k => Math.round(mClamp(k) * 2000) / 2000;
+// Glucose broken down: a gold hexagon that fades as small pieces fly out. .set(k) 0 whole, 1 broken.
+function glucoseBreak(p, { x = 0, y = 0, s = 1, o = 1, R = 50 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const burst = energyBurst(g, { r: R * 1.4, color: MC.exo }), F = R / 60;
+  const glu = solute(g, 'sugar', { r: R, label: false });
+  const gl = wLabel(glu, 'glucose', { y: 8, size: Math.round(R * .42), fill: '#24160a', weight: 800, o: 1 });
+  const PIECES = [['CO2', -120, -70], ['water', 110, -90], ['CO2', 140, 40], ['water', -40, 120], ['CO2', -150, 60], ['water', 60, -140]];
+  const pcs = PIECES.map(([kd]) => solute(g, kd, { r: Math.max(12, 18 * F), label: false }));
+  return Object.assign(g, {
+    burst, glu,
+    set(k) {
+      k = rk(k);
+      const b = io(mRamp(k, .1, .7));
+      mO(glu, 1 - mRamp(k, .05, .25));
+      pcs.forEach((e, i) => mPose(e, PIECES[i][1] * F * b, PIECES[i][2] * F * b, mRamp(k, .05, .2)));
+      burst.set(mRamp(k, .05, 1));
+      return g;
+    },
+  }).set(0);
+}
+// A stone on a wall shelf, a drop line under it (potential energy from location).
+function stoneShelf(p, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  path(g, 'M-110 -90H40M40 -90V-60L0 -90', { stroke: '#c9b27a', 'stroke-width': 10 });
+  path(g, 'M-110 -150V60', { stroke: '#5a6f8a', 'stroke-width': 8 });
+  path(g, 'M-48 -94Q-70 -96 -66 -122Q-58 -150 -28 -148Q4 -150 8 -122Q10 -96 -14 -94Z', { fill: '#9aa3ad', stroke: '#5e6670', 'stroke-width': 3 });
+  path(g, 'M-28 -84V50', { stroke: COL.dim, 'stroke-width': 3, 'stroke-dasharray': '8 8' });
+  path(g, 'M-150 60H130', { stroke: '#5a6f8a', 'stroke-width': 5 });
+  return g;
+}
+// A rolling ball with speed streaks; .set(t) rolls it left to right, over and over.
+function rollingBall(p, { x = 0, y = 0, s = 1, span = 220, r = 26 } = {}) {
+  const g = G(p, { x, y, s });
+  path(g, `M${-span / 2 - 40} ${r}H${span / 2 + 40}`, { stroke: '#5f8f6a', 'stroke-width': 5 });
+  const streaks = G(g, { s: .999 });   // never an identity transform: see primeDots
+  path(streaks, `M${-r - 14} -8H${-r - 54}M${-r - 10} 6H${-r - 70}M${-r - 18} 18H${-r - 44}`, { stroke: COL.dim, 'stroke-width': 4 });
+  const ball = G(g);
+  mk('circle', { r, fill: MC.exo, stroke: '#a85f12', 'stroke-width': 3 }, ball);
+  path(ball, `M${-r + 3} 0H${r - 3}`, { stroke: '#a85f12', 'stroke-width': 5 });
+  return Object.assign(g, {
+    set(t) {
+      const u = cFrac(Math.round(t * 60) / 60 * .28), bx = -span / 2 + span * u, fade = Math.sin(Math.PI * u);
+      cSet(ball, { x: bx, r: (bx + span / 2) / r * 57.3, o: Math.min(1, fade * 3) });
+      cSet(streaks, { x: bx, o: fade });
+      return g;
+    },
+  }).set(0);
+}
+// The four energy-form pictures (kinetic, heat, potential, chemical) at a point, scaled; .set(t) animates them.
+function formIcon(p, i, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  let a = null;
+  if (i === 0) a = rollingBall(g, { y: 10 });
+  if (i === 1) a = entropyDots(g, { w: 250, h: 200, n: 24, box: false, seed: 7 });
+  if (i === 2) stoneShelf(g, { y: 20 });
+  if (i === 3) { const glu = solute(g, 'sugar', { r: 62, label: false }); wLabel(glu, 'glucose', { y: 9, size: 26, fill: '#24160a', weight: 800, o: 1 }); a = energyBurst(g, { x: 62, y: -58, r: 30 }); }
+  return Object.assign(g, {
+    set(t) {
+      if (i === 0) a.set(t);
+      if (i === 1) a.set(1, t);
+      if (i === 3) a.set(rk(.05 + .9 * cFrac(Math.round(t * 60) / 60 / 1.8)));
+      return g;
+    },
+  }).set(0);
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A firefly at night', (m, D) => {
+  const p = panel(0), tN = m('night'), tG = m('glow'), tP = m('push'), tF = m('factory');
+  const cam = camera(p, D, { x: 760, y: 470, z: 1.2 }), W = cam.world;
+  const BX = -220, BY = 50;
+  const ff = firefly(W, { x: 800, y: 450, bx: BX, by: BY, o: 0 });
+  show(ff, .1, .6);
+  put(ff.bug, { o: .25 }); tw(ff.bug, { o: 1 }, tN, .8);
+  // the light: rays round the glowing abdomen, as bright as its glow
+  const rays = G(W, { o: 0 }), ry = G(rays);
+  let rd = '';
+  for (let i = 0; i < 10; i++) { const an = i / 10 * 2 * Math.PI; rd += `M${cF(150 * Math.cos(an))} ${cF(150 * Math.sin(an))}L${cF(205 * Math.cos(an))} ${cF(205 * Math.sin(an))}`; }
+  path(ry, rd, { stroke: MC.glow, 'stroke-width': 6 });
+  show(rays, tG + .2, .5);
+  clockRun(t => { ff.set(t); const [gx, gy] = ff.pt('glow'); mPose(ry, gx, gy, Math.round(ff.glowK(t) * 100) / 100); }, D);
+  // the title card, in the sky to the right, under the moon
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 8 · LESSON 1', { x: 1150, y: 315, size: 26, fill: COL.dim, o: 1 });
+  ['Metabolism, pathways', 'and forms of energy'].forEach((s, i) => wLabel(ttl, s, { x: 1150, y: 395 + i * 66, size: 52, o: 1 }));
+  wLabel(ttl, 'An introduction to metabolism', { x: 1150, y: 540, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tG - .3, .5);
+  // glow: the name of it, beside the light
+  const gx0 = 800 + BX - 80, gy0 = 450 + BY + 6;
+  const lb = tag(W, 'bioluminescence', [gx0 + 300, gy0 - 190], [gx0 + 140, gy0 - 90], tG + 3.6, { size: 34, weight: 700, fill: MC.glow, line: MC.glow, sub: 'chemical energy → light' });
+  hide(lb, tP, .4);
+  // push: into the glowing tail, then the cell
+  cam.to({ x: gx0, y: gy0, z: 5 }, tP + .3, tF - tP - .9);
+  hide(cam.el, tF - .55, .35);
+  // factory: one cell of the tail, with gears and a line of molecules; energy in from food, work out
+  const fac = G(p, { o: 0 }); show(fac, tF - .2, .5);
+  const cell = cellArt(fac, { x: 800, y: 480, rx: 600, ry: 300, n: 0, nuc: true });
+  const g1 = gear(fac, { x: 720, y: 390, R: 72, teeth: 11 }), g2 = gear(fac, { x: 830, y: 320, R: 46, teeth: 7, color: '#d2a878', edge: '#8a6a40' });
+  const g3 = gear(fac, { x: 1110, y: 380, R: 58, teeth: 9, color: '#a9c6ea', edge: '#5b82b8' });
+  const belt = G(fac);
+  mk('rect', { x: 560, y: 560, width: 640, height: 26, rx: 13, fill: '#2c4568', stroke: '#8fa3bd', 'stroke-width': 3 }, belt);
+  [580, 1180].forEach(cx => mk('circle', { cx, cy: 573, r: 16, fill: '#8fa3bd' }, belt));
+  const KD = ['sugar', 'dye1', 'dye2', 'sugar', 'dye2', 'dye1', 'sugar'];
+  const rides = KD.map(kd => solute(fac, kd, { r: 18, label: false }));
+  const fIn = G(fac, { o: 0 }), fOut = G(fac, { o: 0 });
+  solute(fIn, 'sugar', { x: 70, y: 480, r: 26, label: false });
+  mArrow(fIn, [106, 480], [240, 480], { color: MC.exo, w: 7, head: 20 });
+  wLabel(fIn, 'energy in', { x: 120, y: 410, size: 28, weight: 700, fill: MC.exo, o: 1 });
+  wLabel(fIn, 'from food', { x: 120, y: 444, size: 22, weight: 500, fill: COL.dim, o: 1 });
+  mArrow(fOut, [1360, 480], [1500, 480], { color: MC.glow, w: 7, head: 20 });
+  wLabel(fOut, 'work out', { x: 1480, y: 410, size: 28, weight: 700, fill: MC.glow, o: 1 });
+  wLabel(fOut, 'light, motion', { x: 1480, y: 444, size: 22, weight: 500, fill: COL.dim, o: 1 });
+  show(fIn, cue('intro', 'It pulls energy') + .2, .4); show(fOut, cue('intro', 'It pulls energy') + 2.4, .4);
+  banner(fac, 'a miniature chemical factory', 'thousands of reactions at once', 800, 92, tF + .8, { size: 40 });
+  clockRun(t => {
+    const u = Math.max(0, t - tF), q = Math.round(u * 60) / 60;
+    g1.spin(q * 40); g2.spin(-q * 40 * 72 / 46 + 12); g3.spin(q * 50);
+    rides.forEach((e, i) => { const w = cFrac(q * .1 + i / rides.length); mPose(e, 590 + 580 * w, 540, Math.min(1, Math.sin(Math.PI * w) * 3)); });
+  }, D);
+}],
+
+/* ---------- metab ---------- */
+['metab', 'Metabolism', (m, D) => {
+  const p = panel(0), tT = m('total'), tE = m('emerge');
+  const cell = cellArt(p, { x: 800, y: 500, rx: 600, ry: 290, n: 26, r: 19, minD: 74 });
+  const tLone = cue('metab', 'No single molecule'), tOut = cue('metab', 'Take the molecules out');
+  // total: every reaction arrow lights, one after another
+  const br = G(p, { o: 0 }); show(br, tT + 2, .5); hide(br, tE - .2, .4);
+  path(br, 'M220 200V182H1380V200', { stroke: COL.chalk, 'stroke-width': 4 });
+  banner(br, 'metabolism', 'all of an organism’s chemical reactions', 800, 96, null, { size: 44 });
+  // emerge: the molecules dim, the whole cell glows
+  const eb = G(p, { o: 0 }); show(eb, tE + .3, .5);
+  banner(eb, 'an emergent property', 'it arises from molecules interacting in the cell', 800, 96, null, { size: 44, color: MC.glow });
+  show(cell.halo, tE + .4, .8); hide(cell.halo, tOut + .4, .6);
+  tw(cell.mols, { o: .55 }, tE + .4, .6);
+  // one molecule on its own: no metabolism
+  const lone = G(p, { o: 0 }); show(lone, tLone + .2, .4);
+  solute(lone, 'sugar', { x: 1500, y: 830, r: 18, label: false });
+  wLabel(lone, 'one molecule alone:', { x: 1462, y: 822, size: 26, anchor: 'end', weight: 600, o: 1 });
+  wLabel(lone, 'no metabolism', { x: 1462, y: 854, size: 26, anchor: 'end', weight: 600, fill: COL.dim, o: 1 });
+  const gone = G(p, { o: 0 }); show(gone, tOut + .6, .4);
+  wLabel(gone, 'no interactions, no metabolism', { x: 140, y: 860, size: 26, anchor: 'start', weight: 600, fill: COL.dim, o: 1 });
+  clockRun(t => {
+    const n = cell.arrs.length, off = mRamp(t, tOut + .3, tOut + 1.1);
+    cell.arrs.forEach((a, i) => {
+      const lit = mRamp(t, tT + .2 + 1.6 * i / n, tT + .5 + 1.6 * i / n), osc = .78 + .22 * Math.sin(t * 3 + i * 1.3);
+      mO(a, Math.round(mLerp(.14, osc, lit * (1 - off)) * 100) / 100);
+    });
+  }, D);
+}],
+
+/* ---------- pathway ---------- */
+['pathway', 'A metabolic pathway', (m, D) => {
+  const p = panel(0), tA = m('a'), tB = m('b'), tC = m('c'), tD = m('d'), tEn = m('enz'), tS = m('spec');
+  banner(p, 'a metabolic pathway', 'the cell’s assembly line', 800, 92, .3, { size: 42 });
+  const sp = primeDots(pathwayStrip(p, { x: 800, y: 420, w: 1000, s: 1.2 }));
+  const enzL = sp.enzymes[0].parentNode;
+  put(enzL, { o: 0 }); show(enzL, tEn + .2, .5);
+  const tOne = cue('pathway', 'Enzyme one');
+  sp.enzymes.forEach((e, i) => pulse(e, tOne + .1 + .85 * i, 1.25));
+  [tA, tB, tC, tD].forEach((t0, i) => pulse(sp.mols[i], t0 + .1, 1.12));
+  clockRun(t => {
+    const lit = ['mol0'];
+    if (t >= tB) lit.push('arrow1', 'mol1');
+    if (t >= tC) lit.push('arrow2', 'mol2');
+    if (t >= tD) lit.push('arrow3', 'mol3');
+    if (t >= tEn) lit.push('enzymes');
+    sp.focus(t < tA ? ['none'] : lit, 1);
+    sp.flow(t, [mRamp(t, tB, tB + .6), mRamp(t, tC, tC + .6), mRamp(t, tD, tD + .6)]);
+  }, D);
+  // spec: three enzymes with three different sites, each fitting its own molecule
+  const tThree = cue('pathway', 'Three reactions');
+  const XS = [1, 2, 3].map(i => sp.pt('arrow' + i)[0]), COLS = [MC.pathA, MC.pathB, MC.pathC];
+  const NOTCH = ['M-24 -44V-18H24V-44', 'M-26 -46L0 -14L26 -46', 'M-26 -46A26 26 0 0 0 26 -46'];
+  const FIT = ['M-22 -42V-62H22V-42Z', 'M-24 -64L0 -32L24 -64Z', 'M-24 -64H24A24 24 0 0 1 -24 -64Z'];
+  const keys = [];
+  XS.forEach((x, i) => {
+    const g = G(p, { x, y: 730, s: 1.25, o: 0 }); show(g, tS + .2 + .4 * i, .4);
+    path(g, `M-64 -46Q-80 30 -30 52Q0 64 30 52Q80 30 64 -46Z`, { fill: MC.enzyme, stroke: MC.enzymeEdge, 'stroke-width': 3.5 });
+    path(g, NOTCH[i], { stroke: MC.cyto, 'stroke-width': 10, 'stroke-linejoin': 'round' });
+    const piece = path(g, FIT[i], { fill: COLS[i], stroke: mix(COLS[i], '#000000', .35), 'stroke-width': 3 });
+    const pg = G(g); pg.appendChild(piece); keys.push(pg);
+    wLabel(g, 'enzyme ' + (i + 1), { y: 20, size: 22, fill: '#26360f', weight: 800, o: 1 });
+  });
+  clockRun(t => keys.forEach((k, i) => { const a = io(mRamp(t, tS + 1.2 + .5 * i, tS + 1.9 + .5 * i)); mPose(k, 0, -50 * (1 - a), 1); }), D);
+  say(p, 'one specific enzyme per step', 800, 836, tS + 1.6, { size: 32, weight: 700 });
+  say(p, '3 reactions · 3 enzymes', 800, 874, tThree + .1, { size: 26, fill: COL.dim, weight: 600 });
+}],
+
+/* ---------- cata ---------- */
+['cata', 'Catabolic and anabolic', (m, D) => {
+  const p = panel(0), tC = m('cat'), tR = m('resp'), tA = m('ana'), tP = m('prot'), tB = m('bio');
+  const LX = 400, RX = 1200, MY = 360;
+  path(p, 'M800 150V760', { stroke: COL.faint, 'stroke-width': 3, 'stroke-dasharray': '10 12' });
+  // left: glucose and oxygen; the oxygen comes in and the glucose breaks into small pieces, releasing energy
+  const gb = glucoseBreak(p, { x: LX, y: MY, R: 70 });
+  const O2 = [[230, 210], [570, 220]].map(([x, y]) => solute(p, 'O2', { x, y, r: 26 }));
+  say(p, 'glucose + oxygen', LX, 150, .4, { size: 26, fill: COL.dim, weight: 600 });
+  say(p, 'simpler compounds', LX - 150, MY + 200, tC + 3, { size: 24, fill: COL.dim, weight: 600 });
+  const eOut = G(p, { o: 0 });
+  mArrow(eOut, [LX + 110, MY + 70], [LX + 250, MY + 170], { color: MC.exo, w: 7, head: 22 });
+  wLabel(eOut, 'energy released', { x: LX + 250, y: MY + 222, size: 26, weight: 700, fill: MC.exo, o: 1 });
+  show(eOut, tC + 2.2, .4);
+  const lc = G(p, { o: 0 }); show(lc, tC + 1.2, .5);
+  wLabel(lc, 'catabolic', { x: LX, y: 640, size: 40, weight: 800, fill: MC.exo, o: 1 });
+  wLabel(lc, 'breaks down · releases energy', { x: LX, y: 680, size: 26, weight: 600, o: 1 });
+  const rc = G(p, { o: 0 }); show(rc, tR + .3, .5);
+  wLabel(rc, 'e.g. cellular respiration:', { x: LX, y: 740, size: 26, weight: 600, fill: COL.dim, o: 1 });
+  wLabel(rc, 'glucose + oxygen', { x: LX, y: 776, size: 26, weight: 700, o: 1 });
+  // right: amino acids join into a chain, energy goes in
+  const ar = aminoRow(p, { x: RX, y: MY, R: 30 });
+  const eIn = G(p, { o: 0 });
+  mArrow(eIn, [RX + 250, 190], [RX + 150, 310], { color: MC.endo, w: 7, head: 22 });
+  wLabel(eIn, 'energy in', { x: RX + 200, y: 170, size: 26, weight: 700, fill: MC.endo, anchor: 'start', o: 1 });
+  show(eIn, tA + 1.6, .4);
+  const la = G(p, { o: 0 }); show(la, tA + .6, .5);
+  wLabel(la, 'anabolic', { x: RX, y: 640, size: 40, weight: 800, fill: MC.endo, o: 1 });
+  wLabel(la, 'builds up · uses energy', { x: RX, y: 680, size: 26, weight: 600, o: 1 });
+  const ra = G(p, { o: 0 }); show(ra, tP + .3, .5);
+  wLabel(ra, 'e.g. protein synthesis:', { x: RX, y: 740, size: 26, weight: 600, fill: COL.dim, o: 1 });
+  wLabel(ra, 'amino acids → protein', { x: RX, y: 776, size: 26, weight: 700, o: 1 });
+  const lp = G(p, { o: 0 }); show(lp, tA + 4.2, .4);
+  wLabel(lp, 'protein', { x: RX, y: MY + 80, size: 24, weight: 600, fill: COL.dim, o: 1 });
+  wLabel(p, 'amino acids', { x: RX, y: 150, size: 24, weight: 600, fill: COL.dim, o: 1 });
+  // both together: breaking down pays for building up
+  const tBoth = cue('cata', 'Both kinds work together');
+  const both = G(p, { o: 0 }); show(both, tBoth + .2, .5);
+  const arc = path(both, `M${LX + 150} ${MY - 120}Q800 ${MY - 300} ${RX - 160} ${MY - 120}`, { stroke: MC.exo, 'stroke-width': 6, 'stroke-dasharray': '14 10' });
+  mArrow(both, [RX - 196, MY - 150], [RX - 160, MY - 120], { color: MC.exo, w: 6, head: 20 });
+  wLabel(both, 'breaking down pays for building up', { x: 800, y: MY - 230, size: 26, weight: 700, fill: MC.spark, o: 1 });
+  pill(p, 'bioenergetics: how organisms manage their energy', 800, 856, tB + .3, { size: 28, edge: MC.spark });
+  clockRun(t => {
+    const a = io(mRamp(t, tC + .1, tC + 1.1));
+    O2.forEach((e, i) => { const [x0, y0] = i ? [570, 220] : [230, 210]; mPose(e, mLerp(x0, LX + (i ? 40 : -40), a), mLerp(y0, MY - 20, a), 1 - mRamp(t, tC + 1, tC + 1.3)); });
+    gb.set(mRamp(t, tC + 1.1, tC + 3.1));
+    ar.join(mRamp(t, tA + .3, tA + 3.3));
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const gb = glucoseBreak(p, { x: 320, y: 270, R: 54 }); gb.set(.55);
+  wLabel(p, 'breaking down', { x: 320, y: 450, size: 28, weight: 700, fill: MC.exo, o: 1 });
+  const ar = aminoRow(p, { x: 320, y: 640, R: 26 }); ar.join(1);
+  wLabel(p, 'building up', { x: 320, y: 730, size: 28, weight: 700, fill: MC.endo, o: 1 });
+  wLabel(p, 'which is which?', { x: 320, y: 120, size: 30, weight: 700, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-cat-ana', prompt: ['Catabolic or anabolic?'],
+  build: grid([
+    { parts: ['glucose broken down with oxygen'], ans: ['c'], why: 'Catabolic: cellular respiration breaks glucose down. Anabolic pathways build up.' },
+    { parts: ['building a protein from amino acids'], ans: ['a'], why: 'Anabolic: it builds a large molecule from small ones. Catabolic pathways break down.' },
+    { parts: ['releases energy as it breaks molecules down'], ans: ['c'], why: 'Catabolic: breaking down releases energy.' },
+    { parts: ['uses energy to build complex molecules'], ans: ['a'], why: 'Anabolic: building up uses energy.' },
+    { parts: ['breaks complex molecules into simpler compounds'], ans: ['c'], why: 'Catabolic: complex to simple is breaking down.' },
+  ], [['c', 'catabolic', null, 'C'], ['a', 'anabolic', null, 'A']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- energy ---------- */
+['energy', 'Forms of energy', (m, D) => {
+  const p = panel(0), tCap = m('cap'), tK = m('kin'), tH = m('heat'), tP = m('pot'), tCh = m('chem');
+  const tConv = cue('energy', 'And energy can be converted'), tRoll = cue('energy', 'A rolling ball');
+  banner(p, 'energy: the capacity to cause change', 'some forms of energy can do work', 800, 92, tCap + .2, { size: 42 });
+  const XS = [230, 610, 990, 1370], TY = 230, TW = 330, TH = 330;
+  const NAMES = [['kinetic', MC.exo, 'energy of motion', ''], ['heat (thermal)', MC.exo, 'random motion of', 'atoms and molecules'],
+    ['potential', MC.endo, 'from location', 'or structure'], ['chemical', MC.endo, 'potential energy for', 'release in a reaction']];
+  const tiles = XS.map((x, i) => {
+    const g = G(p, { o: 0 });
+    panelCard(g, x - TW / 2, TY, TW, TH);
+    const ic = formIcon(g, i, { x, y: TY + TH / 2 + (i === 2 ? 0 : 6), s: i === 3 ? .95 : 1 });
+    const lab = G(g, { o: 0 });
+    wLabel(lab, NAMES[i][0], { x, y: TY + TH + 50, size: 32, weight: 800, fill: NAMES[i][1], o: 1 });
+    wLabel(lab, NAMES[i][2], { x, y: TY + TH + 86, size: 22, weight: 500, fill: COL.dim, o: 1 });
+    if (NAMES[i][3]) wLabel(lab, NAMES[i][3], { x, y: TY + TH + 114, size: 22, weight: 500, fill: COL.dim, o: 1 });
+    return Object.assign(g, { ic, lab });
+  });
+    [tK, tH, tP, tCh].forEach((t0, i) => { tw(tiles[i], { o: 1 }, t0, .3); show(tiles[i].lab, t0 + .2, .4); });
+  // the tiles wait dim until their name is said
+  tiles.forEach((g, i) => tw(g, { o: .35 }, tCap + 2.4 + .2 * i, .5));
+  // two families: motion, and stored by place or structure
+  const fk = G(p, { o: 0 }); show(fk, cue('energy', 'is kinetic energy too') + .2, .5);
+  path(fk, `M${XS[0] - 150} 718V738H${XS[1] + 150}V718`, { stroke: MC.exo, 'stroke-width': 4 });
+  wLabel(fk, 'kinetic: motion', { x: (XS[0] + XS[1]) / 2, y: 776, size: 28, weight: 700, fill: MC.exo, o: 1 });
+  const fp = G(p, { o: 0 }); show(fp, tCh + 3, .5);
+  path(fp, `M${XS[2] - 150} 718V738H${XS[3] + 150}V718`, { stroke: MC.endo, 'stroke-width': 4 });
+  wLabel(fp, 'potential: stored', { x: (XS[2] + XS[3]) / 2, y: 776, size: 28, weight: 700, fill: MC.endo, o: 1 });
+  // convert: arrows between the tiles
+  const cv = G(p, { o: 0 }); show(cv, tConv + .3, .5);
+  [0, 1, 2].forEach(i => {
+    const x = (XS[i] + XS[i + 1]) / 2;
+    mArrow(cv, [x - 22, TY + 140], [x + 22, TY + 140], { color: MC.spark, w: 5, head: 14 });
+    mArrow(cv, [x + 22, TY + 190], [x - 22, TY + 190], { color: MC.spark, w: 5, head: 14 });
+  });
+  pill(p, 'energy converts from one form to another', 800, 850, tConv + .6, { size: 28, edge: MC.spark });
+  [0, 1, 2, 3].forEach(i => pulse(tiles[i].ic, tRoll + .2 + .9 * i, 1.08));
+  clockRun(t => tiles.forEach(g => g.ic.set(t)), D);
+}],
+
+/* ---------- example ---------- */
+['example', 'A ball on a ledge', (m, D) => {
+  const p = panel(0), tL = m('ledge'), tF = m('fall'), tC = m('climb'), tCh = m('chain');
+  const bs = ballSlope(p, { x: 470, y: 730, w: 760, h: 340 });
+  wLabel(p, 'a ball on a ledge', { x: 470, y: 120, size: 36, weight: 700, o: 1 });
+  const tPush = cue('example', 'A push spends');
+  const l1 = tag(p, 'high: more potential energy', [250, 270], [160, 352], tL + .4, { size: 28, weight: 700, fill: MC.endo, line: MC.endo });
+  const l2 = say(p, 'potential → kinetic', 520, 340, tF + .8, { size: 30, weight: 700, fill: MC.exo, anchor: 'start' });
+  const l3 = say(p, 'lower: less potential', 640, 800, tF + 4, { size: 26, weight: 600, fill: COL.dim });
+  hide(l2, tC, .3);
+  const l4 = say(p, 'kinetic → potential', 520, 340, tPush + .3, { size: 30, weight: 700, fill: MC.endo, anchor: 'start' });
+  const push = G(p, { o: 0 }); show(push, tPush, .3); hide(push, tPush + 3.6, .4);
+  mArrow(push, [960, 702], [846, 702], { color: MC.endo, w: 7, head: 20 });
+  wLabel(push, 'push', { x: 905, y: 670, size: 26, weight: 700, fill: MC.endo, o: 1 });
+  clockRun(t => bs.set(t < tPush ? mRamp(t, tF + .2, tF + 3.4) : 1 - mRamp(t, tPush + .3, tPush + 3.5)), D);
+  // chain: the firefly does the same with food: chemical energy in, motion, heat and light out
+  const ch = G(p, { o: 0 }); show(ch, tCh + .3, .5);
+  panelCard(ch, 1000, 160, 570, 620);
+  const ff = firefly(ch, { x: 1300, y: 500, s: .9, scene: false });
+  const food = solute(ch, 'sugar', { x: 1300, y: 290, r: 36, label: false }), fsp = energyBurst(ch, { x: 1300, y: 290, r: 40 });
+  wLabel(ch, 'chemical energy', { x: 1410, y: 280, size: 24, weight: 700, fill: MC.endo, anchor: 'start', o: 1 });
+  wLabel(ch, 'in food', { x: 1410, y: 308, size: 22, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+  mArrow(ch, [1300, 340], [1300, 430], { color: COL.chalk, w: 6, head: 18 });
+  const outs = [G(ch, { o: 0 }), G(ch, { o: 0 }), G(ch, { o: 0 })];
+  mArrow(outs[0], [1400, 480], [1520, 430], { color: MC.exo, w: 6, head: 18 });
+  wLabel(outs[0], 'motion', { x: 1480, y: 400, size: 26, weight: 700, fill: MC.exo, o: 1 });
+  heatArrow(outs[1], [1320, 580], [1320, 720], { color: MC.exo, w: 6, amp: 9, o: 1 });
+  wLabel(outs[1], 'heat', { x: 1380, y: 668, size: 26, weight: 700, fill: MC.exo, anchor: 'start', o: 1 });
+  mArrow(outs[2], [1170, 520], [1050, 590], { color: MC.glow, w: 6, head: 18 });
+  wLabel(outs[2], 'light', { x: 1090, y: 640, size: 26, weight: 700, fill: MC.glow, o: 1 });
+  const tRel = cue('example', 'Chemical energy in food');
+  outs.forEach((g, i) => show(g, tRel + 2.4 + .7 * i, .4));
+  pill(p, 'energy changes form; it is not lost', 470, 860, cue('example', 'Notice that nothing') + .2, { size: 28, edge: MC.spark });
+  clockRun(t => { ff.set(t); fsp.set(mRamp(t, tRel + .6, tRel + 2.4)); }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const bs = ballSlope(p, { x: 330, y: 680, w: 580, h: 320 }); bs.set(.5);
+  wLabel(p, 'falling from a ledge', { x: 320, y: 200, size: 30, weight: 700, o: 1 });
+  wLabel(p, 'what turns into what?', { x: 320, y: 790, size: 26, weight: 600, fill: COL.dim, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-ball', prompt: ['A ball rolls off a high ledge and falls. What is converted into what?'],
+  build: choice([['potential energy into kinetic energy'], ['kinetic energy into potential energy'], ['chemical energy into heat'], ['the potential energy is lost']], 0,
+    'Right. High up it has potential energy; as it falls it speeds up, so the potential energy becomes kinetic energy.',
+    [null, 'That is the way back up: lifting the ball turns kinetic energy into potential energy.',
+      'Nothing is burning or reacting here: the energy comes from the ball’s height.',
+      'Energy is not lost, it changes form: the ball speeds up as it falls.']),
+}], done) }],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), t1 = m('r1'), t2 = m('r2'), tE = m('end');
+  const tF = cue('wrap', 'And energy comes');
+  const XS = [290, 800, 1310];
+  wLabel(p, 'Summary', { x: 800, y: 80, size: 40, weight: 700, o: 1 });
+  const cols = XS.map((x, i) => { const g = G(p, { o: 0 }); panelCard(g, x - 230, 140, 460, 560); return g; });
+  // 1: metabolism and the pathway strip
+  wLabel(cols[0], 'metabolism', { x: XS[0], y: 196, size: 34, weight: 800, fill: MC.glow, o: 1 });
+  const ms = primeDots(pathwayStrip(cols[0], { x: XS[0], y: 360, w: 520, s: .62, names: ['', '', '', ''], enzymes: ['', '', ''] }));
+  ms.flow(1.3);
+  ['all the reactions in an organism,', 'emerging from molecules interacting;', 'one specific enzyme per step'].forEach((s, i) =>
+    wLabel(cols[0], s, { x: XS[0], y: 520 + i * 40, size: 24, weight: i === 2 ? 700 : 600, fill: i === 2 ? MC.enzyme : COL.chalk, o: 1 }));
+  // 2: catabolic and anabolic
+  const gb = glucoseBreak(cols[1], { x: 705, y: 330, R: 38 }); gb.set(.5);
+  const ar = aminoRow(cols[1], { x: 905, y: 330, n: 3, R: 22 }); ar.join(1);
+  wLabel(cols[1], 'two kinds of pathway', { x: XS[1], y: 196, size: 30, weight: 800, o: 1 });
+  wLabel(cols[1], 'catabolic', { x: XS[1], y: 500, size: 30, weight: 800, fill: MC.exo, o: 1 });
+  wLabel(cols[1], 'breaks down, releases energy', { x: XS[1], y: 536, size: 24, weight: 600, o: 1 });
+  wLabel(cols[1], 'anabolic', { x: XS[1], y: 600, size: 30, weight: 800, fill: MC.endo, o: 1 });
+  wLabel(cols[1], 'builds up, uses energy', { x: XS[1], y: 636, size: 24, weight: 600, o: 1 });
+  // 3: the forms of energy
+  wLabel(cols[2], 'forms of energy', { x: XS[2], y: 196, size: 30, weight: 800, o: 1 });
+  const ics = [0, 1, 2, 3].map(i => formIcon(cols[2], i, { x: XS[2] + (i % 2 ? 105 : -105), y: 300 + Math.floor(i / 2) * 200, s: .5 }));
+  [['kinetic', MC.exo], ['heat', MC.exo], ['potential', MC.endo], ['chemical', MC.endo]].forEach(([s, c], i) =>
+    wLabel(cols[2], s, { x: XS[2] + (i % 2 ? 105 : -105), y: 390 + Math.floor(i / 2) * 200, size: 24, weight: 700, fill: c, o: 1 }));
+  wLabel(cols[2], 'each converts into the others', { x: XS[2], y: 660, size: 24, weight: 600, fill: MC.spark, o: 1 });
+  show(cols[0], t1 + .1, .5); show(cols[1], t2 + .1, .5); show(cols[2], tF + .1, .5);
+  clockRun(t => { ms.flow(t); ics.forEach(c => c.set(t)); }, D);
+  say(p, 'Now try the chapter practice.', 800, 800, tE, { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const PX = 1270;
+  at('meta', g => {
+    panelCard(g, 980, 90, 580, 720);
+    const c = cellArt(g, { x: PX, y: 450, rx: 260, ry: 210, n: 10, minD: 70 });
+    c.arrs.forEach(a => mO(a, 1));
+    wLabel(g, 'every arrow: one reaction', { x: PX, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('path', g => {
+    panelCard(g, 980, 90, 580, 720);
+    const sp = pathwayStrip(g, { x: PX, y: 450, w: 620, s: .74, enzymes: ['?', '?', '?'], names: ['start', '', '', 'product'] });
+    sp.flow(1);
+    wLabel(g, 'what catalyses each step?', { x: PX, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('steps', g => {
+    panelCard(g, 980, 90, 580, 720);
+    const sp = pathwayStrip(g, { x: PX, y: 450, w: 620, s: .74, enzymes: ['', '', ''], names: ['', '', '', ''], reactions: true });
+    sp.flow(1);
+    wLabel(g, 'A to D: count them', { x: PX, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('forms', g => {
+    panelCard(g, 980, 90, 580, 720);
+    [0, 1, 2, 3].forEach(i => {
+      const x = PX + (i % 2 ? 140 : -140), y = 280 + Math.floor(i / 2) * 320;
+      formIcon(g, i, { x, y, s: .7 }).set(1.4);
+    });
+    wLabel(g, 'kinetic or potential?', { x: PX, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('emerge', g => {
+    panelCard(g, 980, 90, 580, 720);
+    const c = cellArt(g, { x: PX, y: 450, rx: 240, ry: 200, n: 10, minD: 70, seed: 9 });
+    c.arrs.forEach(a => mO(a, .8)); put(c.halo, { o: 1 }); put(c.mols, { o: .55 });
+    wLabel(g, 'the whole, not one part', { x: PX, y: 760, size: 26, weight: 700, fill: MC.glow, o: 1 });
+  });
+  at('anab', g => {
+    panelCard(g, 980, 90, 580, 720);
+    aminoRow(g, { x: PX, y: 470, R: 34 }).join(.62);
+    mArrow(g, [PX, 230], [PX, 380], { color: MC.endo, w: 7, head: 22 });
+    wLabel(g, 'energy?', { x: PX + 26, y: 290, size: 26, weight: 700, fill: MC.endo, anchor: 'start', o: 1 });
+    wLabel(g, 'amino acids → protein', { x: PX, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('meta');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-meta', prompt: ['What is metabolism?'],
+    build: withPic('meta', choice([['the totality of an organism’s chemical reactions'], ['only the reactions that break food down'], ['the energy stored in a cell'], ['one enzyme-catalysed reaction']], 0,
+      'Right. Metabolism is all of them together: breaking down and building up.',
+      [null, 'That is catabolism, only half of it. Metabolism includes the building-up reactions too.',
+        'Metabolism is the reactions themselves, not an amount of energy.',
+        'One reaction is a single step. Metabolism is every reaction in the organism.'])) },
+  { id: 'p-path', prompt: ['In a pathway from A to D, what catalyses each step?'],
+    build: withPic('path', choice([['one enzyme for the whole pathway'], ['a specific enzyme for each step'], ['heat from the cell'], ['the product, D']], 1,
+      'Right. Each step has its own specific enzyme: enzyme 1, enzyme 2, enzyme 3.',
+      ['Each step has its own enzyme, so a pathway of three steps needs three.', null,
+        'Enzymes catalyse the steps; the cell does not just heat up.',
+        'D is the product, where the pathway ends. It does not catalyse the steps.'])) },
+  { id: 'p-steps', prompt: ['A pathway runs A → B → C → D.'],
+    build: withPic('steps', blanks([
+      { parts: ['Reactions in the pathway: ', { box: '3' }], why: 'Three: one for each arrow, A to B, B to C and C to D.', hint: 'Count the arrows.' },
+      { parts: ['Enzymes needed: ', { box: '3' }], why: 'Three: one specific enzyme for each reaction.', hint: 'One enzyme for each step, that is for each arrow.' },
+      { parts: ['Molecules, start and product included: ', { box: '4' }], why: 'Four: A, B, C and D.', hint: 'Count the squares, A to D.' },
+    ])) },
+  { id: 'p-forms', prompt: ['Kinetic or potential?'],
+    build: withPic('forms', grid([
+      { parts: ['a ball rolling along'], ans: ['k'], why: 'Kinetic: the energy of motion.' },
+      { parts: ['a stone on a high shelf'], ans: ['p'], why: 'Potential: energy from its location, high up.' },
+      { parts: ['heat: random molecular motion'], ans: ['k'], why: 'Kinetic: heat is the kinetic energy of molecules moving at random.' },
+      { parts: ['a ball on a high ledge'], ans: ['p'], why: 'Potential: it is high up and not yet moving.' },
+      { parts: ['energy held in glucose'], ans: ['p'], why: 'Potential: chemical energy is potential energy held in the structure of molecules.' },
+    ], [['k', 'kinetic', null, 'K'], ['p', 'potential', null, 'P']], { multi: false, text: true })) },
+  { id: 'p-emerge', prompt: ['Why is metabolism called an emergent property?'],
+    build: withPic('emerge', choice([['it is found in a single molecule'], ['it appears only in large animals'], ['it arises from interactions between molecules within the cell'], ['it is created from nothing']], 2,
+      'Right. No single molecule has it; it comes from many molecules interacting in the cell.',
+      ['No single molecule is alive or has metabolism. It comes from many molecules together.',
+        'Every living cell has a metabolism, even a single bacterium.', null,
+        'Nothing comes from nothing: metabolism arises from the molecules interacting.'])) },
+  { id: 'p-anab', prompt: ['Making a protein from amino acids is which kind of pathway?'],
+    build: withPic('anab', choice([['catabolic: it releases energy by breaking down'], ['anabolic: it uses energy to build a complex molecule'], ['catabolic, because proteins are big'], ['neither: it is not a pathway']], 1,
+      'Right. Building a large molecule from small ones is anabolic, and it uses energy.',
+      ['That is the opposite: catabolic pathways break molecules down. This one builds a protein up.', null,
+        'Size does not decide it: building up is anabolic, breaking down is catabolic.',
+        'It is a pathway: many steps, each with its own enzyme.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

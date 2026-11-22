@@ -73,5 +73,14 @@
         Tx(588, 24, 'outside', 13, 'faint', 'end') + Tx(588, 176, 'cytoplasm', 13, 'faint', 'end');
       return s;
     })()),
+    // Unit 8 (Chapter 8: An Introduction to Metabolism): an energy diagram, reactants high on the left, a tall
+    // activation hump, products low on the right; a dashed lower hump is the enzyme's path. A ball rides over the
+    // hump and down, again and again.
+    reset(P('M236 18L236 166L590 166', 'faint') + Tx(244, 30, 'G', 13, 'faint') +
+      P('M240 70C290 70 300 70 330 60C360 20 380 18 400 30C430 60 450 128 500 132C540 134 560 134 586 134') +
+      P('M330 60C350 50 368 46 392 56C420 72 450 128 500 132', 'a', 'stroke-dasharray=".04 .03"') +
+      P('M520 74L520 128', 'a') + P('M512 118L520 130L528 118', 'a') + Tx(530, 104, 'ΔG < 0', 13, 'faint') +
+      `<g class="t hop" style="offset-path: path('M250 60C290 60 300 60 330 50C360 10 380 8 400 20C430 50 450 118 500 122C540 124 560 124 580 124')"><circle r="8" fill="none" stroke="currentColor" stroke-width="2.5"/></g>` +
+      Tx(588, 160, 'progress', 13, 'faint', 'end')),
   ];
 })();

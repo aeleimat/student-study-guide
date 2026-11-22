@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 8, Lesson 7: Temperature, pH, Cofactors and Inhibitors — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 8 (An Introduction to Metabolism), lesson 7: a factory line with a thermostat and a loose wrench,
+// pushed into a cell and the shared pathway strip with enzyme 1 lit; optimal temperature (human 37 °C, thermophilic
+// bacteria 77 °C) with a thermometer and an enzyme that slows when cold and unfolds when hot; optimal pH (pepsin 2,
+// trypsin 8); cofactors (metal ions) and coenzymes (from vitamins); competitive inhibitors (the active site, beaten by
+// more substrate); noncompetitive inhibitors (another site, a shape change) and the irreversible poison sarin; a worked
+// case with rate-versus-substrate curves; a four-row summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-08/lesson-07.md.
+const CHAPTER = { number: 807, label: '8, lesson 7', title: 'Temperature, pH, Cofactors and Inhibitors', minutes: 7, language: 'en', lead: false, next: '../lesson-08/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const rk = k => Math.round(mClamp(k) * 2000) / 2000;
+const rt = t => Math.round(t * 120) / 120;
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const HOT = '#ff8a5c';
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  if (ax !== null) { path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g); }
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A title and a dim second line, centred; fades in at t0.
+function banner(p, a, b, x, y, t0, { color = COL.chalk, size = 40 } = {}) {
+  const g = G(p, { o: 0 });
+  wLabel(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wLabel(g, b, { x, y: y + size * .95, size: size * .62, fill: COL.dim, weight: 500, o: 1 });
+  show(g, t0, .5);
+  return g;
+}
+// A rounded chip with a word in it (o 0 before t0; t0 null: shown at once).
+function pill(p, str, x, y, t0, { color = COL.chalk, size = 26, fill = '#0b1626' } = {}) {
+  const g = G(p, { x, y, o: 0 }), w = uiW(str, size) * 1.08 + 36;
+  mk('rect', { x: -w / 2, y: -size * .95, width: w, height: size * 1.9, rx: size * .95, fill, stroke: color, 'stroke-width': 2.5 }, g);
+  wLabel(g, str, { y: size * .36, size, fill: color, weight: 700, o: 1 });
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A dark card behind a picture.
+const box = (g, x, y, w, h) => mk('rect', { x, y, width: w, height: h, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+// Text whose content is set only when it changes.
+function setText(e, str) { if (e._txt !== str) { e.textContent = str; e._txt = str; } }
+
+/* ---------- page pieces ---------- */
+// An enzyme that has lost its shape: an olive chain in loose loops, the size of an enzymeBlob of radius R.
+function unfolded(p, { x = 0, y = 0, R = 120, o = 0 } = {}) {
+  const g = G(p, { x, y, o });
+  let d = '';
+  for (let j = 0; j <= 60; j++) {
+    const u = j / 60, xx = -R * 1.15 + 2.3 * R * u, yy = R * .32 * Math.sin(u * 13) + R * .18 * Math.sin(u * 29 + 1) - R * .1;
+    d += (j ? 'L' : 'M') + cF(xx) + ' ' + cF(yy);
+  }
+  path(g, d, { stroke: MC.enzymeEdge, 'stroke-width': R * .2 + 6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  path(g, d, { stroke: MC.enzyme, 'stroke-width': R * .2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  return g;
+}
+// A thermometer: origin at the bulb; .set(v) fills it to v °C (0–100 over its tube).
+function thermo(p, { x = 0, y = 0, o = 1, L = 300 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('rect', { x: -16, y: -L, width: 32, height: L, rx: 16, fill: '#0b1626', stroke: COL.chalk, 'stroke-width': 3 }, g);
+  mk('circle', { r: 28, fill: '#0b1626', stroke: COL.chalk, 'stroke-width': 3 }, g);
+  const bulb = mk('circle', { r: 21, fill: HOT }, g);
+  const col = mk('rect', { x: -8, y: -20, width: 16, height: 20, rx: 8, fill: HOT }, g);
+  let tk = '';
+  for (let v = 0; v <= 100; v += 20) tk += `M18 ${cF(-30 - (L - 50) * v / 100)}h14`;
+  path(g, tk, { stroke: COL.dim, 'stroke-width': 3 });
+  const read = wLabel(g, '', { x: 0, y: 72, size: 30, weight: 800, o: 1 });
+  const th = Object.assign(g, {
+    set(v) {
+      v = Math.round(v);
+      if (th._v === v) return th; th._v = v;
+      const h = 20 + (L - 50) * mClamp(v / 100) + 10;
+cAttr(col, 'y', -h); cAttr(col, 'height', h);
+      const c = zMix('#6c8cff', HOT, mClamp((v - 10) / 30));
+      cAttr(col, 'fill', c); cAttr(bulb, 'fill', c);
+      setText(read, v + ' °C');
+      return th;
+    },
+  });
+  return th.set(37);
+}
+// A gear's outline: n teeth, outer radius R, root radius r.
+function gearD(n, R, r) {
+  let d = '';
+  for (let i = 0; i < n; i++) {
+    const a0 = i * 2 * Math.PI / n, s = Math.PI / n;
+    const pts = [[r, a0 - s * .55], [R, a0 - s * .35], [R, a0 + s * .35], [r, a0 + s * .55]];
+    pts.forEach(([rr, a], j) => { d += (i === 0 && j === 0 ? 'M' : 'L') + cF(rr * Math.cos(a)) + ' ' + cF(rr * Math.sin(a)); });
+  }
+  return d + 'Z';
+}
+// The backdrop: a factory line, two gears with a loose wrench beside them, a thermostat dial on the wall. .set(t).
+function factory(p, { x = 0, y = 0, o = 1, s = 1 } = {}) {
+  const g = G(p, { x, y, o, s });
+  path(g, 'M-430 150H430', { stroke: COL.faint, 'stroke-width': 4 });
+  // legs and belt
+  path(g, 'M-330 66V150M-20 66V150M290 66V150', { stroke: '#5a6a84', 'stroke-width': 10 });
+  mk('rect', { x: -380, y: 38, width: 720, height: 30, rx: 15, fill: '#33445e', stroke: '#7c8ca8', 'stroke-width': 3 }, g);
+  const rollers = G(g);
+  [-360, -240, -120, 0, 120, 240, 320].forEach(cx => mk('circle', { cx, cy: 53, r: 9, fill: '#7c8ca8' }, rollers));
+  const boxes = [0, 1, 2].map(i => { const b = G(g); mk('rect', { x: -28, y: -46, width: 56, height: 46, rx: 5, fill: '#c9a36a', stroke: '#8a6a3a', 'stroke-width': 3 }, b); path(b, 'M-28 -30H28', { stroke: '#8a6a3a', 'stroke-width': 2.5 }); return b; });
+  // gears
+  const g1 = G(g, { x: -170, y: -120 }), g2 = G(g, { x: -62, y: -56 });
+  path(g1, gearD(12, 72, 58), { fill: '#8f9bb0', stroke: '#5a6578', 'stroke-width': 3 }); mk('circle', { r: 16, fill: '#5a6578' }, g1);
+  path(g2, gearD(8, 48, 36), { fill: '#a9b4c6', stroke: '#5a6578', 'stroke-width': 3 }); mk('circle', { r: 11, fill: '#5a6578' }, g2);
+  // the loose wrench, lying on the belt by the gears
+  const wr = G(g, { x: 40, y: 22, r: -14 });
+  mk('rect', { x: -70, y: -9, width: 120, height: 18, rx: 9, fill: '#c0c7d2', stroke: '#6b7584', 'stroke-width': 3 }, wr);
+  path(wr, 'M50 -22A24 24 0 1 1 50 22L62 8H80V-8H62Z', { fill: '#c0c7d2', stroke: '#6b7584', 'stroke-width': 3 });
+  // the thermostat on the wall
+  const th = G(g, { x: 340, y: -150 });
+  mk('rect', { x: -90, y: -100, width: 180, height: 200, rx: 18, fill: '#1f3150', stroke: '#7c8ca8', 'stroke-width': 3 }, th);
+  mk('circle', { r: 62, fill: '#0b1626', stroke: COL.chalk, 'stroke-width': 4 }, th);
+  path(th, 'M-44 30A54 54 0 0 1 0 -54', { stroke: '#6c8cff', 'stroke-width': 9 });
+  path(th, 'M0 -54A54 54 0 0 1 44 30', { stroke: HOT, 'stroke-width': 9 });
+  const needle = G(th); path(needle, 'M0 8L0 -46', { stroke: COL.chalk, 'stroke-width': 6, 'stroke-linecap': 'round' });
+  mk('circle', { r: 9, fill: COL.chalk }, th);
+  wLabel(th, 'thermostat', { y: 88, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  const f = Object.assign(g, {
+    wrench: wr, dial: th,
+    set(t) {
+      t = rt(t);
+      cSet(g1, { r: t * 30 }); cSet(g2, { r: -t * 45 + 22 });
+      boxes.forEach((b, i) => { const u = cFrac(t * .09 + i / 3); cSet(b, { x: -350 + 660 * u, y: 38, o: Math.min(1, u * 12, (1 - u) * 12) }); });
+      cSet(needle, { r: 8 + 3 * Math.sin(t * 1.7) });
+      return f;
+    },
+  });
+  return f.set(0);
+}
+// The sarin scene: acetylcholinesterase with a serine in its active site; .set(k) sarin comes in (0–.55) and bonds
+// covalently to the serine (.55–.7, a solid bond); the enzyme greys a little (.7–1). Origin = the enzyme's centre.
+function sarinScene(p, { x = 0, y = 0, s = 1, o = 1, R = 110 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const enz = enzymeBlob(g, { R });
+  const [cx, cy] = enz.siteLocal(), floor = cy + R * .29;
+  const ser = G(g, { x: cx, y: floor - 13 });
+  mk('circle', { r: 13, fill: '#f2efe6', stroke: '#9a9588', 'stroke-width': 2.5 }, ser);
+  wLabel(ser, 'Ser', { y: 5, size: 13, fill: '#14233a', weight: 800, o: 1 });
+  const bond = path(g, `M${cF(cx)} ${cF(floor - 26)}V${cF(floor - 46)}`, { stroke: '#ffffff', 'stroke-width': 7, 'stroke-linecap': 'round' }, { o: 0 });
+  const sar = G(g);
+  [[-20, -12], [20, -12], [0, -30]].forEach(([a, b]) => { path(sar, `M0 0L${a} ${b}`, { stroke: MC.compInh, 'stroke-width': 4 }); mk('circle', { cx: a, cy: b, r: 9, fill: '#5a2a24', stroke: MC.compInh, 'stroke-width': 3 }, sar); });
+  mk('circle', { r: 15, fill: '#3a1414', stroke: MC.compInh, 'stroke-width': 4 }, sar);
+  const B0 = [R * 1.5, -R * 1.9], B1 = [cx, floor - 62];
+  const sc = Object.assign(g, {
+    enz, ser, sar, bond,
+    set(k) {
+      k = rk(k);
+      const a = io(mRamp(k, 0, .55)), q = [mLerp(B0[0], B1[0], a), mLerp(B0[1], B1[1], a)];
+      cSet(sar, { x: q[0], y: q[1], r: 40 * (1 - a) });
+      mO(bond, mRamp(k, .55, .65));
+      enz.fit(mRamp(k, .5, .7) * .6); enz.tint(mRamp(k, .7, 1) * .45);
+      return sc;
+    },
+    pt(nm) { return nm === 'sarin' ? cOut(g, [sar._st.x, sar._st.y]) : nm === 'serine' ? cOut(g, [cx, floor - 13]) : cOut(g, [0, 0]); },
+  });
+  return sc.set(0);
+}
+// Small helper molecules docked on an enzymeBlob's lips: the ion on the left, the coenzyme on the right (local points).
+const lipL = R => [-.62 * R * .8 - 4, -R * .9 + 14];
+const lipR = R => [.62 * R * .8 + 26, -R * .98];
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A factory line', (m, D) => {
+  const p = panel(0), tL = m('line'), tC = m('cells'), tS = m('strip'), tLo = m('local');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const fac = factory(W, { x: 540, y: 520, o: 0, s: 1.15 }); show(fac, .2, .6);
+  clockRun(t => fac.set(Math.min(t, tC + .6)), D);   // always written; still once it has faded
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 8 · LESSON 7', { x: 1250, y: 230, size: 26, fill: COL.dim, o: 1 });
+  ['Temperature, pH,', 'cofactors and', 'inhibitors'].forEach((s, i) => wLabel(ttl, s, { x: 1250, y: 315 + i * 68, size: 52, o: 1 }));
+  wLabel(ttl, 'An introduction to metabolism:', { x: 1250, y: 540, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(ttl, 'what speeds an enzyme, and what stops it', { x: 1250, y: 576, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .2, .5);
+  // line: the dial, then the wrench
+  pulse(fac.dial, tL + .6, 1.12);
+  const lD = tag(p, 'set right', [931, 196], [931, 228], tL + .7, { size: 26, fill: HOT, line: HOT });
+  pulse(fac.wrench, tL + 3.6, 1.25);
+  const lW = tag(p, 'a wrench in the gears', [610, 330], [574, 525], tL + 3.7, { size: 26, fill: '#c0c7d2', line: '#c0c7d2' });
+  [lD, lW].forEach(e => hide(e, tC, .3));
+  // cells: the factory goes, a cell comes, the camera pushes into its cytoplasm
+  hide(fac, tC, .4);
+  const cm = cellMap(W, { kind: 'animal', x: 800, y: 470, s: .62, o: 0 });
+  show(cm, tC + .1, .4);
+  cam.to({ x: 980, y: 560, z: 4 }, tC + .4, tS - tC - .5);
+  hide(cam.el, tS - .3, .3);
+  // strip: the shared pathway, enzyme 1 lit
+  const ps = pathwayStrip(p, { x: 800, y: 540, w: 1100, o: 0 });
+  show(ps, tS, .5);
+  clockRun(t => { ps.focus('enzyme1', io(mRamp(t, tS + 1, tS + 2))); ps.flow(t, .8); }, D);
+  const [ex, ey] = ps.pt('enzyme1');
+  const lit = G(p, { o: 0 }); show(lit, tS + 1.2, .4);
+  path(lit, `M${ex} ${ey - 80}V${ey - 140}`, { stroke: COL.dim, 'stroke-width': 3 });
+  say(p, 'inside the cell: a metabolic pathway', 800, 820, tS + .4, { size: 28, fill: COL.dim, weight: 600 });
+  // local: what acts on enzyme 1
+  pill(p, 'temperature, pH', ex, ey - 330, tLo + .2, { color: HOT });
+  pill(p, 'helpers', ex, ey - 250, tLo + 1.3, { color: MC.cofactor });
+  pill(p, 'inhibitors', ex, ey - 170, tLo + 2.4, { color: MC.compInh });
+}],
+
+/* ---------- temp ---------- */
+['temp', 'Optimal temperature', (m, D) => {
+  const p = panel(0), tCo = m('cond'), tO = m('opt'), tH = m('human'), tHo = m('hot'), tCd = m('cold'), tDn = m('denat'), tN = m('note'), tF = m('fever');
+  banner(p, 'local conditions', 'temperature and pH · and chemicals that act on the enzyme', 800, 64, tCo + .2);
+  const CX = 640, CY = 770, CW = 860, CH = 520;
+  const rc = rateCurve(p, { x: CX, y: CY, w: CW, h: CH, kind: 'temp', labels: false, o: 0 }); show(rc, tCo + 2.5, .5);
+  const X = v => CX + rc.X(v), YP = CY + rc.Y(1);
+  // the enzyme and its thermometer on the left
+  const EX = 330, EY = 520, ER = 110;
+  const eg = G(p, { x: EX, y: EY, o: 0 }); show(eg, tCo + 1, .5);
+  const enz = enzymeBlob(eg, { R: ER, label: 'enzyme' }), unf = unfolded(eg, { R: ER });
+  const thm = thermo(p, { x: 110, y: 700, o: 0, L: 330 }); show(thm, tO, .4);
+  const sA = wLabel(p, 'most active shape', { x: EX, y: 720, size: 28, weight: 700, fill: MC.enzyme, o: 0 });
+  const sC = wLabel(p, 'too cold: slow', { x: EX, y: 720, size: 28, weight: 700, fill: '#6c8cff', o: 0 });
+  const sD = wLabel(p, 'denatured: shape lost', { x: EX, y: 720, size: 28, weight: 700, fill: HOT, o: 0 });
+  const sF = wLabel(p, 'very high fever:', { x: EX, y: 720, size: 28, weight: 700, fill: HOT, o: 0 });
+  const sF2 = wLabel(p, 'the shape starts to go', { x: EX, y: 756, size: 24, weight: 600, fill: HOT, o: 0 });
+  // labels by the peaks
+  const lH = say(p, 'human enzyme', 860, YP - 28, tH + .2, { size: 28, weight: 700, fill: COL.chalk });
+  const lB = say(p, 'thermophilic bacteria', 1250, YP - 28, tHo + .3, { size: 28, weight: 700, fill: MC.exo });
+  const spring = G(p, { x: 1250, y: YP - 120, o: 0 }); show(spring, tHo + .6, .4);   // a hot spring: a pool with steam
+  mk('ellipse', { rx: 70, ry: 18, fill: '#2f7f9a', stroke: '#7fd0e0', 'stroke-width': 3 }, spring);
+  path(spring, 'M-30 -18c-10 -14 10 -22 0 -36M0 -20c-10 -14 10 -22 0 -36M30 -18c-10 -14 10 -22 0 -36', { stroke: COL.dim, 'stroke-width': 4, 'stroke-linecap': 'round' });
+  wLabel(spring, 'hot spring', { x: 110, y: 8, size: 20, fill: COL.dim, anchor: 'start', o: 1 });
+  // note: the human enzyme has stopped by 50 °C
+  const nl = G(p, { o: 0 }); show(nl, tN + 1, .4);
+  path(nl, `M${X(50)} ${CY - 4}V${YP - 60}`, { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '10 8' });
+  wLabel(nl, '50 °C', { x: X(50), y: YP - 70, size: 26, weight: 800, o: 1 });
+  const nS = say(p, 'human: stopped', X(50) + 12, CY - 16, tN + 1.6, { size: 24, weight: 700, anchor: 'start', fill: COL.chalk });
+  const nR = say(p, 'still running', X(90) + 14, CY - 110, tN + 3.4, { size: 24, weight: 700, anchor: 'start', fill: MC.exo });
+  // the temperature the marker reads, a pure function of t
+  const vAt = t => {
+    let v = 37;
+    v = mLerp(v, 12, io(mRamp(t, tCd + .2, tCd + 1.8)));
+    v = mLerp(v, 48, io(mRamp(t, tDn, tDn + 1.4)));
+    v = mLerp(v, 41, io(mRamp(t, tF + .3, tF + 1.6)));
+    return v;
+  };
+  clockRun(t => {
+    t = rt(t);
+    rc.draw(.5 * io(mRamp(t, tO + .3, tO + 2.3)) + .5 * io(mRamp(t, tHo + .2, tHo + 2.2)));
+    rc.opt(0, mRamp(t, tH + .4, tH + .9)); rc.opt(1, mRamp(t, tHo + 1.4, tHo + 1.9));
+    const v = Math.round(vAt(t) * 2) / 2, on = t >= tH + .4 && !(t >= tN && t < tF + .3);
+    rc.marker(on ? 0 : null, v);
+    thm.set(t < tO ? 37 : v);
+    const un = mRamp(v, 42.5, 47.5), bd = mRamp(v, 38.5, 41) * (1 - un);
+    const amp = 1.5 + 7 * mClamp(v / 45), fr = 1 + v / 9;
+    cSet(enz, { x: amp * Math.sin(t * fr), y: amp * .6 * Math.cos(t * fr * 1.3), o: 1 - un });
+    enz.bend(bd * .8);
+    cSet(unf, { o: un, x: 3 * Math.sin(t * 3) });
+    const cold = mRamp(37 - v, 8, 14), fev = t >= tF ? mRamp(t, tF + 1, tF + 1.5) : 0;
+    mO(sC, mRamp(cold, .5, 1)); mO(sD, mRamp(un, .5, 1) * (1 - fev)); mO(sF, fev); mO(sF2, fev);   // one state label at a time
+    mO(sA, mRamp(t, tO + 1.2, tO + 1.6) * mClamp(1 - 2 * cold - 2 * un) * (1 - mRamp(t, tF, tF + .3)));
+  }, D);
+}],
+
+/* ---------- ph ---------- */
+['ph', 'Optimal pH', (m, D) => {
+  const p = panel(0), tP = m('ph'), tPe = m('pepsin'), tTr = m('trypsin'), tSw = m('swap'), tSh = m('shape');
+  banner(p, 'optimal pH', 'each enzyme has its own', 800, 64, tP + .2);
+  const CX = 640, CY = 720, CW = 860, CH = 480;
+  const rc = rateCurve(p, { x: CX, y: CY, w: CW, h: CH, kind: 'pH', labels: false, o: 0 }); show(rc, tP + .6, .5);
+  const X = v => CX + rc.X(v), YP = CY + rc.Y(1);
+  // the acid-to-base strip under the axis
+  const ruler = G(p, { o: 0 }); show(ruler, tP + 1.2, .5);
+  const stops = ['#e5533d', '#f39a2b', '#f3c95c', '#8fd6b0', '#5fd3e8', '#6c8cff', '#9a6cd0'];
+  for (let i = 0; i < 10; i++) mk('rect', { x: X(i), y: CY + 82, width: CW / 10, height: 16, fill: zMix(stops[Math.floor(i * .66)], stops[Math.min(6, Math.floor(i * .66) + 1)], (i * .66) % 1) }, ruler);
+  wLabel(ruler, 'acidic', { x: X(0) - 12, y: CY + 97, size: 22, fill: '#ff8a76', anchor: 'end', weight: 700, o: 1 });
+  wLabel(ruler, 'basic', { x: X(10) + 12, y: CY + 97, size: 22, fill: '#9aa8ff', anchor: 'start', weight: 700, o: 1 });
+  // curve labels with their organs
+  say(p, 'pepsin', X(2), YP - 30, tPe + .4, { size: 30, weight: 700 });
+  say(p, 'trypsin', X(8), YP - 30, tTr + .4, { size: 30, weight: 700, fill: MC.pathB });
+  // the two enzymes on the left, each by its organ
+  const PE = [330, 330], TR = [330, 620], R = 82;
+  const pg = G(p, { x: PE[0], y: PE[1], o: 0 }), tg = G(p, { x: TR[0], y: TR[1], o: 0 });
+  show(pg, tPe, .4); show(tg, tTr, .4);
+  const pe = enzymeBlob(pg, { R }), peU = unfolded(pg, { R }), tr = enzymeBlob(tg, { R });
+  const stom = G(p, { x: 120, y: PE[1], o: 0 }); show(stom, tPe + .2, .4);
+  path(stom, 'M-20 -60C30 -70 40 -20 30 10C20 50 50 70 -10 70C-60 70 -60 20 -40 0C-20 -20 -50 -50 -20 -60Z', { fill: '#d0798a', stroke: '#8a3f50', 'stroke-width': 3 });
+  wLabel(stom, 'stomach', { y: 106, size: 22, fill: COL.dim, o: 1 });
+  const gut = G(p, { x: 120, y: TR[1], o: 0 }); show(gut, tTr + .2, .4);
+  path(gut, 'M-50 -40C-10 -70 40 -50 40 -20C40 10 -40 0 -40 30C-40 60 30 60 50 40', { stroke: '#d9a07a', 'stroke-width': 18, 'stroke-linecap': 'round' });
+  wLabel(gut, 'intestine', { y: 106, size: 22, fill: COL.dim, o: 1 });
+  wLabel(pg, 'pepsin · pH 2', { y: R + 46, size: 24, fill: COL.chalk, weight: 700, o: 1 });
+  wLabel(tg, 'trypsin · pH 8', { y: R + 46, size: 24, fill: MC.pathB, weight: 700, o: 1 });
+  // swap: pepsin taken to pH 8, a ball riding its curve
+  const pBall = G(p, { o: 0 }); mk('circle', { r: 13, fill: MC.sub, stroke: MC.subEdge, 'stroke-width': 3 }, pBall);
+  const pLab = wLabel(p, 'pepsin', { size: 24, weight: 700, fill: COL.chalk, o: 0 });
+  const q = say(p, 'pepsin at pH 8?', PE[0], PE[1] - R - 40, tSw + .6, { size: 28, weight: 700, fill: HOT });
+  hide(q, tSh, .4);
+  clockRun(t => {
+    t = rt(t);
+    rc.draw(.5 * io(mRamp(t, tPe + .3, tPe + 2.3)) + .5 * io(mRamp(t, tTr + .3, tTr + 2.3)));
+    rc.opt(0, mRamp(t, tPe + 2, tPe + 2.5)); rc.opt(1, mRamp(t, tTr + 2, tTr + 2.5));
+    const sw = io(mRamp(t, tSw + .3, tSw + 1.8)), back = io(mRamp(t, tSh + .2, tSh + 1));
+    const v = mLerp(mLerp(2, 8, sw), 2, back);
+    const vv = Math.round(v * 20) / 20, [bx, by] = rc.pt(0, vv), mo = mRamp(t, tSw + .1, tSw + .3) * (1 - mRamp(t, tSh + 1, tSh + 1.3));
+    cSet(pBall, { x: bx, y: by, o: mo }); cSet(pLab, { x: bx, y: by - 34, o: mo * mRamp(vv, 2.8, 3.4) }); setText(pLab, vv > 6.5 ? 'pepsin: rate 0' : 'pepsin');   // off at the peak, where the curve's own name stands
+    const un = mRamp(v, 5.5, 7.5);
+    cSet(pe, { o: 1 - un }); cSet(peU, { o: un });
+    const glow = mBump(mRamp(t, tSh + 1, tSh + 4), 0, 1);
+    cSet(pg, { s: 1 + .08 * glow }); cSet(tg, { s: 1 + .08 * glow });
+  }, D);
+  pill(p, 'optimal conditions favor the most active shape', 800, 860, tSh + .4, { color: MC.enzyme, size: 26 });
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const rc = rateCurve(p, { x: 90, y: 560, w: 500, h: 360, kind: 'temp', size: 18, labels: false });
+  rc.draw(1);
+  path(p, `M${90 + rc.X(60)} 556V${560 + rc.Y(1.1)}`, { stroke: HOT, 'stroke-width': 3, 'stroke-dasharray': '8 7' });
+  wLabel(p, '60 °C', { x: 90 + rc.X(60), y: 560 + rc.Y(1.1) - 12, size: 22, weight: 800, fill: HOT, o: 1 });
+  wLabel(p, 'human enzyme', { x: 90 + rc.X(30), y: 560 + rc.Y(1) - 20, size: 22, weight: 700, o: 1 });
+  wLabel(p, 'at 60 °C: why so slow?', { x: 340, y: 110, size: 30, weight: 700, fill: HOT, o: 1 });
+  const g = G(p, { x: 340, y: 760 });
+  unfolded(g, { R: 70, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-denature', prompt: ['A human enzyme works well at 37 °C but almost stops at 60 °C. Why?'],
+  build: choice([['the substrate ran out'], ['the heat unravelled it: it lost its active shape (denatured)'], ['its optimum moved up to 77 °C'], ['its cofactor melted into the substrate']], 1,
+    'Right. Past its optimum the enzyme denatures: it loses the shape its active site depends on.',
+    ['Nothing was said about the substrate; the enzyme itself changed.', null,
+      'The optimum belongs to the enzyme and does not move. 77 °C is the hot-spring bacteria’s enzyme.',
+      'Nothing melts. Too much heat breaks the weak bonds that hold the enzyme’s shape.']),
+}], done) }],
+
+/* ---------- cofactor ---------- */
+['cofactor', 'Cofactors', (m, D) => {
+  const p = panel(0), tCf = m('cof'), tMe = m('metal'), tCe = m('coen'), tNe = m('need'), tDi = m('diet');
+  banner(p, 'cofactors', 'nonprotein enzyme helpers', 800, 64, tCf + .2, { color: MC.cofactor });
+  const EX = 470, EY = 560, R = 160;
+  const eg = G(p, { x: EX, y: EY }); const enz = enzymeBlob(eg, { R, label: 'enzyme' });
+  const [ix, iy] = lipL(R), [rx, ry] = lipR(R);
+  const zn = cofactorIon(eg, { ion: 'Zn²⁺', r: 26, o: 0 }), fe = cofactorIon(p, { ion: 'Fe²⁺', r: 26, x: 110, y: 230, o: 0 });
+  const co = coenzymeRing(eg, { r: 24, o: 0 });
+  show(fe, tMe + .8, .4);
+  const lM = tag(p, 'inorganic: a metal ion', [200, 300], [EX + ix - 20, EY + iy - 24], tMe + 1.2, { size: 28, weight: 700, fill: MC.cofactor, line: MC.cofactor, sub: 'zinc, iron, copper' });
+  const lC = tag(p, 'organic: a coenzyme', [720, 230], [EX + rx + 10, EY + ry - 26], tCe + .6, { size: 28, weight: 700, fill: MC.coenzyme, line: MC.coenzyme, sub: 'many are made from vitamins' });
+  // need: without a helper, nothing; with one, the substrate is converted
+  const NX = [1070, 1400], NY = 620, NR = 105;
+  const nA = G(p, { x: NX[0], y: NY, o: 0 }), nB = G(p, { x: NX[1], y: NY, o: 0 });
+  show(nA, tNe + .3, .5); show(nB, tNe + .9, .5);
+  const eA = enzymeBlob(nA, { R: NR }).tint(.55), eB = enzymeBlob(nB, { R: NR });
+  const sAg = substrateShape(nA, { R: NR }), sB = substrateShape(nB, { R: NR });
+  const [sx, sy] = eA.siteLocal();
+  sAg.pose(sx, sy - NR * 1.35);
+  cofactorIon(nB, { ion: 'Zn²⁺', r: 16, x: lipL(NR)[0], y: lipL(NR)[1] });
+  const no = G(nA, { x: sx + 62, y: sy - NR * 1.4 }); path(no, 'M-16 -16L16 16M16 -16L-16 16', { stroke: MC.compInh, 'stroke-width': 7, 'stroke-linecap': 'round' });
+  wLabel(nA, 'no helper:', { y: NR + 52, size: 26, weight: 700, fill: COL.dim, o: 1 });
+  wLabel(nA, 'no reaction', { y: NR + 86, size: 26, weight: 700, fill: COL.dim, o: 1 });
+  wLabel(nB, 'with its helper:', { y: NR + 52, size: 26, weight: 700, fill: MC.cofactor, o: 1 });
+  wLabel(nB, 'it works', { y: NR + 86, size: 26, weight: 700, fill: MC.cofactor, o: 1 });
+  // diet
+  const dg = G(p, { o: 0 }); show(dg, tDi + 6.6, .5); pulse(zn, tDi + 1.5, 1.3);
+  pill(dg, 'minerals and vitamins: small amounts in the diet', 1240, 300, null, { color: MC.coenzyme, size: 24 });
+  clockRun(t => {
+    t = rt(t);
+    const a = io(mRamp(t, tMe + .3, tMe + 1.6)), c = io(mRamp(t, tCe + .2, tCe + 1.5));
+    cSet(zn, { x: mLerp(-R * 1.9, ix, a), y: mLerp(-R * 1.6, iy, a), o: mRamp(t, tMe, tMe + .3) });
+    cSet(co, { x: mLerp(R * 1.8, rx, c), y: mLerp(-R * 1.9, ry, c), o: mRamp(t, tCe, tCe + .3) });
+    const ks = cFrac(Math.max(0, t - tNe - 1.4) / 4);
+    const d = io(mRamp(ks, 0, .35));
+    sB.pose(sx, mLerp(sy - NR * .9, sy, d)); sB.convert(mRamp(ks, .45, .6)); mO(sB, 1 - mRamp(ks, .85, 1));
+    eB.fit(mRamp(ks, .3, .45) * (1 - mRamp(ks, .7, .85)));
+    cSet(sAg, { y: sy - NR * 1.35 + 3 * Math.sin(t * 2) });
+  }, D);
+}],
+
+/* ---------- compet ---------- */
+['compet', 'Competitive inhibitors', (m, D) => {
+  const p = panel(0), tI = m('inhib'), tCo = m('comp'), tB = m('block'), tMo = m('more');
+  banner(p, 'inhibitors', 'chemicals that slow or stop an enzyme', 800, 64, tI + .2, { color: MC.compInh });
+  const EX = 430, EY = 600, R = 140;
+  const ei = enzymeInhibition(p, { kind: 'competitive', x: EX, y: EY, R, labels: false });
+  const lI = tag(p, 'competitive inhibitor', [190, 250], [EX - R * .3, EY - R * 1.05], tCo + 1, { size: 28, weight: 700, fill: MC.compInh, line: MC.compInh, sub: 'looks like the substrate' });
+  const lA = tag(p, 'active site', [EX + 300, EY - 40], [EX + R * .3, EY - R * .65], tCo + 3.2, { size: 26, weight: 700, fill: COL.chalk });
+  const lS = say(p, 'substrate', EX + 230, EY - R * 1.95, tB, { size: 26, weight: 700, fill: MC.sub, anchor: 'start' });
+  const lOut = say(p, 'shut out', EX + 230, EY - R * 1.95 + 36, tB + .6, { size: 24, weight: 600, fill: COL.dim, anchor: 'start' });
+  // more: a crowd of substrate wins most of the sites on the right
+  const RX = [1030, 1230, 1430], RY = 640, r = 70;
+  const right = G(p, { o: 0 }); show(right, tMo + .3, .5);
+  box(right, 920, 200, 620, 600);
+  const es = RX.map(x => enzymeBlob(right, { x, y: RY, R: r }));
+  const site = es[0].siteLocal();
+  const homes = [[985, 300], [1090, 265], [1190, 320], [1300, 280], [1400, 335], [1000, 430], [1120, 405], [1245, 440], [1365, 445]];
+  const subs = homes.map(() => substrateShape(right, { R: r }));
+  const inhs = [0, 1].map(() => inhibitorShape(right, { kind: 'competitive', R: r }));
+  wLabel(right, 'more substrate overcomes it', { x: 1230, y: 780, size: 28, weight: 700, fill: MC.sub, o: 1 });
+  clockRun(t => {
+    t = rt(t);
+    ei.set(mRamp(t, tCo + .3, tB + 2.2));
+    // the right panel, posed from t alone
+    const w = io(mRamp(t, tMo + 3, tMo + 5)), w2 = io(mRamp(t, tMo + 6.5, tMo + 8.5));
+    subs.forEach((s, i) => {
+      const [hx, hy] = homes[i], jx = 6 * Math.sin(t * 1.3 + i * 2.1), jy = 6 * Math.cos(t * 1.1 + i);
+      let x = hx + jx, y = hy + jy;
+      if (i === 0) { x = mLerp(x, RX[0] + site[0], w); y = mLerp(y, RY + site[1], w); }
+      if (i === 1) { x = mLerp(x, RX[2] + site[0], w); y = mLerp(y, RY + site[1], w); }
+      if (i === 2) { x = mLerp(x, RX[1] + site[0], w2); y = mLerp(y, RY + site[1], w2); }
+      s.pose(x, y);
+    });
+    // one inhibitor sits in the middle site, then leaves; the other never finds one
+    const leave = io(mRamp(t, tMo + 5.2, tMo + 6.6));
+    inhs[0].pose(mLerp(RX[1] + site[0], 1300, leave), mLerp(RY + site[1] - 6, 470, leave), 30 * leave);
+    inhs[1].pose(1480 + 5 * Math.sin(t), 300 + 5 * Math.cos(t * 1.2));
+    es[0].fit(w * .9); es[2].fit(w * .9); es[1].fit(w2 * .9);
+  }, D);
+  say(p, 'outnumbered', 1520, 250, tMo + 5.6, { size: 22, fill: MC.compInh, weight: 700, anchor: 'end' });
+  hide(lOut, tMo + .2, .3);
+}],
+
+/* ---------- noncomp ---------- */
+['noncomp', 'Noncompetitive inhibitors and poisons', (m, D) => {
+  const p = panel(0), tN = m('non'), tSh = m('shape'), tNo = m('nomore'), tSa = m('sarin');
+  banner(p, 'noncompetitive inhibitors', 'bind another part of the enzyme', 800, 64, tN + .2, { color: MC.nonInh });
+  const EX = 400, EY = 560, R = 140;
+  const ei = enzymeInhibition(p, { kind: 'noncompetitive', x: EX, y: EY, R, labels: false });
+  const sock = [EX + R * .93, EY + R * .62];
+  const lN = tag(p, 'noncompetitive inhibitor', [520, 820], [sock[0] + 10, sock[1] + 26], tN + 1.5, { size: 26, weight: 700, fill: MC.nonInh, line: MC.nonInh });
+  const lSh = tag(p, 'active site out of shape', [EX - 200, 200], [EX - R * .2, EY - R * .8], tSh + .8, { size: 26, weight: 700, fill: COL.chalk });
+  // nomore: extra substrate that cannot fit
+  const xs = [[EX - 250, EY - 300], [EX + 230, EY - 250], [EX + 200, EY - 340]].map(() => substrateShape(p, { R: R * .8, o: 0 }));
+  const XP = [[EX - 270, EY - 150], [EX + 230, EY - 240], [EX + 160, EY - 360]];
+  xs.forEach(s => show(s, tNo + .5, .5));
+  const lNo = say(p, 'more substrate does not fix it', EX, 880, tNo + 1.4, { size: 26, weight: 700, fill: MC.sub });
+  // sarin: an irreversible poison, bonded to serine in the active site of acetylcholinesterase
+  const sg = G(p, { o: 0 }); show(sg, tSa, .5);
+  box(sg, 900, 170, 650, 660);
+  const sc = sarinScene(sg, { x: 1225, y: 520, R: 130 });
+  wLabel(sg, 'acetylcholinesterase', { x: 1225, y: 700, size: 28, weight: 700, fill: MC.enzyme, o: 1 });
+  wLabel(sg, 'a nervous-system enzyme', { x: 1225, y: 736, size: 22, weight: 500, fill: COL.dim, o: 1 });
+  const lPo = G(p, { o: 0 }); show(lPo, tSa + 2.2, .4);
+  wLabel(lPo, 'irreversible poison', { x: 1225, y: 226, size: 30, weight: 700, fill: MC.compInh, o: 1 });
+  const [sx0, sy0] = sc.pt('serine');
+  const lBo = tag(p, 'covalent bond', [1440, 330], [sx0 + 6, sy0 - 24], tSa + 9.5, { size: 24, weight: 700, fill: '#ffffff', line: '#ffffff' });
+  const lSe = tag(p, 'serine', [1040, 470], [sx0 - 14, sy0], tSa + 6.6, { size: 24, weight: 700, fill: COL.chalk });
+  const sLab = wLabel(p, 'sarin', { size: 24, weight: 700, fill: MC.compInh, anchor: 'start', o: 0 });
+  pulse(lPo, m('irr') + .2, 1.1);
+  const lSt = say(p, 'it stays bound: the enzyme is jammed', 1225, 790, m('sarin', 13.5), { size: 24, weight: 700, fill: HOT });
+  clockRun(t => {
+    t = rt(t);
+    ei.set(.35 * mRamp(t, tN + .4, tN + 2.4) + .2 * mRamp(t, tSh + .2, tSh + 2) + .45 * mRamp(t, tNo + .2, tNo + 3));
+    xs.forEach((s, i) => s.pose(XP[i][0] + 6 * Math.sin(t * 1.4 + i * 2), XP[i][1] + 6 * Math.cos(t * 1.2 + i)));
+    sc.set(mRamp(t, tSa + 4.5, tSa + 11));
+    const [qx, qy] = sc.pt('sarin'); cSet(sLab, { x: qx + 30, y: qy - 22, o: mRamp(t, tSa + 4, tSa + 4.4) * (1 - mRamp(t, tSa + 9.2, tSa + 9.6)) });
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const b = enzymeInhibition(p, { kind: 'competitive', x: 170, y: 420, R: 72, labels: false }).set(1);
+  const c = enzymeInhibition(p, { kind: 'noncompetitive', x: 450, y: 420, R: 72, labels: false }).set(1);
+  S.q2 = [b, c];
+  wLabel(p, 'inhibitor A', { x: 170, y: 560, size: 26, weight: 700, fill: MC.compInh, o: 1 });
+  wLabel(p, 'inhibitor B', { x: 450, y: 560, size: 26, weight: 700, fill: MC.nonInh, o: 1 });
+  wLabel(p, 'in the active site', { x: 170, y: 596, size: 22, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(p, 'somewhere else', { x: 450, y: 596, size: 22, fill: COL.dim, weight: 500, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-inhib', prompt: ['Competitive or noncompetitive?'],
+  build: grid([
+    { parts: ['binds the active site'], ans: ['c'], why: 'Where does the substrate itself bind? An inhibitor that takes that spot competes with it.', fx: () => pulseFx(S.q2[0], 1.08) },
+    { parts: ['binds another part of the enzyme'], ans: ['n'], why: 'Away from the active site, it does not compete with the substrate for a place.', fx: () => pulseFx(S.q2[1], 1.08) },
+    { parts: ['changes the enzyme’s shape'], ans: ['n'], why: 'Which kind acts from a distance, by changing how the active site fits?', fx: () => pulseFx(S.q2[1], 1.08) },
+    { parts: ['overcome by adding more substrate'], ans: ['c'], why: 'More substrate only helps if the inhibitor and the substrate compete for the same site.', fx: () => pulseFx(S.q2[0], 1.08) },
+    { parts: ['looks like the substrate'], ans: ['c'], why: 'To fit where the substrate fits, an inhibitor has to look like it.', fx: () => pulseFx(S.q2[0], 1.08) },
+  ], [['c', 'competitive', null, 'C'], ['n', 'noncompetitive', null, 'N']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- example ---------- */
+['example', 'A worked case', (m, D) => {
+  const p = panel(0), tA = m('a'), tB = m('b'), tC = m('c'), tD = m('d'), tE = m('e');
+  banner(p, 'a worked case', 'rate as the substrate is raised', 800, 64, .2);
+  const CX = 200, CY = 760, CW = 820, CH = 540;
+  const rc = rateCurve(p, { x: CX, y: CY, w: CW, h: CH, kind: 'substrate', labels: false,
+    curves: [{ km: .12, color: COL.chalk, label: 'no inhibitor' }, { km: .35, color: MC.compInh, label: 'competitive' }] });
+  // the noncompetitive curve: the same shape, held well below
+  const nc = v => .45 * rc.rate(0, v);
+  let d = ''; for (let j = 0; j <= 120; j++) { const v = j / 120; d += (j ? 'L' : 'M') + cF(rc.X(v)) + ' ' + cF(rc.Y(nc(v))); }
+  const ncP = path(G(p, { x: CX, y: CY }), d, { stroke: MC.nonInh, 'stroke-width': 6 }, { d: 0 });
+  const X = v => CX + rc.X(v), Y = r => CY + rc.Y(r);
+  say(p, 'no inhibitor', X(.3), Y(rc.rate(0, .3)) - 30, tA + .8, { size: 26, weight: 700 });
+  say(p, 'competitive', X(.25) + 10, Y(rc.rate(1, .25)) + 40, tB + 1, { size: 26, weight: 700, fill: MC.compInh, anchor: 'start' });
+  say(p, 'catches up', X(1) - 10, Y(rc.rate(1, 1)) + 44, tC + 2.4, { size: 24, weight: 700, fill: MC.compInh, anchor: 'end' });
+  say(p, 'noncompetitive: stays low', X(1) - 10, Y(nc(1)) + 44, tD + 2.4, { size: 26, weight: 700, fill: MC.nonInh, anchor: 'end' });
+  // the dot for the competitive case runs right as substrate floods in
+  const dot = G(p, { o: 0 }); mk('circle', { r: 14, fill: MC.sub, stroke: MC.subEdge, 'stroke-width': 3 }, dot);
+  const dot2 = G(p, { o: 0 }); mk('circle', { r: 14, fill: MC.nonInh, stroke: MC.nonInhEdge, 'stroke-width': 3 }, dot2);
+  const flood = G(p, { o: 0 }); show(flood, tC + .2, .4); hide(flood, tE, .4);
+  mArrow(flood, [X(.3), CY + 70], [X(.9), CY + 70], { color: MC.sub, w: 5, head: 16 });
+  wLabel(flood, 'more substrate', { x: X(.6), y: CY + 108, size: 22, fill: MC.sub, weight: 700, o: 1 });
+  // the test, on the right
+  const ts = G(p, { o: 0 }); show(ts, tE + .3, .5);
+  box(ts, 1100, 220, 460, 470);
+  wLabel(ts, 'the test:', { x: 1330, y: 280, size: 30, weight: 700, o: 1 });
+  wLabel(ts, 'add more substrate', { x: 1330, y: 320, size: 28, weight: 600, fill: MC.sub, o: 1 });
+  const r1 = G(ts, { o: 0 }), r2 = G(ts, { o: 0 });
+  mArrow(r1, [1140, 450], [1140, 390], { color: MC.compInh, w: 6, head: 18 });
+  wLabel(r1, 'rate recovers:', { x: 1170, y: 410, size: 26, weight: 700, anchor: 'start', o: 1 });
+  wLabel(r1, 'competitive', { x: 1170, y: 446, size: 28, weight: 800, anchor: 'start', fill: MC.compInh, o: 1 });
+  path(r2, 'M1125 590H1158', { stroke: MC.nonInh, 'stroke-width': 6 });
+  wLabel(r2, 'rate stays low:', { x: 1170, y: 580, size: 26, weight: 700, anchor: 'start', o: 1 });
+  wLabel(r2, 'noncompetitive', { x: 1170, y: 616, size: 28, weight: 800, anchor: 'start', fill: MC.nonInh, o: 1 });
+  show(r1, m('e', 4.2), .4); show(r2, m('e', 7.4), .4);
+  clockRun(t => {
+    t = rt(t);
+    rc.draw(.5 * io(mRamp(t, tA + .2, tA + 2.2)) + .5 * io(mRamp(t, tB + .4, tB + 2.6)));
+    cSet(ncP, { d: rk(io(mRamp(t, tD + .4, tD + 2.6))) });
+    const v = Math.round(mLerp(.12, 1, io(mRamp(t, tC + .4, tC + 3.4))) * 200) / 200;
+    cSet(dot, { x: X(v), y: Y(rc.rate(1, v)), o: mRamp(t, tB + 2.6, tB + 3) * (1 - mRamp(t, tE, tE + .4)) });
+    const v2 = Math.round(mLerp(.12, 1, io(mRamp(t, tD + 2.8, tD + 5))) * 200) / 200;
+    cSet(dot2, { x: X(v2), y: Y(nc(v2)), o: mRamp(t, tD + 2.6, tD + 3) * (1 - mRamp(t, tE, tE + .4)) });
+  }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), t1 = m('sum1'), t2 = m('sum2'), t3 = m('sum3'), tE = m('end');
+  wLabel(p, 'Summary: what acts on an enzyme', { x: 800, y: 70, size: 36, weight: 700, o: 1 });
+  const Y = [190, 360, 530, 700], IX = 300, TX = 450;
+  const rows = Y.map(() => G(p, { o: 0 }));
+  rows.forEach((g, i) => box(g, 180, Y[i] - 75, 1240, 150));
+  // icons
+  const tc = rateCurve(rows[0], { x: IX - 90, y: Y[0] + 50, w: 180, h: 110, kind: 'temp', size: 1, labels: false }); tc.draw(1);
+  const eh = G(rows[1], { x: IX, y: Y[1] + 26 }); enzymeBlob(eh, { R: 55 }); cofactorIon(eh, { ion: 'Zn²⁺', r: 14, x: lipL(55)[0], y: lipL(55)[1] }); coenzymeRing(eh, { r: 13, x: lipR(55)[0], y: lipR(55)[1] });
+  const ec = G(rows[2], { x: IX, y: Y[2] + 22 }), ecE = enzymeBlob(ec, { R: 52 }), [cx2, cy2] = ecE.siteLocal();
+  inhibitorShape(ec, { kind: 'competitive', R: 52, x: cx2, y: cy2 - 3 });
+  const en = G(rows[3], { x: IX, y: Y[3] + 14 }); enzymeBlob(en, { R: 52, socket: true }).bend(1);
+  inhibitorShape(en, { kind: 'noncompetitive', R: 52, x: 52 * .93, y: 52 * .62 });
+  const T = [['temperature and pH', 'set the shape; far from the optimum it is denatured', HOT],
+    ['cofactors and coenzymes', 'metal ions and organic helpers (many from vitamins)', MC.cofactor],
+    ['competitive inhibitors', 'block the active site; more substrate beats them', MC.compInh],
+    ['noncompetitive inhibitors', 'bind elsewhere, change the shape; more substrate does not help', MC.nonInh]];
+  T.forEach(([a, b, c], i) => { wLabel(rows[i], a, { x: TX, y: Y[i] - 10, size: 32, weight: 700, anchor: 'start', fill: c, o: 1 }); wLabel(rows[i], b, { x: TX, y: Y[i] + 32, size: 26, weight: 500, anchor: 'start', o: 1 }); });
+  show(rows[0], t1 + .2, .5); show(rows[1], t2 + .2, .5); show(rows[2], t3 + .2, .5); show(rows[3], m('sum3', 4.6), .5);
+  say(p, 'Now try the practice.', 800, 860, tE, { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const q = (g, x, y, c = HOT) => wLabel(g, '?', { x, y, size: 40, weight: 800, fill: c, o: 1 });
+  at('opt', g => {
+    box(g, 980, 70, 580, 760);
+    const a = rateCurve(g, { x: 1050, y: 400, w: 460, h: 240, kind: 'temp', size: 18, labels: false }).draw(1);
+    const b = rateCurve(g, { x: 1050, y: 760, w: 460, h: 240, kind: 'pH', size: 18, labels: false }).draw(1);
+    q(g, 1050 + a.X(37), 400 + a.Y(1) - 12); q(g, 1050 + a.X(77), 400 + a.Y(1) - 12, MC.exo);
+    q(g, 1050 + b.X(2), 760 + b.Y(1) - 12, COL.chalk); q(g, 1050 + b.X(8), 760 + b.Y(1) - 12, MC.pathB);
+    wLabel(g, 'human', { x: 1050 + a.X(24), y: 400 + a.Y(.85), size: 20, anchor: 'end', weight: 700, o: 1 });
+    wLabel(g, 'bacteria', { x: 1050 + a.X(91), y: 400 + a.Y(.3), size: 20, anchor: 'start', weight: 700, fill: MC.exo, o: 1 });
+    wLabel(g, 'pepsin', { x: 1050 + b.X(3.6), y: 760 + b.Y(.75), size: 20, anchor: 'start', weight: 700, o: 1 });
+    wLabel(g, 'trypsin', { x: 1050 + b.X(6.2) - 8, y: 760 + b.Y(.35), size: 20, anchor: 'end', weight: 700, fill: MC.pathB, o: 1 });
+  });
+  at('hot', g => {
+    box(g, 980, 90, 580, 720);
+    const a = rateCurve(g, { x: 1050, y: 640, w: 460, h: 400, kind: 'temp', size: 18, labels: false }).draw(1);
+    mk('circle', { cx: 1050 + a.X(37), cy: 640 + a.Y(a.rate(1, 37)), r: 13, fill: MC.exo, stroke: MC.exoEdge || '#a8621a', 'stroke-width': 3 }, g);   // the bacterium's enzyme at 37 °C: on the floor
+    path(g, `M${1050 + a.X(37)} 636V${640 + a.Y(1.1)}`, { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '8 7' });
+    wLabel(g, 'tested at 37 °C', { x: 1050 + a.X(37), y: 640 + a.Y(1.1) - 14, size: 22, weight: 700, o: 1 });
+    wLabel(g, 'hot-spring bacterium', { x: 1050 + a.X(77) + 10, y: 640 + a.Y(1) - 22, size: 20, weight: 700, fill: MC.exo, o: 1 });
+  });
+  at('cof', g => {
+    box(g, 980, 90, 580, 720);
+    const eg = G(g, { x: 1270, y: 520 }); enzymeBlob(eg, { R: 150, label: 'enzyme' });
+    coenzymeRing(eg, { r: 24, x: lipR(150)[0], y: lipR(150)[1] });
+    q(g, 1270 + lipR(150)[0] + 20, 520 + lipR(150)[1] - 50, MC.coenzyme);
+    wLabel(g, 'an organic helper: what is it?', { x: 1270, y: 760, size: 24, weight: 700, fill: MC.coenzyme, o: 1 });
+  });
+  at('rescue', g => {
+    box(g, 980, 90, 580, 720);
+    const R = 120, eg = G(g, { x: 1270, y: 560 }), en = enzymeBlob(eg, { R }), [sx, sy] = en.siteLocal();
+    inhibitorShape(eg, { kind: 'competitive', R, x: sx, y: sy - 6 });
+    [[-200, -230], [-90, -300], [40, -330], [170, -260], [-210, -100], [200, -120], [120, -400]].forEach(([x, y], i) => substrateShape(eg, { R: R * .7, x, y }).pose(x, y, (i % 3 - 1) * 15));
+    wLabel(g, 'blocked site, lots of substrate', { x: 1270, y: 760, size: 24, weight: 700, fill: MC.sub, o: 1 });
+  });
+  at('sarin', g => {
+    box(g, 980, 90, 580, 720);
+    sarinScene(g, { x: 1270, y: 470, R: 130 }).set(1);
+    wLabel(g, 'sarin', { x: 1340, y: 280, size: 26, weight: 700, fill: MC.compInh, anchor: 'start', o: 1 });
+    wLabel(g, 'acetylcholinesterase', { x: 1270, y: 660, size: 26, weight: 700, fill: MC.enzyme, o: 1 });
+    wLabel(g, 'serine in the active site', { x: 1270, y: 696, size: 22, weight: 500, fill: COL.dim, o: 1 });
+  });
+  at('fig', g => {
+    const KINDS = ['normal', 'competitive', 'noncompetitive'];
+    S.figP = KINDS.map((kd, i) => {
+      const y = 100 + 240 * i, row = G(g, { o: 1 });
+      box(row, 1000, y, 540, 220);
+      enzymeInhibition(row, { kind: kd, x: 1300, y: y + 150, R: 55, labels: false }).set(kd === 'normal' ? 1 : .75);
+      wLabel(row, String.fromCharCode(97 + i), { x: 1040, y: y + 50, size: 34, weight: 800, o: 1 });
+      return row;
+    });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('opt');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-opt', prompt: ['Read the peaks: the optimum temperatures in °C, then the optimum pH values.'],
+    build: withPic('opt', blanks([
+      { parts: ['temperature: human ', { box: '37' }, ', bacteria ', { box: '77' }], why: 'The human curve peaks near 37 °C, about body temperature; the hot-spring bacteria’s near 77 °C.', hint: 'Find the top of each temperature curve and read straight down.' },
+      { parts: ['pepsin ', { box: '2' }, ', trypsin ', { box: '8' }], why: 'Pepsin works in the acid stomach, near pH 2; trypsin in the intestine, near pH 8.', hint: 'The stomach is very acidic (a low pH); the intestine is slightly basic.' },
+    ])) },
+  { id: 'p-hot', prompt: ['A hot-spring bacterium’s enzyme is tested at 37 °C. What do you expect?'],
+    build: withPic('hot', choice([['it works fastest, because 37 °C is best for all life'], ['it is very slow, because 37 °C is far below its optimum of 77 °C'], ['it is denatured at once'], ['it speeds up only if the pH is changed']], 1,
+      'Right. Below its optimum an enzyme is not damaged, just slow; this one is built for about 77 °C.',
+      ['The optimum depends on the enzyme: 37 °C suits human enzymes, not this one.', null,
+        'Denaturing comes from too much heat, above the optimum, not from being cool.',
+        'Temperature is what limits it here; changing the pH would not bring it to its optimum.'])) },
+  { id: 'p-cof', prompt: ['What is a coenzyme?'],
+    build: withPic('cof', choice([['a metal ion that helps an enzyme'], ['a second copy of the enzyme'], ['an organic cofactor, often made from a vitamin'], ['an inhibitor that binds the active site']], 2,
+      'Right. A coenzyme is an organic cofactor, a nonprotein helper; many are made from vitamins.',
+      ['A metal ion such as zinc is an inorganic cofactor; a coenzyme is organic.', 'Cofactors are nonprotein helpers, not another copy of the enzyme.', null,
+        'That is a competitive inhibitor; a coenzyme helps the enzyme work.'])) },
+  { id: 'p-rescue', prompt: ['A competitive inhibitor is slowing a reaction. What helps most?'],
+    build: withPic('rescue', choice([['heating it to 90 °C'], ['adding more of the inhibitor'], ['adding more substrate'], ['nothing can help']], 2,
+      'Right. With more substrate, the substrate wins the active sites more often, and the rate climbs back.',
+      ['That would denature the enzyme and stop it altogether.', 'More inhibitor blocks more active sites.', null,
+        'Competition can be overcome: raise the substrate concentration.'])) },
+  { id: 'p-sarin', prompt: ['Sarin poisons acetylcholinesterase. What does it do?'],
+    build: withPic('sarin', choice([['competes by a weak bond, and is washed out by more substrate'], ['binds covalently to serine in the active site, and stays: irreversible'], ['raises the enzyme’s temperature'], ['acts as a cofactor']], 1,
+      'Right. Sarin forms a covalent bond with a serine in the active site, so the enzyme is shut down for good.',
+      ['Its bond is covalent and permanent, so more substrate cannot push it out.', null,
+        'Sarin acts on the enzyme’s chemistry, not on its temperature.',
+        'A cofactor helps an enzyme work; sarin shuts it down.'])) },
+  { id: 'p-fig', prompt: ['Which picture shows noncompetitive inhibition?'],
+    build: withPic('fig', choice([['picture a'], ['picture b'], ['picture c']], 2,
+      'Right. In c the inhibitor binds lower down, away from the active site, and bends the site out of shape, so the substrate cannot fit.',
+      ['In a there is no inhibitor: the substrate fits the active site and is converted.',
+        'In b the inhibitor sits in the active site itself and turns the substrate away: that is competitive.', null], () => litFig(2))) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+function litFig(i) { const r = S.figP?.[i]; if (r) pulseFx(r, 1.03); }
+
+boot();
+</script>
+</body>
+</html>

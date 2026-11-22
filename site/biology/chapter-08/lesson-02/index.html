@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 8, Lesson 2: The Laws of Thermodynamics — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 8 (An Introduction to Metabolism), lesson 2: a campfire burns down, the camera pushes into a cell and
+// the shared pathway strip with its energy drop lit; systems (isolated, open; organisms are open); the first law with a
+// piece of fruit and a fixed total; the second law (work plus unusable heat, entropy, dots that scatter); spontaneous
+// processes (water, sugar, rust; fast or slow; entropy of the universe); biological order paid for with disorder, light
+// in and heat out; a worked glucose example; a four-row summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-08/lesson-02.md.
+const CHAPTER = { number: 802, label: '8, lesson 2', title: 'The Laws of Thermodynamics', minutes: 7, language: 'en', lead: false, next: '../lesson-03/' };
+
+/* ---------- colours of this lesson ---------- */
+const EC = { chem: '#f3c95c', chemEdge: '#a8862c', work: '#8fd6b0', workEdge: '#4f9a78', heat: MC.exo, heatEdge: '#a85f12', light: MC.glow };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const rk = k => Math.round(mClamp(k) * 2000) / 2000;
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0; null: shown at once).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  if (ax !== null) { path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g); }
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A title and a dim second line, centred; fades in at t0 (null: shown at once).
+function banner(p, a, b, x, y, t0, { color = COL.chalk, size = 40 } = {}) {
+  const g = G(p, { o: 0 });
+  wLabel(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wLabel(g, b, { x, y: y + size * .95, size: size * .62, fill: COL.dim, weight: 500, o: 1 });
+  if (t0 !== null) show(g, t0, .5); else put(g, { o: 1 });
+  return g;
+}
+// A dark rounded box behind a scene.
+const box = (g, x, y, w, hh, o = {}) => mk('rect', { x, y, width: w, height: hh, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3, ...o }, g);
+// A pill with one line of text, centred at x, y.
+function pill(p, str, x, y, t0, { color = COL.chalk, size = 30, stroke = COL.chalk, w } = {}) {
+  const g = G(p, { o: 0 }), ww = w || uiW(str, size) + 60;
+  mk('rect', { x: x - ww / 2, y: y - size * 1.05, width: ww, height: size * 1.9, rx: size * .95, fill: '#0b1626', stroke, 'stroke-opacity': .7, 'stroke-width': 2.5 }, g);
+  wLabel(g, str, { x, y: y + size * .2, size, weight: 700, fill: color, o: 1 });
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A red cross centred at x, y.
+function cross(p, x, y, r = 30, o = 0) {
+  const g = G(p, { x, y, o });
+  path(g, `M${-r} ${-r}L${r} ${r}M${r} ${-r}L${-r} ${r}`, { stroke: MC.stop, 'stroke-width': 9 });
+  return g;
+}
+// An energy bar: a rounded block from its left edge (origin at the left middle); the name inside or under it.
+function ebar(p, w, color, edge, name, { x = 0, y = 0, hh = 58, o = 1, under = false, size = 26 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('rect', { x: 0, y: -hh / 2, width: w, height: hh, rx: 14, fill: color, stroke: edge, 'stroke-width': 3 }, g);
+  if (name) wLabel(g, name, under ? { x: w / 2, y: hh / 2 + 34, size, fill: color, weight: 700, o: 1 } : { x: w / 2, y: size * .36, size, fill: '#14233a', weight: 800, o: 1 });
+  return Object.assign(g, { w });
+}
+// A dashed outline the length of a bar (the original total), origin at its left middle.
+function ghostBar(p, w, { x = 0, y = 0, hh = 70, o = 0, color = COL.chalk } = {}) {
+  const g = G(p, { x, y, o });
+  mk('rect', { x: -6, y: -hh / 2, width: w + 12, height: hh, rx: 18, fill: 'none', stroke: color, 'stroke-width': 3, 'stroke-dasharray': '12 9' }, g);
+  return g;
+}
+// A plain cell: wobbly outline, cytoplasm fill; origin at its centre.
+function cellBody(p, { x = 0, y = 0, rx = 200, ry = 150, o = 1, seed = 4, s = 1 } = {}) {
+  const g = G(p, { x, y, o, s });
+  path(g, cBlob(rx, ry, { seed }), { fill: CC.cyto, stroke: CC.membrane, 'stroke-width': 7 });
+  return g;
+}
+// A piece of fruit (a green-gold apple) holding chemical energy; origin at its centre. .glow is a ring group behind it.
+function fruit(p, { x = 0, y = 0, r = 100, o = 1, s = 1 } = {}) {
+  const g = G(p, { x, y, o, s });
+  const glow = G(g, { o: 0 });
+  [1.75, 1.5, 1.28].forEach((k, i) => mk('circle', { r: r * k, fill: EC.chem, 'fill-opacity': .08 + .05 * i }, glow));
+  path(g, `M0 ${-r * .78}C${r * .55} ${-r * 1.08} ${r * 1.1} ${-r * .6} ${r * .98} ${r * .05}C${r * .9} ${r * .7} ${r * .45} ${r * 1.02} 0 ${r * .86}C${-r * .45} ${r * 1.02} ${-r * .9} ${r * .7} ${-r * .98} ${r * .05}C${-r * 1.1} ${-r * .6} ${-r * .55} ${-r * 1.08} 0 ${-r * .78}Z`, { fill: '#c4d65a', stroke: '#7d8f2c', 'stroke-width': 4 });
+  mk('ellipse', { cx: -r * .45, cy: -r * .35, rx: r * .2, ry: r * .12, fill: '#fff', 'fill-opacity': .35, transform: 'rotate(-35)' }, g);
+  path(g, `M0 ${-r * .78}Q${r * .05} ${-r * 1.05} ${r * .14} ${-r * 1.2}`, { stroke: '#6b4a2e', 'stroke-width': 6 });
+  path(g, `M${r * .1} ${-r * 1.0}Q${r * .45} ${-r * 1.28} ${r * .7} ${-r * 1.02}Q${r * .4} ${-r * .86} ${r * .1} ${-r * 1.0}Z`, { fill: '#5bbf5b', stroke: '#3a8a3a', 'stroke-width': 2 });
+  return Object.assign(g, { glow });
+}
+// A sealed, insulated flask (a vacuum flask): double wall, stopper; jiggling dots inside. .jig(t)
+function flask(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -95, y: -150, width: 190, height: 300, rx: 46, fill: '#2a3d55', stroke: '#a9c2df', 'stroke-width': 7 }, g);
+  mk('rect', { x: -75, y: -128, width: 150, height: 256, rx: 34, fill: '#13263a', stroke: '#a9c2df', 'stroke-width': 3, 'stroke-dasharray': '8 7' }, g);
+  mk('rect', { x: -46, y: -186, width: 92, height: 44, rx: 10, fill: '#7a5a3e', stroke: '#4a3524', 'stroke-width': 3 }, g);
+  const dl = [0, 1, 2, 3, 4, 5, 6, 7].map(i => mk('circle', { r: 9, fill: MC.order }, g));
+  dl.forEach(d => put(d, {}));
+  const f = Object.assign(g, {
+    jig(t) {
+      t = Math.round(t * 30) / 30;
+      dl.forEach((d, i) => cSet(d, { x: -40 + 80 * wHash(i, 3) + 14 * zWob(i, t * 2, 1), y: -95 + 190 * wHash(i, 8) + 14 * zWob(i, t * 2, 5) }));
+      return f;
+    },
+  });
+  return f.jig(0);
+}
+// A small plant (stem and leaves), origin at its foot.
+function plant(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M0 0C-6 -60 6 -120 0 -180', { stroke: '#3a8a3a', 'stroke-width': 8 });
+  [[-1, -70], [1, -110], [-1, -150]].forEach(([sd, yy]) => path(g, `M0 ${yy}Q${sd * 40} ${yy - 40} ${sd * 90} ${yy - 20}Q${sd * 50} ${yy + 10} 0 ${yy}Z`, { fill: '#5bbf5b', stroke: '#3a8a3a', 'stroke-width': 3 }));
+  mk('rect', { x: -60, y: 0, width: 120, height: 14, rx: 7, fill: '#5d4630' }, g);
+  return g;
+}
+// A sun disc with short rays, origin at its centre.
+function sun(p, { x = 0, y = 0, r = 56, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  let rays = ''; for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; rays += `M${cF(Math.cos(a) * r * 1.25)} ${cF(Math.sin(a) * r * 1.25)}L${cF(Math.cos(a) * r * 1.6)} ${cF(Math.sin(a) * r * 1.6)}`; }
+  path(g, rays, { stroke: CC.light, 'stroke-width': 6 });
+  mk('circle', { r, fill: CC.light, stroke: '#c9a23a', 'stroke-width': 3 }, g);
+  return g;
+}
+// A straight light arrow (yellow-green), with its label.
+function lightArrow(p, a, b, { label = '', o = 1, size = 28, dy = -18 } = {}) {
+  const g = G(p, { o });
+  mArrow(g, a, b, { color: EC.light, w: 8, head: 24 });
+  if (label) wLabel(g, label, { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 + dy, size, weight: 700, fill: EC.light, o: 1 });
+  return g;
+}
+// A clock face whose hands turn with .set(t), origin at its centre.
+function clockFace(p, { x = 0, y = 0, r = 46, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: '#0b1626', stroke: COL.chalk, 'stroke-width': 4 }, g);
+  for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; path(g, `M${cF(Math.cos(a) * r * .78)} ${cF(Math.sin(a) * r * .78)}L${cF(Math.cos(a) * r * .9)} ${cF(Math.sin(a) * r * .9)}`, { stroke: COL.dim, 'stroke-width': 3 }); }
+  const hh = path(g, '', { stroke: COL.chalk, 'stroke-width': 6 }), mm = path(g, '', { stroke: COL.chalk, 'stroke-width': 4 });
+  const c = Object.assign(g, {
+    set(t) {
+      t = Math.round(t * 30) / 30;
+      const am = t * 3, ah = t * .25;
+      mD(mm, `M0 0L${cF(Math.sin(am) * r * .72)} ${cF(-Math.cos(am) * r * .72)}`);
+      mD(hh, `M0 0L${cF(Math.sin(ah) * r * .48)} ${cF(-Math.cos(ah) * r * .48)}`);
+      return c;
+    },
+  });
+  return c.set(0);
+}
+// A padlock icon, origin at its body's centre.
+function lock(p, { x = 0, y = 0, s = 1, o = 1, color = EC.heat } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-16 -10V-24A16 16 0 0 1 16 -24V-10', { stroke: color, 'stroke-width': 7 });
+  mk('rect', { x: -24, y: -12, width: 48, height: 38, rx: 7, fill: color, stroke: '#14233a', 'stroke-width': 2 }, g);
+  mk('circle', { cy: 5, r: 5, fill: '#14233a' }, g);
+  return g;
+}
+// A gauge: the total energy of the universe, its needle fixed. Origin at the dial's centre.
+function totalGauge(p, { x = 0, y = 0, o = 1, s = 1 } = {}) {
+  const g = G(p, { x, y, o, s });
+  box(g, -150, -150, 300, 250);
+  path(g, 'M-100 40A100 100 0 0 1 100 40', { stroke: COL.dim, 'stroke-width': 10 });
+  for (let i = 0; i <= 6; i++) { const a = Math.PI + i * Math.PI / 6, c = Math.cos(a), sn = Math.sin(a); path(g, `M${cF(c * 84)} ${cF(40 + sn * 84)}L${cF(c * 100)} ${cF(40 + sn * 100)}`, { stroke: COL.dim, 'stroke-width': 3 }); }
+  const needle = G(g, { y: 40 });
+  path(needle, 'M0 0L0 -86', { stroke: EC.chem, 'stroke-width': 7 });
+  mk('circle', { cy: 0, r: 11, fill: EC.chem }, needle);
+  put(needle, { r: 20 });
+  wLabel(g, 'total energy', { y: -112, size: 26, weight: 700, o: 1 });
+  wLabel(g, 'of the universe', { y: 82, size: 22, weight: 600, fill: COL.dim, o: 1 });
+  return Object.assign(g, { needle });
+}
+// Points scattered in a box, deterministic, apart from one another.
+function scatter(n, [x0, y0, x1, y1], seed, minD = 40, avoid = []) {
+  const pts = [];
+  for (let i = 0; pts.length < n && i < n * 80; i++) {
+    const x = x0 + (x1 - x0) * wHash(i, seed), y = y0 + (y1 - y0) * wHash(i, seed + 31);
+    if (avoid.some(([a, b, c, d]) => x > a && x < c && y > b && y < d)) continue;
+    if (pts.some(q => Math.hypot(q[0] - x, q[1] - y) < minD)) continue;
+    pts.push([x, y]);
+  }
+  return pts;
+}
+
+/* ---------- the three spontaneous scenes (each drawn round its centre, about 380 × 260) ---------- */
+// Water running down a slope into a pool; .set(t) runs the drops.
+function waterScene(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const P = [[-170, -80], [-80, -80], [10, -10], [80, 60], [170, 70]];
+  path(g, `M-180 110V-80L-80 -80C-30 -80 0 -20 30 20C55 50 90 70 180 70V110Z`, { fill: '#24463a', stroke: '#5f8f6a', 'stroke-width': 4 });
+  mk('ellipse', { cx: 135, cy: 66, rx: 52, ry: 12, fill: '#3a6ea5', stroke: '#a9c6ea', 'stroke-width': 2 }, g);
+  path(g, 'M-170 -84L-80 -84C-30 -84 0 -24 30 16C55 46 90 62 120 64', { stroke: '#3a6ea5', 'stroke-width': 9, 'stroke-opacity': .8 });
+  const drops = [0, 1, 2, 3, 4, 5].map(() => mk('circle', { r: 7, fill: '#a9c6ea' }, g));
+  drops.forEach(d => put(d, {}));
+  const e = Object.assign(g, {
+    set(t) {
+      t = Math.round(t * 30) / 30;
+      drops.forEach((d, i) => { const u = cFrac(t * .35 + i / 6), q = cAlong(P, u); cSet(d, { x: q[0], y: q[1] - 6, o: Math.sin(Math.PI * u) }); });
+      return e;
+    },
+  });
+  return e.set(0);
+}
+// A cup of tea with a sugar cube that dissolves; .set(k) 0 a whole cube, 1 dissolved (gold specks spread).
+function sugarScene(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-120 -60L-96 100Q-94 112 -80 112H80Q94 112 96 100L120 -60Z', { fill: '#e8e2d4', stroke: '#9d957a', 'stroke-width': 4 });
+  path(g, 'M118 -20Q170 -10 160 40Q150 80 104 70', { stroke: '#e8e2d4', 'stroke-width': 12 });
+  path(g, 'M-110 -40L-92 92H92L110 -40Z', { fill: '#a8672e' });
+  const cube = G(g, { y: -20 });
+  mk('rect', { x: -30, y: -30, width: 60, height: 60, rx: 6, fill: '#ffffff', stroke: '#b9b2a0', 'stroke-width': 3 }, cube);
+  const pts = scatter(16, [-84, -26, 84, 82], 7, 16);
+  const specks = pts.map(() => mk('circle', { r: 5, fill: '#fff1c2' }, g));
+  specks.forEach(d => put(d, {}));
+  const e = Object.assign(g, {
+    set(k) {
+      k = rk(k);
+      cSet(cube, { s: Math.max(.001, 1 - k), o: 1 - mRamp(k, .85, 1) });
+      specks.forEach((d, i) => cSet(d, { x: pts[i][0] * mRamp(k, .05, .8), y: -20 + (pts[i][1] + 20) * mRamp(k, .05, .8), o: mRamp(k, .02, .2) }));
+      return e;
+    },
+  });
+  return e.set(0);
+}
+// An iron nail that rusts; .set(k) 0 bright, 1 rusted patches.
+function nailScene(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o, r: -12 });
+  path(g, 'M-150 -12H120L170 0L120 12H-150Z', { fill: '#9aa4ae', stroke: '#5d666f', 'stroke-width': 3 });
+  mk('rect', { x: -168, y: -34, width: 20, height: 68, rx: 4, fill: '#9aa4ae', stroke: '#5d666f', 'stroke-width': 3 }, g);
+  const rust = [[-110, 0, 16], [-60, -3, 12], [-20, 4, 15], [30, -2, 13], [70, 3, 11], [105, 0, 9], [-158, -18, 8], [-158, 16, 9]].map(([cx, cy, r], i) =>
+    mk('ellipse', { cx, cy, rx: r * 1.5, ry: Math.min(r, 11), fill: i % 2 ? '#b5562a' : '#8f3f1c' }, g));
+  rust.forEach(d => put(d, { o: 0 }));
+  const e = Object.assign(g, { set(k) { k = rk(k); rust.forEach((d, i) => mO(d, mRamp(k, i * .09, i * .09 + .3) * .95)); return e; } });
+  return e.set(0);
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Where does the energy go?', (m, D) => {
+  const p = panel(0), tF = m('fire'), tC = m('cells'), tS = m('strip'), tD = m('drop');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const night = G(W, { o: 0 }); show(night, 0, .5);
+  mk('rect', { x: -400, y: 700, width: 2400, height: 400, fill: '#14283c' }, night);
+  [[120, 90], [260, 160], [700, 70], [880, 150], [560, 200], [60, 300], [780, 300]].forEach(([sx, sy], i) => mk('circle', { cx: sx, cy: sy, r: 2.5 + (i % 2), fill: '#e8e2d4', 'fill-opacity': .7 }, night));
+  const FX = 430, FY = 700;
+  const glow = G(W, { x: FX, y: FY - 110, o: 0 }), glowIn = G(glow);
+  [300, 220, 150].forEach((r, i) => mk('circle', { r, fill: EC.light, 'fill-opacity': .05 + .04 * i }, glowIn));
+  const fire = campfire(W, { x: FX, y: FY, w: 300, o: 0 });
+  const ash = G(W, { x: FX, y: FY, o: 0 });
+  path(ash, 'M-130 0Q-80 -34 -20 -40Q50 -44 130 0Z', { fill: '#5d6066', stroke: '#3d4046', 'stroke-width': 3 });
+  [[-50, -18], [10, -26], [60, -14]].forEach(([ax, ay]) => mk('circle', { cx: ax, cy: ay, r: 6, fill: '#f39a2b', 'fill-opacity': .7 }, ash));
+  show(night, 0, .4); show(fire, .2, .6); show(glow, .4, .8);
+  clockRun(t => { const u = Math.min(t, tC + .6); fire.set(u); cSet(glowIn, { s: 1 + .035 * Math.sin(u * 6.3) + .02 * Math.sin(u * 11) }); }, D);   // always written; still once the fire has gone
+  // fire: light and heat; the wood burns down to ash
+  const lt = G(W, { o: 0 });
+  wLabel(lt, 'light', { x: 120, y: 470, size: 34, weight: 700, fill: EC.light, o: 1 });
+  mArrow(lt, [165, 490], [260, 545], { color: EC.light, w: 5, head: 16 });
+  show(lt, tF + 1.2, .4);
+  const ht = G(W, { o: 0 });
+  heatArrow(ht, [FX + 150, FY - 260], [FX + 230, FY - 470], { color: EC.heat, w: 7, amp: 10, o: 1 });
+  wLabel(ht, 'heat', { x: FX + 290, y: FY - 400, size: 34, weight: 700, fill: EC.heat, anchor: 'start', o: 1 });
+  show(ht, tF + 1.8, .4);
+  tw(fire, { s: .45 }, tF + 2.8, 3.2, io); tw(glow, { s: .55 }, tF + 2.8, 3.2, io);
+  show(ash, tF + 3.4, 1.2);
+  const wd = say(W, 'the wood is gone', FX, FY + 80, tF + 3.4, { size: 30, fill: COL.dim, weight: 600 });
+  const qm = say(W, '?', FX + 200, FY - 40, m('fire', 4.2), { size: 90, weight: 800, fill: EC.chem });
+  // the title, right
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 8 · LESSON 2', { x: 1200, y: 250, size: 26, fill: COL.dim, o: 1 });
+  ['The laws of', 'thermodynamics'].forEach((s, i) => wLabel(ttl, s, { x: 1200, y: 335 + i * 70, size: 56, o: 1 }));
+  wLabel(ttl, 'An introduction to metabolism:', { x: 1200, y: 490, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(ttl, 'where energy goes, and why', { x: 1200, y: 526, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .2, .5);
+  // cells: a cell; its cytoplasm lights; the camera pushes in
+  [night, glow, fire, ash, lt, ht, wd, qm].forEach(e => hide(e, tC, .5));
+  const cm = cellMap(W, { kind: 'animal', x: 800, y: 470, s: .62, o: 0 });
+  show(cm, tC + .2, .6);
+  prog(k => cm.focus('cytoplasm', k), tC + .6, .7, io);
+  const [cx, cy] = cm.pt('cytoplasm');
+  const lc = tag(p, 'chemistry in the cytoplasm', [cx + 40, cy + 120], [cx, cy + 10], tC + 1, { size: 30, weight: 700 });
+  hide(lc, tS - 1.6, .3);
+  cam.to({ x: cx, y: cy, z: 4 }, tC + 1.6, tS - tC - 1.7);
+  // strip: the shared pathway strip builds; drop: free energy drops along it, the arrows lit
+  hide(cam.el, tS - .4, .35);
+  const ps = pathwayStrip(p, { x: 840, y: 430, w: 1040, o: 0 });
+  show(ps, tS, .3);
+  prog(k => ps.build(k), tS, 1.5, lin);
+  prog(k => ps.tilt(k), tD + .3, 1.4, io);
+  prog(k => ps.focus(['arrows'], k), tD + 1.6, .8, io);
+  clockRun(t => ps.flow(t, mRamp(t, tD + 1.8, tD + 2.6)), D);
+  // a heat squiggle leaving each step (drawn at the tilted positions)
+  const hs = G(p, { o: 0 });
+  [0, 1, 2].forEach(i => { const x0 = 840 - 520 + 1040 / 3 * (i + .5), y0 = 430 - 105 + 70 * (i + .5); heatArrow(hs, [x0 + 30, y0 + 40], [x0 + 70, y0 + 150], { color: EC.heat, w: 5, amp: 7, waves: 2, o: 1 }); });
+  show(hs, m('drop', 4.5), .5);
+  pill(p, 'energy flows along the pathway: where can it go?', 820, 790, m('drop', 3.2), { size: 30, stroke: EC.heat });
+}],
+
+/* ---------- systems ---------- */
+['systems', 'Systems', (m, D) => {
+  const p = panel(0), tDf = m('def'), tI = m('iso'), tO = m('open'), tOr = m('org');
+  banner(p, 'thermodynamics', 'the study of energy transformations', 800, 70, tDf + .2);
+  // def: a piece of the universe, the system, inside a boundary; the rest, its surroundings
+  const gen = G(p, { o: 0 }); show(gen, tDf + 3.6, .5); hide(gen, tI - .1, .4);
+  mk('rect', { x: 160, y: 190, width: 1280, height: 640, rx: 30, fill: '#122640', stroke: COL.faint, 'stroke-width': 3 }, gen);
+  mk('circle', { cx: 800, cy: 510, r: 190, fill: '#0f1e33', stroke: COL.chalk, 'stroke-width': 5, 'stroke-dasharray': '16 12' }, gen);
+  const gd = entropyDots(gen, { x: 800, y: 510, w: 220, h: 170, n: 12, box: false, seed: 9 });
+  wLabel(gen, 'the system', { x: 800, y: 395, size: 32, weight: 700, o: 1 });
+  const sr = say(gen, 'its surroundings', 1250, 250, m('def', 8.1), { size: 30, weight: 700, fill: COL.dim });
+  const sr2 = say(gen, 'boundary', 1040, 700, m('def', 6), { size: 26, weight: 600, fill: COL.dim, anchor: 'start' });
+  // iso: a sealed, insulated flask; nothing crosses
+  const L = 420, R = 1180, MY = 480;
+  const pl = G(p, { o: 0 }); show(pl, tI, .5);
+  box(pl, 100, 170, 640, 640);
+  wLabel(pl, 'isolated system', { x: L, y: 225, size: 34, weight: 700, o: 1 });
+  const fl = flask(pl, { x: L, y: MY + 20 });
+  const blk = G(p, { o: 0 }); show(blk, m('iso', 2.8), .4);
+  heatArrow(blk, [140, 360], [300, 380], { color: EC.heat, w: 6, amp: 8, o: 1 });
+  cross(blk, 316, 380, 18, 1);
+  const md = solute(blk, 'food', { x: 180, y: 600, r: 20 });
+  cross(blk, 316, 600, 18, 1);
+  const nt = G(p, { o: 0 }); show(nt, m('iso', 3.4), .4);
+  wLabel(nt, 'no energy, no matter', { x: L, y: 735, size: 30, weight: 700, fill: COL.chalk, o: 1 });
+  wLabel(nt, 'crosses its boundary', { x: L, y: 772, size: 24, weight: 500, fill: COL.dim, o: 1 });
+  // open: energy and matter cross both ways
+  const pr = G(p, { o: 0 }); show(pr, tO, .5);
+  box(pr, 860, 170, 640, 640);
+  const oT = wLabel(pr, 'open system', { x: R, y: 225, size: 34, weight: 700, o: 1 });
+  const bnd = G(pr); mk('circle', { cx: R, cy: MY + 20, r: 150, fill: '#0f1e33', stroke: COL.chalk, 'stroke-width': 5, 'stroke-dasharray': '16 12' }, bnd);
+  hide(bnd, tOr + .2, .6);
+  const cb = cellBody(pr, { x: R, y: MY + 20, rx: 160, ry: 140, o: 0 }); show(cb, tOr + .2, .6);
+  const eIn = G(p, { o: 0 }), eOut = G(p, { o: 0 });
+  heatArrow(eIn, [900, 330], [1060, 400], { color: EC.heat, w: 6, amp: 8, o: 1 });
+  wLabel(eIn, 'energy in', { x: 960, y: 310, size: 24, weight: 700, fill: EC.heat, o: 1 });
+  heatArrow(eOut, [1300, 600], [1460, 680], { color: EC.heat, w: 6, amp: 8, o: 1 });
+  wLabel(eOut, 'energy out', { x: 1380, y: 590, size: 24, weight: 700, fill: EC.heat, anchor: 'start', o: 1 });
+  show(eIn, m('open', 1.6), .4); show(eOut, m('open', 2.6), .4);
+  const mlab = G(p, { o: 0 }); show(mlab, m('open', 3.4), .4); hide(mlab, tOr, .3);
+  wLabel(mlab, 'matter in and out', { x: R, y: 735, size: 30, weight: 700, o: 1 });
+  // matter: dots in along the upper left, out along the lower right; after org, food in and CO₂ out
+  const inPath = [[900, 470], [1100, 470]], outPath = [[1260, 560], [1480, 560]];
+  const dIn = [0, 1, 2].map(i => mk('circle', { r: 10, fill: MC.order }, p)), dOut = [0, 1, 2].map(i => mk('circle', { r: 10, fill: MC.disorder }, p));
+  const fIn = [0, 1].map(() => solute(p, 'food', { r: 18, o: 0 })), cOut = [0, 1, 2].map(() => solute(p, 'CO2', { r: 16, o: 0 }));
+  [...dIn, ...dOut].forEach(d => put(d, { o: 0 }));
+  const tm = m('open', 3), ts = tOr + 1;
+  clockRun(t => {
+    fl.jig(t); gd.set(1, t);
+    mPose(md, 180 + 110 * Math.abs(Math.sin(t * 1.4)), 600, 1);   // a matter crumb comes up to the wall, and bounces back
+    const on = mRamp(t, tm, tm + .5), on2 = mRamp(t, ts, ts + .5);
+    dIn.forEach((d, i) => { const u = cFrac(t * .3 + i / 3), q = cLerp2(...inPath, u); cSet(d, { x: q[0], y: q[1], o: on * (1 - on2) * Math.sin(Math.PI * u) }); });
+    dOut.forEach((d, i) => { const u = cFrac(t * .3 + i / 3 + .15), q = cLerp2(...outPath, u); cSet(d, { x: q[0], y: q[1], o: on * (1 - on2) * Math.sin(Math.PI * u) }); });
+    fIn.forEach((d, i) => { const u = cFrac(t * .25 + i / 2), q = cLerp2(...inPath, u); mPose(d, q[0], q[1], on2 * Math.sin(Math.PI * u)); });
+    cOut.forEach((d, i) => { const u = cFrac(t * .3 + i / 3 + .15), q = cLerp2(...outPath, u); mPose(d, q[0], q[1], on2 * Math.sin(Math.PI * u)); });
+  }, D);
+  // org: the boundary becomes a cell, taking in food and giving off heat and waste
+  const ol = G(p, { o: 0 }); show(ol, tOr + .6, .4);
+  wLabel(ol, 'food in · heat and waste out', { x: R, y: 735, size: 26, weight: 600, fill: COL.dim, o: 1 });
+  const sl = G(p, { o: 0 }); show(sl, tOr + 1.4, .4);
+  mk('rect', { x: 990, y: 168, width: 380, height: 84, rx: 20, fill: '#0b1828' }, sl);
+  wLabel(sl, 'a cell: an open system', { x: R, y: 225, size: 34, weight: 700, fill: CC.membrane, o: 1 });
+  hide(oT, tOr + 1.3, .2);
+  pill(p, 'organisms are open systems', 800, 862, tOr + 2, { size: 30, color: CC.membrane, stroke: CC.membrane });
+}],
+
+/* ---------- first ---------- */
+['first', 'The first law', (m, D) => {
+  const p = panel(0), tL = m('law1'), tFr = m('fruit'), tCh = m('change'), tT = m('total');
+  banner(p, 'first law of thermodynamics', 'energy can be transferred and transformed, never created or destroyed', 760, 70, tL + .2);
+  const gauge = totalGauge(p, { x: 1400, y: 360, o: 0 }); show(gauge, m('law1', 1.5), .5);
+  const cons = say(p, 'constant', 1400, 540, m('law1', 2.2), { size: 28, weight: 700, fill: EC.chem });
+  // fruit: chemical energy
+  const fr = fruit(p, { x: 260, y: 400, r: 100, o: 0 }); show(fr, tFr, .5);
+  show(fr.glow, tFr + 1.4, .6);
+  say(p, 'chemical energy', 260, 590, tFr + 1.6, { size: 30, weight: 700, fill: EC.chem });
+  const BX = 500, BW = 640, BY = 380;
+  const chem = ebar(p, BW, EC.chem, EC.chemEdge, 'chemical energy in the fruit', { x: BX, y: BY, o: 0 }); show(chem, tFr + 2, .5);
+  // change: the fruit is broken down; its energy becomes movement and heat
+  tw(fr, { s: .7 }, tCh + .4, 1.2); tw(fr, { o: .45 }, tCh + .4, 1.2);
+  tw(chem, { o: .3 }, tCh + 1.2, .6);
+  const SY = 600, MW = 360, HW = BW - MW;
+  const mv = ebar(p, MW, EC.work, EC.workEdge, 'movement', { x: BX, y: BY + 72, o: 0 });   // they come out just under the whole bar
+  const ht = ebar(p, HW, EC.heat, EC.heatEdge, 'heat', { x: BX + MW, y: BY + 72, o: 0 });
+  show(mv, tCh + 1.2, .3); show(ht, tCh + 1.2, .3);
+  tw(mv, { y: SY, x: BX - 20 }, tCh + 1.5, 1.2); tw(ht, { y: SY, x: BX + MW + 20 }, tCh + 1.5, 1.2);
+  const ar = G(p, { o: 0 }); show(ar, tCh + 2.4, .4);
+  mArrow(ar, [BX + BW / 2, BY + 44], [BX + BW / 2, SY - 44], { color: COL.dim, w: 5, head: 16 });
+  wLabel(ar, 'transformed', { x: BX + BW / 2 + 24, y: (BY + SY) / 2 + 9, size: 26, weight: 600, fill: COL.dim, anchor: 'start', o: 1 });
+  const mvA = G(p, { o: 0 }); show(mvA, tCh + 3, .4);
+  mArrow(mvA, [330, 640], [440, 640], { color: EC.work, w: 6, head: 18 });
+  heatArrow(mvA, [310, 520], [400, 470], { color: EC.heat, w: 5, amp: 6, waves: 2, o: 1 });
+  // total: the two slide back together and fill the original length exactly
+  tw(mv, { x: BX }, tT + .5, .9); tw(ht, { x: BX + MW }, tT + .5, .9);
+  const gb = ghostBar(p, BW, { x: BX, y: SY }); show(gb, tT + 1.3, .4);
+  const eq = G(p, { o: 0 }); show(eq, tT + 1.6, .4);
+  wLabel(eq, '=', { x: BX + BW + 50, y: (BY + SY) / 2 + 22, size: 70, weight: 800, fill: COL.chalk, o: 1 });
+  wLabel(eq, 'the same total', { x: BX + BW / 2, y: SY + 78, size: 28, weight: 700, o: 1 });
+  pulse(gauge, tT + 2, 1.05); pulse(cons, tT + 2.2, 1.15);
+  pill(p, 'none created, none destroyed', 800, 830, m('total', 4.4), { size: 30, stroke: EC.chem });
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  put(fruit(p, { x: 170, y: 230, r: 70 }).glow, { o: 1 });
+  totalGauge(p, { x: 450, y: 250, s: .8 });
+  ebar(p, 460, EC.chem, EC.chemEdge, 'chemical energy', { x: 80, y: 450 });
+  mArrow(p, [310, 490], [310, 590], { color: COL.dim, w: 5, head: 16 });
+  ebar(p, 270, EC.work, EC.workEdge, 'movement', { x: 80, y: 640 });
+  ebar(p, 190, EC.heat, EC.heatEdge, 'heat', { x: 350, y: 640 });
+  wLabel(p, 'where does the energy go?', { x: 310, y: 780, size: 30, weight: 700, fill: EC.chem, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-first-law', prompt: ['Which statement matches the first law of thermodynamics?'],
+  build: choice([['Energy is destroyed when a cell uses it.'], ['Energy can change form, but the total energy of the universe stays constant.'], ['Every transformation creates a little new energy.'], ['Energy cannot change form.']], 1,
+    'Right. The fruit’s chemical energy became movement and heat; the total stayed the same.',
+    ['The first law forbids destroying energy. It changes form, here into movement and heat.', null,
+      'Energy is never created. Afterwards the total is exactly what we began with.',
+      'It can be transformed: chemical energy in food becomes movement and heat.']),
+}], done) }],
+
+/* ---------- second ---------- */
+['second', 'The second law', (m, D) => {
+  const p = panel(0), tL = m('law2'), tH = m('heat'), tE = m('entropy'), tDo = m('dots');
+  banner(p, 'second law of thermodynamics', 'every transfer makes some energy unusable, often as heat', 800, 70, m('law2', 5));
+  const qm = say(p, 'reuse the same energy forever?', 800, 110, tL + .3, { size: 34, weight: 700, fill: COL.dim });
+  hide(qm, m('law2', 4.6), .3);
+  // the cell burns a sugar
+  const CX = 330, CY = 380;
+  const cb = cellBody(p, { x: CX, y: CY, rx: 210, ry: 150, o: 0 }); show(cb, tL + .5, .5);
+  const sg = solute(p, 'sugar', { x: CX, y: CY, r: 40, o: 0 }); show(sg, tL + .8, .4);
+  say(p, 'fruit sugar', CX, CY + 80, tL + 1, { size: 24, weight: 600, fill: COL.dim });
+  const BX = 120, BW = 440, BY = 660, WW = 270, HW = BW - WW;
+  const chem = ebar(p, BW, EC.chem, EC.chemEdge, 'chemical energy', { x: BX, y: BY, o: 0 }); show(chem, m('law2', 6), .5);
+  // heat: part does work, part leaves as heat the cell cannot use
+  const wk = ebar(p, WW, EC.work, EC.workEdge, 'work', { x: BX, y: BY, o: 0 });
+  const hu = ebar(p, HW, EC.heat, EC.heatEdge, 'heat', { x: BX + WW, y: BY, o: 0 });
+  show(wk, tH + 1.2, .3); show(hu, tH + 1.2, .3); hide(chem, tH + 1.3, .3);
+  tw(hu, { x: BX + WW + 26 }, tH + 1.6, .8);
+  const ul = G(p, { o: 0 }); show(ul, tH + 2.4, .4);
+  wLabel(ul, 'unusable', { x: BX + WW + 26 + HW / 2, y: BY + 66, size: 26, weight: 700, fill: EC.heat, o: 1 });
+  wLabel(ul, 'does work', { x: BX + WW / 2, y: BY + 66, size: 26, weight: 700, fill: EC.work, o: 1 });
+  tw(sg, { s: .6 }, tH + .8, 1.4);
+  const ha = G(p, { o: 0 }); show(ha, tH + 3, .5);
+  heatArrow(ha, [CX - 120, CY - 140], [CX - 190, CY - 260], { color: EC.heat, w: 6, amp: 8, o: 1 });
+  heatArrow(ha, [CX + 220, CY - 20], [930, CY - 20], { color: EC.heat, w: 7, amp: 9, o: 1 });
+  wLabel(ha, 'heat leaves', { x: 735, y: CY - 50, size: 26, weight: 700, fill: EC.heat, o: 1 });
+  // entropy: ordered dots begin to jiggle and spread
+  const DX = 1210, DY = 400;
+  const dl = G(p, { o: 0 }); show(dl, tE - .6, .5);
+  const ed = entropyDots(dl, { x: DX, y: DY, w: 480, h: 340, n: 36, seed: 4 });
+  const ttl = wLabel(dl, 'heat: random motion of molecules', { x: DX, y: DY - 196, size: 26, weight: 700, fill: EC.heat, o: 1 });
+  const lb = G(p, { o: 0 }); show(lb, m('entropy', 4.6), .4);
+  wLabel(lb, 'entropy: a measure of disorder', { x: DX, y: DY + 222, size: 30, weight: 700, o: 1 });
+  const up = G(p, { o: 0 }); show(up, m('entropy', 7.4), .4);
+  mArrow(up, [DX + 270, DY + 120], [DX + 270, DY - 120], { color: COL.chalk, w: 6, head: 20 });
+  wLabel(up, 'rises', { x: DX + 270, y: DY + 160, size: 26, weight: 700, o: 1 });
+  wLabel(up, 'in every transfer: the entropy of the universe increases', { x: 800, y: 862, size: 28, weight: 600, fill: COL.dim, o: 1 });
+  const k0 = m('entropy', 1.5), k1 = m('entropy', 6.5);
+  clockRun(t => ed.set(io(mRamp(t, k0, k1)), t), D);
+  // dots: one way only
+  const ow = G(p, { o: 0 }); show(ow, tDo + .2, .4);
+  wLabel(ow, 'rows', { x: 1050, y: 700, size: 26, weight: 700, fill: MC.order, anchor: 'end', o: 1 });
+  mArrow(ow, [1070, 692], [1290, 692], { color: COL.chalk, w: 6, head: 20 });
+  wLabel(ow, 'scattered', { x: 1310, y: 700, size: 26, weight: 700, fill: MC.disorder, anchor: 'start', o: 1 });
+  const bw = G(p, { o: 0 }); show(bw, tDo + 2.4, .4);
+  mArrow(bw, [1290, 768], [1070, 768], { color: COL.dim, w: 6, head: 20 });
+  cross(bw, 1180, 768, 20, 1);
+  wLabel(bw, 'never by themselves', { x: 1310, y: 778, size: 26, weight: 700, fill: MC.stop, anchor: 'start', o: 1 });
+  hide(lb, tDo, .3); hide(up, tDo, .3);
+}],
+
+/* ---------- spont ---------- */
+['spont', 'Spontaneous processes', (m, D) => {
+  const p = panel(0), tSp = m('spont'), tSe = m('speed'), tR = m('rule'), tRe = m('reverse');
+  banner(p, 'spontaneous process', 'occurs without energy input', 800, 60, tSp + .2);
+  const XS = [300, 800, 1300], Y = 330;
+  const cards = XS.map(x => { const g = G(p, { o: .25 }); box(g, x - 220, Y - 170, 440, 330); return g; });
+  const wS = waterScene(cards[0], { x: XS[0], y: Y - 10 }), sS = sugarScene(cards[1], { x: XS[1], y: Y - 20, s: .95 }), nS = nailScene(cards[2], { x: XS[2], y: Y - 20 });
+  const names = ['water runs downhill', 'sugar dissolves in tea', 'an iron nail rusts'];
+  const t3 = [m('spont', 2.6), m('spont', 3.9), m('spont', 5.6)];
+  names.forEach((s, i) => { show(cards[i], t3[i], .4); say(p, s, XS[i], Y + 136, t3[i] + .2, { size: 28, weight: 700 }); });
+  const ni = pill(p, 'no energy input needed', 800, 560, m('spont', 7), { size: 28, stroke: COL.chalk });
+  clockRun(t => {
+    wS.set(t);
+    sS.set(mRamp(t, t3[1], t3[1] + 7));
+    nS.set(mRamp(t, t3[2], D));   // slowly, over the whole beat
+  }, D);
+  // speed: slow and fast, both spontaneous
+  const sp = G(p, { o: 0 }); show(sp, tSe + .3, .4); hide(sp, tR - .3, .4);
+  const ck = clockFace(sp, { x: 420, y: 700, r: 48 });
+  wLabel(sp, 'rusting: years', { x: 495, y: 712, size: 30, weight: 700, anchor: 'start', o: 1 });
+  const eb = energyBurst(sp, { x: 1040, y: 700, r: 44 });
+  wLabel(sp, 'an explosion: a moment', { x: 1110, y: 712, size: 30, weight: 700, anchor: 'start', o: 1 });
+  wLabel(sp, 'spontaneous does not mean fast', { x: 800, y: 820, size: 30, weight: 700, fill: EC.chem, o: 1 });
+  const tb = m('speed', 2.4);
+  clockRun(t => { ck.set(t); eb.set(cFrac(Math.max(0, t - tb) / 2.2)); }, D);
+  // rule: the entropy of the universe must rise
+  const rl = G(p, { o: 0 }); show(rl, tR + .2, .5);
+  wLabel(rl, 'it must increase the entropy of the universe', { x: 800, y: 670, size: 36, weight: 700, fill: COL.chalk, o: 1 });
+  // reverse: scattered dots won't line up by themselves
+  const rv = G(p, { o: 0 }); show(rv, tRe + .2, .5);
+  const ra = entropyDots(rv, { x: 520, y: 790, w: 300, h: 130, n: 18, seed: 5 });
+  const rb = entropyDots(rv, { x: 1080, y: 790, w: 300, h: 130, n: 18, seed: 5 }); put(rb, { o: .4 });
+  mArrow(rv, [700, 790], [900, 790], { color: COL.dim, w: 6, head: 20 });
+  cross(rv, 800, 790, 22, 1);
+  const nd = say(p, 'needs energy', 800, 750, m('reverse', 5.2), { size: 26, weight: 700, fill: MC.stop });
+  clockRun(t => ra.set(1, t), D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0), YS = [190, 440, 690];
+  YS.forEach(y => box(p, 40, y - 110, 580, 220));
+  waterScene(p, { x: 190, y: YS[0], s: .62 }).set(1.2); sugarScene(p, { x: 190, y: YS[1] - 6, s: .6 }).set(.5); nailScene(p, { x: 190, y: YS[2], s: .62 }).set(.6);
+  ['water runs downhill', 'sugar dissolves', 'a nail rusts'].forEach((s, i) => wLabel(p, s, { x: 345, y: YS[i] + 10, size: i ? 28 : 24, weight: 700, anchor: 'start', o: 1 }));
+  wLabel(p, 'all three: spontaneous', { x: 330, y: 850, size: 30, weight: 700, fill: EC.chem, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-spont', prompt: ['What is true of every spontaneous process?'],
+  build: choice([['It always happens quickly.'], ['It occurs without energy input and increases the entropy of the universe.'], ['It decreases the entropy of the universe.'], ['It needs a steady supply of energy.']], 1,
+    'Right. No energy input is needed, and the universe ends up more disordered.',
+    ['Spontaneous can be slow: an iron nail takes years to rust.', null,
+      'The second law forbids that: a spontaneous process raises the entropy of the universe.',
+      'That is the opposite of spontaneous. A spontaneous process needs no energy input.']),
+}], done) }],
+
+/* ---------- order ---------- */
+['order', 'Order and disorder', (m, D) => {
+  const p = panel(0), tC = m('cell'), tN = m('no'), tP = m('pay'), tF = m('flow');
+  const sc = G(p); hide(sc, tF - .2, .5);
+  const CX = 600, CY = 460;
+  const cb = cellBody(sc, { x: CX, y: CY, rx: 250, ry: 180, o: 0, seed: 6 }); show(cb, tC + .1, .5);
+  // cell: loose amino acids snap into an ordered chain
+  const N = 9, chainY = CY + 10, cols = [MC.pathA, MC.pathB, MC.pathC, EC.chem, '#e8a0c8', MC.pathA, MC.pathC, MC.pathB, EC.chem];
+  const loose = scatter(N, [CX - 190, CY - 120, CX + 190, CY + 120], 13, 60);
+  const beads = cols.map(c => { const g = G(sc, { o: 0 }); mk('circle', { r: 20, fill: c, stroke: mix(c, '#000000', .35), 'stroke-width': 3 }, g); return g; });
+  const bond = path(sc, `M${CX - 200} ${chainY}H${CX + 200}`, { stroke: COL.chalk, 'stroke-width': 5 }, { o: 0 });
+  const tB = m('cell', 2.2), tB2 = m('cell', 5.4);
+  beads.forEach(b => show(b, tC + .4, .4));
+  tw(bond, { o: 1 }, tB2 - .3, .5);
+  const oL = say(sc, 'order: a protein chain', CX, CY - 60, tB2, { size: 28, weight: 700, fill: MC.order });
+  const qm = say(sc, '?', CX + 300, CY - 170, m('cell', 7.6), { size: 100, weight: 800, fill: EC.chem });
+  // no: the cell is not the whole universe
+  hide(qm, tN, .3);
+  const uv = G(sc, { o: 0 }); show(uv, tN + .4, .6);
+  mk('circle', { cx: CX, cy: CY, r: 410, fill: 'none', stroke: COL.dim, 'stroke-width': 4, 'stroke-dasharray': '14 12' }, uv);
+  wLabel(uv, 'the universe', { x: CX + 330, y: CY - 330, size: 30, weight: 700, fill: COL.dim, anchor: 'start', o: 1 });
+  wLabel(uv, 'the cell', { x: CX - 170, y: CY - 190, size: 28, weight: 700, fill: CC.membrane, o: 1 });
+  // pay: heat and waste scatter outward
+  const hz = G(sc, { o: 0 }); show(hz, tP + 2.4, .5);
+  [[-1, -.6], [1, -.5], [-1, .55], [1, .6], [0, -1], [0, 1]].forEach(([dx, dy], i) => {
+    const a = Math.atan2(dy, dx), x0 = CX + Math.cos(a) * 250 * (dy ? 1 : 1), y0 = CY + Math.sin(a) * 180;
+    heatArrow(hz, [x0, y0], [x0 + Math.cos(a) * 110, y0 + Math.sin(a) * 100], { color: EC.heat, w: 5, amp: 6, waves: 2, o: 1 });
+  });
+  const waste = scatter(16, [CX - 400, CY - 400, CX + 400, CY + 400], 17, 50, [[CX - 290, CY - 210, CX + 290, CY + 210]]).filter(([x, y]) => Math.hypot(x - CX, y - CY) < 390 && y > 30 && y < 880);
+  const wd = waste.map((q, i) => i % 3 ? mk('circle', { r: 9, fill: MC.disorder }, sc) : solute(sc, 'CO2', { r: 14 }));
+  wd.forEach(d => put(d, { o: 0 }));
+  const tW = m('pay', 3.6);
+  // bars: order inside is small, disorder outside bigger
+  const BB = 760, br = G(sc, { o: 0 }); show(br, m('pay', 6.2), .5);
+  box(br, 1110, 210, 430, 620);
+  const oB = mk('rect', { x: 1190, y: BB - 90, width: 90, height: 90, rx: 10, fill: MC.order }, br);
+  const dB = mk('rect', { x: 1370, y: BB - 330, width: 90, height: 330, rx: 10, fill: MC.disorder }, br);
+  wLabel(br, 'order', { x: 1235, y: BB + 36, size: 24, weight: 700, o: 1 }); wLabel(br, 'inside', { x: 1235, y: BB + 64, size: 22, weight: 500, fill: COL.dim, o: 1 });
+  wLabel(br, 'disorder', { x: 1415, y: BB + 36, size: 24, weight: 700, fill: MC.disorder, o: 1 }); wLabel(br, 'outside', { x: 1415, y: BB + 64, size: 22, weight: 500, fill: COL.dim, o: 1 });
+  wLabel(br, 'small', { x: 1235, y: BB - 104, size: 22, weight: 600, fill: COL.dim, o: 1 }); wLabel(br, 'bigger', { x: 1415, y: BB - 344, size: 22, weight: 600, fill: COL.dim, o: 1 });
+  const net = G(sc, { o: 0 }); show(net, m('pay', 10.4), .5);
+  wLabel(net, 'entropy of the', { x: 1325, y: 270, size: 26, weight: 700, o: 1 });
+  wLabel(net, 'universe: rises', { x: 1325, y: 304, size: 26, weight: 700, o: 1 });
+  const sp = say(sc, 'spends energy', CX, CY + 110, tP + .6, { size: 26, weight: 700, fill: EC.chem });
+  clockRun(t => {
+    const a = io(mRamp(t, tB, tB2));
+    beads.forEach((b, i) => { const cxp = CX - 180 + 45 * i; mPose(b, mLerp(loose[i][0], cxp, a), mLerp(loose[i][1], chainY, a) + 4 * Math.sin(t * 3 + i) * (1 - a)); });
+    wd.forEach((d, i) => {
+      const [wx, wy] = waste[i], u = io(mRamp(t, tW + .12 * i, tW + .12 * i + 2.2));
+      const x = mLerp(CX + (wx - CX) * .55, wx, u) + 6 * zWob(i, t, 2), y = mLerp(CY + (wy - CY) * .55, wy, u) + 6 * zWob(i, t, 9);
+      mPose(d, x, y, mRamp(t, tW + .12 * i, tW + .12 * i + .4));
+    });
+  }, D);
+  // flow: on the scale of an ecosystem, light in and heat out
+  const ec = G(p, { o: 0 }); show(ec, tF + .2, .6);
+  banner(ec, 'an ecosystem', null, 800, 90, null, { size: 36 });
+  mk('rect', { x: 60, y: 640, width: 1480, height: 16, rx: 8, fill: '#3d5a3a' }, ec);
+  sun(ec, { x: 170, y: 250 });
+  plant(ec, { x: 560, y: 640, s: 1.2 });
+  const fz = fruit(ec, { x: 640, y: 440, r: 34 });
+  cellBody(ec, { x: 1000, y: 520, rx: 110, ry: 80, seed: 3 });
+  lightArrow(ec, [240, 300], [500, 420], { label: 'light in', dy: -26 });
+  mArrow(ec, [690, 460], [880, 500], { color: EC.chem, w: 6, head: 18 });
+  wLabel(ec, 'chemical energy', { x: 790, y: 440, size: 22, weight: 700, fill: EC.chem, o: 1 });
+  heatArrow(ec, [1120, 480], [1340, 360], { color: EC.heat, w: 7, amp: 9, o: 1 });
+  heatArrow(ec, [640, 280], [760, 160], { color: EC.heat, w: 6, amp: 8, o: 1 });
+  wLabel(ec, 'heat out', { x: 1370, y: 340, size: 30, weight: 700, fill: EC.heat, anchor: 'start', o: 1 });
+  wLabel(ec, 'energy flows through; it is not recycled', { x: 800, y: 760, size: 28, weight: 600, fill: COL.dim, o: 1 });
+}],
+
+/* ---------- example ---------- */
+['example', 'Worked example: glucose', (m, D) => {
+  const p = panel(0), tS = m('start'), tSp = m('split'), tH = m('heat2'), tC = m('co2');
+  banner(p, 'worked example: a cell breaks down glucose', null, 800, 70, tS + .2, { size: 36 });
+  const GX = 300, GY = 400;
+  const gl = solute(p, 'sugar', { x: GX, y: GY, r: 72, o: 0 }); show(gl, tS + .5, .5);
+  const glL = say(p, 'glucose', GX, GY + 120, tS + .8, { size: 30, weight: 700, fill: MC.carb });
+  const BX = 600, BW = 600, Y1 = 250, Y2 = 440, Y3 = 650, WW = 380, HW = BW - WW;
+  const top = ebar(p, BW, EC.chem, EC.chemEdge, 'energy the glucose gives up', { x: BX, y: Y1, o: 0 }); show(top, m('start', 3.2), .5);
+  const lk = G(p, { o: 0 }); show(lk, m('start', 3.2), .4); mArrow(lk, [GX + 90, GY - 60], [BX - 20, Y1 + 10], { color: EC.chem, w: 5, head: 16 });
+  // split: work plus heat equals the whole
+  const wk = ebar(p, WW, EC.work, EC.workEdge, 'work', { x: BX, y: Y2, o: 0 }); show(wk, tSp + 1.8, .4);
+  const ht = ebar(p, HW, EC.heat, EC.heatEdge, 'heat', { x: BX + WW + 50, y: Y2, o: 0 }); show(ht, tSp + 2.6, .4);
+  const pl = say(p, '+', BX + WW + 25, Y2 + 16, tSp + 2.6, { size: 44, weight: 800 });
+  const eq = G(p, { o: 0 }); show(eq, tSp + 4.4, .4);
+  wLabel(eq, '=', { x: BX + BW / 2, y: (Y1 + Y2) / 2 + 22, size: 64, weight: 800, o: 1 });
+  pill(p, 'first law: it all adds up', 1380, 345, tSp + 5, { size: 26, stroke: EC.chem, w: 330 });
+  // heat2: the heat share is never zero; "all work" is impossible
+  const lc = lock(p, { x: BX + WW + 50 + HW / 2, y: Y2 - 70, o: 0 }); show(lc, tH + 2, .4);
+  const nz = say(p, 'never zero', BX + WW + 50 + HW + 24, Y2 + 9, tH + 2.2, { size: 28, weight: 700, fill: EC.heat, anchor: 'start' });
+  const aw = ebar(p, BW, EC.work, EC.workEdge, 'all work, no heat', { x: BX, y: Y3, o: 0 }); show(aw, tH + 4.4, .4);
+  const cx = G(p, { o: 0 }); show(cx, tH + 5.2, .3);
+  path(cx, `M${BX - 10} ${Y3 + 40}L${BX + BW + 10} ${Y3 - 40}`, { stroke: MC.stop, 'stroke-width': 10 });
+  wLabel(cx, 'impossible:', { x: BX + BW + 40, y: Y3 - 6, size: 26, weight: 700, fill: MC.stop, anchor: 'start', o: 1 });
+  wLabel(cx, 'second law', { x: BX + BW + 40, y: Y3 + 26, size: 26, weight: 700, fill: MC.stop, anchor: 'start', o: 1 });
+  // co2: the glucose breaks into scattered CO₂ and water
+  hide(gl, tC + 1.6, .5); hide(glL, tC + 1.6, .4); hide(lk, tC + 1.2, .4);
+  const pts = scatter(12, [100, 230, 500, 760], 21, 70);
+  const bits = pts.map((q, i) => i % 2 ? waterMolecule(p, { s: .5, face: false, o: 0 }) : solute(p, 'CO2', { r: 22, o: 0 }));
+  const tc = m('co2', 3.2);
+  clockRun(t => {
+    const u = io(mRamp(t, tc - 1.6, tc + 1.2));
+    bits.forEach((b, i) => mPose(b, mLerp(GX, pts[i][0], u) + 5 * zWob(i, t, 3) * u, mLerp(GY, pts[i][1], u) + 5 * zWob(i, t, 6) * u, mRamp(t, tc - 1.6, tc - 1.1)));
+  }, D);
+  const dl = G(p, { o: 0 }); show(dl, tc + .6, .4);
+  wLabel(dl, 'carbon dioxide and water', { x: 300, y: 820, size: 26, weight: 700, o: 1 });
+  wLabel(dl, 'smaller, scattered: more disorder', { x: 300, y: 856, size: 24, weight: 600, fill: COL.dim, o: 1 });
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tw4 = ['w1', 'w2', 'w3', 'w4'].map(k => m(k));
+  banner(p, 'Summary', null, 800, 70, 0, { size: 40 });
+  const YS = [200, 365, 530, 695], IX = 330, TX = 470;
+  const rows = YS.map(() => G(p, { o: 0 }));
+  rows.forEach((g, i) => { box(g, 200, YS[i] - 72, 1200, 144); show(g, tw4[i] + .1, .5); });
+  // 1: equal bars
+  ebar(rows[0], 120, EC.chem, EC.chemEdge, '', { x: IX - 70, y: YS[0] - 22, hh: 30 });
+  ebar(rows[0], 70, EC.work, EC.workEdge, '', { x: IX - 70, y: YS[0] + 22, hh: 30 }); ebar(rows[0], 50, EC.heat, EC.heatEdge, '', { x: IX, y: YS[0] + 22, hh: 30 });
+  // 2: heat and scattered dots
+  heatArrow(rows[1], [IX - 80, YS[1] + 30], [IX - 10, YS[1] - 40], { color: EC.heat, w: 5, amp: 6, waves: 2, o: 1 });
+  entropyDots(rows[1], { x: IX + 50, y: YS[1], w: 80, h: 90, n: 8, box: false, seed: 2 }).set(1, 0);
+  // 3: water downhill
+  waterScene(rows[2], { x: IX, y: YS[2] + 6, s: .36 }).set(.4);
+  // 4: a cell with a halo of heat
+  cellBody(rows[3], { x: IX, y: YS[3], rx: 52, ry: 40 });
+  [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([dx, dy]) => heatArrow(rows[3], [IX + dx * 50, YS[3] + dy * 30], [IX + dx * 90, YS[3] + dy * 60], { color: EC.heat, w: 4, amp: 4, waves: 1, o: 1 }));
+  const T = [['First law: energy is conserved', 'it changes form and never vanishes'], ['Second law: some energy becomes heat', 'every transformation raises the entropy of the universe'],
+    ['Spontaneous: no energy input', 'and the entropy of the universe rises'], ['Cells are open systems', 'they build order and pay for it with heat and disorder']];
+  T.forEach(([a, b], i) => { wLabel(rows[i], a, { x: TX, y: YS[i] - 8, size: 32, weight: 700, anchor: 'start', o: 1 }); wLabel(rows[i], b, { x: TX, y: YS[i] + 32, size: 24, weight: 500, fill: COL.dim, anchor: 'start', o: 1 }); });
+  say(p, 'Now try the chapter practice.', 800, 840, m('w4', 6), { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const PX = 1270;
+  at('systems', g => {
+    box(g, 980, 90, 580, 720);
+    flask(g, { x: 1120, y: 420, s: .8 }).jig(.5);
+    wLabel(g, 'isolated?', { x: 1120, y: 600, size: 26, weight: 700, o: 1 });
+    cellBody(g, { x: 1420, y: 420, rx: 110, ry: 95 });
+    heatArrow(g, [1440, 300], [1500, 190], { color: EC.heat, w: 5, amp: 6, waves: 2, o: 1 });
+    solute(g, 'food', { x: 1300, y: 280, r: 18 }); solute(g, 'CO2', { x: 1520, y: 520, r: 14 });
+    wLabel(g, 'open?', { x: 1420, y: 600, size: 26, weight: 700, o: 1 });
+    wLabel(g, 'what crosses the boundary?', { x: PX, y: 760, size: 26, weight: 700, fill: COL.dim, o: 1 });
+  });
+  at('heat', g => {
+    box(g, 980, 90, 580, 720);
+    cellBody(g, { x: PX, y: 290, rx: 160, ry: 120 });
+    solute(g, 'sugar', { x: PX, y: 290, r: 34 });
+    heatArrow(g, [PX + 150, 220], [PX + 250, 140], { color: EC.heat, w: 5, amp: 6, waves: 2, o: 1 });
+    ebar(g, 260, EC.work, EC.workEdge, 'work', { x: 1040, y: 540 });
+    ebar(g, 190, EC.heat, EC.heatEdge, '', { x: 1320, y: 540 });
+    wLabel(g, 'unusable heat', { x: 1415, y: 610, size: 24, weight: 700, fill: EC.heat, o: 1 });
+    wLabel(g, 'which law?', { x: PX, y: 740, size: 30, weight: 700, fill: COL.dim, o: 1 });
+  });
+  at('spont', g => {
+    box(g, 980, 90, 580, 720);
+    waterScene(g, { x: 1130, y: 230, s: .62 }).set(1); sugarScene(g, { x: 1420, y: 230, s: .62 }).set(.5);
+    nailScene(g, { x: 1130, y: 470, s: .62 }).set(.7);
+    const r = entropyDots(g, { x: 1420, y: 470, w: 200, h: 130, n: 12, seed: 6 }); r.set(.5, 1);
+    ['water', 'sugar in tea', 'a nail rusting', 'dots lining up?'].forEach((s, i) => wLabel(g, s, { x: i % 2 ? 1420 : 1130, y: (i < 2 ? 230 : 470) + 120, size: 22, weight: 700, o: 1 }));
+    wLabel(g, 'no energy input: which ones?', { x: PX, y: 740, size: 26, weight: 700, fill: COL.dim, o: 1 });
+  });
+  at('cell', g => {
+    box(g, 980, 90, 580, 720);
+    mk('circle', { cx: PX, cy: 400, r: 260, fill: 'none', stroke: COL.dim, 'stroke-width': 3, 'stroke-dasharray': '12 10' }, g);
+    cellBody(g, { x: PX, y: 400, rx: 140, ry: 105 });
+    [0, 1, 2, 3, 4, 5].forEach(i => mk('circle', { cx: PX - 100 + 40 * i, cy: 400, r: 14, fill: [MC.pathA, MC.pathB, MC.pathC, EC.chem, '#e8a0c8', MC.pathA][i] }, g));
+    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([dx, dy]) => heatArrow(g, [PX + dx * 130, 400 + dy * 80], [PX + dx * 200, 400 + dy * 150], { color: EC.heat, w: 5, amp: 5, waves: 2, o: 1 }));
+    scatter(10, [1010, 140, 1530, 660], 3, 50, [[PX - 160, 280, PX + 160, 520]]).forEach(([x, y]) => mk('circle', { cx: x, cy: y, r: 8, fill: MC.disorder }, g));
+    wLabel(g, 'order inside, disorder outside', { x: PX, y: 740, size: 26, weight: 700, fill: COL.dim, o: 1 });
+  });
+  at('blanks', g => {
+    box(g, 980, 90, 580, 720);
+    sun(g, { x: 1070, y: 200, r: 40 });
+    plant(g, { x: 1250, y: 560, s: .9 });
+    lightArrow(g, [1110, 240], [1220, 380], {});
+    heatArrow(g, [1330, 420], [1480, 270], { color: EC.heat, w: 6, amp: 8, o: 1 });
+    mk('rect', { x: 1000, y: 560, width: 540, height: 12, rx: 6, fill: '#3d5a3a' }, g);
+    wLabel(g, 'light in', { x: 1100, y: 640, size: 28, weight: 700, fill: EC.light, o: 1 });
+    wLabel(g, 'out as ___', { x: 1430, y: 640, size: 28, weight: 700, fill: EC.heat, o: 1 });
+  });
+  at('example', g => {
+    box(g, 980, 90, 580, 720);
+    solute(g, 'sugar', { x: PX, y: 210, r: 54 });
+    wLabel(g, 'glucose', { x: PX, y: 300, size: 26, weight: 700, fill: MC.carb, o: 1 });
+    ebar(g, 460, EC.chem, EC.chemEdge, 'energy given up', { x: PX - 230, y: 400 });
+    ebar(g, 290, EC.work, EC.workEdge, 'work', { x: PX - 230, y: 540 });
+    ebar(g, 140, EC.heat, EC.heatEdge, 'heat', { x: PX + 90, y: 540 });
+    wLabel(g, '+', { x: PX + 75, y: 554, size: 36, weight: 800, o: 1 });
+    wLabel(g, '=', { x: PX, y: 486, size: 48, weight: 800, o: 1 });
+    wLabel(g, 'which is correct?', { x: PX, y: 700, size: 28, weight: 700, fill: COL.dim, o: 1 });
+  });
+  at('unusable', g => {
+    box(g, 980, 90, 580, 720);
+    cellBody(g, { x: 1150, y: 300, rx: 120, ry: 95 });
+    heatArrow(g, [1270, 300], [1420, 300], { color: EC.heat, w: 6, amp: 8, o: 1 });
+    entropyDots(g, { x: PX, y: 560, w: 420, h: 200, n: 24, seed: 8 }).set(1, 2);
+    wLabel(g, 'heat', { x: 1460, y: 270, size: 28, weight: 700, fill: EC.heat, o: 1 });
+    wLabel(g, '“unusable”: what does it mean?', { x: PX, y: 740, size: 26, weight: 700, fill: COL.dim, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('systems');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-systems', prompt: ['Isolated or open?'],
+    build: withPic('systems', grid([
+      { parts: ['a perfectly sealed, insulated flask'], ans: ['i'], why: 'Isolated: neither energy nor matter crosses its boundary.' },
+      { parts: ['a living cell'], ans: ['o'], why: 'Open: a cell takes in food and gives off heat and waste.' },
+      { parts: ['exchanges both energy and matter with its surroundings'], ans: ['o'], why: 'Open: that is what an open system does.' },
+      { parts: ['no energy or matter crosses its boundary'], ans: ['i'], why: 'Isolated: nothing crosses.' },
+      { parts: ['every organism'], ans: ['o'], why: 'Open: every organism takes in matter and energy and gives some back as heat and waste.' },
+    ], [['i', 'isolated', null, 'I'], ['o', 'open', null, 'O']], { multi: false, text: true })) },
+  { id: 'p-heat', prompt: ['A cell uses chemical energy to do work, and some of it leaves as heat. Which law says some energy always becomes unusable this way?'],
+    build: withPic('heat', choice([['the first law of thermodynamics'], ['the second law of thermodynamics'], ['neither law'], ['a law about how fast reactions run']], 1,
+      'Right. The second law: every transfer makes some energy unusable, often as heat, and entropy rises.',
+      ['The first law only says the total stays constant. It does not say how much stays usable.', null,
+        'Both laws apply here: the total is kept (first), and some becomes unusable heat (second).',
+        'There is no such law here, and spontaneous does not mean fast.'])) },
+  { id: 'p-spont', prompt: ['Spontaneous, or needs energy input?'],
+    build: withPic('spont', grid([
+      { parts: ['a sugar cube dissolving in tea'], ans: ['s'], why: 'Spontaneous: the sugar spreads out by itself, and entropy rises.' },
+      { parts: ['scattered dots lining up in rows'], ans: ['n'], why: 'Needs energy input: lining up lowers the entropy, so something must pay for it.' },
+      { parts: ['an iron nail slowly rusting'], ans: ['s'], why: 'Spontaneous: slow, but it needs no energy input.' },
+      { parts: ['water running downhill'], ans: ['s'], why: 'Spontaneous: it happens by itself.' },
+      { parts: ['a cell building a protein chain'], ans: ['n'], why: 'Needs energy input: building order costs energy, paid for with heat and disorder around the cell.' },
+    ], [['s', 'spontaneous', null, 'S'], ['n', 'needs energy input', null, 'N']], { multi: false, text: true })) },
+  { id: 'p-unusable', prompt: ['The heat a cell gives off is called unusable energy. What does that mean?'],
+    build: withPic('unusable', choice([['The energy has been destroyed.'], ['The energy still exists, but the cell can no longer use it to do work.'], ['It was never energy in the first place.'], ['It turns back into chemical energy by itself.']], 1,
+      'Right. The energy is still there (first law), but spread out as random motion it can no longer do work in the cell (second law).',
+      ['The first law forbids that: energy is never destroyed, only transformed.', null,
+        'Heat is energy: the random motion of molecules.',
+        'That would lower the entropy of the universe: scattered motion does not gather itself back into ordered bonds.'])) },
+  { id: 'p-cell', prompt: ['A cell builds ordered proteins from loose amino acids. Why does this not break the second law?'],
+    build: withPic('cell', choice([['Cells are isolated systems.'], ['The order is created from nothing.'], ['The cell releases heat and waste that increase disorder around it by more than the order it builds.'], ['The second law applies only to non-living things.']], 2,
+      'Right. The order inside is small; the disorder it releases around it is bigger, so the entropy of the universe still rises.',
+      ['Cells are open systems: they take in food and give off heat and waste.', 'Nothing comes from nothing: the cell spends energy to build order.', null,
+        'The second law applies to everything, living things included.'])) },
+  { id: 'p-blanks', prompt: ['Fill in the missing words.'],
+    build: withPic('blanks', wordBlanks([
+      { parts: ['Energy can be ', { box: 'transferred', accept: ['transfered', 'moved'] }, ' and transformed, but never created or destroyed.'], why: 'The first law: energy is transferred and transformed.', hint: 'A word that means moved from one place to another.' },
+      { parts: ['Every transfer increases the ', { box: 'entropy', accept: ['disorder'] }, ' of the universe.'], why: 'The second law: entropy, the measure of disorder, rises.', hint: 'A word for disorder.' },
+      { parts: ['Energy flows into an ecosystem as light and leaves as ', { box: 'heat', accept: ['thermal energy'] }, '.'], why: 'Light in, heat out.', hint: 'The wavy orange arrow.' },
+    ])) },
+  { id: 'p-example', prompt: ['A cell breaks down glucose. Which is correct?'],
+    build: withPic('example', choice([['All the energy becomes work.'], ['The cell makes new energy from the glucose.'], ['The work done plus the heat released equals the energy the glucose gave up, and the heat share is never zero.'], ['The heat disappears.']], 2,
+      'Right. Both laws at once: it all adds up (first), and some is always heat (second).',
+      ['The second law forbids it: some always becomes unusable heat.', 'The first law forbids it: energy is never created, only transformed.', null,
+        'Heat is energy that left the cell. It is not destroyed.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+// Typed words in sentences (the engine's blanks take numbers only). rows: [{ parts: [text, { box: 'word', accept: [...] }], why, hint }].
+// Case and spacing are ignored. Same keys as blanks: Tab moves between boxes, Enter checks, Esc leaves a box.
+function wordBlanks(rowsIn) {
+  return (body, api) => {
+    const all = [], norm = v => String(v).trim().toLowerCase().replace(/\s+/g, ' ');
+    const rows = rowsIn.map(it => {
+      const line = h('div', 'bline'), mark = h('span', 'mark'), why = h('div', 'why'), boxes = [];
+      for (const p of it.parts) {
+        if (p && p.box !== undefined) {
+          const b = h('input', 'box');
+          Object.assign(b, { type: 'text', autocomplete: 'off', spellcheck: false });
+          b.setAttribute('aria-label', translate('answerBox'));
+          b.dataset.ans = p.box; b.ok = [p.box, ...(p.accept || [])].map(norm);
+          b.style.width = `${Math.max(...b.ok.map(x => x.length)) + 2}ch`;
+          line.append(b); boxes.push(b); all.push(b);
+        } else line.append(h('span', 'btxt', [p]));
+      }
+      line.append(mark);
+      body.append(h('div', 'brow', [line, why]));
+      return { it, boxes, mark, why };
+    });
+    body.classList.add('blanks');
+    const judge = r => {
+      let ok = true;
+      r.boxes.forEach(b => { const good = b.ok.includes(norm(b.value)); b.classList.toggle('good', good); b.classList.toggle('bad', !good); ok = ok && good; });
+      r.mark.className = 'mark ' + (ok ? 'good' : 'bad'); r.mark.textContent = ok ? '✓' : '✗';
+      r.why.replaceChildren(ok ? '' : rich(r.it.hint ?? r.it.why, 20));
+      return ok;
+    };
+    requestAnimationFrame(() => { if (P.started) all[0]?.focus({ preventScroll: true }); });
+    return {
+      check() { const right = rows.filter(judge).length, done = right === rows.length; api.grade(done, done ? [] : [translate('rowsRight', { r: right, n: rows.length })], { right, total: rows.length }); },
+      reveal() { rows.forEach(r => { r.boxes.forEach(b => { b.value = b.dataset.ans; }); judge(r); r.why.replaceChildren(rich(r.it.why, 20)); }); return 'the words are shown'; },
+      lock() { all.forEach(b => { b.disabled = true; }); },
+      hint: ['type a word', kbd('Tab'), translate('hintNextBox'), kbd('Enter'), translate('hintCheck'), kbd('Esc'), translate('hintLeaveBox')],
+    };
+  };
+}
+
+boot();
+</script>
+</body>
+</html>

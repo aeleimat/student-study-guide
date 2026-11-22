@@ -1,0 +1,10 @@
+[
+ {"folder": "chapter-08/lesson-01", "title": "Metabolism, pathways and forms of energy", "start": 1, "end": 10, "unit": "Chapter 8: An Introduction to Metabolism"},
+ {"folder": "chapter-08/lesson-02", "title": "The laws of thermodynamics", "start": 11, "end": 16, "unit": "Chapter 8: An Introduction to Metabolism"},
+ {"folder": "chapter-08/lesson-03", "title": "Free energy, stability and equilibrium", "start": 17, "end": 24, "unit": "Chapter 8: An Introduction to Metabolism"},
+ {"folder": "chapter-08/lesson-04", "title": "ATP and energy coupling", "start": 25, "end": 34, "unit": "Chapter 8: An Introduction to Metabolism"},
+ {"folder": "chapter-08/lesson-05", "title": "Enzymes and the activation energy barrier", "start": 35, "end": 40, "unit": "Chapter 8: An Introduction to Metabolism"},
+ {"folder": "chapter-08/lesson-06", "title": "The active site and how enzymes catalyse", "start": 41, "end": 44, "unit": "Chapter 8: An Introduction to Metabolism"},
+ {"folder": "chapter-08/lesson-07", "title": "Temperature, pH, cofactors and inhibitors", "start": 45, "end": 51, "unit": "Chapter 8: An Introduction to Metabolism"},
+ {"folder": "chapter-08/lesson-08", "title": "Allosteric regulation and feedback inhibition", "start": 52, "end": 58, "unit": "Chapter 8: An Introduction to Metabolism"}
+]

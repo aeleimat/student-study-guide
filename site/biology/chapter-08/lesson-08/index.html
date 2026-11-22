@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 8, Lesson 8: Allosteric Regulation and Feedback Inhibition — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 8 (An Introduction to Metabolism), lesson 8: a thermostat switches a heater off and on, then a
+// plant cell, then the shared pathway strip with its stop sign lit; why pathways are regulated (genes, or enzyme
+// activity); allosteric regulation (a regulator binds one site and changes another); the four-subunit enzyme between
+// its active and inactive forms, stabilised by an activator or an inhibitor; cooperativity; feedback inhibition from
+// threonine to isoleucine; the isoleucine level as a thermostat; a recap of the chapter; practice.
+// Plan, errata and storyboard: books/biology/chapters/chapter-08/lesson-08.md.
+const CHAPTER = { number: 808, label: '8, lesson 8', title: 'Allosteric Regulation and Feedback Inhibition', minutes: 7, language: 'en', lead: false };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const DARK = '#0a1626', ISO = MC.pathD, THR = MC.pathA, GREEN = MC.activator, RED = MC.alloInh;
+// a beat's sentence start (from the voice's cues), so actions can land on a sentence without a mark
+const cue = (id, i) => TIMINGS[id].cues[i][0];
+const setT = (e, s) => { if (e._s !== s) { e.textContent = s; e._s = s; } return e; };
+const ss = v => { const c = mClamp(v); return c * c * (3 - 2 * c); };
+// A label (centred text) with a leader to the thing it names; returns the group (it fades in at t0).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wLabel(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wLabel(g, sub, { x: tx, y: ty + size * 1.05, size: size * .8, fill: subFill, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  path(g, `M${cF(sx)} ${cF(sy)}L${cF(ax)} ${cF(ay)}`, { stroke: line, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g);
+  if (t0 !== null) show(g, t0, .4);
+  return g;
+}
+// A dark pill with a line of text, centred on (x, y); fades in at t0 (null: o 0, not scheduled).
+function pill(p, str, x, y, t0, { size = 28, color = COL.chalk, edge = COL.faint, weight = 700 } = {}) {
+  const g = G(p, { x, y, o: 0 }), w = uiW(str, size) + 40, h = size + 24;
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill: DARK, stroke: edge, 'stroke-width': 2.5 }, g);
+  wLabel(g, str, { y: size * .36, size, fill: color, weight, o: 1 });
+  if (t0 !== null) { show(g, t0, .4); pulse(g, t0 + .1, 1.06); }
+  return g;
+}
+// A ring that pops in round a point.
+function ring(p, [x, y], r, t0, { color = COL.chalk, w = 4 } = {}) {
+  const g = G(p, { x, y, o: 0 });
+  mk('circle', { r, fill: 'none', stroke: color, 'stroke-width': w }, g);
+  if (t0 !== null) { show(g, t0, .3); pulse(g, t0 + .1, 1.12); }
+  return g;
+}
+// A numbered badge.
+function badge(p, str, x, y, { o = 0, r = 22, fill = '#3b8fd9' } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill, stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  const t = wLabel(g, str, { y: r * .4, size: r * 1.15, fill: '#ffffff', weight: 800, o: 1 });
+  return Object.assign(g, { t });
+}
+// A small molecule chip (rounded square with a short name): isoleucine "Ile", threonine "Thr".
+function molChip(p, str, color, { x = 0, y = 0, size = 44, o = 1, s = 1 } = {}) {
+  const g = G(p, { x, y, o, s });
+  path(g, `M${-size / 2 + 10} ${-size / 2}H${size / 2 - 10}Q${size / 2} ${-size / 2} ${size / 2} ${-size / 2 + 10}V${size / 2 - 10}Q${size / 2} ${size / 2} ${size / 2 - 10} ${size / 2}H${-size / 2 + 10}Q${-size / 2} ${size / 2} ${-size / 2} ${size / 2 - 10}V${-size / 2 + 10}Q${-size / 2} ${-size / 2} ${-size / 2 + 10} ${-size / 2}Z`,
+    { fill: color, stroke: mix(color, '#000000', .35), 'stroke-width': 3 });
+  const t = wLabel(g, str, { y: size * .16, size: Math.round(size * .42), fill: '#14233a', weight: 800, o: 1 });
+  return Object.assign(g, { t, body: g.firstChild });
+}
+// A regulator ball (a round drop) for an enzymeBlob's socket.
+function regBall(p, color, { x = 0, y = 0, r = 24, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: color, stroke: mix(color, '#000000', .35), 'stroke-width': 3 }, g);
+  mk('ellipse', { cx: -r * .3, cy: -r * .32, rx: r * .3, ry: r * .18, fill: '#fff', 'fill-opacity': .35 }, g);
+  return g;
+}
+// An octagonal stop sign.
+function stopSign(p, { x = 0, y = 0, r = 24, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  path(g, zNgon(8, r, 0, 0, Math.PI / 8), { fill: MC.stop, stroke: '#fff', 'stroke-width': 3 });
+  mk('rect', { x: -r * .55, y: -r * .14, width: r * 1.1, height: r * .28, rx: 2, fill: '#fff' }, g);
+  return g;
+}
+// a polyline's point at fraction k of its length
+function along(pts, k) {
+  const L = []; let tot = 0;
+  for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); L.push(d); tot += d; }
+  let want = mClamp(k) * tot;
+  for (let i = 0; i < L.length; i++) { if (want <= L[i] || i === L.length - 1) { const u = L[i] ? Math.min(1, want / L[i]) : 1; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * u, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * u]; } want -= L[i]; }
+  return pts[pts.length - 1];
+}
+
+/* ---------- the thermostat room (intro backdrop; the dial comes back in the example) ---------- */
+// A wall thermostat: a dial from cool (blue, left) to warm (orange, right), the set point at the top, a needle.
+function dial(p, { x = 0, y = 0, s = 1, o = 1, readout = true } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -110, y: -110, width: 220, height: 220, rx: 30, fill: '#22364f', stroke: '#4a607c', 'stroke-width': 4 }, g);
+  mk('circle', { r: 84, fill: '#0f1e33', stroke: '#7d8ea6', 'stroke-width': 4 }, g);
+  for (let i = 0; i <= 12; i++) {
+    const a = (-120 + i * 20) * Math.PI / 180, c = zMix(MC.endo, MC.exo, i / 12);
+    path(g, `M${cF(62 * Math.sin(a))} ${cF(-62 * Math.cos(a))}L${cF(76 * Math.sin(a))} ${cF(-76 * Math.cos(a))}`, { stroke: c, 'stroke-width': i % 3 ? 4 : 7 });
+  }
+  path(g, 'M0 -88L-9 -102H9Z', { fill: COL.chalk });
+  const nd = G(g);
+  path(nd, 'M0 10L0 -58', { stroke: COL.chalk, 'stroke-width': 6 });
+  mk('circle', { r: 11, fill: COL.chalk }, nd);
+  const rd = readout ? wLabel(g, '', { y: 50, size: 24, fill: COL.chalk, weight: 700, o: 1 }) : null;
+  const d = Object.assign(g, {
+    // temp in °C: 20 is the set point (needle up)
+    set(temp) {
+      const tq = Math.round(temp * 20) / 20;
+      cSet(nd, { r: mClamp((tq - 17) / 6) * 220 - 110 });
+      if (rd) setT(rd, (Math.round(tq * 10) / 10).toFixed(1) + ' °C');
+      return d;
+    },
+  });
+  return d.set(20);
+}
+// A radiator: fins that glow orange when on, heat waves rising over it.
+function heater(p, { x = 0, y = 0 } = {}) {
+  const g = G(p, { x, y });
+  mk('rect', { x: -20, y: 150, width: 380, height: 16, rx: 8, fill: '#33465f' }, g);
+  const fins = G(g), glow = G(g, { o: 0 });
+  for (let i = 0; i < 7; i++) {
+    mk('rect', { x: i * 52, y: 0, width: 36, height: 170, rx: 14, fill: '#3a4c64', stroke: '#5a6e8a', 'stroke-width': 3 }, fins);
+    mk('rect', { x: i * 52 + 5, y: 6, width: 26, height: 158, rx: 11, fill: MC.exo }, glow);
+  }
+  const waves = [0, 1, 2].map(i => path(g, 'M0 0q12 -12 0 -24t0 -24', { stroke: MC.exo, 'stroke-width': 6, transform: '' }));
+  const wg = waves.map(w => { const h = G(g, { o: 0 }); h.appendChild(w); return h; });
+  const hr = Object.assign(g, {
+    set(heat, t) {
+      heat = zK(heat); t = zT(t);
+      mO(glow, .8 * heat);
+      wg.forEach((h, i) => { const u = cFrac(t * .45 + i / 3); cSet(h, { x: 60 + i * 120, y: -10 - 30 * u, o: heat * mBump(u, 0, 1) }); });
+      return hr;
+    },
+  });
+  return hr.set(0, 0);
+}
+// A potted plant (the camera pushes into one of its leaves).
+function plant(p, { x = 0, y = 0 } = {}) {
+  const g = G(p, { x, y });
+  path(g, 'M-70 0L-55 -110H55L70 0Z', { fill: '#b0643c', stroke: '#7a4126', 'stroke-width': 4 });
+  path(g, 'M0 -110C-4 -180 6 -240 0 -300', { stroke: '#4f9a5c', 'stroke-width': 9 });
+  [[-1, -170, 30], [1, -210, -25], [-1, -255, 40], [1, -290, -35]].forEach(([sd, yy, rot]) => {
+    path(g, `M0 ${yy}c${sd * 30} -40 ${sd * 110} -40 ${sd * 140} 0c${-sd * 40} 30 ${-sd * 110} 30 ${-sd * 140} 0Z`, { fill: '#6fbf7a', stroke: '#3f8a4c', 'stroke-width': 3, transform: `rotate(${rot} 0 ${yy})` });
+  });
+  return g;
+}
+// A plant cell, centred on its origin, with little molecules running round in chains (its chemistry never stops).
+function leafCell(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, rrect(1060, 640, 70), { fill: '#3f8a4c', stroke: '#2e6a3a', 'stroke-width': 6 });
+  path(g, rrect(1010, 590, 56), { fill: MC.cyto, stroke: MC.head, 'stroke-width': 8 });
+  mk('ellipse', { cx: 250, cy: -60, rx: 110, ry: 95, fill: CC.nucleo, stroke: CC.env, 'stroke-width': 5 }, g);
+  mk('circle', { cx: 270, cy: -50, r: 30, fill: CC.nucleolus }, g);
+  [[-380, -180, 20], [-120, 200, -15], [380, 190, 10], [-400, 170, 35]].forEach(([cx, cy, r]) => mk('ellipse', { cx, cy, rx: 62, ry: 30, fill: '#5fae5a', stroke: '#3a7f3a', 'stroke-width': 3, transform: `rotate(${r} ${cx} ${cy})` }, g));
+  const PAL = [MC.pathA, MC.pathB, MC.pathC, MC.pathD];
+  const dots = Array.from({ length: 24 }, (_, i) => mk('circle', { r: 9, fill: PAL[i % 4], stroke: '#14233a', 'stroke-width': 2 }, g));
+  const pc = Object.assign(g, {
+    set(t) {
+      t = zT(t);
+      dots.forEach((d, i) => {
+        const ring = i % 3, u = cFrac(t * (.07 + .02 * ring) + i / 24), a = u * 2 * Math.PI;
+        const cx = [-160, 80, -60][ring], cy = [-20, 60, -110][ring], rx = [240, 300, 180][ring], ry = [150, 120, 80][ring];
+        cSet(d, { x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) });
+      });
+      return pc;
+    },
+  });
+  return pc.set(0);
+}
+const rrect = (w, h, r) => `M${-w / 2 + r} ${-h / 2}H${w / 2 - r}Q${w / 2} ${-h / 2} ${w / 2} ${-h / 2 + r}V${h / 2 - r}Q${w / 2} ${h / 2} ${w / 2 - r} ${h / 2}H${-w / 2 + r}Q${-w / 2} ${h / 2} ${-w / 2} ${h / 2 - r}V${-h / 2 + r}Q${-w / 2} ${-h / 2} ${-w / 2 + r} ${-h / 2}Z`;
+
+/* ---------- a gene on a stretch of DNA with an on/off switch (allo, practice) ---------- */
+function geneBar(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  let rungs = ''; for (let i = -190; i <= 190; i += 19) rungs += `M${i} -12V12`;
+  path(g, rungs, { stroke: '#e9dcc0', 'stroke-width': 3, 'stroke-opacity': .6 });
+  path(g, 'M-200 -14H200M-200 14H200', { stroke: '#5fd3e8', 'stroke-width': 6 });
+  mk('rect', { x: -70, y: -24, width: 140, height: 48, rx: 10, fill: 'none', stroke: MC.ribose, 'stroke-width': 4 }, g);
+  wLabel(g, 'gene', { y: -38, size: 24, fill: MC.ribose, weight: 700, o: 1 });
+  const sw = G(g, { y: 70 });
+  const bg = mk('rect', { x: -40, y: -20, width: 80, height: 40, rx: 20, fill: MC.off, stroke: COL.chalk, 'stroke-width': 2.5 }, sw);
+  const knob = mk('circle', { r: 15, fill: COL.chalk }, sw);
+  const lab = wLabel(sw, 'off', { x: 62, y: 8, size: 22, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  const gb = Object.assign(g, {
+    set(on) {
+      on = zK(on);
+      cSet(knob, { x: -20 + 40 * on }); cAttr(bg, 'fill', zMix(MC.off, GREEN, on)); setT(lab, on > .5 ? 'on' : 'off');
+      return gb;
+    },
+  });
+  return gb.set(0);
+}
+
+/* ---------- the feedback pathway: the shared strip with its own loop, rider and stop sign ---------- */
+// The strip's own feedback() can't let the rider go again, so the loop, the isoleucine rider, enzyme 1's grey
+// overlay and the stop sign are drawn here. Origin as the strip's parent; the strip sits at (800, cy).
+const FB_LAB = ['threonine', 'A', 'B', 'C', 'D', 'isoleucine'];
+function fbScene(p, { x = 0, y = 0, s = 1, o = 1, w = 1240, cy = 330, labels = FB_LAB, enzymes, endName = true } = {}) {
+  const g = G(p, { x, y, s, o }), n = labels.length;
+  const st = pathwayStrip(g, { x: 800, y: cy, w, labels, enzymes, names: labels.map((_, i) => i === 0 ? 'initial substrate' : '') });
+  st.build(1);
+  const P = st.pt('product'), E = st.pt('enzyme1'), S0 = st.pt('start'), bw0 = st.mols[0].bw;
+  const endL = endName ? wLabel(g, 'end product', { x: P[0], y: cy - 68, size: 24, fill: COL.dim, weight: 600, o: 1 }) : null;
+  const lx = S0[0] - bw0 / 2 - 30, low = cy + 50 + 90, hy = E[1] - 22, ex = E[0] - 52;
+  const pts = [[P[0], P[1] + 54], [P[0], low], [lx, low], [lx, hy], [ex, hy]];
+  const loop = path(g, 'M' + pts.map(cP).join('L'), { stroke: MC.stop, 'stroke-width': 7, 'stroke-linejoin': 'round' }, { d: 0 });
+  const head = path(g, `M${ex - 22} ${hy - 14}L${ex} ${hy}L${ex - 22} ${hy + 14}Z`, { fill: MC.stop }, { o: 0 });
+  const grey = enzymeBlob(g, { x: E[0], y: E[1], R: 30 }); grey.fit(1).tint(1); put(grey, { o: 0 });
+  const stop = stopSign(g, { x: E[0], y: E[1] - 104, r: 24, o: 0 });
+  const rider = molChip(g, 'Ile', ISO, { size: 40, o: 0 });
+  const fs = Object.assign(g, {
+    st, pts, E, P, rider, stop, loop,
+    // the whole pose: t the flow clock; flow 0..1; built 0..1; off enzyme 1 switched off; loop drawn; ride the rider's
+    // way along the loop; gone the rider let go (drops and fades); lit / litK the strip's focus
+    set({ t = 0, flow = 1, built = 1, off = 0, loop: lk = 0, ride = 0, gone = 0, lit = [], litK = 0 } = {}) {
+      off = zK(off); lk = zK(lk); ride = zK(ride); gone = zK(gone);
+      st.build(built); st.focus(lit, litK); if (endL) mO(endL, mRamp(built, .9, 1)); st.flow(t, zK(flow) * (1 - off));
+      cSet(loop, { d: lk }); mO(head, mRamp(lk, .92, 1));
+      mO(grey, off); cSet(stop, { o: off, s: .6 + .4 * off });
+      const q = along(pts, io(ride));
+      cSet(rider, { x: q[0] - 20 * gone, y: q[1] + 70 * io(gone), o: (ride > 0 ? mRamp(ride, 0, .06) : 0) * (1 - gone) });
+      return fs;
+    },
+  });
+  return fs.set({});
+}
+// The close-up of enzyme 1 (an enzymeBlob with its allosteric socket), threonine cycling through its active site,
+// isoleucine binding the socket. Origin = the enzyme's centre.
+function e1Close(p, { x = 0, y = 0, R = 95, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  const e = enzymeBlob(g, { R, socket: true, label: 'enzyme 1' });
+  const site = e.siteLocal(), sock = [R * 1.0, R * .68];
+  const thr = molChip(g, 'Thr', THR, { size: R * .52 });
+  const ile = molChip(g, 'Ile', ISO, { size: R * .42, o: 0 });
+  const no = wLabel(g, '✗', { x: R * .62, y: site[1] - R * .62, size: 40, fill: RED, weight: 800, o: 0 });
+  const ec = Object.assign(g, {
+    e, site, sock, thr, ile,
+    // t the clock; ile 0..1 isoleucine coming in and binding; off how far the site is bent; gone isoleucine leaving
+    set({ t = 0, ile: ik = 0, off = 0, gone = 0, run = 1 } = {}) {
+      t = zT(t); ik = zK(ik); off = zK(off); gone = zK(gone);
+      e.bend(off).tint(.35 * off);
+      // threonine cycles through the site while the enzyme works; switched off, it hovers above and can't fit
+      const u = cFrac(t / 2.8), dn = io(mRamp(u, 0, .3)), up = io(mRamp(u, .62, .92));
+      const cx = -R * 1.1 * (1 - dn) + R * 1.3 * up, cy = site[1] - R * 1.1 * (1 - dn) - R * .9 * up;
+      const hov = [R * .05, site[1] - R * .85 + 8 * Math.sin(t * 4)];
+      const bx = cx + (hov[0] - cx) * off, by = cy + (hov[1] - cy) * off;
+      const conv = run * (1 - off) * mRamp(u, .38, .5);
+      cSet(thr, { x: bx, y: by, o: 1 - (1 - off) * mRamp(u, .84, .95) });
+      cAttr(thr.body, 'fill', zMix(THR, MC.pathB, conv)); setT(thr.t, conv > .5 ? 'A' : 'Thr');
+      e.fit(run * (1 - off) * mBump(u, .25, .68));
+      mO(no, mRamp(off, .7, 1));
+      const ip = [sock[0] + R * 1.2 * (1 - io(ik)), sock[1] + R * .5 * (1 - io(ik))];
+      cSet(ile, { x: ip[0] + R * .5 * io(gone), y: ip[1] + R * .8 * io(gone), o: (ik > 0 ? mRamp(ik, 0, .1) : 0) * (1 - gone) });
+      return ec;
+    },
+  });
+  return ec.set({});
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Allosteric regulation', (m, D) => {
+  const p = panel(0), tD = m('dial'), tC = m('cells'), tS = m('strip');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  // the room: wall, floor, a radiator under a wall thermostat, a plant by the window side
+  const wall = mk('rect', { x: -200, y: -200, width: 2000, height: 960, fill: '#15283f' }, W);
+  mk('rect', { x: -200, y: 760, width: 2000, height: 400, fill: '#1f3450' }, W);
+  path(W, 'M-200 760H1800', { stroke: '#2f4a6c', 'stroke-width': 6 });
+  const th = dial(W, { x: 470, y: 330 });
+  const ht = heater(W, { x: 300, y: 590 });
+  plant(W, { x: 1330, y: 760 });
+  wLabel(W, 'thermostat', { x: 470, y: 480, size: 26, fill: COL.dim, o: 1 });
+  wLabel(W, 'heater', { x: 470, y: 840, size: 26, fill: COL.dim, o: 1 });
+  const stat = wLabel(W, '', { x: 470, y: 540, size: 30, weight: 700, fill: MC.exo, o: 0 });
+  show(stat, tD + .6, .4);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 8 · LESSON 8', { x: 1110, y: 200, size: 26, fill: COL.dim, o: 1 });
+  wLabel(ttl, 'Allosteric regulation', { x: 1110, y: 290, size: 62, o: 1 });
+  wLabel(ttl, 'and feedback inhibition', { x: 1110, y: 350, size: 34, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .4, .5);
+  // the heater is on until "warm enough", off until "the room cools", then on again; the room warms and cools with it
+  const tOff = cue('intro', 3) + .7, tOn = cue('intro', 4) + .5;
+  const heatAt = t => 1 - mRamp(t, tOff, tOff + .4) + mRamp(t, tOn, tOn + .4);
+  const tempAt = t => 19 + 2 * io(mRamp(t, tD, tOff)) - 1.6 * io(mRamp(t, tOff + .3, tOn)) + 1.4 * io(mRamp(t, tOn + .3, tC + 1));
+  hide(stat, tC, .3);
+  // cells: the camera pushes into a leaf; the plant cell opens round it
+  cam.to({ x: 1300, y: 520, z: 5 }, tC + .2, 1.8);
+  hide(cam.el, tC + 1.4, .6);
+  const CG = G(p, { x: 800, y: 470, s: .3, o: 0 });
+  const pc = leafCell(CG, {});
+  show(CG, tC + 1.2, .6); tw(CG, { s: 1.15 }, tC + 1.2, 4.6, out);
+  const cp = pill(p, 'its chemistry runs all the time', 800, 92, tC + 2, { size: 30 });
+  hide(CG, tS, .5); hide(cp, tS, .3);
+  // strip: the shared pathway, all dim but enzyme 1 and the product; the stop sign comes back
+  const SG = G(p, { o: 0 }); show(SG, tS, .5);
+  const st = pathwayStrip(SG, { x: 800, y: 400, w: 1200, names: ['starting molecule', '', '', ''] });
+  const pD = st.pt('product'); wLabel(SG, 'product', { x: pD[0], y: pD[1] - 66, size: 24, fill: COL.dim, weight: 600, o: 1 });
+  const tF = cue('intro', 8);
+  const vis = (e, on) => { const v = on ? '' : 'none'; if (e.style.display !== v) e.style.display = v; };
+  clockRun(t => {
+    vis(cam.el, t < tC + 2.1); vis(CG, t >= tC + 1.1 && t < tS + .6); vis(SG, t >= tS - .1);
+    th.set(tempAt(t)); ht.set(heatAt(t), t);
+    cAttr(wall, 'fill', zMix('#15283f', '#2a2a3c', mRamp(tempAt(t), 19, 21)));
+    setT(stat, heatAt(t) > .5 ? (t < tD ? '' : 'cool: heater on') : 'warm enough: heater off');
+    cAttr(stat, 'fill', heatAt(t) > .5 ? MC.exo : MC.endo);
+    pc.set(t);
+    st.build(mRamp(t, tS + .2, tS + 2.6));
+    st.focus(['enzyme1', 'product'], mRamp(t, tF - 1.2, tF - .4));
+    st.flow(t, mRamp(t, tS + 2.6, tS + 3.2));
+    st.feedback(mRamp(t, tF + .3, tF + 3.6));
+  }, D);
+  const kS = st.pt('stop');
+  tag(SG, 'stop: the product switches enzyme 1 off', [800, 140], [kS[0] + 20, kS[1] - 18], tF + 3.6, { size: 30, fill: MC.stop, line: MC.stop });
+}],
+
+/* ---------- allo ---------- */
+['allo', 'Why regulate?', (m, D) => {
+  const p = panel(0), tCh = m('chaos'), tT = m('two'), tSi = m('site'), tB = m('both');
+  // chaos: the strip runs unchecked; product piles up at one end while B runs out
+  const CH = G(p);
+  const st = pathwayStrip(CH, { x: 800, y: 380, w: 1100 });
+  const pile = Array.from({ length: 16 }, (_, i) => molChip(CH, 'D', MC.pathD, { size: 40, o: 0, x: 1320 + 46 * (i % 4) - 69, y: 520 + 46 * Math.floor(i / 4) }));
+  clockRun(t => {
+    st.flow(t, [1, 1 - .9 * mRamp(t, 1.5, 3), 1]);
+    st.focus(['mol0', 'mol2', 'mol3', 'arrows', 'enzymes'], mRamp(t, 2, 3));
+    pile.forEach((c, i) => mO(c, mRamp(t, .8 + .32 * i, 1.1 + .32 * i)));
+  }, D);
+  const kB = st.pt('mol1');
+  tag(CH, 'running out', [kB[0], kB[1] + 150], [kB[0], kB[1] + 52], 3, { size: 28, fill: RED, line: RED });
+  say(CH, 'piling up', 1320, 740, 4, { size: 28, fill: MC.pathD });
+  pill(CH, 'without control: chemical chaos', 800, 150, 1, { size: 34, color: RED, edge: RED });
+  hide(CH, tT, .5);
+  // two: two ways to prevent it, genes or enzyme activity
+  const tGn = cue('allo', 2), tEz = cue('allo', 3), tDay = cue('allo', 4);
+  const TW = G(p, { o: 0 }); show(TW, tT + .2, .5);
+  const cardA = G(TW, { o: 0 }), cardB = G(TW, { o: 0 });
+  show(cardA, tGn - .2, .5); show(cardB, tEz - .2, .5);
+  mk('rect', { x: 110, y: 200, width: 650, height: 520, rx: 24, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, cardA);
+  const edgeB = mk('rect', { x: 840, y: 200, width: 650, height: 520, rx: 24, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, cardB);
+  say(TW, 'two ways to prevent it', 800, 130, tT + .3, { size: 38, weight: 700 });
+  badge(cardA, '1', 160, 250, { o: 1 }); badge(cardB, '2', 890, 250, { o: 1 });
+  wLabel(cardA, 'switch genes on or off', { x: 435, y: 262, size: 32, weight: 700, o: 1 });
+  wLabel(cardB, 'regulate enzyme activity', { x: 1165, y: 262, size: 32, weight: 700, o: 1 });
+  const gb = geneBar(cardA, { x: 435, y: 400 });
+  const made = enzymeBlob(cardA, { x: 435, y: 610, R: 60 });
+  wLabel(cardA, 'no enzyme made unless the gene is on', { x: 435, y: 700, size: 22, fill: COL.dim, weight: 500, o: 1 });
+  const eB = enzymeBlob(cardB, { x: 1080, y: 480, R: 100, socket: true });
+  const up = mArrow(cardB, [1300, 520], [1300, 380], { color: MC.exo, w: 7, head: 22 }), dn = mArrow(cardB, [1380, 380], [1380, 520], { color: MC.endo, w: 7, head: 22 });
+  wLabel(cardB, 'faster', { x: 1300, y: 560, size: 24, fill: MC.exo, weight: 700, o: 1 });
+  wLabel(cardB, 'slower', { x: 1380, y: 360, size: 24, fill: MC.endo, weight: 700, o: 1 });
+  wLabel(cardB, 'the enzymes it already has', { x: 1165, y: 680, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  clockRun(t => {
+    const on = ss((Math.sin(Math.round(t * 60) / 60 * 1.6) + .3) * 3);
+    gb.set(on); mO(made, on);
+    eB.fit(.5 + .5 * Math.sin(Math.round(t * 60) / 60 * 2.2));
+    cAttr(edgeB, 'stroke', zMix(COL.faint, MC.enzyme, mRamp(t, tDay, tDay + .4)));
+  }, D);
+  tw(cardA, { o: .35 }, tDay, .5);
+  hide(TW, tSi, .5);
+  // site: a regulator binds a site away from the active site; a ripple runs to the active site
+  const R = 170, SX = 800, SY = 560;
+  const SG = G(p, { o: 0 }); show(SG, tSi, .5); hide(SG, tB, .5);
+  pill(SG, 'allosteric regulation', 800, 110, tSi + .2, { size: 34, color: MC.enzyme, edge: MC.enzyme });
+  say(SG, 'a regulatory molecule binds at one site and changes the protein at another', 800, 190, tSi + 1.5, { size: 28, weight: 600 });
+  const e = enzymeBlob(SG, { x: SX, y: SY, R, socket: true });
+  const sk = e.pt('socket'), sp = e.site();
+  const tAs = tSi + 2.4, tRs = tSi + 4.2, tBind = tSi + 5.6;
+  tag(SG, 'active site', [450, 330], [sp[0] - 40, sp[1] - 20], tAs, { size: 30, fill: MC.enzyme, line: MC.enzyme });
+  tag(SG, 'regulatory site', [1250, 600], [sk[0] + 16, sk[1] + 4], tRs, { size: 30, fill: COL.chalk, line: COL.chalk });
+  const rb = regBall(SG, '#f2efe6', { r: 26, o: 0 });
+  const rbL = wLabel(SG, 'regulator', { size: 24, fill: COL.chalk, weight: 700, o: 0 });
+  const rip = [0, 1, 2].map(() => { const g = G(SG, { o: 0 }); mk('circle', { r: 26, fill: 'none', stroke: '#f2efe6', 'stroke-width': 4 }, g); return g; });
+  const B0 = [1420, 820], B1 = [SX + R * 1.0, SY + R * .68];
+  clockRun(t => {
+    const k = io(mRamp(t, tBind, tBind + 1.6)), q = [B0[0] + (B1[0] - B0[0]) * k, B0[1] + (B1[1] - B0[1]) * k];
+    cSet(rb, { x: q[0], y: q[1], o: mRamp(t, tBind - .4, tBind) });
+    cSet(rbL, { x: q[0] + 40, y: q[1] + 56, o: mRamp(t, tBind - .4, tBind) * (1 - mRamp(t, tBind + 2, tBind + 2.4)) });
+    const on = mRamp(t, tBind + 1.6, tBind + 1.9), tq = Math.round(t * 60) / 60;
+    rip.forEach((g, j) => { const u = cFrac(tq * .8 + j / 3); cSet(g, { x: sk[0] + (sp[0] - sk[0]) * u, y: sk[1] + (sp[1] + 30 - sk[1]) * u, s: .6 + .8 * u, o: on * mBump(u, 0, 1) }); });
+    e.fit(.5 * on * (.5 + .5 * Math.sin(tq * 3)));
+  }, D);
+  // both: an inhibitor bends the site; an activator keeps it working
+  const BG = G(p);
+  const mk2 = (x, col, word, sub, t0, inhib) => {
+    const g = G(BG, { o: 0 }); show(g, t0, .5);
+    const en = enzymeBlob(g, { x, y: 560, R: 125, socket: true });
+    regBall(g, col, { x: x + 125, y: 560 + 125 * .68, r: 22 });
+    const su = substrateShape(g, { R: 125 }), si = en.site();
+    if (inhib) { en.bend(1); su.pose(si[0] + 10, si[1] - 120); wLabel(g, '✗', { x: x + 90, y: si[1] - 140, size: 44, fill: RED, weight: 800, o: 1 }); }
+    else { en.fit(.8); su.pose(si[0], si[1]); }
+    pill(g, word, x, 230, t0 + .2, { size: 34, color: col, edge: col });
+    say(g, sub, x, 820, t0 + .6, { size: 26, fill: COL.dim, weight: 600 });
+  };
+  mk2(1130, RED, 'inhibit', 'the active site is pulled out of shape', tB + .2, true);
+  mk2(470, GREEN, 'stimulate', 'the active site fits its substrate', tB + 1.4, false);
+}],
+
+/* ---------- switch ---------- */
+['switch', 'Active and inactive forms', (m, D) => {
+  const p = panel(0), tF = m('four'), tO = m('osc'), tA = m('act'), tI = m('inh'), tW = m('away');
+  const Wc = G(p, { x: 800, y: 450 });
+  const ae = allostericEnzyme(Wc, { R: 105 });
+  // four: the subunits numbered, then the two kinds of site
+  const tN = cue('switch', 1), tSite = cue('switch', 2), tReg = tSite + 4;
+  const bad = [0, 1, 2, 3].map(i => { const a = [225, 315, 45, 135][i] * Math.PI / 180, b = badge(p, String(i + 1), 800 + 105 * 1.02 * Math.cos(a), 450 + 105 * 1.02 * Math.sin(a)); show(b, tN + .2 + .25 * i, .3); hide(b, tSite, .3); return b; });
+  hide(say(p, 'four polypeptide subunits', 800, 830, tN + .2, { size: 30, weight: 700 }), tO, .4);
+  const s0 = ae.pt('site0');
+  const L1 = tag(p, 'active site', [420, 180], [800 + s0[0] - 8, 450 + s0[1] - 8], tSite + .3, { size: 30, fill: MC.enzyme, line: MC.enzyme, sub: 'one in each subunit: the substrate binds here' });
+  const L2 = tag(p, 'regulatory site', [1200, 740], [806, 456], tReg, { size: 30, fill: COL.chalk, line: COL.chalk, sub: 'an activator or inhibitor binds here' });
+  const LF = G(p); [L1, L2].forEach(e => LF.appendChild(e));
+  hide(LF, tO, .4);
+  // osc: the enzyme shrinks to the middle and swings between its forms; the two forms stand at the sides
+  tw(Wc, { s: .78 }, tO, .8);
+  const left = allostericEnzyme(p, { x: 280, y: 450, R: 68, o: 0 }), right = allostericEnzyme(p, { x: 1320, y: 450, R: 68, o: 0 });
+  show(left, tO + .4, .5); show(right, tO + .4, .5);
+  const capA = G(p, { o: 0 }), capI = G(p, { o: 0 }); show(capA, tO + .6, .4); show(capI, tO + .6, .4);
+  const cA = wLabel(capA, 'active form', { x: 280, y: 260, size: 32, weight: 700, fill: MC.enzyme, o: 1 });
+  const cI = wLabel(capI, 'inactive form', { x: 1320, y: 260, size: 32, weight: 700, fill: '#a7b096', o: 1 });
+  const arr = G(p, { o: 0 }); show(arr, tO + 1, .4);
+  [[440, 600], [1000, 1160]].forEach(([a, b]) => { mArrow(arr, [a, 436], [b, 436], { color: COL.dim, w: 5, head: 16 }); mArrow(arr, [b, 466], [a, 466], { color: COL.dim, w: 5, head: 16 }); });
+  pill(p, 'it swings between the two forms', 800, 150, tO + 1.2, { size: 30 });
+  // act / inh: an activator holds the left copy active; an inhibitor holds the right copy inactive
+  clockRun(t => {
+    ae.set({ osc: mRamp(t, tO + .3, tO + 1), t });
+    left.set({ form: 1, act: mRamp(t, tA + .3, tA + 2.4) });
+    right.set({ form: 0, inh: mRamp(t, tI + .3, tI + 2.4) });
+    const f = .5 + .5 * Math.sin(zT(t) * 1.4), k = mRamp(t, tO + .3, tO + 1);
+    cAttr(cA, 'fill-opacity', String(Math.round((1 - k * .55 * (1 - f)) * 100) / 100));
+    cAttr(cI, 'fill-opacity', String(Math.round((1 - k * .55 * f) * 100) / 100));
+  }, D);
+  say(p, 'activator binds', 280, 640, tA + 1.6, { size: 30, weight: 700, fill: GREEN });
+  say(p, 'stabilized active form', 280, 680, tA + 2.4, { size: 26, weight: 600 });
+  say(p, 'inhibitor binds', 1320, 640, tI + 1.6, { size: 30, weight: 700, fill: RED });
+  say(p, 'stabilized inactive form', 1320, 680, tI + 2.4, { size: 26, weight: 600 });
+  say(p, 'active sites don’t work', 1320, 716, tI + 4.4, { size: 24, weight: 500, fill: COL.dim });
+  say(p, 'no regulator', 800, 640, tA + .4, { size: 26, fill: COL.dim, weight: 600 });
+  // away: the regulator's spot is not the active site
+  ring(p, [280, 450], 30, tW + .3, { color: GREEN, w: 4 });
+  ring(p, [1320, 450], 30, tW + .6, { color: RED, w: 4 });
+  const l0 = left.pt('site0');
+  ring(p, l0, 26, tW + 1.4, { color: MC.enzyme, w: 3 });
+  pill(p, 'regulators bind away from the active sites', 800, 790, tW + 2, { size: 30, color: MC.atp, edge: MC.atp });
+  pill(p, 'the change in shape does the work', 800, 856, cue('switch', 7) + .4, { size: 26 });
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const ae = allostericEnzyme(p, { x: 360, y: 470, R: 100 }); ae.set({ form: 1, sub: [1, 0, 0, 0] });
+  const s0 = ae.pt('site0');
+  const la = tag(p, 'active site', [250, 170], [s0[0] - 6, s0[1] - 10], null, { size: 30, fill: MC.enzyme, line: MC.enzyme });
+  const lr = tag(p, 'regulatory site', [400, 800], [364, 476], null, { size: 30, fill: COL.chalk, line: COL.chalk });
+  const qa = badge(p, '?', s0[0] - 60, s0[1] - 60, { o: 1 }), qr = badge(p, '?', 470, 560, { o: 1 });
+  const lit = (g, b) => { fxp(q => { put(g, { o: Math.max(st(g).o || 0, q) }); put(b, { o: Math.min(st(b).o, 1 - q) }); }, 0, .35); pulseFx(g, 1.05); };
+  S.q1 = { act: () => lit(la, qa), reg: () => lit(lr, qr) };
+}, { ask: done => quiz({ x: 720, y: 30, w: 840, cls: 'side' }, [{
+  id: 'c-sites', prompt: ['Which site: active or regulatory?'],
+  build: grid([
+    { parts: ['Where the substrate binds'], ans: ['a'], why: 'Active site: the substrate fits there.', fx: () => S.q1?.act() },
+    { parts: ['Where an activator or inhibitor binds'], ans: ['r'], why: 'Regulatory site: away from the active site.', fx: () => S.q1?.reg() },
+    { parts: ['The site a competitive inhibitor blocks'], ans: ['a'], why: 'Active site: it takes the substrate’s place.', fx: () => S.q1?.act() },
+    { parts: ['Away from the substrate, it changes the shape'], ans: ['r'], why: 'Regulatory site: allosteric means another site.', fx: () => S.q1?.reg() },
+    { parts: ['Where isoleucine binds on enzyme 1'], ans: ['r'], why: 'Regulatory site: isoleucine is allosteric.', fx: () => S.q1?.reg() },
+  ], [['a', 'active', null, 'A'], ['r', 'regulatory', null, 'R']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- coop ---------- */
+['coop', 'Cooperativity', (m, D) => {
+  const p = panel(0), tP = m('prime'), tO = m('one'), tSh = m('shape'), tA = m('amp');
+  const CX = 620, CY = 470;
+  const ae = allostericEnzyme(p, { x: CX, y: CY, R: 115 });
+  const kAt = t => .35 * io(mRamp(t, tO + .4, tO + 2.6)) + .3 * io(mRamp(t, tSh + .3, tSh + 2.8)) + .35 * mRamp(t, tA + .3, tA + 4);
+  const form = wLabel(p, '', { x: CX, y: 790, size: 30, weight: 700, o: 0 }); show(form, tP + .6, .4);
+  // the activity bar on the right
+  const BX = 1260, BT = 230, BB = 730;
+  const bar = G(p, { o: 0 }); show(bar, tP + 1, .5);
+  wLabel(bar, 'enzyme activity', { x: BX, y: 190, size: 28, weight: 700, o: 1 });
+  mk('rect', { x: BX - 50, y: BT, width: 100, height: BB - BT, rx: 16, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, bar);
+  const fill = mk('rect', { x: BX - 40, y: BB - 10, width: 80, height: 0, rx: 10, fill: MC.enzyme }, bar);
+  wLabel(bar, 'low', { x: BX + 70, y: BB - 4, size: 22, fill: COL.dim, anchor: 'start', o: 1 });
+  wLabel(bar, 'high', { x: BX + 70, y: BT + 20, size: 22, fill: COL.dim, anchor: 'start', o: 1 });
+  const subL = G(p, { o: 0 }); show(subL, tO + 2.2, .4); hide(subL, tA, .4);
+  const subT = wLabel(subL, 'one substrate', { size: 28, weight: 700, fill: MC.sub, anchor: 'end', o: 1 });
+  clockRun(t => {
+    const k = kAt(t); ae.coop(k);
+    const rate = .08 + .2 * mRamp(k, .3, .65) + .72 * mRamp(k, .65, 1), h = Math.round((BB - BT - 20) * rate);
+    cAttr(fill, 'y', BB - 10 - h); cAttr(fill, 'height', h);
+    setT(form, k < .45 ? 'inactive form' : 'active form'); cAttr(form, 'fill', k < .45 ? '#a7b096' : MC.enzyme);
+    const s0 = ae.pt('site0'); cSet(subT, { x: s0[0] - 50, y: s0[1] - 60 });
+  }, D);
+  pill(p, 'cooperativity: a kind of allosteric activation', 800, 80, tP + .2, { size: 30, color: MC.enzyme, edge: MC.enzyme });
+  const pr = pill(p, 'one substrate primes the rest', CX, 860, tA + .6, { size: 30, color: MC.sub, edge: MC.sub });
+  hide(pr, cue('coop', 4), .3);
+  pill(p, 'binding at one active site affects another', CX, 860, cue('coop', 4) + .2, { size: 28 });
+  const rg = ring(p, [0, 0], 48, cue('coop', 4) + .4, { color: COL.chalk, w: 4 });
+  clockRun(t => { const q = ae.pt('site0'); cSet(rg, { x: q[0], y: q[1] }); }, D);
+}],
+
+/* ---------- fb ---------- */
+['fb', 'Feedback inhibition', (m, D) => {
+  const p = panel(0), tL = m('line'), tE = m('e1'), tB = m('bind'), tO = m('off'), tU = m('use'), tW = m('why');
+  const fs = fbScene(p, {});
+  const tTh = cue('fb', 1), tFive = cue('fb', 2), tRe = cue('fb', 7);
+  const E = fs.E;
+  // the close-up of enzyme 1, under it
+  const IN = G(p, { o: 0 }); show(IN, tE + 1, .5);
+  mk('rect', { x: 90, y: 520, width: 470, height: 360, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, IN);
+  wLabel(IN, 'enzyme 1, up close', { x: 120, y: 560, size: 24, fill: COL.dim, anchor: 'start', weight: 700, o: 1 });
+  const ec = e1Close(IN, { x: 300, y: 760, R: 90 });
+  const offAt = t => mRamp(t, tO + .2, tO + 1) * (1 - mRamp(t, tU + 1, tU + 2));
+  clockRun(t => {
+    const off = offAt(t);
+    fs.set({ t, built: mRamp(t, tL, tFive + 6.5), flow: mRamp(t, tFive + 6, tFive + 7),
+      off, loop: mRamp(t, tB + .4, tB + 1.6), ride: mRamp(t, tB + 1.4, tB + 3.6), gone: mRamp(t, tU + .2, tU + 1.4),
+      lit: ['enzyme1', 'start'], litK: mRamp(t, tE, tE + .5) * (1 - mRamp(t, tU + 1.4, tU + 2)) });
+    ec.set({ t, ile: mRamp(t, tB + 2.4, tB + 3.6), off, gone: mRamp(t, tU + .2, tU + 1.4) });
+  }, D);
+  const L1 = say(p, 'threonine deaminase', E[0] + 30, E[1] - 92, tE + .6, { size: 26, weight: 700, fill: MC.enzyme });
+  hide(L1, tB, .3);
+  // the story on the right, one line at a time
+  const NG = G(p);
+  pill(NG, 'isoleucine builds up and binds enzyme 1’s allosteric site', 1080, 580, tB + .6, { size: 26, color: ISO, edge: ISO });
+  pill(NG, 'the active site can’t convert threonine: pathway off', 1080, 660, tO + .8, { size: 26, color: RED, edge: RED });
+  pill(NG, 'isoleucine used up: it lets go', 1080, 740, tU + .4, { size: 26 });
+  pill(NG, 'active site available: pathway restarts', 1080, 820, tRe, { size: 26, color: GREEN, edge: GREEN });
+  hide(NG, tW - .5, .4);
+  const ga = mArrow(IN, [480, 640], [380, 680], { color: GREEN, w: 6, head: 18, o: 0 }); show(ga, tRe + .2, .4); hide(ga, tW + 3, .4);
+  const WG = G(p, { o: 0 }); show(WG, tW + .1, .5);
+  wLabel(WG, 'feedback inhibition', { x: 1080, y: 620, size: 48, weight: 700, fill: MC.stop, o: 1 });
+  wLabel(WG, 'the end product shuts down its own pathway', { x: 1080, y: 690, size: 30, weight: 600, o: 1 });
+  say(WG, 'no chemical resources wasted on more than the cell needs', 1080, 750, cue('fb', 9) + 2, { size: 26, fill: COL.dim, weight: 600 });
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const fs = fbScene(p, { x: 800 - .72 * 773, y: 30 - .72 * 160, s: .72 });
+  fs.set({ flow: 0, off: 1, loop: 1, ride: 1, lit: ['enzyme1'], litK: .6 });
+}, { ask: done => quiz({ x: 160, y: 300, w: 1280, cls: 'side' }, [{
+  id: 'c-iso', prompt: ['What does isoleucine do to enzyme 1?'],
+  build: choice([
+    ['It binds the active site in place of threonine.'],
+    ['It binds the allosteric site, so the active site can no longer convert threonine and the pathway switches off.'],
+    ['It is converted back into threonine.'],
+    ['It switches on the gene for enzyme 1.'],
+  ], 1,
+  'Right. Isoleucine binds away from the active site, changes the enzyme’s shape, and the whole pathway stops.',
+  ['No: it binds elsewhere, at the allosteric site. That is what makes it an allosteric inhibitor.', null,
+   'Isoleucine is the end product; enzyme 1 does not turn it back into threonine.',
+   'This is regulation of an enzyme’s activity, not of its gene. And it switches the pathway off, not on.']),
+}], done) }],
+
+/* ---------- example ---------- */
+['example', 'The isoleucine level', (m, D) => {
+  const p = panel(0), tF = m('full'), tD = m('drain'), tS = m('swing');
+  const S0 = .62;
+  const fs = fbScene(p, { x: 20, y: 60, s: S0 });
+  // the level: plenty, then used up fast, then rising and falling round what is needed
+  const NEED = .55;
+  const LAt = t => {
+    const u = Math.max(0, t - tS);
+    return .4 + .45 * io(mRamp(t, tF + .4, tF + 2.4)) - .55 * io(mRamp(t, cue('example', 5) - .5, cue('example', 5) + 2.5))
+      + .25 * io(mRamp(t, tS, tS + 1.5)) + .2 * Math.sin(1.5 * u) * Math.exp(-.12 * u) * mRamp(u, 0, 1);
+  };
+  // three enzyme-1 molecules, each switched off by its own isoleucine when the level is high enough
+  const THR3 = [.45, .55, .65];
+  const PG = G(p);
+  wLabel(PG, 'enzyme 1 molecules in the cell', { x: 470, y: 560, size: 26, fill: COL.dim, weight: 700, o: 1 });
+  const ens = THR3.map((_, i) => {
+    const x = 200 + 270 * i, en = enzymeBlob(PG, { x, y: 690, R: 62, socket: true });
+    const il = molChip(PG, 'Ile', ISO, { size: 28, o: 0 });
+    return { en, il, x };
+  });
+  const gx = 1200, gt = 180, gb = 760;
+  const GG = G(p);
+  wLabel(GG, 'isoleucine level', { x: gx, y: 140, size: 30, weight: 700, fill: ISO, o: 1 });
+  mk('rect', { x: gx - 80, y: gt, width: 160, height: gb - gt, rx: 20, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, GG);
+  const lev = mk('rect', { x: gx - 70, y: gb - 10, width: 140, height: 0, rx: 12, fill: ISO, 'fill-opacity': .35 }, GG);
+  const dotY = i => gb - 60 - 110 * Math.floor(i / 4);
+  const dots = Array.from({ length: 20 }, (_, i) => molChip(GG, '', ISO, { size: 24, x: gx - 45 + 30 * (i % 4), y: dotY(i), o: 0 }));
+  const yN = gb - 10 - (gb - gt - 20) * NEED;
+  path(GG, `M${gx - 100} ${yN}H${gx + 100}`, { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '10 8' });
+  wLabel(GG, 'needed', { x: gx + 112, y: yN + 8, size: 24, fill: COL.chalk, anchor: 'start', weight: 700, o: 1 });
+  const status = wLabel(p, '', { x: gx, y: 830, size: 28, weight: 700, o: 0 }); show(status, tF + .5, .4);
+  // swing: the thermostat comes back beside the gauge
+  const DG = G(p, { o: 0 }); show(DG, tS + 2, .6);
+  const dl = dial(DG, { x: 1460, y: 420, s: .55, readout: false });
+  wLabel(DG, 'like a thermostat', { x: 1460, y: 520, size: 24, fill: COL.dim, weight: 600, o: 1 });
+  clockRun(t => {
+    const L = LAt(t), h = Math.round((gb - gt - 20) * L);
+    cAttr(lev, 'y', gb - 10 - h); cAttr(lev, 'height', h);
+    dots.forEach((d, i) => mO(d, mRamp(dotY(i) - (gb - 10 - h), -14, 14)));
+    const offs = THR3.map(th => ss((L - th) / .08 + .5));
+    ens.forEach(({ en, il, x }, i) => {
+      const k = offs[i];
+      en.bend(k).tint(.4 * k);
+      cSet(il, { x: x + 62 + 70 * (1 - k), y: 690 + 42 + 60 * (1 - k), o: k });
+    });
+    const mean = (offs[0] + offs[1] + offs[2]) / 3;
+    fs.set({ t, off: mean, loop: 1, ride: 0 });
+    const sk = L > .64 ? 2 : L < .46 ? 0 : 1;
+    setT(status, ['running low: enzyme 1 working', 'about what is needed', 'plenty: enzyme 1 switched off'][sk]);
+    cAttr(status, 'fill', [GREEN, COL.chalk, RED][sk]);
+    dl.set(17 + 6 * L);
+  }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'The chapter in one picture', (m, D) => {
+  const p = panel(0), tR = m('recap'), tG = m('reg'), tE = m('end');
+  const st = pathwayStrip(p, { x: 820, y: 240, w: 1100, dirs: [1, -1, 1], drop: 60, names: ['starting molecule', '', '', ''] });
+  const prL = wLabel(p, 'product', { size: 24, fill: COL.dim, weight: 600, o: 1 });
+  const c2 = cue('wrap', 2), c4 = cue('wrap', 4), c5 = cue('wrap', 5), c6 = cue('wrap', 6);
+  const tDn = c2, tAt = c2 + 1.8, tEn = c2 + 4.2;
+  say(p, 'a network of pathways', 820, 56, tR + .3, { size: 30, weight: 700 });
+  const RG = G(p);
+  pill(RG, 'energy flows downhill', 290, 488, tDn + .2, { size: 26, color: MC.exo, edge: MC.exo });
+  pill(RG, 'ATP pays for uphill work', 800, 488, tAt + .2, { size: 26, color: MC.spark, edge: MC.spark });
+  pill(RG, 'enzymes lower the activation energy', 1290, 488, tEn + .2, { size: 26, color: MC.enzyme, edge: MC.enzyme });
+  hide(RG, c6 - .3, .4);
+  pill(p, 'feedback inhibition: the end product switches off its pathway', 800, 488, c6 + .2, { size: 28, color: MC.stop, edge: MC.stop });
+  // regulation: two cards
+  const C1 = G(p, { o: 0 }), C2 = G(p, { o: 0 }); show(C1, c4, .5); show(C2, c5, .5);
+  mk('rect', { x: 130, y: 540, width: 640, height: 300, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, C1);
+  mk('rect', { x: 830, y: 540, width: 640, height: 300, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, C2);
+  const eb = enzymeBlob(C1, { x: 300, y: 690, R: 80, socket: true });
+  const rb = regBall(C1, GREEN, { r: 16, o: 0 });
+  wLabel(C1, 'a regulator binds', { x: 560, y: 650, size: 28, weight: 700, o: 1 });
+  wLabel(C1, 'away from the active site', { x: 560, y: 688, size: 26, weight: 600, fill: COL.dim, o: 1 });
+  wLabel(C1, 'and holds one form', { x: 560, y: 724, size: 26, weight: 600, fill: COL.dim, o: 1 });
+  const ae = allostericEnzyme(C2, { x: 1000, y: 690, R: 52 });
+  wLabel(C2, 'cooperativity', { x: 1290, y: 650, size: 28, weight: 700, fill: MC.sub, o: 1 });
+  wLabel(C2, 'amplifies activity', { x: 1290, y: 688, size: 26, weight: 600, fill: COL.dim, o: 1 });
+  clockRun(t => {
+    st.tilt(mRamp(t, tDn, tDn + 1.2));
+    st.spark(1, mRamp(t, tAt, tAt + .8));
+    st.focus(['enzymes'], mRamp(t, tEn, tEn + .4) * (1 - mRamp(t, tG, tG + .4)));
+    st.flow(t, 1);
+    st.feedback(mRamp(t, c6, c6 + 3));
+    const pq = st.pt('product'); cSet(prL, { x: pq[0], y: pq[1] - 66 });
+    const k = io(mRamp(t, c4 + .6, c4 + 1.8));
+    cSet(rb, { x: 300 + 80 + 90 * (1 - k), y: 690 + 54 + 60 * (1 - k), o: mRamp(t, c4 + .4, c4 + .6) });
+    eb.fit(.6 * k);
+    ae.coop(mRamp(t, c5 + .4, c5 + 3));
+  }, D);
+  say(p, 'Now try the chapter practice.', 800, 878, tE + .2, { size: 30, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const PCX = 1270;
+  // a compact pathway for the feedback pictures: threonine … isoleucine
+  const mini = (g, pose) => {
+    const s = .68, fs = fbScene(g, { x: PCX - s * 785, y: 300 - s * 300, s, w: 600, labels: ['threonine', '…', 'isoleucine'], enzymes: ['enzyme 1', 'enzymes 2–5'], endName: false });
+    fs.set(pose); return fs;
+  };
+  at('ways', g => {
+    wLabel(g, 'two ways to avoid chaos?', { x: PCX, y: 150, size: 28, weight: 700, o: 1 });
+    geneBar(g, { x: PCX, y: 300 }).set(1);
+    enzymeBlob(g, { x: PCX, y: 620, R: 100, socket: true }).fit(.5);
+    wLabel(g, '?', { x: PCX + 170, y: 640, size: 64, weight: 800, fill: MC.atp, o: 1 });
+  });
+  at('effect', g => {
+    allostericEnzyme(g, { x: PCX, y: 280, R: 62 }).set({ form: 1 });
+    allostericEnzyme(g, { x: PCX, y: 640, R: 62 }).set({ form: 0 });
+    wLabel(g, 'active form', { x: PCX, y: 440, size: 28, weight: 700, fill: MC.enzyme, o: 1 });
+    wLabel(g, 'inactive form', { x: PCX, y: 800, size: 28, weight: 700, fill: '#a7b096', o: 1 });
+  });
+  at('count', g => {
+    const fs = mini(g, { off: 1, loop: 1, ride: 1, flow: 0 });
+    badge(g, '?', fs.E[0] * .68 + PCX - .68 * 785 + 70, fs.E[1] * .68 + 300 - .68 * 300 - 70, { o: 1 });
+    allostericEnzyme(g, { x: PCX, y: 640, R: 62 }).set({ form: 1 });
+    wLabel(g, 'subunits?', { x: PCX, y: 820, size: 26, fill: COL.dim, o: 1 });
+  });
+  at('coop', g => {
+    allostericEnzyme(g, { x: PCX, y: 440, R: 95 }).set({ form: .15, sub: [1, 0, 0, 0] });
+    wLabel(g, 'one substrate bound', { x: PCX, y: 720, size: 28, fill: MC.sub, weight: 700, o: 1 });
+    wLabel(g, 'what next?', { x: PCX, y: 760, size: 26, fill: COL.dim, o: 1 });
+  });
+  at('used', g => {
+    mini(g, { off: 0, loop: 1, ride: 0, flow: 0 });
+    const lv = G(g, { x: PCX, y: 620 });
+    mk('rect', { x: -60, y: -110, width: 120, height: 220, rx: 18, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, lv);
+    mk('rect', { x: -50, y: 70, width: 100, height: 30, rx: 8, fill: ISO, 'fill-opacity': .4 }, lv);
+    wLabel(lv, 'isoleucine used up', { y: 150, size: 26, fill: ISO, weight: 700, o: 1 });
+    wLabel(g, '?', { x: PCX + 150, y: 640, size: 64, weight: 800, fill: MC.atp, o: 1 });
+  });
+  at('why', g => {
+    mini(g, { off: 1, loop: 1, ride: 1, flow: 0 });
+    for (let i = 0; i < 12; i++) molChip(g, 'Ile', ISO, { size: 40, x: PCX - 90 + 46 * (i % 4), y: 560 + 46 * Math.floor(i / 4) });
+    wLabel(g, 'enough isoleucine', { x: PCX, y: 740, size: 28, fill: ISO, weight: 700, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('ways');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-ways', prompt: ['How can a cell keep its pathways from ending in chemical chaos?'],
+    build: withPic('ways', choice([['By stopping all of its enzymes'], ['By running only one pathway at a time'], ['By switching enzyme genes on or off, or by regulating enzyme activity'], ['By heating itself up']], 2,
+      'Right. A cell regulates its pathways by switching genes for enzymes on or off, or by regulating the activity of the enzymes it has.',
+      ['A cell needs its enzymes: with all of them stopped, its chemistry would stop too.',
+       'A cell runs many pathways at once; it regulates them instead.', null,
+       'Heat would not regulate anything, and too much heat denatures enzymes.'])) },
+  { id: 'p-effect', prompt: ['Which form does each one stabilize?'],
+    build: withPic('effect', grid([
+      { parts: ['An activator'], ans: ['a'], why: 'Active form.' },
+      { parts: ['An inhibitor'], ans: ['i'], why: 'Inactive form.' },
+      { parts: ['Red: sites don’t work'], ans: ['i'], why: 'Inactive form: an inhibitor.' },
+    ], [['a', 'active', null, 'A'], ['i', 'inactive', null, 'I']], { multi: false, text: true })) },
+  { id: 'p-count', prompt: ['Fill in the numbers.'],
+    build: withPic('count', blanks([
+      { parts: ['Isoleucine switches off enzyme ', { box: '1' }], why: 'Enzyme 1, threonine deaminase, the first step: switching it off stops the whole pathway.', hint: 'Which enzyme takes the very first step?' },
+      { parts: ['Intermediates before isoleucine: ', { box: '4' }], why: 'Four: A, B, C and D.', hint: 'They are named with letters, starting at A.' },
+      { parts: ['Subunits in the enzyme: ', { box: '4' }], why: 'Four polypeptide subunits, each with an active site.', hint: 'Count the subunits round the regulatory site.' },
+    ])) },
+  { id: 'p-coop', prompt: ['In cooperativity, what happens when one substrate binds one active site?'],
+    build: withPic('coop', choice([['It blocks the other active sites.'], ['It ends the pathway.'], ['It stabilizes the active form, so the other active sites act on substrate more readily.'], ['Nothing: each site works on its own.']], 2,
+      'Right. One substrate primes the whole enzyme: the active form is stabilized and activity is amplified.',
+      ['That would be inhibition. Cooperativity is a kind of activation.',
+       'Cooperativity amplifies activity; it does not stop anything.', null,
+       'Binding at one site does change the others: that is why cooperativity counts as allosteric.'])) },
+  { id: 'p-used', prompt: ['The cell uses up its isoleucine. What happens next?'],
+    build: withPic('used', choice([['The pathway stays off for good.'], ['Enzyme 1 is destroyed.'], ['Isoleucine lets go of enzyme 1, its active site is available again, and the pathway restarts.'], ['Threonine runs out and the pathway stops.']], 2,
+      'Right. Feedback inhibition is reversible: with isoleucine gone, enzyme 1 works again and more isoleucine is made.',
+      ['The inhibition is reversible: it lasts only while isoleucine is bound.',
+       'Enzyme 1 was only switched off, not destroyed.', null,
+       'Nothing stops threonine now: with enzyme 1 free, it is converted again.'])) },
+  { id: 'p-why', prompt: ['Why is feedback inhibition useful to the cell?'],
+    build: withPic('why', choice([['It speeds the pathway up when there is plenty of product.'], ['It makes enzyme 1 bind more substrate.'], ['It destroys the extra product.'], ['It stops the cell wasting resources making more product than it needs.']], 3,
+      'Right. When there is enough end product, the pathway switches itself off, and no chemical resources are wasted.',
+      ['The opposite: plenty of product slows the pathway down.',
+       'Switched off, enzyme 1 can no longer convert threonine at all.',
+       'The product is kept; only the pathway that makes it is switched off.', null])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+
+boot();
+</script>
+</body>
+</html>
