@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 3, Lesson 2: Cohesion and Moderation of Temperature — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 3 (Water and Life), lesson 2: part A cohesion (molecules, the tree's water column, surface tension, check 1), part B heat (temperature
+// and heat, units, specific heat, why bonds make it high, coasts and cells, check 2, evaporative cooling), summary,
+// practice. Molecules are the only cast. Plan, errata and storyboard: books/biology/chapters/chapter-03/lesson-02.md.
+const CHAPTER = { number: 302, label: '3, lesson 2', title: 'Cohesion and Moderation of Temperature', minutes: 7, language: 'en', lead: false, next: '../lesson-03/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+// A plain straight arrow (shaft and head) from a to b.
+function wArrow(p, [x1, y1], [x2, y2], { color = COL.chalk, w = 6, head = 16, o = 1 } = {}) {
+  const g = G(p, { o }), L = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / L, uy = (y2 - y1) / L;
+  path(g, `M${x1} ${y1}L${x2 - ux * head * .8} ${y2 - uy * head * .8}`, { stroke: color, 'stroke-width': w });
+  path(g, `M${x2 - ux * head - uy * head * .7} ${y2 - uy * head + ux * head * .7}L${x2} ${y2}L${x2 - ux * head + uy * head * .7} ${y2 - uy * head - ux * head * .7}Z`, { fill: color, stroke: color, 'stroke-width': 2 });
+  return g;
+}
+// A leader line from a label to the thing it names.
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+
+/* ---------- backdrops ---------- */
+// The tree beside a lake at dusk (intro, tree). Returns { g, tree, lake, crown }.
+function treeLake(p) {
+  const g = G(p);
+  let sd = ''; for (let i = 0; i < 70; i++) { const x = wHash(i, 9) * 1600, y = wHash(i, 10) * 420, r = .8 + 1.6 * wHash(i, 11); sd += `M${(x - r).toFixed(1)} ${y.toFixed(1)}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`; }
+  path(g, sd, { fill: '#cfd8ea', 'fill-opacity': .45 });
+  const moon = mk('circle', { cx: 760, cy: 120, r: 36, fill: COL.chalk, 'fill-opacity': .8 }, g);
+  path(g, 'M0 650Q260 570 600 630T1200 600T1600 630V900H0Z', { fill: '#14304e' });
+  path(g, 'M0 730Q400 706 800 722T1600 716V900H0Z', { fill: '#1d3b2c' });
+  const lake = G(g);
+  path(lake, 'M700 760Q740 712 1010 712Q1390 708 1550 740Q1590 780 1500 812Q1210 846 900 836Q700 826 700 760Z', { fill: WC.water });
+  path(lake, 'M820 760h120M1060 748h160M960 790h200M1280 782h120', { stroke: WC.waterHi, 'stroke-width': 4 });
+  const tree = G(g, { x: 330, y: 734 });
+  path(tree, 'M-36 0L-22 -340H22L36 0Z', { fill: WC.bark });
+  path(tree, 'M-4 -250L-90 -350M6 -300L80 -390M0 -200L70 -270', { stroke: WC.bark, 'stroke-width': 16 });
+  path(tree, 'M-36 0q-30 10 -70 6M36 0q30 10 70 6M0 0v26', { stroke: WC.barkDk, 'stroke-width': 10 });
+  const crown = G(tree);
+  [[-130, -400, 118, WC.leafDk], [130, -405, 118, WC.leafDk], [0, -500, 150, WC.leaf], [-120, -440, 110, WC.leaf], [120, -440, 110, WC.leaf], [-50, -360, 96, WC.leaf], [70, -355, 96, WC.leaf]]
+    .forEach(([cx, cy, r, f]) => mk('circle', { cx, cy, r, fill: f }, crown));
+  mk('circle', { cx: -40, cy: -540, r: 46, fill: '#63b06f' }, crown);
+  return { g, tree, lake, crown, moon };
+}
+
+// Three molecules held by two hydrogen bonds, centred on (x, y): B in the middle, A bonds to B's O, B bonds to C's O.
+function cluster3(p, x, y, s, o = {}) {
+  const bl = G(p), ml = G(p), d = 150 * s, a = 37.75 * Math.PI / 180;
+  const B = waterMolecule(ml, { x, y, s, r: 0 });
+  const C = waterMolecule(ml, { x: x + d * Math.cos(a), y: y + d * Math.sin(a), s, r: -70 });
+  const A = waterMolecule(ml, { x: x - d * .94, y: y - d * .34, s });
+  wAim(A, 1, x, y);
+  const b1 = hBond(bl).link(A, 1, B), b2 = hBond(bl).link(B, 1, C);
+  return { A, B, C, bonds: [b1, b2], g: [bl, ml] };
+}
+
+// A column of water molecules in a xylem tube between two walls. Molecule j (−1 .. n) alternates: even j points H1 up and
+// H2 at the right wall, odd j H2 up and H1 at the left wall. tube.pose(y(j), x(j)) places them and relinks every bond.
+function xylem(p, { cx = 1000, top = 150, bot = 860, half = 78, s = .68, n = 8 } = {}) {
+  const g = G(p);
+  mk('rect', { x: cx - half, y: top, width: 2 * half, height: bot - top, fill: '#16324f' }, g);
+  for (const sx of [-1, 1]) mk('rect', { x: sx < 0 ? cx - half - 26 : cx + half, y: top - 10, width: 26, height: bot - top + 10, rx: 6, fill: '#355f43', stroke: '#4f8a5a', 'stroke-width': 2 }, g);
+  let dd = ''; for (let y = top + 30; y < bot; y += 50) dd += `M${cx - half - 4} ${y}h8M${cx + half - 4} ${y}h8`;
+  path(g, dd, { stroke: '#9fd0a8', 'stroke-width': 5 });
+  const bondL = G(g), adhL = G(g, { o: 0 }), molL = G(g);
+  const par = j => ((j % 2) + 2) % 2;
+  const mols = [], bonds = [], adh = [];
+  for (let j = -1; j <= n; j++) mols.push(waterMolecule(molL, { s, r: par(j) ? -232.25 : -127.75 }));
+  for (let j = 0; j <= n; j++) bonds.push(hBond(bondL));
+  for (let j = -1; j <= n; j++) adh.push(hBond(adhL, { w: 3.5 }));
+  const tube = { g, mols, bonds, adh, adhL, bondL, cx, half, top, bot,
+    mol: j => mols[j + 1],
+    pose(yf, xf = j => cx + (par(j) ? -9 : 9)) {
+      for (let j = -1; j <= n; j++) tube.mol(j).pose(xf(j), yf(j));
+      for (let j = 0; j <= n; j++) bonds[j].link(tube.mol(j), par(j) ? 2 : 1, tube.mol(j - 1));
+      for (let j = -1; j <= n; j++) {
+        const m = tube.mol(j), side = par(j) ? -1 : 1, [hx, hy] = m.atom(par(j) ? 1 : 2);
+        adh[j + 1].set([hx + side * W_RH * s, hy], [cx + side * half, hy]);
+      }
+    },
+  };
+  return tube;
+}
+
+// Water strider standing on the surface at its origin; its feet at g.feet (x offsets).
+function strider(p, o = {}) {
+  const g = G(p, o), c = '#c8b27e', dk = '#8f7a4f';
+  path(g, 'M-40 -52Q-150 -90 -230 0M-20 -50Q-90 -100 -120 0M30 -52Q140 -95 230 0M50 -50Q110 -80 120 0M70 -56Q120 -80 150 -64', { stroke: dk, 'stroke-width': 5 });
+  mk('ellipse', { cx: 0, cy: -56, rx: 82, ry: 15, fill: c }, g);
+  mk('circle', { cx: 92, cy: -60, r: 14, fill: c }, g);
+  mk('circle', { cx: 98, cy: -64, r: 4, fill: '#2b2412' }, g);
+  return Object.assign(g, { feet: [-230, -120, 120, 230] });
+}
+
+// Bars of kinetic energy (∝ k²) for a set of speeds, sorted, with a dashed average line. Baseline at y.
+function speedBars(p, ks, { x, y, w, h, color = WC.heat }) {
+  const g = G(p), idx = ks.map((k, i) => i).sort((a, b) => ks[a] - ks[b]), kmax = Math.max(...ks), bw = w / ks.length;
+  const bars = idx.map((i, q) => { const hh = h * (ks[i] / kmax) ** 2; const r = mk('rect', { x: x + q * bw + bw * .15, y: y - hh, width: bw * .7, height: hh, rx: 4, fill: color }, g); r._i = i; return r; });
+  path(g, `M${x - 10} ${y}H${x + w + 10}`, { stroke: COL.dim, 'stroke-width': 3 });
+  const avgOf = list => list.reduce((a, i) => a + (ks[i] / kmax) ** 2, 0) / list.length * h;
+  const avg = G(g, { y: y - avgOf(idx) });
+  path(avg, `M${x - 16} 0H${x + w + 16}`, { stroke: COL.chalk, 'stroke-width': 3.5, 'stroke-dasharray': '12 9' });
+  return { g, bars, avg, avgOf, idx };
+}
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const withPic = (key, build) => (body, api) => { S.pics?.(key); return build(body, api); };
+
+/* ---------- shared numbers (computed, never typed twice) ---------- */
+const C_WATER = 1, C_SAND = .2;                 // cal/(g·°C); sand is "about", rounded (errata 5)
+const SPEC_Q = 600, SPEC_M = 150;               // spec: heat and masses
+const dT = (q, m, c) => q / (m * c);
+const Q2 = { q: 900, m: 300 }, Q2_DT = dT(Q2.q, Q2.m, C_WATER);   // 3 °C
+const HVAP = 580;                               // cal/g near body temperature (errata 12, "about")
+const SWEAT_M = 100, SWEAT_DT = dT(HVAP * 1, SWEAT_M, C_WATER);     // 5.8 °C
+const J_PER_CAL = 4.184;
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Water and life', (m, D) => {
+  const p = panel(0), sc = treeLake(p);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 3: WATER AND LIFE · LESSON 2', { x: 1190, y: 220, size: 26, fill: COL.dim, o: 1 });
+  ['Cohesion and', 'moderation of', 'temperature'].forEach((s, i) => wLabel(ttl, s, { x: 1190, y: 310 + i * 78, size: 66, o: 1 }));
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out);
+  // tree: water climbs the trunk to the crown
+  const up = path(p, 'M330 720V300', { stroke: WC.bond, 'stroke-width': 6, 'stroke-dasharray': '14 10' }, { o: 0 });
+  show(up, m('tree')); show(wArrow(p, [330, 330], [330, 250], { color: WC.bond, o: 0 }), m('tree') + .3);
+  say(p, 'lifts water up to 100 m', 600, 300, m('tree') + .4, { size: 32, fill: WC.bond, anchor: 'start' });
+  // lake: stays mild
+  say(p, 'a lake stays mild', 1125, 640, m('lake') + .2, { size: 32, fill: COL.chalk });
+  say(p, 'while the air swings hot and cold', 1125, 680, m('lake') + .6, { size: 26, fill: COL.dim, weight: 500 });
+  // both: one cause, a bonded cluster between them
+  const cg = G(p, { o: 0 });
+  leader(cg, [700, 430], [560, 300], m('both') + .5);
+  leader(cg, [800, 610], [930, 712], m('both') + .5);
+  const cl = cluster3(cg, 780, 500, .75);
+  wLabel(cg, 'hydrogen bonds', { x: 790, y: 650, size: 30, fill: WC.bond, o: 1 });
+  show(cg, m('both'), .7);
+  // water keeps climbing the trunk; the crown sways; the bonded trio jiggles and holds
+  const base = [cl.A, cl.B, cl.C].map(q => ({ ...st(q) }));
+  clockRun(t => {
+    const off = (-t * 40).toFixed(1); if (up._off !== off) up.setAttribute('stroke-dashoffset', up._off = off);
+    put(sc.crown, { r: 1.2 * Math.sin(.7 * t) });
+    [cl.A, cl.B, cl.C].forEach((q, i) => { const b = base[i]; q.pose(b.x + 3 * Math.sin(2.1 * t + i), b.y + 3 * Math.sin(1.7 * t + 2 * i), b.r + 5 * Math.sin(1.3 * t + i)); });
+    cl.bonds[0].link(cl.A, 1, cl.B); cl.bonds[1].link(cl.B, 1, cl.C);
+  }, D);
+}],
+
+/* ---------- part A: cohesion ---------- */
+['cohes', 'Cohesion', (m, D) => {
+  const p = panel(0), cam = camera(p, D, { x: 620, y: 450, z: .32 }), W = cam.world;
+  cam.to({ x: 800, z: 1 }, .3, 1.5);
+  const lake = G(W); hide(lake, .3, .4);
+  path(lake, 'M-2400 1250H3600V3200H-2400Z', { fill: WC.water });
+  path(lake, 'M-2400 1250H3600', { stroke: WC.waterHi, 'stroke-width': 8 });
+  mk('circle', { cx: 620, cy: 450, r: 345, fill: '#14375c', stroke: WC.bond, 'stroke-width': 3, 'stroke-opacity': .35 }, W);
+  const bl = G(W), ml = G(W);
+  // the pair in the middle
+  const s1 = 1.35, A = waterMolecule(ml, { x: 470, y: 440, s: s1 }), B = waterMolecule(ml, { x: 470 + 170 * s1, y: 440, s: s1, r: -90 });
+  wAim(A, 1, st(B).x, st(B).y);
+  const pair = hBond(bl, { w: 6 }).link(A, 1, B); put(pair, { o: 0 });
+  // neighbours around them
+  const ring = [], N = 10;
+  for (let i = 0; i < N; i++) {
+    const a = i / N * 2 * Math.PI + .2, rx = 262, ry = 255;
+    ring.push(waterMolecule(ml, { x: 590 + rx * Math.cos(a), y: 450 + ry * Math.sin(a), s: .85, r: wHash(i, 3) * 360, o: .55 }));
+  }
+  const rb = [];
+  ring.forEach((q, i) => {
+    const nb = i % 2 ? ring[(i + 1) % N] : (Math.hypot(st(q).x - st(A).x, st(q).y - st(A).y) < Math.hypot(st(q).x - st(B).x, st(q).y - st(B).y) ? A : B);
+    wAim(q, 1, st(nb).x, st(nb).y); rb.push([q, nb, hBond(bl, { o: 0 })]);
+  });
+  const base = [A, B, ...ring].map(q => ({ ...st(q) }));
+  clockRun(t => {
+    [A, B, ...ring].forEach((q, i) => { const b = base[i], f = 1.3 + .4 * wHash(i, 7); q.pose(b.x + 3 * Math.sin(f * t + i), b.y + 3 * Math.sin(1.2 * f * t + 2 * i), b.r + 4 * Math.sin(.9 * f * t + i)); });
+    pair.link(A, 1, B); rb.forEach(([q, nb, b]) => b.link(q, 1, nb));
+  }, D);
+  // pull: partial charges
+  A.deltas(m('pull') + .2, { size: 34, nudge: { 1: [-34, -52] } }); B.deltas(m('pull') + .9, { size: 34, nudge: { 0: [40, -62] } });
+  say(p, 'oxygen end: slightly negative (δ−)', 1050, 230, m('pull') + .3, { size: 30, fill: '#ffb3a6', anchor: 'start' });
+  say(p, 'hydrogen ends: slightly positive (δ+)', 1050, 278, m('pull') + 1.2, { size: 30, anchor: 'start' });
+  // bond: one H drawn to the neighbour's O
+  show(pair, m('bond') + .8, .1); pair.form(m('bond') + .8, .7);
+  say(p, 'hydrogen bond', 600, 540, m('bond') + 1.3, { size: 30, fill: WC.bond });
+  // many: weak, breaks and re-forms
+  pair.flicker(m('many') + .3, 3, .7);
+  say(p, 'one bond is weak:', 1050, 390, m('many'), { size: 30, anchor: 'start' });
+  say(p, 'breaks and re-forms in a flash', 1050, 432, m('many') + .4, { size: 28, fill: COL.dim, anchor: 'start', weight: 500 });
+  // team: every neighbour holds on
+  ring.forEach((q, i) => tw(q, { o: 1 }, m('team') + .1 * i, .4));
+  rb.forEach(([, , b], i) => { show(b, m('team') + .3 + .12 * i, .1); b.form(m('team') + .3 + .12 * i, .5); });
+  say(p, 'many weak bonds together', 1050, 540, m('team') + 1, { size: 30, anchor: 'start' });
+  say(p, 'hold the liquid as one body', 1050, 582, m('team') + 1.4, { size: 30, anchor: 'start' });
+  // name
+  const nm = say(p, 'COHESION', 1050, 720, m('name') + .3, { size: 84, fill: WC.bond, anchor: 'start', weight: 700 });
+  say(p, 'water sticking to water', 1054, 770, m('name') + .8, { size: 30, fill: COL.dim, anchor: 'start', weight: 500 });
+}],
+
+['tree', 'Up the tree', (m, D) => {
+  // One camera push: establish the tree, then dive through a window in the trunk into one water-conducting tube. The tube
+  // is drawn inside the trunk at scale K (its own coordinates match the stage once the camera sits at zoom 1/K), and
+  // every label lives in screen space, pinned to its point in the tube through cam.screen.
+  const p = panel(0), cam = camera(p, D), W = cam.world, sc = treeLake(W);
+  const K = .04, TX = 1000, tPush = m('push'), tA = tPush + 2.9, tLeaf = m('leaf'), tPull = m('pull'), tWall = m('wall'), tGrav = m('gravity');
+  const tg = G(W, { x: 330 - K * 800, y: 560 - K * 450, s: K });
+  const LW = (lx, ly) => [330 + K * (lx - 800), 560 + K * (ly - 450)];
+  cam.to({ x: 330, y: 560, z: 1 / K }, tPush + .2, 2.6);
+  put(sc.moon, { o: .8 });
+  const win = mk('circle', { cx: LW(TX, 450)[0], cy: 560, r: 30, fill: 'none', stroke: WC.bond, 'stroke-width': 4 }, W); put(win, { o: 0 });
+  show(win, tPush, .3); hide(win, tPush + 1.6, .4);
+  // inside the trunk: wood on both sides, the tube between
+  const inside = G(tg, { o: 0 }); tw(inside, { o: 1 }, tPush + 1.4, 1, lin);
+  mk('rect', { x: -200, y: -200, width: 2000, height: 1300, fill: '#10233a' }, inside);
+  mk('rect', { x: -200, y: -200, width: 660, height: 1300, fill: '#2b2015' }, inside);
+  path(inside, 'M360 -200V1100M420 -200V1100M300 -200V1100', { stroke: '#3a2b1d', 'stroke-width': 10 });
+  prog(q => { sc.g.style.display = q >= 1 ? 'none' : ''; }, tPush + 2.5, .01, lin);   // the wide scene is covered: stop drawing it
+  const tube = xylem(inside, { cx: TX, top: 160, bot: 900, s: .66, n: 7 });
+  path(inside, `M${TX - 210} 150Q${TX - 120} 96 ${TX - 30} 150ZM${TX + 30} 150Q${TX + 120} 96 ${TX + 210} 150Z`, { fill: WC.leaf });
+  // screen-space labels, pinned to tube points
+  const pins = [];
+  const pin = (str, lx, ly, t0, o = {}) => { const e = say(p, str, 0, 0, t0, o); pins.push([e, lx, ly]); return e; };
+  clockRun(t => pins.forEach(([e, lx, ly]) => { const [x, y] = cam.screen(...LW(lx, ly), t); put(e, { x, y }); }), D);
+  pin('leaf', TX + 160, 186, tA - .4, { size: 24, fill: '#9fd0a8', weight: 500 });
+  pin('air', TX - 150, 80, tLeaf, { size: 26, fill: COL.dim, weight: 500 });
+  const cap1 = pin('a narrow tube in the trunk,', 1150, 270, tA, { size: 30, anchor: 'start' });
+  const cap2 = pin('filled from roots to leaves', 1150, 312, tA + .4, { size: 30, anchor: 'start', fill: COL.dim, weight: 500 });
+  hide(cap1, tPull, .4); hide(cap2, tPull, .4);
+  pin('↓ to the roots', 1150, 840, tA + .8, { size: 26, fill: COL.dim, weight: 500, anchor: 'start' });
+  pin('not to scale', 1540, 64, tA + 1, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+  // leaf: the top molecule evaporates; pull: it tugs the next, and the chain follows one after another, like a rope
+  const yb = j => 250 + 100 * j;
+  const rise = (j, t) => -100 * io(ramp(t, tPull + .5 + .2 * j, tPull + 2.9 + .2 * j));
+  tube.bonds[0].snap(tPull + .4);
+  clockRun(t => {
+    const lv = io(ramp(t, tLeaf + .2, tLeaf + 2.6)), tug = 10 * Math.sin(Math.PI * ramp(t, tLeaf + 1.5, tPull + .4));   // the chain is stretched up while the leaver pulls
+    const jig = j => 2.5 * Math.sin(3.1 * t + 1.7 * j);
+    tube.mol(-1).pose(undefined, undefined, -232.25 + 140 * lv);   // before tube.pose links bonds[0] to it
+    tube.pose(j => j < 0 ? lerp(150, 70, lv) : yb(j) + rise(j, t) - tug * Math.max(0, 1 - j / 4) + jig(j),
+              j => j < 0 ? lerp(TX + 9, TX + 150, lv) : TX + (j % 2 ? -9 : 9) + jig(j + 3));
+  }, D);
+  put(tube.mol(7), { o: 0 }); show(tube.mol(7), tPull + 1.2); put(tube.adh[0], { o: 0 });   // the escaped molecule grips nothing
+  pin('evaporation', TX + 210, 72, tLeaf + 1.4, { size: 30, anchor: 'start' });
+  const ups = G(inside, { o: 0 }); [330, 540, 750].forEach(y => wArrow(ups, [TX - 140, y + 50], [TX - 140, y - 30], { color: WC.bond, w: 5, head: 14 }));
+  show(ups, tPull + .5); hide(ups, tWall - .5);
+  const cap3 = pin('each molecule tugs the next:', 1150, 270, tPull + 1, { size: 30, anchor: 'start' });
+  const cap4 = pin('the whole chain follows', 1150, 312, tPull + 1.5, { size: 30, anchor: 'start', fill: COL.dim, weight: 500 });
+  hide(cap3, tWall, .4); hide(cap4, tWall, .4);
+  // wall: adhesion bonds to the wall; label the two kinds of bond
+  show(tube.adhL, tWall + 2.4, .8);
+  pin('cohesion:', 1150, 395, tWall + .5, { size: 30, fill: WC.bond, anchor: 'start' });
+  pin('water links water', 1150, 435, tWall + .8, { size: 28, fill: COL.dim, anchor: 'start', weight: 500 });
+  const l1 = path(inside, `M1140 405L${TX + 14} 400`, { stroke: WC.bond, 'stroke-width': 2.5 }, { d: 0 }); draw(l1, tWall + .6, .5);
+  pin('adhesion:', 1150, 575, tWall + 2.6, { size: 30, fill: '#9fd0a8', anchor: 'start' });
+  pin('water grips the wall', 1150, 615, tWall + 2.9, { size: 28, fill: COL.dim, anchor: 'start', weight: 500 });
+  const l2 = path(inside, `M1140 585L${TX + 80} 559`, { stroke: '#9fd0a8', 'stroke-width': 2.5 }, { d: 0 }); draw(l2, tWall + 2.7, .5);
+  // gravity: down, against the three helpers, each lit in the order the line names them
+  const grav = G(inside, { o: 0 }); wArrow(grav, [870, 420], [870, 660], { color: WC.gravity, w: 8, head: 20 });
+  tw(grav, { o: 1 }, tGrav + .1, .5);
+  pin('gravity', 870, 710, tGrav + .3, { size: 28, fill: WC.gravity });
+  const pulls = G(inside, { o: 0 }); wArrow(pulls, [TX + 150, 150], [TX + 150, 100], { color: COL.chalk, w: 5, head: 14 });
+  tw(pulls, { o: 1 }, tGrav + 1.6, .4);
+  pin('pulls up', TX + 210, 112, tGrav + 1.6, { size: 26, fill: COL.dim, anchor: 'start', weight: 500 });
+  tw(tube.bondL, { o: 1 }, 0, .01);
+  [[tube.bondL, tGrav + 2.9], [tube.adhL, tGrav + 4.2]].forEach(([g, t0]) => { tw(g, { o: .35 }, t0, .15); tw(g, { o: 1 }, t0 + .3, .3); });
+}],
+
+['surf', 'Surface tension', (m, D) => {
+  const p = panel(0), SY = 330;
+  mk('rect', { x: 0, y: SY, width: 1600, height: 900 - SY, fill: '#14375c' }, p);
+  // the crowd under the surface, still enough to read
+  const ml = G(p), mols = [];
+  for (let r = 0; r < 5; r++) for (let c = 0; c < 11; c++) {
+    const x = 90 + c * 142 + (r % 2 ? 71 : 0) + (wHash(r * 11 + c, 2) - .5) * 30, y = SY + 52 + r * 118 + (wHash(r * 11 + c, 3) - .5) * 24;
+    if (x > 1560) continue;
+    mols.push(waterMolecule(ml, { x, y, s: .5, r: wHash(r * 11 + c, 4) * 360, o: .5 }));
+  }
+  const keep = new Set();
+  const near = (x, y) => mols.reduce((b, q) => Math.hypot(st(q).x - x, st(q).y - y) < Math.hypot(st(b).x - x, st(b).y - y) ? q : b);
+  // under: a deep molecule pulled equally every way
+  const dm = near(440, 640); put(dm, { o: 1, s: .75 }); dm.pose(); keep.add(dm); const dm0x = st(dm).x;
+  const pulls = (q, angles, t0, color) => {
+    const g = G(p, { o: 0 }), { x, y } = st(q);
+    angles.forEach(a => { const r = a * Math.PI / 180; wArrow(g, [x + 46 * Math.cos(r), y + 46 * Math.sin(r)], [x + 120 * Math.cos(r), y + 120 * Math.sin(r)], { color, w: 5, head: 14 }); });
+    show(g, t0, .6); return g;
+  };
+  pulls(dm, [0, 60, 120, 180, 240, 300], m('under') + .3, WC.bond);
+  const backing = (x, y, w, h, t0) => { const r = mk('rect', { x, y, width: w, height: h, rx: 14, fill: COL.board, 'fill-opacity': .88 }, p); put(r, { o: 0 }); show(r, t0, .4); };
+  backing(dm0x - 190, 772, 380, 100, m('under') + .7);
+  say(p, 'pulled equally every way', dm0x, 812, m('under') + .8, { size: 30 });
+  say(p, 'net pull: none', dm0x, 852, m('under') + 1.3, { size: 28, fill: COL.dim, weight: 500 });
+  // top: a surface molecule has neighbours beside and below only
+  const um = near(800, SY + 40); put(um, { o: 1, s: .75 }); um.pose(st(um).x, SY + 44); keep.add(um);
+  const sb = mols.map(q => ({ ...st(q) }));
+  clockRun(t => mols.forEach((q, i) => { if (keep.has(q)) return; const b = sb[i]; q.pose(b.x + 5 * Math.sin(1.9 * t + i), b.y + 4 * Math.sin(1.6 * t + 2.3 * i), b.r + 14 * Math.sin(1.2 * t + i)); }), D);
+  pulls(um, [0, 180, 45, 90, 135], m('top') + .3, WC.bond);
+  say(p, 'water beside and below,', 800, 170, m('top') + .4, { size: 30 });
+  say(p, 'nothing above', 800, 212, m('top') + 1.2, { size: 30, fill: COL.dim, weight: 500 });
+  // skin: the net pull is inward and sideways; the surface acts like a stretched skin
+  const net = G(p, { o: 0 }); wArrow(net, [st(um).x, SY + 104], [st(um).x, SY + 230], { color: COL.chalk, w: 9, head: 22 });
+  mk('rect', { x: st(um).x + 22, y: SY + 160, width: 240, height: 56, rx: 14, fill: COL.board, 'fill-opacity': .88 }, net);
+  wLabel(net, 'net pull: inward', { x: st(um).x + 36, y: SY + 198, size: 28, anchor: 'start', o: 1 }); show(net, m('skin') + .2);
+  const skin = path(p, '', { stroke: '#bfefff', 'stroke-width': 7 }, { o: 0 }); show(skin, m('skin') + 1.2);
+  say(p, 'a stretched skin', 260, 300, m('skin') + 1.6, { size: 30, fill: '#bfefff' });
+  // strider: it lands; the skin dimples under each foot and holds
+  const SX = 1260, sd = strider(p, { x: SX, y: SY - 200, o: 0, s: 1.25 });
+  tw(sd, { o: 1, y: SY }, m('strider') + .2, 1.2, out);
+  const dip = t => 16 * io(ramp(t, m('strider') + 1.1, m('strider') + 1.7));
+  clockRun(t => {
+    const k = dip(t); let d = `M0 ${SY}`;
+    for (let x = 10; x <= 1600; x += 10) { let y = SY; sd.feet.forEach(f => { y += k * Math.exp(-(((x - SX - 1.25 * f) / 34) ** 2)); }); d += `L${x} ${y.toFixed(1)}`; }
+    if (skin._d !== d) skin.setAttribute('d', skin._d = d);
+  }, D);
+  say(p, 'surface tension', SX, 110, m('strider') + .6, { size: 40, fill: WC.bond, weight: 700 });
+  say(p, 'the surface resists breaking', SX, 156, m('strider') + 1.2, { size: 28, fill: COL.dim, weight: 500 });
+}],
+
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0), TX = 400;
+  const tube = xylem(p, { cx: TX, top: 130, bot: 760, s: .55, n: 6 });
+  path(p, `M${TX - 190} 122Q${TX - 110} 74 ${TX - 30} 122ZM${TX + 30} 122Q${TX + 110} 74 ${TX + 190} 122Z`, { fill: WC.leaf });
+  tube.pose(j => j < 0 ? 66 : 196 + 90 * j, j => j < 0 ? TX + 120 : TX + (j % 2 ? -8 : 8));
+  put(tube.mol(6), { o: 0 }); put(tube.bondL, { o: .35 });
+  tube.bonds.forEach((b, j) => { if (j > 0 && j < 6) { wLabel(p, '?', { x: TX - 120, y: 196 + 90 * j - 40, size: 34, fill: WC.bond, o: 1 }); } });
+  wLabel(p, 'leaves lose water', { x: TX + 220, y: 70, size: 28, anchor: 'start', o: 1 });
+  wLabel(p, 'no bonds?', { x: TX - 150, y: 470, size: 28, fill: WC.bond, anchor: 'end', o: 1 });
+  notToScale(p, 760, 820, .2);
+}, { ask: done => quiz({ x: 860, y: 90, w: 700, cls: 'side' }, [{
+  id: 'c-cohesion',
+  prompt: ['Imagine the hydrogen bonds between the molecules in the trunk’s water column vanished. What happens when the leaves lose water?'],
+  build: choice([['The column is pulled up as before.'], ['The column breaks into separate bits, and nothing is lifted.'], ['The water in the trunk gets hotter.'], ['The water goes up faster.']], 1,
+    'Right. A leaving molecule can drag the one below only because the bonds hold them together; with no bonds there is no chain to pull.',
+    ['The pull works only because the molecules hold each other. Without bonds, what passes the tug down the column?', null,
+     'This is not a heat effect: the bonds are what pass the pull from molecule to molecule.',
+     'Nothing would speed it up: without bonds the pull at the top no longer reaches the water below.']),
+}], done) }],
+
+/* ---------- part B: heat ---------- */
+['temp', 'Temperature and heat', (m, D) => {
+  const p = panel(0), A = G(p);
+  const tTot = m('total');
+  // fast / slow: two beakers
+  const hot = beaker(A, { x: 450, y: 640, w: 440, h: 400, fill: '#4a3140' }), cold = beaker(A, { x: 1150, y: 640, w: 440, h: 400, fill: '#173a70' });
+  const ch = moleculeCrowd(A, { x: 450, y: 470, w: 380, h: 270, n: 12, s: .5, temp: 60, trails: true, trail: WC.heat, seed: 3 });
+  const cc = moleculeCrowd(A, { x: 1150, y: 470, w: 380, h: 270, n: 12, s: .5, temp: 5, trails: true, trail: WC.cold, seed: 8 });
+  put(ch.trailPath, { o: 0 }); put(cc.trailPath, { o: 0 });
+  clockRun(t => { ch.set(t * (t > m('fast') ? 1 : .2)); cc.set(t * (t > m('slow') ? 1 : .2)); }, D);
+  const thH = thermometer(A, { x: 150, y: 620, h: 300, min: 0, max: 80, side: -1 }).set(ch.temp), thC = thermometer(A, { x: 1450, y: 620, h: 300, min: 0, max: 80, color: WC.cold }).set(cc.temp);
+  say(A, 'warm water: fast', 450, 200, m('fast') + .2, { size: 34, fill: WC.heat });
+  say(A, 'cold water: slow', 1150, 200, m('slow') + .2, { size: 34, fill: WC.cold });
+  // ke: motion trails, thermal energy
+  show(ch.trailPath, m('ke') + .2); show(cc.trailPath, m('ke') + .2);
+  say(A, 'random motion of molecules = thermal energy', 800, 95, m('ke') + .5, { size: 36 });
+  // avg: kinetic energy of each warm molecule, their average is the temperature
+  const sb = speedBars(A, ch.k, { x: 270, y: 840, w: 360, h: 140 }); put(sb.g, { o: 0 }); show(sb.g, m('avg') + .2);
+  say(A, 'average', 650, 840 - sb.avgOf(sb.idx) + 9, m('avg') + .8, { size: 26, anchor: 'start' });
+  say(A, 'kinetic energy of each molecule', 450, 680, m('avg') + .4, { size: 24, fill: COL.dim, weight: 500 });
+  say(A, 'temperature = average kinetic energy, not the total', 800, 145, m('avg') + .6, { size: 32, fill: WC.heat });
+  // total: a bathtub of warm water and a cup of boiling water
+  hide(A, tTot - .2, .5);
+  const B = G(p, { o: 0 }); show(B, tTot + .2, .6);
+  const tub = G(B); mk('rect', { x: 120, y: 430, width: 720, height: 270, rx: 60, fill: '#3a3350', stroke: WC.glass, 'stroke-width': 6 }, tub);
+  const tc = moleculeCrowd(B, { x: 470, y: 565, w: 620, h: 200, n: 24, s: .36, temp: 40, seed: 5 });
+  const cup = G(B); path(cup, 'M1140 480V690Q1140 700 1150 700H1330Q1340 700 1340 690V480', { stroke: WC.glass, 'stroke-width': 6 });
+  path(cup, 'M1340 530q60 0 60 50t-60 50', { stroke: WC.glass, 'stroke-width': 8 });
+  mk('rect', { x: 1146, y: 520, width: 188, height: 174, rx: 8, fill: '#5a3138' }, cup);
+  const kc = moleculeCrowd(B, { x: 1240, y: 607, w: 150, h: 130, n: 4, s: .36, temp: 100, seed: 2 });
+  clockRun(t => { tc.set(t); kc.set(t); }, D);
+  thermometer(B, { x: 870, y: 680, h: 300, min: 0, max: 100, side: 1, size: 28 }).set(40);
+  thermometer(B, { x: 1470, y: 680, h: 300, min: 0, max: 100, side: -1, size: 28 }).set(100);
+  wLabel(B, 'bathtub of warm water', { x: 480, y: 755, size: 30, o: 1 });
+  wLabel(B, 'cup of boiling water', { x: 1240, y: 755, size: 30, o: 1 });
+  // total thermal energy, as bars over each
+  wLabel(B, 'total thermal energy', { x: 120, y: 290, size: 28, fill: WC.heat, anchor: 'start', o: 1 });
+  const bt = mk('rect', { x: 120, y: 318, width: 720, height: 34, rx: 8, fill: WC.heat }, B), bc = mk('rect', { x: 1140, y: 318, width: 70, height: 34, rx: 8, fill: WC.heat }, B);
+  wLabel(B, 'far more', { x: 480, y: 395, size: 26, fill: COL.dim, weight: 500, o: 1 }); wLabel(B, 'much less', { x: 1240, y: 395, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  // heat: from the cup into the tub
+  const ha = heatArrow(B, [1120, 600], [900, 600], { label: 'heat', size: 30 }); ha.in(m('heat') + .3, 1);
+  say(B, 'heat = thermal energy moving from warmer to cooler', 800, 845, m('heat') + 1, { size: 34 });
+}],
+
+['units', 'Calories and joules', (m, D) => {
+  const p = panel(0), R1 = G(p), tK = m('kcal');
+  // cal: 1 cal warms 1 g of water by 1 °C
+  const bead = G(R1, { x: 420, y: 300 });
+  path(bead, 'M0 -100C30 -60 78 -20 78 26A78 78 0 0 1 -78 26C-78 -20 -30 -60 0 -100Z', { fill: WC.waterHi, stroke: '#7fb6e6', 'stroke-width': 3 });
+  const bm = waterMolecule(bead, { x: 0, y: 20, s: .7 });
+  wLabel(R1, '1 g of water', { x: 420, y: 420, size: 28, o: 1 });
+  const th = thermometer(R1, { x: 640, y: 400, h: 290, min: 15, max: 25, ticks: 10 });
+  // the thermometer and the molecule's jiggle read the same temperature
+  const calT = t => 20 + io(ramp(t, m('cal') + 1.2, m('cal') + 3.2));
+  clockRun(t => { const c = calT(t), v = wSpeed(c) * 2.4; th.set(c); bm.pose(4 * Math.sin(v * t), 20 + 3 * Math.sin(1.3 * v * t), 12 * Math.sin(.9 * v * t)); }, D);
+  heatArrow(R1, [90, 290], [320, 290], { label: '1 cal', size: 32 }).in(m('cal') + .2, .9);
+  say(p, '1 calorie (cal)', 880, 230, m('cal') + .2, { size: 40, anchor: 'start', weight: 700 });
+  say(p, 'warms 1 g of water by 1 °C', 880, 278, m('cal') + .8, { size: 30, fill: COL.dim, anchor: 'start', weight: 500 });
+  // kcal: a thousand calories, the food-label Calorie
+  const gx = 100, gy = 520, cs = 12;
+  // kcal: a copy of the 1-cal drop flies down into the first cell, then the block multiplies to 1 000, counted
+  const cells = []; for (let i = 0; i < 1000; i++) { const c = i % 50, r = Math.floor(i / 50); cells.push(`M${gx + c * cs} ${gy + r * cs}h${cs - 3}v${cs - 3}h${-(cs - 3)}Z`); }
+  const grid1000 = path(p, '', { fill: WC.heat, 'fill-opacity': .8 });
+  const fly = G(p, { x: 420, y: 300, o: 0 });
+  path(fly, 'M0 -100C30 -60 78 -20 78 26A78 78 0 0 1 -78 26C-78 -20 -30 -60 0 -100Z', { fill: WC.heat });
+  tw(fly, { o: .9 }, tK, .2); tw(fly, { x: gx + 4, y: gy + 4, s: .08 }, tK + .1, .8, io); tw(fly, { o: 0 }, tK + .85, .15);
+  tw(R1, { o: .45 }, tK + .2, .5);
+  const count = wLabel(p, '', { x: gx + 300, y: gy + 290, size: 30, o: 1 });
+  prog(q => { const n = Math.max(1, Math.round(1000 * q * q)); if (grid1000._n !== n) { grid1000._n = n; grid1000.setAttribute('d', cells.slice(0, n).join('')); count.textContent = wNum(n) + (n === 1 ? ' calorie' : ' calories'); } }, tK + .9, 2.6, lin);
+  say(p, '1 kcal = 1 000 cal', 880, 410, m('kcal') + .3, { size: 40, anchor: 'start', weight: 700 });
+  say(p, 'the “Calorie” on a food label', 880, 456, m('kcal') + 2.2, { size: 30, fill: COL.dim, anchor: 'start', weight: 500 });
+  // joule
+  say(p, '1 cal = 4.184 J', 880, 590, m('joule') + .6, { size: 40, anchor: 'start', weight: 700 });
+  say(p, 'joule: the standard unit of energy', 880, 636, m('joule') + 1.2, { size: 30, fill: COL.dim, anchor: 'start', weight: 500 });
+  // mult
+  say(p, '1 kcal = 1 000 × 4.184 J', 880, 760, m('mult') + .2, { size: 40, anchor: 'start', weight: 700, fill: WC.heat });
+  say(p, '= ' + wNum(1000 * J_PER_CAL) + ' J', 1180, 830, m('mult') + 1.4, { size: 44, anchor: 'start', weight: 700, fill: WC.heat });
+}],
+
+['spec', 'Specific heat', (m, D) => {
+  const p = panel(0), h0 = m('hotsame') + 1.6, h1 = m('hotsame') + 5.6, tCalc = m('calc'), tSand = m('sand');
+  const heat = t => SPEC_Q * ramp(t, h0, h1);   // calories delivered so far, to each sample
+  const op = say(p, 'water takes a lot of heat to change its temperature', 800, 90, .3, { size: 34 }); hide(op, m('water'), .4);
+  say(p, 'specific heat: the heat to warm 1 g by 1 °C', 800, 90, m('water') + .4, { size: 34 });
+  say(p, 'water: 1 cal/(g·°C)', 800, 140, m('water') + 2.5, { size: 34, fill: WC.bond });
+  // water, left
+  const bk = beaker(p, { x: 430, y: 700, w: 380, h: 290 }); pulse(bk, m('water') + 2.6, 1.05);
+  const wc = moleculeCrowd(p, { x: 430, y: 572, w: 320, h: 190, n: 10, s: .42, temp: 20, seed: 4 });
+  const sand = G(p); let sd = '';
+  for (let i = 0; i < 420; i++) { const c = i % 30, r = Math.floor(i / 30), x = 990 + c * 12.6 + (r % 2) * 6, y = 470 + r * 16.5; sd += `M${x.toFixed(1)} ${y.toFixed(1)}a6 6 0 1 0 12 0a6 6 0 1 0 -12 0`; }
+  mk('rect', { x: 980, y: 455, width: 390, height: 245, rx: 14, fill: WC.sandDk }, sand); path(sand, sd, { fill: WC.sand });
+  wLabel(p, '150 g of water', { x: 430, y: 750, size: 30, o: 1 }); wLabel(p, '150 g of dry sand', { x: 1175, y: 750, size: 30, o: 1 });
+  // the same function of heat drives both thermometers
+  const thW = thermometer(p, { x: 150, y: 690, h: 360, min: 15, max: 45, side: 1 }), thS = thermometer(p, { x: 1460, y: 690, h: 360, min: 15, max: 45, side: -1 });
+  heatArrow(p, [430, 200], [430, 390], { side: 1 }).in(m('hotsame') + .6, .9);
+  heatArrow(p, [1175, 200], [1175, 435], { side: -1 }).in(m('hotsame') + .6, .9);
+  const cw = wLabel(p, '', { x: 400, y: 300, size: 30, fill: WC.heat, anchor: 'end', o: 1 }), cs2 = wLabel(p, '', { x: 1205, y: 300, size: 30, fill: WC.heat, anchor: 'start', o: 1 });
+  const packets = path(p, '', { fill: '#ffd08a' });
+  clockRun(t => {
+    const q = heat(t), on = t > h0 && t < h1 + .4;
+    wc.set(t, 20 + dT(q, SPEC_M, C_WATER));
+    thW.set(20 + dT(q, SPEC_M, C_WATER)); thS.set(20 + dT(q, SPEC_M, C_SAND));
+    const str = t < m('hotsame') + 1 ? '' : Math.round(q) + ' cal';
+    if (cw.textContent !== str) { cw.textContent = str; cs2.textContent = str; }
+    let d = '';
+    if (on) for (let i = 0; i < 4; i++) { const f = ((t - h0) * 1.1 + i / 4) % 1; for (const [x, y1, y2] of [[430, 210, 380], [1175, 210, 425]]) { const y = y1 + (y2 - y1) * f; d += `M${x - 9} ${y.toFixed(1)}a9 9 0 1 0 18 0a9 9 0 1 0 -18 0`; } }
+    if (packets._d !== d) packets.setAttribute('d', packets._d = d);
+  }, D);
+  say(p, `${SPEC_Q} ÷ (${SPEC_M} × 1) = ${dT(SPEC_Q, SPEC_M, C_WATER)} °C`, 430, 806, tCalc + .3, { size: 34, fill: WC.heat });
+  say(p, `${SPEC_Q} ÷ (${SPEC_M} × 0.2) = ${dT(SPEC_Q, SPEC_M, C_SAND)} °C`, 1175, 806, tSand + 1.5, { size: 34, fill: WC.heat });
+  say(p, 'sand: about 0.2 cal/(g·°C)', 1175, 856, tSand + .4, { size: 28, fill: COL.dim, weight: 500 });
+  const hi = say(p, 'high specific heat', 430, 856, m('high') + .2, { size: 32, fill: WC.bond, weight: 700 });
+  pulse(thW, m('high') + .2, 1.08); pulse(thS, tSand + .3, 1.06);
+}],
+
+['why', 'Why so stubborn', (m, D) => {
+  const p = panel(0), tIn = m('in'), tBrk = m('brk'), tOut = m('out'), tBuf = m('buf');
+  const A = G(p);
+  mk('rect', { x: 180, y: 190, width: 620, height: 560, rx: 30, fill: '#14375c' }, A);
+  const cr = moleculeCrowd(A, { x: 490, y: 470, w: 520, h: 460, n: 14, s: .62, temp: 20, bonds: true, seed: 6 });
+  // in: bonds break one after another while heat flows in; out: they re-form, giving heat back
+  const breakAt = i => tIn + 1 + .35 * i, formAt = i => tOut + .8 + .3 * i;
+  cr.bonds.forEach((b, i) => { b.snap(breakAt(i)); show(b, formAt(i), .1); b.form(formAt(i), .5); b.open(); put(b, { o: 1 }); });
+  const th = thermometer(A, { x: 900, y: 720, h: 420, min: 15, max: 30, side: 1 });
+  clockRun(t => {
+    const warm = 2.5 * ramp(t, tIn + 1, tOut) - 2.5 * ramp(t, tOut + .5, tBuf);
+    cr.set(t, 20 + warm); th.set(20 + warm);
+  }, D);
+  const hin = heatArrow(A, [40, 470], [190, 470], { label: 'heat in', size: 28 }); hin.in(tIn + .1, .8); hide(hin, tOut, .4);
+  const hout = heatArrow(A, [190, 600], [40, 600], { label: 'heat out', size: 28 }); hout.in(tOut + .5, .8);
+  // heat budget: most of the heat goes to breaking bonds
+  const bud = G(A, { o: 0 }); show(bud, tIn + .5);
+  wLabel(bud, 'where the heat goes', { x: 1290, y: 175, size: 30, o: 1 });
+  mk('rect', { x: 1110, y: 220, width: 110, height: 400, rx: 10, fill: WC.bond }, bud);
+  mk('rect', { x: 1110, y: 540, width: 110, height: 80, rx: 10, fill: WC.heat }, bud);
+  wLabel(bud, 'breaks H-bonds', { x: 1245, y: 390, size: 32, fill: WC.bond, anchor: 'start', o: 1 });
+  wLabel(bud, 'most of it', { x: 1245, y: 430, size: 26, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+  wLabel(bud, 'speeds molecules up', { x: 1245, y: 590, size: 28, fill: WC.heat, anchor: 'start', o: 1 });
+  hide(say(A, 'so the temperature climbs slowly', 900, 830, tBrk + .5, { size: 30 }), tOut, .4);
+  say(A, 'bonds form again: heat released', 1300, 720, tOut + 1.4, { size: 30, fill: WC.bond });
+  // buf: day curves, water smooth, sand spiky
+  hide(A, tBuf - .1, .5);
+  const B = G(p, { o: 0 }); show(B, tBuf + .3, .6);
+  path(B, 'M220 170V720H1420', { stroke: COL.dim, 'stroke-width': 3 });
+  wLabel(B, 'temperature', { x: 200, y: 150, size: 26, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+  wLabel(B, 'one day and night', { x: 1420, y: 770, size: 26, fill: COL.dim, anchor: 'end', weight: 500, o: 1 });
+  let ds = '', dw = '';
+  for (let i = 0; i <= 120; i++) { const x = 240 + i * 9.5, ph = i / 120 * 2 * Math.PI; ds += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + (450 - 210 * Math.sin(ph - .4)).toFixed(1); dw += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + (450 - 40 * Math.sin(ph - 1.2)).toFixed(1); }
+  const ls = path(B, ds, { stroke: WC.sand, 'stroke-width': 6 }, { d: 0 }), lw = path(B, dw, { stroke: WC.bond, 'stroke-width': 7 }, { d: 0 });
+  draw(ls, tBuf + .6, 2); draw(lw, tBuf + 1.2, 2);
+  say(B, 'dry sand: big swings', 1000, 210, tBuf + 2.2, { size: 30, fill: WC.sand });
+  say(B, 'water: small swings', 520, 400, tBuf + 2.8, { size: 30, fill: WC.bond });
+  say(B, 'water takes in heat slowly and gives it back slowly', 820, 850, tBuf + .8, { size: 32 });
+}],
+
+['climate', 'Coasts and cells', (m, D) => {
+  // A coast through a day and a night; on "life" the camera pushes into one small cell floating in the sea. The cell is
+  // drawn at scale K around (CX, CY), so at zoom 1/K its own coordinates are the stage's.
+  const p = panel(0), cam = camera(p, D), W = cam.world, tDay = m('day'), tNight = m('night'), tLife = m('life');
+  const K = .05, CX = 1060, CY = 850;
+  const sky = mk('rect', { x: -400, y: -400, width: 2400, height: 1020, fill: '#24507e' }, W); put(sky, { c_fill: '#24507e' });
+  tw(sky, { c_fill: '#0a1628' }, tNight - .2, 1.4);
+  const sun = G(W, { x: 300, y: 150 }); mk('circle', { r: 62, fill: '#ffd27a' }, sun); path(sun, Array.from({ length: 12 }, (_, i) => { const a = i * Math.PI / 6; return `M${86 * Math.cos(a)} ${86 * Math.sin(a)}L${110 * Math.cos(a)} ${110 * Math.sin(a)}`; }).join(''), { stroke: '#ffd27a', 'stroke-width': 7 });
+  pulse(sun, tDay + .1, 1.15); tw(sun, { y: 700, o: 0 }, tNight - .3, 1.4);
+  const moon = mk('circle', { cx: 1350, cy: 120, r: 40, fill: COL.chalk }, W); put(moon, { o: 0 }); show(moon, tNight + .6, .8);
+  path(W, 'M-400 600Q300 580 760 610L820 1300H-400Z', { fill: WC.sand });
+  path(W, 'M760 612Q1200 596 2000 604V1300H820Z', { fill: WC.water });
+  const ripple = path(W, 'M900 660h140M1180 700h200M980 760h160M1300 840h180M1120 860h120', { stroke: WC.waterHi, 'stroke-width': 5 });
+  clockRun(t => put(ripple, { x: 14 * Math.sin(.8 * t) }), D);
+  const thB = thermometer(W, { x: 420, y: 840, h: 280, min: 0, max: 45, side: 1 }), thS = thermometer(W, { x: 1240, y: 840, h: 280, min: 0, max: 45, side: 1 });
+  const dayK = t => io(ramp(t, tDay + .3, tDay + 2.5)), nightK = t => io(ramp(t, tNight + .2, tNight + 3.3));
+  clockRun(t => { const a = dayK(t), b = nightK(t); thB.set(20 + 18 * a - 22 * b); thS.set(20 + 2 * a - 1 * b); }, D);
+  wLabel(W, 'beach', { x: 230, y: 700, size: 30, o: 1 }); wLabel(W, 'sea', { x: 1480, y: 670, size: 30, o: 1 });
+  const dh = heatArrow(W, [1000, 330], [1000, 590], { label: 'air → sea', side: -1, size: 28 }); dh.in(tDay + 3, .9); hide(dh, tNight, .4);
+  const nh = heatArrow(W, [1000, 590], [1000, 330], { label: 'sea → air', side: -1, size: 28 }); nh.in(tNight + 1.2, .9); hide(nh, tLife, .4);
+  const op = say(p, 'water steadies whole places', 800, 90, .3, { size: 32 }); hide(op, tDay + .5, .4);
+  const dl = say(p, 'the sand heats fast; the sea warms a little', 800, 90, tDay + 1, { size: 32 }); hide(dl, tNight, .4);
+  const nl = say(p, 'at night the sea gives heat back', 800, 90, tNight + .6, { size: 32 }); hide(nl, tLife, .4);
+  // coast: the day's swing, coast against inland (screen space)
+  const sw = G(p, { o: 0 }); show(sw, m('coast') + .2); hide(sw, tLife, .4);
+  mk('rect', { x: 470, y: 150, width: 660, height: 190, rx: 18, fill: '#0f1e33', 'fill-opacity': .85, stroke: COL.faint, 'stroke-width': 2 }, sw);
+  wLabel(sw, 'swing between day and night', { x: 800, y: 192, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(sw, 'coast', { x: 610, y: 252, size: 28, anchor: 'end', o: 1 }); const b1 = mk('rect', { x: 630, y: 230, width: 110, height: 28, rx: 8, fill: WC.bond }, sw);
+  wLabel(sw, 'inland', { x: 610, y: 310, size: 28, anchor: 'end', o: 1 }); const b2 = mk('rect', { x: 630, y: 288, width: 460, height: 28, rx: 8, fill: WC.heat }, sw);
+  put(b1, { a_width: 0 }); put(b2, { a_width: 0 }); tw(b1, { a_width: 110 }, m('coast') + .5, .6, out); tw(b2, { a_width: 460 }, m('coast') + 1.1, 1.1, out);
+  // life: a small cell in the sea; the camera pushes in until the cell fills the stage
+  const C = G(W, { x: CX - K * 800, y: CY - K * 450, s: K });
+  const around = mk('rect', { x: -30000, y: -20000, width: 60000, height: 40000, fill: '#14375c' }, C); put(around, { o: 0 }); tw(around, { o: 1 }, tLife + 1.3, .8, lin);
+  mk('ellipse', { cx: 720, cy: 470, rx: 520, ry: 320, fill: '#163d5e', stroke: '#8fd6b0', 'stroke-width': 10 }, C);
+  mk('ellipse', { cx: 980, cy: 400, rx: 120, ry: 90, fill: '#24496e', stroke: '#6fa98c', 'stroke-width': 4 }, C);
+  const cc = moleculeCrowd(C, { x: 640, y: 500, w: 700, h: 400, n: 18, s: .42, temp: 37, seed: 9, round: true });
+  clockRun(t => cc.set(t), D);
+  thermometer(C, { x: 1400, y: 720, h: 380, min: 20, max: 45, side: -1 }).set(37);
+  const ring = mk('circle', { cx: CX, cy: CY, r: 46, fill: 'none', stroke: '#8fd6b0', 'stroke-width': 4 }, W); put(ring, { o: 0 });
+  show(ring, tLife, .3); hide(ring, tLife + .9, .4);
+  cam.to({ x: CX, y: CY, z: 1 / K }, tLife + .3, 2.2);
+  prog(q => { sky.parentNode && [...W.children].forEach(e => { if (e !== C) e.style.display = q >= 1 ? 'none' : ''; }); }, tLife + 2.5, .01, lin);
+  say(p, 'a living cell is mostly water', 720, 90, tLife + 2.3, { size: 34 });
+  say(p, 'its temperature stays steady', 1380, 820, tLife + 2.8, { size: 28, fill: COL.dim, weight: 500, anchor: 'end' });
+}],
+
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  beaker(p, { x: 760, y: 540, w: 380, h: 320 });
+  const cr = moleculeCrowd(p, { x: 760, y: 400, w: 320, h: 220, n: 12, s: .42, temp: 20, seed: 11 });
+  clockRun(t => cr.set(t), D);
+  heatArrow(p, [380, 140], [560, 300], { label: Q2.q + ' cal', size: 32 }).in(.2, .8);
+  wLabel(p, Q2.m + ' g of water', { x: 760, y: 600, size: 30, o: 1 });
+  S.q2th = thermometer(p, { x: 1080, y: 520, h: 380, min: 15, max: 30, side: 1 }).set(20);
+}, { ask: done => quiz(BAND, [{
+  id: 'c-dT',
+  prompt: [`${Q2.q} cal of heat go into ${Q2.m} g of water. By how much does its temperature rise?`],
+  build: blanks([{ parts: ['rise = ', { box: String(Q2_DT) }, ' degrees Celsius'],
+    why: `${Q2.q} ÷ (${Q2.m} × 1) = ${Q2_DT} °C: each gram takes 1 cal per degree.`,
+    hint: 'Divide the heat by the mass times 1 cal/(g·°C).',
+    fx: () => fxp(q => S.q2th.set(20 + Q2_DT * q), 0, 1.2) }]),
+}], done) }],
+
+['evap', 'Evaporative cooling', (m, D) => {
+  const p = panel(0), tLeave = m('leave'), tLeft = m('left'), tVap = m('vap'), tSweat = m('sweat');
+  const A = G(p);
+  const bk = beaker(A, { x: 440, y: 830, w: 600, h: 560, level: .8 });
+  const cr = moleculeCrowd(A, { x: 440, y: 610, w: 520, h: 360, n: 15, s: .58, temp: 30, seed: 12 });
+  // fast: each glows by its own speed
+  cr.mols.forEach((q, i) => { const g = clamp01((cr.k[i] - .95) / .75); if (g > .05) tw(q.halo, { o: g }, m('fast') + .3 + .05 * i, .6); });
+  // leave: the two fastest near the surface escape
+  const top = cr.mols.map((q, i) => i).filter(i => cr.base[i][1] < -40).sort((a, b) => cr.k[b] - cr.k[a]).slice(0, 2);
+  const path2 = [[[560, 150], tLeave + .3], [[300, 120], tLeave + 2.2]];
+  top.forEach((i, n) => { cr.mols[i]._frozen = true; });
+  clockRun(t => {
+    cr.set(t);
+    top.forEach((i, n) => {
+      const [[ex, ey], t0] = path2[n], q = io(ramp(t, t0, t0 + 2.2)), [bx, by] = cr.base[i], x0 = 440 + bx, y0 = 610 + by;
+      cr.mols[i].pose(lerp(bx, ex - 440, q), lerp(by, ey - 610, q) - 40 * Math.sin(q * Math.PI), cr.base[i][2] + 200 * q);
+    });
+  }, D);
+  say(A, 'the fastest escape: evaporation', 440, 70, tLeave + 1.2, { size: 32 });
+  // left: those left behind are slower on average; the water cools
+  const sb = speedBars(A, cr.k, { x: 1000, y: 600, w: 460, h: 300 });
+  put(sb.g, { o: 0 }); show(sb.g, m('fast') + 1);
+  wLabel(sb.g, 'kinetic energy of each molecule', { x: 1230, y: 640, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  sb.bars.forEach(b => { if (top.includes(b._i)) tw(b, { o: .12 }, tLeft + .4, .6); });
+  const rest = sb.idx.filter(i => !top.includes(i));
+  tw(sb.avg, { y: 600 - sb.avgOf(rest) }, tLeft + 1.4, 1);
+  say(A, 'average drops', 1240, 700, tLeft + 2, { size: 30, fill: WC.cold });
+  const th = thermometer(A, { x: 860, y: 820, h: 400, min: 20, max: 35, side: 1, size: 28 });
+  clockRun(t => th.set(30 - .6 * io(ramp(t, tLeft + 1.4, tLeft + 3))), D);
+  say(A, 'the water cools', 1240, 745, tLeft + 3, { size: 30, fill: WC.cold });
+  // vap: about 580 cal for each gram
+  say(A, 'heat of vaporization:', 1000, 120, tVap + 3, { size: 30, anchor: 'start' });
+  say(A, `about ${HVAP} cal to turn 1 g into vapor`, 1000, 162, tVap + 3.6, { size: 28, fill: WC.heat, anchor: 'start' });
+  heatArrow(A, [760, 340], [620, 200]).in(tVap + .5, .8);
+  say(A, `${HVAP} cal / g`, 780, 330, tVap + .9, { size: 28, fill: WC.heat, anchor: 'start' });
+  // sweat: 1 g of sweat takes 580 cal from 100 g of water in the body
+  hide(A, tSweat - .2, .5);
+  const B = G(p, { o: 0 }); show(B, tSweat + .1, .6);
+  // the sweat picture is not drawn until it is needed, and the beaker picture stops once it has faded (Firefox paint)
+  B.style.display = 'none'; prog(() => { B.style.display = ''; }, tSweat + .1, .01, lin); prog(q => { A.style.display = q >= 1 ? 'none' : ''; }, tSweat + .4, .01, lin);
+  mk('rect', { x: 0, y: 600, width: 1600, height: 300, fill: '#14375c' }, B);
+  mk('rect', { x: 0, y: 560, width: 1600, height: 44, fill: '#c98f66' }, B);
+  wLabel(B, 'skin', { x: 60, y: 592, size: 24, fill: '#3b1f10', anchor: 'start', o: 1 });
+  const bw = moleculeCrowd(B, { x: 640, y: 790, w: 980, h: 150, n: 14, s: .42, temp: 37, seed: 14 });
+  clockRun(t => bw.set(t), D);
+  wLabel(B, `${SWEAT_M} g of water in the body`, { x: 140, y: 650, size: 26, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+  const drop = G(B, { x: 800, y: 560 });
+  path(drop, 'M0 -110C26 -78 58 -46 58 -16A58 58 0 0 1 -58 -16C-58 -46 -26 -78 0 -110Z', { fill: WC.waterHi, stroke: '#7fb6e6', 'stroke-width': 3 });
+  wLabel(B, '1 g of sweat', { x: 900, y: 500, size: 28, anchor: 'start', o: 1 });
+  const vap = G(B, { o: 0 }); show(vap, tSweat + 1);
+  [[760, 340, 20], [850, 280, -40], [720, 230, 60]].forEach(([x, y, r]) => waterMolecule(vap, { x, y, s: .45, r }));
+  heatArrow(B, [700, 800], [760, 590], { label: `${HVAP} cal`, size: 28, side: -1 }).in(tSweat + .8, .9);
+  const thB = thermometer(B, { x: 1420, y: 870, h: 230, min: 25, max: 40, side: -1, size: 28 });
+  clockRun(t => thB.set(37 - SWEAT_DT * io(ramp(t, tSweat + 2, tSweat + 4))), D);
+  say(B, `${HVAP} ÷ (${SWEAT_M} × 1) = ${SWEAT_DT} °C cooler`, 800, 100, tSweat + 2.2, { size: 36, fill: WC.cold });
+  // pond: ponds and leaves too
+  const pd = G(B, { o: 0 }); show(pd, m('pond') + .5);
+  path(pd, 'M1180 330Q1300 290 1460 330Q1500 360 1440 380Q1300 404 1180 380Q1140 356 1180 330Z', { fill: WC.water });
+  path(pd, 'M1250 300Q1300 230 1380 250Q1350 320 1250 300Z', { fill: WC.leaf });
+  path(pd, 'M1240 270q-14 -30 0 -60M1320 220q-14 -30 0 -60M1420 290q-14 -30 0 -60', { stroke: '#bfefff', 'stroke-width': 4 });
+  wLabel(pd, 'ponds and leaves cool the same way', { x: 1320, y: 450, size: 26, fill: COL.dim, weight: 500, o: 1 });
+}],
+
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['Hydrogen bonds give water cohesion:', 'it climbs trees and has surface tension.', g => { const c = cluster3(g, 175, 4, .42); }],
+    ['Temperature is average kinetic energy;', 'heat is thermal energy in transfer.', g => thermometer(g, { x: 180, y: 40, h: 110, w: 16, min: 0, max: 50, size: 0 }).set(32)],
+    ['Water’s high specific heat, from bonds', 'breaking and forming, steadies temperature.', g => { mk('rect', { x: 160, y: -60, width: 44, height: 110, rx: 6, fill: WC.bond }, g); mk('rect', { x: 160, y: 22, width: 44, height: 28, rx: 6, fill: WC.heat }, g); }],
+    ['Evaporation cools,', 'because the fastest molecules leave.', g => { const q = waterMolecule(g, { x: 180, y: 0, s: .55, r: 20 }); put(q.halo, { o: 1 }); wArrow(g, [230, -10], [272, -52], { color: WC.cold, w: 5, head: 13 }); }],
+  ];
+  const icons = [];
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: -16, y: 190 + i * 160, o: 0 });
+    const ic = G(g); icon(ic); icons.push(ic);
+    T(g, a, { x: 330, y: -6, size: 36, weight: 600 }); T(g, b, { x: 330, y: 40, size: 32, fill: COL.dim });
+    tw(g, { o: 1, x: 0 }, i ? m('w' + (i + 1)) : .15, .6);   // row 1 comes in with "To sum up"
+  });
+  say(p, 'Now try the chapter practice.', 800, 850, m('end'), { size: 32, fill: WC.bond });
+  clockRun(t => icons.forEach((ic, i) => put(ic, { y: 5 * Math.sin(1.6 * t + 1.3 * i), r: 3 * Math.sin(1.1 * t + i) })), D);   // the icons breathe while each line is read
+}],
+
+['final1', 'Chapter practice', (m, D) => {
+  // A picture on the right for each practice question; the card's build shows the one it needs (pics.show(key)).
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('conv', g => {
+    const d = G(g, { x: 1270, y: 330 }); path(d, 'M0 -100C30 -60 78 -20 78 26A78 78 0 0 1 -78 26C-78 -20 -30 -60 0 -100Z', { fill: WC.waterHi, stroke: '#7fb6e6', 'stroke-width': 3 }); waterMolecule(d, { y: 20, s: .7 });
+    heatArrow(g, [1000, 320], [1170, 320], { label: '50 cal', size: 34, o: 1 });
+    wLabel(g, '1 cal = 4.184 J', { x: 1270, y: 560, size: 46, weight: 700, o: 1 });
+    wLabel(g, '1 kcal = 1 000 cal', { x: 1270, y: 640, size: 46, weight: 700, o: 1 });
+  });
+  at('heat', g => {
+    beaker(g, { x: 1240, y: 640, w: 380, h: 320 }); moleculeCrowd(g, { x: 1240, y: 500, w: 320, h: 220, n: 10, s: .42, temp: 30, seed: 21 });
+    wLabel(g, '250 g of water', { x: 1240, y: 700, size: 34, o: 1 });
+    thermometer(g, { x: 1500, y: 620, h: 380, min: 0, max: 50, side: -1, size: 34 }).set(40);
+    wLabel(g, '20 °C → 40 °C', { x: 1500, y: 160, size: 30, fill: WC.heat, anchor: 'end', o: 1 });
+    heatArrow(g, [1010, 140], [1130, 320], { label: '? cal', size: 34, o: 1 });
+  });
+  at('sweat', g => {
+    mk('rect', { x: 960, y: 620, width: 640, height: 50, fill: '#c98f66' }, g); mk('rect', { x: 960, y: 670, width: 640, height: 230, fill: '#14375c' }, g);
+    const d = G(g, { x: 1180, y: 620 }); path(d, 'M0 -110C26 -78 58 -46 58 -16A58 58 0 0 1 -58 -16C-58 -46 -26 -78 0 -110Z', { fill: WC.waterHi, stroke: '#7fb6e6', 'stroke-width': 3 });
+    const q = waterMolecule(g, { x: 1330, y: 330, s: .8, r: 30 }); put(q.halo, { o: 1 });
+    wArrow(g, [1250, 470], [1300, 390], { color: WC.cold, w: 6 });
+    wLabel(g, 'sweat on skin', { x: 1180, y: 720, size: 32, o: 1 });
+  });
+  at('terms', g => {
+    mk('rect', { x: 960, y: 430, width: 380, height: 170, rx: 40, fill: '#3a3350', stroke: WC.glass, 'stroke-width': 5 }, g);
+    path(g, 'M1400 470V600H1530V470', { stroke: WC.glass, 'stroke-width': 5 }); mk('rect', { x: 1404, y: 500, width: 122, height: 96, fill: '#5a3138' }, g);
+    wLabel(g, 'bathtub, 40 °C', { x: 1150, y: 650, size: 30, o: 1 }); wLabel(g, 'cup, 100 °C', { x: 1465, y: 650, size: 30, o: 1 });
+    heatArrow(g, [1390, 530], [1350, 530], { o: 1, waves: 1, amp: 6 });
+    cluster3(g, 1240, 260, .6);
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('conv');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-conv', prompt: ['Convert. 1 cal = 4.184 J and 1 kcal = 1 000 cal.'],
+    build: withPic('conv', blanks([
+      { parts: ['50 cal = ', { box: String(Math.round(50 * J_PER_CAL * 10) / 10) }, ' joules'], why: '50 × 4.184 = 209.2 J.', hint: 'Multiply calories by 4.184 to get joules.' },
+      { parts: ['2 kcal = ', { box: '2000' }, ' calories'], why: '2 × 1 000 = 2 000 cal.', hint: 'A kilocalorie is a thousand calories.' },
+    ])) },
+  { id: 'p-heat', prompt: ['How much heat warms 250 g of water by 20 °C? (water: 1 cal/(g·°C))'],
+    build: withPic('heat', blanks([
+      { parts: ['heat = ', { box: String(250 * 20 * C_WATER) }, ' calories'], why: '250 g × 20 °C × 1 cal/(g·°C) = 5 000 cal.', hint: 'Heat = mass × temperature change × specific heat.' },
+      { parts: ['= ', { box: String(250 * 20 / 1000) }, ' kilocalories'], why: '5 000 ÷ 1 000 = 5 kcal.', hint: 'Divide calories by 1 000.' },
+      { parts: ['= ', { box: String(Math.round(250 * 20 * J_PER_CAL)) }, ' joules'], why: '5 000 × 4.184 = 20 920 J.', hint: 'Multiply calories by 4.184.' },
+    ])) },
+  { id: 'p-sweat', prompt: ['Why does evaporating sweat cool the skin?'],
+    build: withPic('sweat', choice([
+      ['The fastest molecules leave, so the average kinetic energy of those left behind is lower.'],
+      ['Cold molecules from the air enter the sweat.'],
+      ['Breaking hydrogen bonds makes heat that flows away.'],
+      ['Sweat is already colder than the skin.'],
+    ], 0, 'Right. The escaping molecules carry away more than their share of kinetic energy, so the water left behind is cooler.',
+    [null, 'Nothing cold flows in: the cooling comes from energy leaving with the fastest molecules.',
+     'Breaking bonds takes in energy rather than making heat; that is why it costs the water about 580 cal per gram.',
+     'Sweat starts at skin temperature; it cools as its fastest molecules escape.'])) },
+  { id: 'p-terms', prompt: ['True or false?'],
+    build: withPic('terms', grid([
+      { parts: ['Temperature is the average kinetic energy of the molecules.'], ans: ['t'], why: 'True: it is the average, not the total.' },
+      { parts: ['A cup of boiling water has more thermal energy than a bathtub of warm water.'], ans: ['f'], why: 'False: the bathtub has far more molecules, so far more thermal energy in total.' },
+      { parts: ['Heat is thermal energy moving from a warmer body to a cooler one.'], ans: ['t'], why: 'True.' },
+      { parts: ['Water’s high specific heat comes partly from hydrogen bonds breaking as heat flows in.'], ans: ['t'], why: 'True: heat spent breaking bonds does not speed the molecules up.' },
+      { parts: ['Adhesion is water molecules sticking to each other.'], ans: ['f'], why: 'False: that is cohesion. Adhesion is water sticking to other materials, like a cell wall.' },
+    ], TF, { multi: false, text: true })) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+boot();
+</script>
+</body>
+</html>

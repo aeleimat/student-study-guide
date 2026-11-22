@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "skills": {
+    "papermorph": {
+      "source": "DozenTwelve/Papermorph",
+      "commit": "839a62cad3c74446944a167faff07c994f33e5b7",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/papermorph/SKILL.md",
+      "computedHash": "ab45e1dca7f621db2a474ab1602ec2744f1f1414b3f9cb7855a1786f11af3619"
+    }
+  }
+}

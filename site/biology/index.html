@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biology</title>
+<meta name="description" content="ONE SENTENCE ABOUT THE BOOK.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231d2b27'/%3E%3Ctext x='32' y='45' text-anchor='middle' font-size='48' fill='%23f0b45a'%3E∞%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="lib/units.css">
+<link rel="stylesheet" href="lib/contents.css">
+<script src="lib/units.js"></script>
+<script src="lib/contents.js"></script>
+<script src="unit-art.js"></script>
+<!-- <script src="refs.js"></script>  a book that cites works: its reference list, built by the skill's scripts/refs.py -->
+<link rel="expect" href="#ch301" blocking="render">
+<!-- The book's own look, if it differs from the chalkboard: override the tokens of lib/contents.css here. A light look
+     sets them all, since the chapter cards (--panel) and their text (--chalk, --dim) change together, and replaces the
+     chalkboard's dark vignette (body::before); the notebook books' cover (site/physics-notebook/) draws lined paper there:
+<style>
+:root { --page: #d9d3c4; --board: #fcfaf3; --panel: #fffdf8; --edge: #d4ccb8;
+  --chalk: #26241f; --dim: #6c665a; --faint: #a39b8a; --task: #c4327a; --quiz: #2a7dbb; --good: #2f8a54;
+  --top-bg: rgba(252, 250, 243, .9); --top-line: #ddd5c3; --lift: rgba(60, 50, 30, .18); color-scheme: light; }
+body::before { background: none; }
+</style> -->
+<style>
+/* Biology: the deep-water board the lessons use (lib/book.css), so the cover and contents match them. */
+:root { --page: #08111f; --board: #0f1e33; --panel: #152a45; --edge: #2c4568;
+  --chalk: #f2efe6; --dim: #9fb0c6; --faint: #4b6180; --task: #f39a2b; --quiz: #5fd3e8; --good: #8fd6b0;
+  --top-bg: rgba(15, 30, 51, .92); --top-line: #213a5a; }
+/* Unit 3's sketch: the hydrogen bond flickers, as H-bonds break and re-form. */
+.seen .unit-art .hb-flicker { animation: art-draw 1.1s cubic-bezier(.5, 0, .3, 1) forwards, hb-flicker 3.2s ease-in-out 2.2s infinite; animation-delay: calc(var(--k) * 55ms + 120ms), 2.2s; }
+@keyframes hb-flicker { 0%, 40%, 100% { opacity: 1; } 55%, 70% { opacity: .15; } }
+@media (prefers-reduced-motion: reduce) { .seen .unit-art .hb-flicker { animation: art-draw .01s forwards; } }
+</style>
+</head>
+<body>
+<section id="cover">
+  <div class="chalk" aria-hidden="true"><!-- a few faint formulas or phrases from the book, drawn in chalk -->
+    <span style="left:7%;top:13%;--d:1.6">H₂O</span>
+    <span style="right:8%;top:17%;--d:1.9">δ+  δ−</span>
+    <span style="left:5%;bottom:20%;--d:2.2">1 cal = 4.184 J</span>
+    <span style="right:6%;bottom:15%;--d:2.5">pH = −log[H⁺]</span>
+  </div>
+  <svg class="mascot draw" id="guide" width="210" height="147" aria-hidden="true"></svg>
+  <h1>Biology</h1>
+  <p class="kicker">An animated book</p>
+  <p class="lede">Short animated lessons, chapter by chapter: watch the molecules act out each idea, then check yourself inside the picture.</p>
+  <div class="acts">
+    <a class="btn go" href="#contents" data-t="open">Open the book<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5 11.5 8 6 13.5 4.6 12.1 8.7 8 4.6 3.9z"/></svg></a>
+    <a class="btn quiet" id="resume" hidden></a>
+  </div>
+  <p class="meta" id="meta"></p>
+</section>
+
+<main id="contents">
+  <header class="top">
+    <a class="home" href="#book" aria-label="Back to the cover" data-t-label="toCover"><svg class="mascot" id="guideSmall" width="52" height="36" aria-hidden="true"></svg><strong>Biology</strong></a>
+    <span class="prog" id="prog"></span>
+  </header>
+  <div id="units"></div>
+  <p class="refs-more" id="refsMore" hidden><a href="#references"><b data-t="references">References</b><span id="refsCount"></span><i data-t="viewAll">View all →</i></a></p>
+</main>
+
+<main id="refpage" aria-labelledby="refsTitle">
+  <header class="top">
+    <a class="back" href="#contents" data-t="backToContents">← Contents</a>
+    <span class="rp-book" id="rpBook"></span>
+  </header>
+  <section class="refs" id="references">
+    <h1 id="refsTitle" tabindex="-1" data-t="references">References</h1>
+    <p class="lead" data-t="refsLead">Every work cited in the lessons.</p>
+    <ol id="refList"></ol>
+  </section>
+</main>
+
+<script>
+// One unit per textbook chapter. Lessons live in chapter-NN/lesson-NN/; inside the engine each lesson's number is
+// chapter × 100 + lesson (Chapter 3, lesson 2 = 302 = its CHAPTER.number), which keeps progress and the cards' ids
+// unique across the book. The card shows the lesson number. Add a lesson here when it is ready; a new textbook chapter
+// is a new unit whose third entry starts its numbering, e.g. ['Chapter 4: …', [...], { unit: 4, chapter: 401 }].
+// Chapter 3 starts at lesson 1: start 301 shown as 1.
+Contents.book({
+  start: { unit: 3, chapter: 301, label: 1 },
+  units: [   // [unit title, [[lesson title, minutes], ...], { unit, chapter }?]
+    ['Chapter 3: Water and Life', [['Polar Water and Hydrogen Bonds', 5], ['Cohesion and Moderation of Temperature', 7], ['Floating Ice and Water the Solvent', 7], ['Water Splitting, Acids, Bases and pH', 6], ['Buffers, Ka and pKa, Acid Rain', 7]]],
+  ],
+  hues: ['#f4a48c', '#86c9e8', '#f3c95c', '#e8a0c8', '#8fd6b0', '#bba8ee', '#f0b45a'],   // one colour per unit, cycling
+  progressKey: 'animebook:progress:biology',   // the same key as --progress-key in lib/book.css
+});
+// The engine links a card to chNNN/; send it to chapter-NN/lesson-NN/ instead (302 → chapter-03/lesson-02/).
+const lessonPath = n => `chapter-${String(Math.floor(n / 100)).padStart(2, '0')}/lesson-${String(n % 100).padStart(2, '0')}/`;
+for (const a of document.querySelectorAll('#units a.ch[id^="ch"]')) a.setAttribute('href', lessonPath(+a.id.slice(2)));
+// The cover's "Continue" button copied its card's old href while drawing; it names a lesson, not a textbook chapter.
+const resume = document.getElementById('resume'), resumeTo = resume.getAttribute('href')?.match(/^ch(\d+)\/$/);
+if (resumeTo) {
+  resume.setAttribute('href', lessonPath(+resumeTo[1]));
+  resume.textContent = resume.textContent.replace('Chapter', 'Lesson');
+}
+</script>
+</body>
+</html>

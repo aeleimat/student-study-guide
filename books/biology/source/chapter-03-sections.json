@@ -1,0 +1,37 @@
+[
+ {
+  "folder": "chapter-03/lesson-01",
+  "title": "Polar water and hydrogen bonds",
+  "start": 1,
+  "end": 3,
+  "unit": "Chapter 3: Water and Life"
+ },
+ {
+  "folder": "chapter-03/lesson-02",
+  "title": "Cohesion and moderation of temperature",
+  "start": 4,
+  "end": 12,
+  "unit": "Chapter 3: Water and Life"
+ },
+ {
+  "folder": "chapter-03/lesson-03",
+  "title": "Floating ice and water the solvent",
+  "start": 13,
+  "end": 24,
+  "unit": "Chapter 3: Water and Life"
+ },
+ {
+  "folder": "chapter-03/lesson-04",
+  "title": "Water splitting, acids, bases and pH",
+  "start": 25,
+  "end": 32,
+  "unit": "Chapter 3: Water and Life"
+ },
+ {
+  "folder": "chapter-03/lesson-05",
+  "title": "Buffers, Ka and pKa, acid rain",
+  "start": 33,
+  "end": 38,
+  "unit": "Chapter 3: Water and Life"
+ }
+]

@@ -1,0 +1,13 @@
+# Source material stays private (copyrighted slides)
+*.pdf
+books/*/pages/
+
+# Review evidence: contact sheets, strips, check output (large, regenerable)
+books/*/review/
+
+# Voice caches (untreated takes; tts.py regenerates them)
+content/**/.tts/
+
+# OS / editor
+.DS_Store
+Thumbs.db

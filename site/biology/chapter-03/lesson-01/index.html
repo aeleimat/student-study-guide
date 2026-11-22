@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 3, Lesson 1: Polar Water and Hydrogen Bonds — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 3 (Water and Life), lesson 1: part A the polar molecule (shared electrons and electronegativity,
+// partial charges, the bent shape, check 1), part B hydrogen bonds (attraction between molecules, weak and always
+// changing, up to four per molecule, check 2), summary, practice. Molecules are the only cast.
+// Plan, errata and storyboard: books/biology/chapters/chapter-03/lesson-01.md.
+const CHAPTER = { number: 301, label: '3, lesson 1', title: 'Polar Water and Hydrogen Bonds', minutes: 5, language: 'en', lead: false, next: '../lesson-02/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+// A plain straight arrow (shaft and head) from a to b.
+function wArrow(p, [x1, y1], [x2, y2], { color = COL.chalk, w = 6, head = 16, o = 1 } = {}) {
+  const g = G(p, { o }), L = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / L, uy = (y2 - y1) / L;
+  path(g, `M${x1} ${y1}L${x2 - ux * head * .8} ${y2 - uy * head * .8}`, { stroke: color, 'stroke-width': w });
+  path(g, `M${x2 - ux * head - uy * head * .7} ${y2 - uy * head + ux * head * .7}L${x2} ${y2}L${x2 - ux * head + uy * head * .7} ${y2 - uy * head - ux * head * .7}Z`, { fill: color, stroke: color, 'stroke-width': 2 });
+  return g;
+}
+// A leader line from a label to the thing it names.
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+// A bright stroke laid over a molecule's O–H stick (hi 1 or 2), for flashing the covalent bond itself.
+const stickGlow = (p, mol, hi, color = WC.elec, w = 16) => path(p, (([a, b], [c, d]) => `M${a.toFixed(1)} ${b.toFixed(1)}L${c.toFixed(1)} ${d.toFixed(1)}`)(mol.atom('O'), mol.atom(hi)), { stroke: color, 'stroke-width': w, 'stroke-opacity': .85 }, { o: 0 });
+const flash = (e, t0, peak = 1, rest = 0) => { tw(e, { o: peak }, t0, .2, out); tw(e, { o: rest }, t0 + .5, .6); };
+// Little jiggle for a molecule that holds its place: pose = base + small sines of t (seed i).
+const jig = (q, b, t, i, a = 3, ar = 4, f = 1) => q.pose(b.x + a * Math.sin(1.7 * f * t + i), b.y + a * Math.sin(1.3 * f * t + 2 * i), b.r + ar * Math.sin(1.1 * f * t + i));
+// The molecule's own angle that points hydrogen hi at (tx, ty) from (x, y).
+const aimR = (x, y, hi, tx, ty) => Math.atan2(ty - y, tx - x) * 180 / Math.PI - (hi === 1 ? W_H1 : W_H2);
+
+/* ---------- backdrop ---------- */
+// A glass of water on a table at dusk (intro). The glass group's origin is its bottom centre.
+function glassScene(p) {
+  const g = G(p);
+  mk('rect', { x: -400, y: -400, width: 2400, height: 1700, fill: '#122640' }, g);
+  mk('circle', { cx: 430, cy: 470, r: 330, fill: '#142b47' }, g);   // lamp light on the wall
+  mk('rect', { x: -400, y: 740, width: 2400, height: 600, fill: '#3a2a1f' }, g);
+  mk('rect', { x: -400, y: 736, width: 2400, height: 12, fill: '#5c412b' }, g);
+  mk('ellipse', { cx: 450, cy: 752, rx: 170, ry: 12, fill: '#2a1e16' }, g);
+  const glass = G(g, { x: 430, y: 740 });
+  path(glass, 'M-118 -310L-98 -6Q-97 0 -90 0H90Q97 0 98 -6L118 -310Z', { fill: WC.water });
+  path(glass, 'M-118 -310Q0 -296 118 -310', { stroke: WC.waterHi, 'stroke-width': 6 });
+  path(glass, 'M-130 -380L-104 -6Q-103 6 -92 6H92Q103 6 104 -6L130 -380', { stroke: WC.glass, 'stroke-width': 6 });
+  path(glass, 'M-96 -350L-78 -40', { stroke: '#fff', 'stroke-width': 8, 'stroke-opacity': .18 });
+  // bubbles rise and the surface glints: both drawn from t alone (sc.live(t))
+  const bub = path(glass, '', { stroke: '#bfefff', 'stroke-width': 2.5, 'stroke-opacity': .7 });
+  const glint = path(glass, 'M-60 -306q30 -5 60 0', { stroke: '#fff', 'stroke-width': 5, 'stroke-opacity': .5 });
+  const live = t => {
+    let d = '';
+    for (let i = 0; i < 9; i++) {
+      const sp = 70 + 50 * wHash(i, 21), f = ((t * sp) / 290 + wHash(i, 22)) % 1, r = 3 + 3 * wHash(i, 23);
+      const x = -70 + 140 * wHash(i, 24) + 5 * Math.sin(3 * t + i), y = -14 - f * 288;
+      d += `M${(x - r).toFixed(1)} ${y.toFixed(1)}a${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(2 * r).toFixed(1)} 0a${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(-2 * r).toFixed(1)} 0`;
+    }
+    if (bub._d !== d) bub.setAttribute('d', bub._d = d);
+    put(glint, { x: 40 * Math.sin(.9 * t), o: .35 + .35 * Math.sin(1.7 * t) ** 2 });
+  };
+  return { g, glass, live };
+}
+
+/* ---------- shared numbers (computed, never typed twice) ---------- */
+const ANGLE = 104.5, ANGLE_SHOWN = Math.round(ANGLE / 5) * 5;    // shown as "about 105°" (errata, coordinator)
+const HB_PER_COV = 1 / 20;                       // hydrogen bond against an O–H covalent bond, schematic bar
+const MAX_HB = 2 + 2;                            // two negative regions on O + two hydrogens
+const COUNT_DRAWN = [[1, 'n1'], [2, 'n2'], [0, 'n3']];   // p-count: the bonds drawn in its picture (hi of the centre, or 0 = a neighbour's H to the centre's O)
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Water and life', (m, D) => {
+  // One camera push from the glass on the table into its water, where one molecule fills the left of the frame. The
+  // water's inside is drawn at scale K around (GX, GY), so at zoom 1/K its own coordinates are the stage's.
+  const p = panel(0), cam = camera(p, D), W = cam.world, sc = glassScene(W);
+  const K = .04, GX = 430, GY = 560, tZ = m('zoom'), tT = m('title');
+  pulse(sc.glass, m('glass') + .1, 1.06);
+  cam.to({ x: GX, y: GY, z: 1 / K }, tZ + .2, 2.8);
+  const ins = G(W, { x: GX - K * 800, y: GY - K * 450, s: K, o: 0 }); tw(ins, { o: 1 }, tZ + 1.5, 1, lin);
+  mk('rect', { x: -30000, y: -20000, width: 60000, height: 40000, fill: '#14375c' }, ins);
+  prog(q => { sc.g.style.display = q >= 1 ? 'none' : ''; }, tZ + 2.8, .01, lin);   // the room is covered: stop drawing it
+  const far = [[120, 170], [260, 360], [110, 600], [250, 820], [560, 120], [600, 810], [840, 650], [1020, 800], [1060, 560], [1400, 770], [1510, 520], [1500, 120], [1300, 620]]
+    .map(([x, y], i) => waterMolecule(ins, { x, y, s: .9, r: wHash(i, 5) * 360, o: .28, face: false }));
+  const bl = G(ins), M = waterMolecule(ins, { x: 400, y: 520, s: 2.6, r: 18 }), N = waterMolecule(ins, { x: 1080, y: 780, s: 2.1, r: -60, o: 0 });
+  const NX = 690, NY = 300, NR = aimR(NX, NY, 1, 400, 520), b = hBond(bl, { w: 7 });
+  put(b, { o: 0 }); b.form(tT + 2.2, .7); tw(b, { o: .9 }, tT + 2.2, .2); tw(b, { o: .35 }, tT + 3.4, .8);
+  show(N, tT + .2, .6);
+  const fb = far.map(q => ({ ...st(q) })), mb = { ...st(M) };
+  clockRun(t => {
+    sc.live(Math.min(t, tZ + 2.8));   // frozen once the room is hidden, the same whether played or sought
+    far.forEach((q, i) => jig(q, fb[i], t, i, 6, 12));
+    jig(M, mb, t, 0, 4, 4);
+    const k = io(ramp(t, tT + .2, tT + 2.2));
+    N.pose(lerp(1080, NX, k) + 3 * Math.sin(1.5 * t), lerp(780, NY, k) + 3 * Math.sin(1.2 * t + 1), lerp(-60, NR, k) + 3 * Math.sin(t));
+    b.link(N, 1, M);
+  }, D);
+  const one = G(p, { o: 0 }); tw(one, { o: 1 }, tZ + 3.2, .6);
+  wLabel(one, 'one water molecule, H₂O', { x: 400, y: 790, size: 32, o: 1 });
+  // the title in screen space: the kicker from the first word, the title on "In this lesson"
+  const kick = say(p, 'BIOLOGY · CHAPTER 3: WATER AND LIFE · LESSON 1', 1190, 220, .3, { size: 26, fill: COL.dim });
+  hide(kick, tZ - .1, .4); show(kick, tT, .6);   // out of the way while the camera dives past the glass
+  const ttl = G(p, { o: 0, y: 24 });
+  ['Polar water and', 'hydrogen bonds'].forEach((s, i) => wLabel(ttl, s, { x: 1190, y: 310 + i * 78, size: 66, o: 1 }));
+  tw(ttl, { o: 1, y: 0 }, tT + .1, 1.1, out);
+  say(p, 'two ends, and a grip on its neighbors', 1190, 500, tT + 2.6, { size: 30, fill: WC.bond, weight: 500 });
+  notToScale(p, 1560, 860, tZ + 3.4);
+}],
+
+/* ---------- part A: the polar molecule ---------- */
+['share', 'Shared electrons', (m, D) => {
+  // Close on two hydrogens sharing a pair equally; on "oh" the camera pulls back to set an O–H pair beside them.
+  const p = panel(0), cam = camera(p, D, { x: 470, y: 450, z: 1.3 }), W = cam.world;
+  const tH = m('h2'), tTug = m('tug'), tEq = m('equal'), tOH = m('oh');
+  cam.to({ x: 800, y: 450, z: 1 }, tOH + .1, 1.7);
+  const Y = 440, H1 = [340, Y], H2 = [600, Y], O = [1060, Y], H3 = [1330, Y];
+  // H–H: the bond draws on, then the shared pair circles between them
+  const hh = G(W);
+  const st1 = path(hh, `M${H1[0]} ${Y}H${H2[0]}`, { stroke: WC.stick, 'stroke-width': 12 }, { d: 0 }); draw(st1, tH + .2, .6);
+  wAtom(hh, 'H', { x: H1[0], y: Y, r: 58 }); wAtom(hh, 'H', { x: H2[0], y: Y, r: 58 });
+  const c1 = electronCloud(hh, { rx: 96, ry: 46, o: 0 }); show(c1, tH + .7, .6);   // over the atoms: the pair is shared
+  put(hh, { o: 0 }); show(hh, .2, .6);
+  say(W, 'covalent bond = shared electrons', 470, 560, tH + 1.2, { size: 32 });
+  // tug: an arrow from the shared pair toward each atom; equal for H–H
+  const t1 = G(W, { o: 0 }); wArrow(t1, [455, Y - 82], [372, Y - 82], { color: COL.chalk, w: 6 }); wArrow(t1, [485, Y - 82], [568, Y - 82], { color: COL.chalk, w: 6 });
+  show(t1, tTug + .4, .5);
+  const hd = G(p, { o: 0 }); show(hd, tTug + 2.3, .6);
+  wLabel(hd, 'electronegativity', { x: 800, y: 100, size: 44, weight: 700, fill: WC.elec, o: 1 });
+  wLabel(hd, 'how hard an atom pulls on shared electrons', { x: 800, y: 146, size: 30, fill: COL.dim, weight: 500, o: 1 });
+  pulse(t1, tEq + .3, 1.12);
+  say(W, 'equal pull: electrons in the middle', 470, 610, tEq + .6, { size: 28, fill: COL.dim, weight: 500 });
+  // oh: oxygen and hydrogen; oxygen's arrow is long, hydrogen's short, and the pair slides toward oxygen and stays
+  const oh = G(W, { o: 0 }); show(oh, tOH + .3, .6);
+  path(oh, `M${O[0]} ${Y}H${H3[0]}`, { stroke: WC.stick, 'stroke-width': 12 });
+  wAtom(oh, 'O', { x: O[0], y: Y, r: 82 }); wAtom(oh, 'H', { x: H3[0], y: Y, r: 58 });
+  const c2 = electronCloud(oh, { rx: 96, ry: 46 });
+  const bias = t => lerp(.52, .34, io(ramp(t, tOH + 2, tOH + 4)));
+  const t2 = G(oh, { o: 0 }); wArrow(t2, [-12, -82], [-150, -82], { color: COL.chalk, w: 8, head: 20 }); wArrow(t2, [12, -82], [48, -82], { color: COL.chalk, w: 5, head: 13 });
+  show(t2, tOH + 1, .5);
+  clockRun(t => { c1.set(H1, H2, .5, t); const k = bias(t); c2.set(O, H3, k, t); put(t2, { x: lerp(O[0], H3[0], k), y: Y }); }, D);
+  say(W, 'oxygen pulls harder', 1195, 560, tOH + 1.2, { size: 32 });
+  say(W, 'electrons spend more time near O', 1195, 610, tOH + 2.9, { size: 28, fill: COL.dim, weight: 500 });
+}],
+
+['pull', 'Partial charges', (m, D) => {
+  const p = panel(0), cam = camera(p, D, { z: .9 }), W = cam.world, tN = m('neg'), tP = m('pos'), tPa = m('partial'), tPo = m('polar');
+  cam.to({ z: 1 }, tN, 6);   // a slow push in while the charges appear
+  const X = 800, Y = 330;
+  const glowO = mk('circle', { cx: X, cy: Y, r: 150, fill: WC.O, 'fill-opacity': .28 }, W); put(glowO, { o: 0 }); show(glowO, tN + .2, .8);
+  const M = waterMolecule(W, { x: X, y: Y, s: 3.4 });
+  const gl = [stickGlow(W, M, 1), stickGlow(W, M, 2)];
+  const cl = [electronCloud(W, { rx: 66, ry: 36, o: .9 }), electronCloud(W, { rx: 66, ry: 36, o: .9 })];
+  clockRun(t => { cl[0].set(M.atom('O'), M.atom(1), .5, t); cl[1].set(M.atom('O'), M.atom(2), .5, t + .6); }, D);
+  const L = M.deltas(tN + .3, { size: 56, layer: W });
+  put(L._t[1], { o: 0 }); put(L._t[2], { o: 0 }); show(L._t[1], tP + .3); show(L._t[2], tP + .8);
+  say(W, 'slightly negative', X + 70, 124, tN + 1.2, { size: 30, fill: '#ffb3a6', anchor: 'start', weight: 500 });
+  say(W, 'slightly positive', 1100, 548, tP + 1.2, { size: 30, anchor: 'start', weight: 500 });
+  say(W, 'no electron has left:', 1130, 300, tPa + 4.4, { size: 28, anchor: 'start' });
+  say(W, 'only shared unevenly', 1130, 338, tPa + 4.8, { size: 28, fill: COL.dim, anchor: 'start', weight: 500 });
+  // partial: a partial charge against an ion's full charge (screen space, under the molecule)
+  const cmp = G(p, { o: 0 }); show(cmp, tPa + .2, .6); hide(cmp, tPo - .1, .4);
+  mk('rect', { x: 110, y: 650, width: 1400, height: 220, rx: 22, fill: '#152a45', stroke: COL.faint, 'stroke-width': 2 }, cmp);
+  path(cmp, 'M800 680V840', { stroke: COL.faint, 'stroke-width': 3 });
+  wLabel(cmp, 'δ+  δ−', { x: 470, y: 730, size: 48, weight: 700, o: 1 });
+  wLabel(cmp, 'partial charges', { x: 470, y: 786, size: 32, o: 1 });
+  wLabel(cmp, 'a small fraction of one charge', { x: 470, y: 828, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const na = wAtom(cmp, 'Na', { x: 980, y: 745, r: 46, size: 30 }), cl2 = wAtom(cmp, 'Cl', { x: 1110, y: 745, r: 54, size: 32 });
+  wLabel(cmp, '+', { x: 1020, y: 712, size: 36, weight: 700, o: 1 }); wLabel(cmp, '−', { x: 1160, y: 708, size: 40, weight: 700, o: 1 });
+  wLabel(cmp, 'full charge (ion):', { x: 1215, y: 740, size: 30, anchor: 'start', o: 1 });
+  wLabel(cmp, 'an electron has moved', { x: 1215, y: 782, size: 26, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+  // polar: both O–H bonds flash; the name
+  gl.forEach((g, i) => flash(g, tPo + .2 + .3 * i, 1, .35));
+  const [s1, s2] = [1, 2].map(hi => { const [ox, oy] = M.atom('O'), [hx, hy] = M.atom(hi); return [(ox + hx) / 2, (oy + hy) / 2]; });
+  leader(W, [720, 640], s2, tPo + .7); leader(W, [880, 640], s1, tPo + .7);
+  say(W, 'polar covalent bond', 800, 700, tPo + .5, { size: 48, weight: 700 });
+  say(W, 'electrons shared unequally', 800, 748, tPo + 1.2, { size: 28, fill: COL.dim, weight: 500 });
+}],
+
+['shape', 'The bent shape', (m, D) => {
+  const p = panel(0), cam = camera(p, D, { x: 560, y: 400, z: 1.25 }), W = cam.world;
+  const tB = m('bent'), tS = m('sides'), tPm = m('polarmol'), tL = m('line'), tW = m('why');
+  cam.to({ x: 800, y: 420, z: 1 }, tL + .1, 1.7);
+  const X = 560, Y = 330, s = 3;
+  const gO = mk('circle', { cx: X, cy: Y, r: 120, fill: WC.O, 'fill-opacity': .3 }, W); put(gO, { o: 0 });
+  const gH = mk('ellipse', { cx: X, cy: Y + 100, rx: 200, ry: 78, fill: WC.pos, 'fill-opacity': .3 }, W); put(gH, { o: 0 });
+  const M = waterMolecule(W, { x: X, y: Y, s });
+  // the molecule breathes a little and the two glows swell and settle, so the picture never freezes
+  clockRun(t => { M.pose(X + 2 * Math.sin(1.3 * t), Y + 2 * Math.sin(1.1 * t + 1), 1.5 * Math.sin(.9 * t)); const k = Math.sin(1.4 * t) ** 2; put(gH, { 'a_fill-opacity': .22 + .14 * k }); put(gO, { 'a_fill-opacity': .22 + .14 * (1 - k) }); }, D);
+  const line = path(W, `M${X - 190} ${Y}H${X + 190}`, { stroke: COL.dim, 'stroke-width': 4, 'stroke-dasharray': '12 10' }, { o: 0 });
+  show(line, tB + .3, .4); hide(line, tB + 2.2, .5);
+  const nl = say(W, 'not in a line', X + 210, Y + 10, tB + .5, { size: 28, fill: COL.dim, anchor: 'start', weight: 500 });
+  const arc = wAngle(M, { R: 44, w: 1.4 }); draw(arc, tB + 2.6, .8);
+  const ab = say(W, `about ${ANGLE_SHOWN}°`, X, Y + 186, tB + 3, { size: 30 });
+  const bt = say(W, 'bent', X + 210, Y + 62, tB + 6.4, { size: 44, weight: 700, anchor: 'start' });
+  // sides: plus on one side, minus on the other
+  show(gH, tS + .2, .7); show(gO, tS + 1.6, .7);
+  M.deltas(tS + .2, { size: 44, layer: W });
+  const ps = say(W, 'positive side', X, Y + 290, tS + .6, { size: 32, fill: '#9cc4ff' });
+  const ns = say(W, 'negative side', X, Y - 230, tS + 2, { size: 32, fill: '#ffb3a6' });
+  // polarmol: the two pulls toward O add up; one arrow across the molecule from + end to − end
+  const pa = G(W, { o: 0 }); show(pa, tPm + .2, .5);
+  [1, 2].forEach(hi => { const [hx, hy] = M.atom(hi), [ox, oy] = M.atom('O'), sx = hi === 1 ? 1 : -1; wArrow(pa, [hx + sx * 70, hy - 6], [hx + sx * 70 + (ox - hx) * .45, hy - 6 + (oy - hy) * .45], { color: WC.elec, w: 6, head: 16 }); });
+  const dip = G(W, { o: 0 }); wArrow(dip, [X - 290, Y + 130], [X - 290, Y - 110], { color: COL.chalk, w: 9, head: 24 }); show(dip, tPm + 1, .5);
+  say(W, '+', X - 320, Y + 140, tPm + 1, { size: 36, weight: 700, fill: '#9cc4ff', anchor: 'end' });
+  say(W, '−', X - 320, Y - 90, tPm + 1, { size: 40, weight: 700, fill: '#ffb3a6', anchor: 'end' });
+  say(W, 'polar', X - 340, Y + 2, tPm + 3.9, { size: 40, weight: 700, anchor: 'end' });
+  say(W, 'molecule', X - 340, Y + 48, tPm + 3.9, { size: 40, weight: 700, anchor: 'end' });
+  // line: an imagined straight molecule beside it; its two pulls point opposite ways and cancel
+  const gx = 1230, gy = 330, gs = G(W, { o: 0 }); tw(gs, { o: .8 }, tL + 1, .7);
+  path(gs, `M${gx - 156} ${gy}H${gx + 156}`, { stroke: WC.stick, 'stroke-width': 27 });
+  wAtom(gs, 'H', { x: gx - 156, y: gy, r: 51, letter: false }); wAtom(gs, 'H', { x: gx + 156, y: gy, r: 51, letter: false }); wAtom(gs, 'O', { x: gx, y: gy, r: 90, letter: false });
+  const ca = G(W, { o: 0 }); show(ca, tL + 2.6, .5);
+  wArrow(ca, [gx - 200, gy - 120], [gx - 70, gy - 120], { color: WC.elec, w: 6 }); wArrow(ca, [gx + 200, gy - 120], [gx + 70, gy - 120], { color: WC.elec, w: 6 });
+  say(W, 'if water were straight:', gx, gy - 190, tL + 1.2, { size: 30, fill: COL.dim, weight: 500 });
+  say(W, 'pulls cancel', gx, gy + 150, tL + 3.4, { size: 32 });
+  say(W, 'no ends', gx, gy + 194, tL + 4.6, { size: 30, fill: COL.dim, weight: 500 });
+  // why: the straight ghost fades back, the bent molecule pulses
+  tw(gs, { o: .3 }, tW, .5); tw(ca, { o: .3 }, tW, .5);
+  [nl, ab, bt, ps, ns].forEach(e => hide(e, tW - .1, .4));   // clear the ring's path first
+  const gw = mk('circle', { cx: X, cy: Y + 30, r: 178, fill: 'none', stroke: WC.elec, 'stroke-width': 6 }, W); put(gw, { o: 0 }); flash(gw, tW + .3, .9, .4);
+  say(p, 'bent = polar', 800, 820, tW + .5, { size: 52, weight: 700, fill: WC.elec });
+}],
+
+['q1', 'Quick check', (m, D) => {
+  // The real, bent molecule above; the imagined straight one below; the choice card on the right.
+  const p = panel(0);
+  const M = waterMolecule(p, { x: 400, y: 230, s: 2.3 }); M.deltas(.2, { size: 36 });
+  clockRun(t => M.pose(400 + 2 * Math.sin(1.4 * t), 230 + 2 * Math.sin(1.1 * t), 2 * Math.sin(.9 * t)), D);
+  wLabel(p, 'water: bent', { x: 690, y: 250, size: 30, anchor: 'start', o: 1 });
+  const gx = 400, gy = 640, gs = G(p, { o: .8 });
+  path(gs, `M${gx - 120} ${gy}H${gx + 120}`, { stroke: WC.stick, 'stroke-width': 21 });
+  wAtom(gs, 'H', { x: gx - 120, y: gy, r: 39, letter: false }); wAtom(gs, 'H', { x: gx + 120, y: gy, r: 39, letter: false }); wAtom(gs, 'O', { x: gx, y: gy, r: 69, letter: false });
+  wLabel(p, 'imagined:', { x: 600, y: 630, size: 30, fill: COL.dim, anchor: 'start', o: 1 });
+  wLabel(p, 'straight', { x: 600, y: 670, size: 30, fill: COL.dim, anchor: 'start', o: 1 });
+  wLabel(p, '?', { x: gx, y: 540, size: 56, fill: WC.elec, weight: 700, o: 1 });
+}, { ask: done => quiz({ x: 860, y: 90, w: 700, cls: 'side' }, [{
+  id: 'c-shape',
+  prompt: ['A straight H–O–H molecule, with the same two polar bonds, would be …'],
+  build: choice([['just as polar, because oxygen still pulls harder.'], ['not polar as a whole: the two pulls point opposite ways and cancel.'], ['positive all over.'], ['polar only at the oxygen.']], 1,
+    'Right. The two pulls are equal and opposite, so neither side is more positive; the bend is what puts both hydrogens on one side.',
+    ['Each bond is still polar, but in a line the two pulls add up to nothing: there is no positive end and negative end.', null,
+     'No electron has left, so the charges stay partial and balanced; nothing is positive all over.',
+     'Polarity belongs to the whole molecule: a positive side and a negative side. In a line the two sides balance.']),
+}], done) }],
+
+/* ---------- part B: hydrogen bonds ---------- */
+['attract', 'The hydrogen bond', (m, D) => {
+  // The camera pulls back from one molecule to the pair; the right one drifts in and turns its H to the left one's O.
+  const AX = 610, p = panel(0), cam = camera(p, D, { x: AX, y: 470, z: 1.6 }), W = cam.world;
+  const tR = m('rule'), tN = m('near'), tB = m('bond'), tBe = m('between'), tS = m('solid');
+  cam.to({ x: 800, y: 450, z: 1 }, .3, 2.3);
+  const s = 2.2, A = waterMolecule(W, { x: AX, y: 470, s, r: 90 });
+  const a10 = -10 * Math.PI / 180, BX = AX + 374 * Math.cos(a10), BY = 470 + 374 * Math.sin(a10), BR = aimR(BX, BY, 1, AX, 470);
+  const bl = G(W, { o: 1 }); W.insertBefore(bl, A);
+  const B = waterMolecule(W, { x: 1330, y: 580, s, r: 200 });
+  A.deltas(.6, { size: 36, layer: W, nudge: { 0: [-10, -86] } }); B.deltas(tN, { size: 36, layer: W, nudge: { 1: [22, 66] } });   // B's labels once it is in frame
+  const bond = hBond(bl, { w: 7 }); put(bond, { o: 0 }); show(bond, tB + .2, .1); bond.form(tB + .2, .7);
+  const ab = { ...st(A) };
+  const k = t => io(ramp(t, tN + .6, tN + 4.8));
+  clockRun(t => {
+    jig(A, ab, t, 0, 3, 3);
+    const q = k(t);
+    B.pose(lerp(1330, BX, q) + 3 * Math.sin(1.4 * t + 2), lerp(580, BY, q) + 3 * Math.sin(1.1 * t), lerp(200, BR, q) + 2 * Math.sin(t));
+    bond.link(B, 1, A);
+  }, D);
+  // the final pose, read once for labels and brackets
+  B.pose(BX, BY, BR); const [hx, hy] = B.atom(1); B.pose(1330, 580, 200);
+  const g0 = [hx - W_RH * s, hy], g1 = [AX + W_RO * s, 470], mx = (g0[0] + g1[0]) / 2, my = (g0[1] + g1[1]) / 2;
+  // rule: a + and a − pull together (screen space, top right)
+  const rl = G(p, { o: 0 }); show(rl, tR, .4);
+  const pc = G(rl), nc = G(rl);
+  mk('circle', { r: 30, fill: WC.pos }, pc); wLabel(pc, '+', { y: 14, size: 44, weight: 700, o: 1 });
+  mk('circle', { r: 30, fill: WC.O }, nc); wLabel(nc, '−', { y: 14, size: 48, weight: 700, o: 1 });
+  clockRun(t => { const q = io(ramp(t, tR + .3, tR + 1.6)); put(pc, { x: lerp(1150, 1222, q), y: 130 }); put(nc, { x: lerp(1450, 1288, q), y: 130 }); }, D);
+  wLabel(rl, 'opposite charges attract', { x: 1255, y: 205, size: 30, o: 1 });
+  // bond: name it under the dashed line
+  say(W, 'hydrogen bond', mx + 40, my + 150, tB + .8, { size: 34, fill: WC.bond, weight: 700 });
+  // between: a cyan bracket over the gap; a grey ring round one molecule, "inside a molecule"
+  const br = path(W, `M${g0[0]} ${my - 92}v-22H${g1[0]}v22`, { stroke: WC.bond, 'stroke-width': 4 }, { d: 0 }); draw(br, tBe + 1.2, .6);
+  say(W, 'between molecules', mx, my - 134, tBe + 1.5, { size: 30, fill: WC.bond });
+  const ring = mk('ellipse', { cx: AX - 50, cy: 470, rx: 150, ry: 150, fill: 'none', stroke: COL.dim, 'stroke-width': 3, 'stroke-dasharray': '10 9' }, W); put(ring, { o: 0 });
+  show(ring, tBe + 1.6, .5);
+  say(W, 'not inside', AX - 215, 460, tBe + 1.8, { size: 28, fill: COL.dim, weight: 500, anchor: 'end' });
+  say(W, 'a molecule', AX - 215, 496, tBe + 1.8, { size: 28, fill: COL.dim, weight: 500, anchor: 'end' });
+  // solid: the O–H sticks flash (covalent), then the dashed line (an attraction)
+  const sg = [stickGlow(W, A, 1, COL.chalk, 14), stickGlow(W, A, 2, COL.chalk, 14)];
+  W.insertBefore(sg[0], A); W.insertBefore(sg[1], A);
+  sg.forEach((g, i) => flash(g, tS + .3 + .2 * i, .9, 0));
+  tw(ring, { o: .3 }, tS, .4);
+  say(p, 'solid: covalent bond, shared electrons', 800, 790, tS + .6, { size: 32 });
+  say(p, 'dashed: only an attraction between molecules', 800, 840, tS + 5.7, { size: 32, fill: WC.bond });
+  tw(bond, { o: .25 }, tS + 5.6, .15); tw(bond, { o: 1 }, tS + 5.85, .3); bond.ping(tS + 5.85);
+}],
+
+['weak', 'Weak and always changing', (m, D) => {
+  const p = panel(0), tSt = m('strength'), tJ = m('jostle'), tSw = m('swap'), tNet = m('net'), tK = m('keep');
+  mk('rect', { x: 50, y: 145, width: 870, height: 700, rx: 30, fill: '#14375c' }, p);
+  // a bonded cluster of 12; every molecule gives its H1 to its nearest neighbour and its H2 to the next
+  const bl = G(p), ml = G(p), sz = .72, base = [];
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) { const i = r * 4 + c; base.push([175 + c * 200 + (r % 2 ? 55 : -15) + (wHash(i, 2) - .5) * 40, 260 + r * 230 + (wHash(i, 3) - .5) * 40]); }
+  const mols = base.map(([x, y]) => waterMolecule(ml, { x, y, s: sz }));
+  const near = (i, skip) => base.map((b, j) => [j, Math.hypot(b[0] - base[i][0], b[1] - base[i][1])]).filter(([j]) => j !== i && !skip.includes(j)).sort((a, b) => a[1] - b[1])[0][0];
+  const links = [];
+  base.forEach((b, i) => {
+    const sk = links.filter(l => l[2] === i).map(l => l[0]);
+    const j1 = near(i, sk), j2 = near(i, [...sk, j1]);
+    links.push([i, 1, j1]); if (Math.hypot(base[j2][0] - b[0], base[j2][1] - b[1]) < 250) links.push([i, 2, j2]);
+    wAim2(mols[i], base[j1], base[j2]);
+  });
+  const bonds = links.map(() => hBond(bl, { w: 3.6, dash: '8 7' }));
+  // swap: molecule X lets go of P and bonds to Q instead
+  const X = 5, li = links.findIndex(l => l[0] === X && l[1] === 1), P = links[li][2];
+  const Q = near(X, [P, (links.find(l => l[0] === X && l[1] === 2) || [0, 0, P])[2]]);
+  const r0 = st(mols[X]).r, rQ = aimR(base[X][0], base[X][1], 1, base[Q][0], base[Q][1]);
+  const nb = hBond(bl, { w: 3.6, dash: '8 7' }); put(nb, { o: 0 }); show(nb, tSw + 2.4, .05); nb.form(tSw + 2.4, .5);
+  const tSnap = tSw + .6;
+  const R0 = base.map((b, i) => st(mols[i]).r), KP = 7;   // KP: molecule outlined at "keep"
+  const ringX = mk('circle', { r: 58, fill: 'none', stroke: WC.heat, 'stroke-width': 4 }, p); put(ringX, { o: 0 }); show(ringX, tSw + .1, .4); hide(ringX, tK, .4);
+  const ringK = mk('circle', { r: 58, fill: 'none', stroke: COL.chalk, 'stroke-width': 4 }, p); put(ringK, { o: 0 }); show(ringK, tK + .2, .4);
+  const tagA = say(p, 'lets go', 0, 0, tSnap, { size: 26, fill: WC.heat }), tagB = say(p, 'bonds to another', 0, 0, tSw + 2.6, { size: 26, fill: WC.heat });
+  hide(tagA, tNet, .4); hide(tagB, tNet, .4);
+  const tagK = say(p, 'still H₂O', 0, 0, tK + .4, { size: 28 });
+  [tagA, tagB, tagK].forEach(e => { e.setAttribute('stroke', '#14375c'); e.setAttribute('stroke-width', 7); e.setAttribute('paint-order', 'stroke'); });   // a halo over bonds
+  // the counters read the same on/off state that draws the bonds
+  const cnt = wLabel(p, '', { x: 950, y: 640, size: 34, anchor: 'start', o: 0 }), cnt2 = wLabel(p, '', { x: 950, y: 688, size: 28, fill: COL.dim, anchor: 'start', weight: 500, o: 0 });
+  show(cnt, tNet + .2); show(cnt2, tNet + .8);
+  clockRun(t => {
+    const sp = 1 + 1.4 * ramp(t, tJ, tJ + 1.5), ph = t + 1.4 * Math.max(0, t - tJ - .75);   // faster after "jostle", phase kept continuous
+    const amp = 3 + 6 * ramp(t, tJ, tJ + 1.5);
+    mols.forEach((q, i) => {
+      const rx = i === X ? lerp(r0, rQ, io(ramp(t, tSnap + .3, tSw + 2.4))) : R0[i];
+      q.pose(base[i][0] + amp * Math.sin(1.9 * ph + i), base[i][1] + amp * Math.sin(1.6 * ph + 2.3 * i), rx + (amp + 2) * Math.sin(1.3 * ph + i));
+    });
+    const deg = base.map(() => 0); let n = 0;
+    links.forEach(([i, hi, j], q) => {
+      const b = bonds[q]; b.link(mols[i], hi, mols[j]);
+      const f = q === li ? { on: t < tSnap, since: 99 } : i === X || j === X ? { on: true, since: 99 } : wOnOff(q, t, tJ + .6, { period: 2.6, off: .45 });
+      put(b, { o: f.on ? 1 : .07 }); put(b.flash, { o: f.since < .45 ? 1 - f.since / .45 : 0, s: .5 + 2.4 * Math.min(f.since, .45) });
+      if (f.on) { n++; deg[i]++; deg[j]++; }
+    });
+    nb.link(mols[X], 1, mols[Q]); if (t >= tSw + 2.4) { n++; deg[X]++; deg[Q]++; }
+    if (t < tSnap) put(bonds[li].flash, { o: 0 }); else { const u = t - tSnap; put(bonds[li].flash, { o: u < .45 ? 1 - u / .45 : 0, s: .5 + 2.4 * Math.min(u, .45) }); }
+    const s1 = `hydrogen bonds now: ${n}`, s2 = `molecules with 2 or more: ${deg.filter(d => d >= 2).length} of ${mols.length}`;
+    if (cnt.textContent !== s1) cnt.textContent = s1; if (cnt2.textContent !== s2) cnt2.textContent = s2;
+    const [xx, xy] = mols[X].atom('O'), [kx, ky] = mols[KP].atom('O');
+    put(ringX, { x: xx, y: xy }); put(ringK, { x: kx, y: ky });
+    put(tagA, { x: (base[X][0] + base[P][0]) / 2, y: (base[X][1] + base[P][1]) / 2 - 30 });
+    put(tagB, { x: base[Q][0], y: base[Q][1] + 84 });
+    put(tagK, { x: kx, y: ky - 72 });
+  }, D);
+  say(p, 'the molecules never stop moving', 470, 120, tJ + .3, { size: 30 });
+  // strength: two bars, an O–H covalent bond and a hydrogen bond about one twentieth of it
+  const bars = G(p, { o: 0 }); show(bars, tSt + .1, .4);
+  wLabel(bars, 'bond strength', { x: 950, y: 210, size: 32, anchor: 'start', weight: 700, o: 1 });
+  wLabel(bars, 'covalent O–H (inside a molecule)', { x: 950, y: 268, size: 28, anchor: 'start', o: 1 });
+  const bc = mk('rect', { x: 950, y: 286, width: 540, height: 46, rx: 8, fill: WC.stick }, bars);
+  wLabel(bars, 'hydrogen bond (between molecules)', { x: 950, y: 398, size: 28, anchor: 'start', fill: WC.bond, o: 1 });
+  const bh = mk('rect', { x: 950, y: 416, width: 540 * HB_PER_COV, height: 46, rx: 6, fill: WC.bond }, bars);
+  put(bc, { a_width: 0 }); put(bh, { a_width: 0 });
+  tw(bc, { a_width: 540 }, tSt + .4, 1.2, out); tw(bh, { a_width: 540 * HB_PER_COV }, tSt + 1.8, .4, out);
+  say(p, 'far weaker', 1000, 450, tSt + 2.3, { size: 30, fill: WC.bond, anchor: 'start' });
+  notToScale(p, 1490, 510, tSt + 2.3);
+}],
+
+['four', 'Up to four', (m, D) => {
+  const CX = 560, CY = 470, s = 1.7, d = 165 * s;
+  // close on the lone molecule while the question is asked, then back to make room for its neighbours
+  const p = panel(0), cam = camera(p, D, { x: CX, y: CY - 30, z: 1.8 }), W = cam.world, tO = m('ox'), tH = m('hyd'), tC = m('count'), tWb = m('web');
+  cam.to({ x: 800, y: 450, z: 1 }, tO + 2, 2.2);
+  const bl = G(W), ml = G(W), webB = G(W), webM = G(W);
+  W.insertBefore(webB, bl); W.insertBefore(webM, bl);
+  const C = waterMolecule(ml, { x: CX, y: CY, s }), lobes = wLobes(C);
+  const dirs = [-W_H1, -W_H2, W_H1, W_H2].map(a => a * Math.PI / 180);   // lobe 1, lobe 2, H1, H2
+  const fin = dirs.map(a => [CX + d * Math.cos(a), CY + d * Math.sin(a)]);
+  const N = fin.map(([x, y], i) => waterMolecule(ml, { x: x + .7 * d * Math.cos(dirs[i]), y: y + .7 * d * Math.sin(dirs[i]), s, o: 0 }));
+  // neighbours on oxygen's side give it a hydrogen; those by C's hydrogens turn their own hydrogens away
+  const rFin = fin.map(([x, y], i) => i < 2 ? aimR(x, y, 1, CX, CY) : dirs[i] * 180 / Math.PI - 90);   // 2, 3: hydrogens turned away
+  const inAt = [tO + 4.4, tO + 5.4, tH + .8, tH + 1.8];
+  N.forEach((q, i) => show(q, inAt[i] - .6, .5));
+  const bonds = [0, 1, 2, 3].map(i => { const b = hBond(bl, { w: 6 }); put(b, { o: 0 }); show(b, inAt[i] + 1.3, .05); b.form(inAt[i] + 1.3, .6); return b; });
+  lobes.els.forEach((e, i) => { show(e, tO + .6 + i, .5); pulse(e, tO + .6 + i, 1.15); });
+  // labels at the lobes while they are alone
+  const lab = [0, 1].map(i => { const [x, y] = lobes.at(i, 1.45); const e = say(W, 'negative region ' + (i + 1), x + (i ? -10 : 10), y, tO + .8 + i, { size: 26, fill: '#ffb3a6', anchor: i ? 'end' : 'start', weight: 500 }); hide(e, inAt[i] - .8, .4); return e; });
+  const cb = { ...st(C) };
+  const webT0 = tWb + .4;
+  // the web: more molecules round the five, each giving its hydrogens to its two nearest
+  const pts = [];
+  for (let r = -1; r <= 3; r++) for (let c = -1; c <= 5; c++) {
+    const x = CX - 840 + c * 320 + (r % 2 ? 160 : 0) + (wHash(r * 7 + c, 4) - .5) * 90, y = CY - 560 + r * 300 + (wHash(r * 7 + c, 5) - .5) * 80;
+    if (Math.hypot(x - CX, y - CY) < d * 1.55 || x < -520 || x > 1800 || y < -10 || y > 1030) continue;   // whole molecules inside the wide shot, clear of the banner
+    pts.push([x, y]);
+  }
+  const all = [[CX, CY], ...fin, ...pts];
+  // The web is drawn as a few merged paths (sticks, hydrogens, oxygens, bonds on): it holds still and only its bonds
+  // blink, so the wide shot repaints little (Firefox). Each web molecule turns its hydrogens toward its two nearest.
+  const wl = [], body = { st: '', h: '', o: '' }, circ = (x, y, r) => `M${(x - r).toFixed(1)} ${y.toFixed(1)}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
+  const rot = (x, y, r, lx, ly) => { const c = Math.cos(r * Math.PI / 180), n = Math.sin(r * Math.PI / 180); return [x + s * (lx * c - ly * n), y + s * (lx * n + ly * c)]; };
+  pts.forEach(([x, y], i) => {
+    const near = all.map((q, j) => [j, Math.hypot(q[0] - x, q[1] - y)]).filter(([j]) => j !== i + 5).sort((a, b) => a[1] - b[1]);
+    const [ta, tb] = [all[near[0][0]], all[near[1][0]]];
+    const r1 = Math.atan2(ta[1] - y, ta[0] - x) * 180 / Math.PI - W_H1, r2 = Math.atan2(tb[1] - y, tb[0] - x) * 180 / Math.PI - W_H2, r = r1 + (((r2 - r1 + 540) % 360) - 180) / 2;   // as wAim2
+    const h = [rot(x, y, r, W_HX, W_HY), rot(x, y, r, -W_HX, W_HY)];
+    body.st += `M${x.toFixed(1)} ${y.toFixed(1)}L${h[0][0].toFixed(1)} ${h[0][1].toFixed(1)}M${x.toFixed(1)} ${y.toFixed(1)}L${h[1][0].toFixed(1)} ${h[1][1].toFixed(1)}`;
+    body.h += circ(h[0][0], h[0][1], W_RH * s) + circ(h[1][0], h[1][1], W_RH * s); body.o += circ(x, y, W_RO * s);
+    [ta, tb].forEach(([ox, oy], k) => {
+      const [hx, hy] = h[k], L = Math.hypot(ox - hx, oy - hy), ux = (ox - hx) / L, uy = (oy - hy) / L, sa = s * W_RH + 2, sb = s * W_RO + 3;
+      wl.push(`M${(hx + ux * sa).toFixed(1)} ${(hy + uy * sa).toFixed(1)}L${(ox - ux * sb).toFixed(1)} ${(oy - uy * sb).toFixed(1)}`);
+    });
+  });
+  // faded in by fill and stroke opacity, not element opacity: an opacity fade of a big path is costly in Firefox
+  const fo = (e, keys, t0) => { const z = {}, one = {}; keys.forEach(k => { z['a_' + k] = 0; one['a_' + k] = 1; }); put(e, z); tw(e, one, t0, 1.2); return e; };
+  const wbOn = fo(path(webB, '', { stroke: WC.bond, 'stroke-width': 6, 'stroke-dasharray': '10 8' }), ['stroke-opacity'], webT0 + .9);
+  [fo(path(webM, body.st, { stroke: WC.stick, 'stroke-width': 9 * s }), ['stroke-opacity'], webT0 + .4),
+   fo(path(webM, body.h, { fill: WC.H, stroke: WC.Hedge, 'stroke-width': 2 * s }), ['fill-opacity', 'stroke-opacity'], webT0 + .4),
+   fo(path(webM, body.o, { fill: WC.O, stroke: WC.Oedge, 'stroke-width': 2.5 * s }), ['fill-opacity', 'stroke-opacity'], webT0 + .4)];
+  const calm = t => 1 - ramp(t, tWb - .3, tWb + .1);   // the five settle before the wide shot, so the web's bonds meet them exactly
+  clockRun(t => {
+    const c = calm(t);
+    C.pose(cb.x + 2 * c * Math.sin(1.7 * t), cb.y + 2 * c * Math.sin(1.3 * t), cb.r + 2 * c * Math.sin(1.1 * t));
+    N.forEach((q, i) => {
+      const k = io(ramp(t, inAt[i] - .6, inAt[i] + 1.3)), [fx, fy] = fin[i], a = dirs[i];
+      q.pose(fx + (1 - k) * .7 * d * Math.cos(a) + 2 * c * Math.sin(1.3 * t + i), fy + (1 - k) * .7 * d * Math.sin(a) + 2 * c * Math.sin(1.1 * t + 2 * i), rFin[i] + (1 - k) * 40 + 2 * c * Math.sin(t + i));
+    });
+    bonds[0].link(N[0], 1, C); bonds[1].link(N[1], 1, C); bonds[2].link(C, 1, N[2]); bonds[3].link(C, 2, N[3]);
+    if (t > webT0) { let dd = ''; wl.forEach((seg, q) => { if (wOnOff(q, t, webT0 + 2.4, { period: 2.2, off: .45 }).on) dd += seg; }); if (wbOn._d !== dd) wbOn.setAttribute('d', wbOn._d = dd); }
+  }, D);
+  // the count: numbered badges on the four bonds
+  const badges = [0, 1, 2, 3].map(i => {
+    const g = G(W, { o: 0, s: .5 }), [x, y] = fin[i], k = i < 2 ? .5 : .45;
+    put(g, { x: lerp(CX, x, k) + (i % 2 ? -1 : 1) * 34, y: lerp(CY, y, k) });
+    mk('circle', { r: 24, fill: COL.board, stroke: WC.bond, 'stroke-width': 3 }, g); wLabel(g, String(i + 1), { y: 10, size: 28, weight: 700, o: 1 });
+    pop(g, tC + .3 + .35 * i); return g;
+  });
+  // the column of words on the right, in screen space; it goes as the camera pulls back
+  const col = G(p); hide(col, tWb, .4);
+  say(col, 'oxygen: 2 negative regions', 1010, 260, tO + 1.4, { size: 30, fill: '#ffb3a6', anchor: 'start' });
+  say(col, 'each attracts a neighbor’s H', 1010, 300, tO + 4.6, { size: 26, fill: COL.dim, anchor: 'start', weight: 500 });
+  say(col, 'hydrogens: 2 positive ends', 1010, 400, tH + .4, { size: 30, anchor: 'start' });
+  say(col, 'each reaches a neighbor’s O', 1010, 440, tH + 1.6, { size: 26, fill: COL.dim, anchor: 'start', weight: 500 });
+  say(col, `2 + 2 = up to ${MAX_HB}`, 1010, 580, tC + .3, { size: 56, weight: 700, fill: WC.bond, anchor: 'start' });
+  say(col, 'hydrogen bonds per molecule', 1010, 626, tC + 1.2, { size: 28, fill: COL.dim, anchor: 'start', weight: 500 });
+  badges.forEach(g => hide(g, tWb + .2, .4));
+  // web: pull back over the network
+  cam.to({ x: 640, y: 450, z: .62 }, tWb + .2, 3.8);
+  const ring = mk('circle', { cx: CX, cy: CY + 10, r: 150, fill: 'none', stroke: WC.heat, 'stroke-width': 9 }, W); put(ring, { o: 0 }); show(ring, tWb + 3.4, .6);
+  const wt = G(p, { o: 0 }); show(wt, tWb + 3.2, .6);
+  mk('rect', { x: 540, y: 14, width: 520, height: 70, rx: 16, fill: COL.board, stroke: WC.bond, 'stroke-opacity': .5, 'stroke-width': 2 }, wt);
+  wLabel(wt, 'a shifting web', { x: 800, y: 62, size: 40, weight: 700, fill: WC.bond, o: 1 });
+}],
+
+['q2', 'Quick check', (m, D) => {
+  // Four lines, A to D: one is the hydrogen bond between molecules, three are O–H bonds inside a molecule.
+  const p = panel(0), s = 1.5;
+  const C = waterMolecule(p, { x: 760, y: 280, s, r: 0 });
+  const [h1x, h1y] = C.atom(1), a = W_H1 * Math.PI / 180;
+  const N1 = waterMolecule(p, { x: 760 + 255 * Math.cos(a), y: 280 + 255 * Math.sin(a), s, r: 40 });
+  const N2 = waterMolecule(p, { x: 460, y: 420, s, r: 200 }), N3 = waterMolecule(p, { x: 1130, y: 190, s, r: 120 });
+  const hb = hBond(p, { w: 6 }).link(C, 1, N1);
+  const mid = (q, hi) => { const [ox, oy] = q.atom('O'), [hx, hy] = q.atom(hi); return [(ox + hx) / 2, (oy + hy) / 2]; };
+  const [bx, by] = (() => { const [x1, y1] = C.atom(1), [x2, y2] = N1.atom('O'); return [(x1 + x2) / 2, (y1 + y2) / 2]; })();
+  const spots = [mid(C, 2), [bx, by], mid(N2, 1), mid(N3, 2)];
+  const off = [[-60, -20], [44, -40], [-50, 40], [52, -34]];
+  S.q2 = spots.map(([x, y], i) => {
+    const g = G(p, { x: x + off[i][0], y: y + off[i][1] });
+    mk('circle', { r: 22, fill: COL.board, stroke: COL.dim, 'stroke-width': 2.5 }, g); wLabel(g, 'ABCD'[i], { y: 10, size: 28, weight: 700, o: 1 });
+    return { el: i === 1 ? hb : g, box: [x - 46, y - 46, 92, 92], label: 'line ' + 'ABCD'[i] };
+  });
+}, { ask: done => quiz(BAND, [{
+  id: 'c-hbond',
+  prompt: ['Click the hydrogen bond.'],
+  build: pickEls(S.q2, 1, 'Right. B is the dashed link between two molecules: a hydrogen of one attracted to the oxygen of the other.',
+    i => `Line ${'ABCD'[i]} is solid: a covalent bond inside one molecule, made of shared electrons. Look for the link between two molecules.`),
+}], done) }],
+
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['Oxygen pulls shared electrons harder:', 'polar O–H bonds, O δ−, each H δ+.', g => { path(g, 'M130 0H240', { stroke: WC.stick, 'stroke-width': 7 }); const c = electronCloud(g, { rx: 40, ry: 20 }); g._c = c; wAtom(g, 'O', { x: 130, y: 0, r: 34, size: 26 }); wAtom(g, 'H', { x: 240, y: 0, r: 22, size: 18 }); }],
+    ['Water’s bent shape makes', 'the whole molecule polar.', g => { mk('ellipse', { cx: 185, cy: 18, rx: 70, ry: 26, fill: WC.pos, 'fill-opacity': .35 }, g); mk('circle', { cx: 185, cy: -12, r: 36, fill: WC.O, 'fill-opacity': .3 }, g); waterMolecule(g, { x: 185, y: -12, s: .9 }); }],
+    ['Opposite charges on neighbors attract:', 'a hydrogen bond, between molecules.', g => { const a = waterMolecule(g, { x: 120, y: 0, s: .62, r: 90 }), b = waterMolecule(g, { x: 245, y: -10, s: .62 }); wAim(b, 1, 120, 0); hBond(g, { w: 3.5 }).link(b, 1, a); }],
+    ['Weak, always breaking and re-forming;', 'up to four per molecule.', g => { const c = waterMolecule(g, { x: 185, y: 0, s: .55 }); let d = ''; [-W_H1, -W_H2, W_H1, W_H2].forEach(a => { const r = a * Math.PI / 180; d += `M${(185 + 40 * Math.cos(r)).toFixed(1)} ${(40 * Math.sin(r)).toFixed(1)}L${(185 + 78 * Math.cos(r)).toFixed(1)} ${(78 * Math.sin(r)).toFixed(1)}`; }); path(g, d, { stroke: WC.bond, 'stroke-width': 4, 'stroke-dasharray': '7 6' }); }],
+  ];
+  const icons = [];
+  rows.forEach(([a, b, icon], i) => {
+    // all four rows wait faintly from the start; each lights up as it is read
+    const g = G(p, { x: 160, y: 150 + i * 140, o: 0 });   // the block sits centred
+    const ic = G(g, { s: 1.25 }); icon(ic); icons.push(ic);
+    T(g, a, { x: 360, y: -8, size: 42, weight: 600 }); T(g, b, { x: 360, y: 42, size: 34, fill: COL.dim });
+    tw(g, { o: .2 }, .15, .5); tw(g, { o: 1 }, m('w' + (i + 1)) - (i ? 0 : .3), .6);
+  });
+  const c1 = icons[0]._c;
+  clockRun(t => { icons.forEach((ic, i) => put(ic, { y: 5 * Math.sin(1.6 * t + 1.3 * i), r: 3 * Math.sin(1.1 * t + i) })); c1.set([130, 0], [240, 0], .38, t); }, D);
+  // end: what the web does, in the next lessons
+  const tE = m('end'), tags = ['cohesion', 'steady temperature', 'ice floats', 'solvent'], xs = [260, 610, 960, 1310];
+  const web = path(p, `M${xs[0]} 760H${xs[3]}`, { stroke: WC.bond, 'stroke-width': 3, 'stroke-dasharray': '10 9' }, { d: 0 }); draw(web, tE + 2.8, 2);
+  say(p, 'next: what the web does', 800, 700, tE + .4, { size: 30, fill: COL.dim, weight: 500 });
+  tags.forEach((s, i) => {
+    const g = G(p, { x: xs[i], y: 760, o: 0, s: .6 });
+    mk('rect', { x: -148, y: -32, width: 296, height: 64, rx: 32, fill: '#152a45', stroke: WC.bond, 'stroke-width': 3 }, g);
+    wLabel(g, s, { y: 10, size: 28, o: 1 });
+    pop(g, tE + 2.9 + [0, 1.1, 2.6, 3.7][i]);
+  });
+  say(p, 'Now try the practice.', 800, 856, tE + 9.6, { size: 32, fill: WC.bond });
+}],
+
+['final1', 'Chapter practice', (m, D) => {
+  // A picture on the right for each practice question; the card's build shows the one it needs.
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('charge', g => {
+    const M = waterMolecule(g, { x: 1230, y: 330, s: 2.3 });
+    [M.atom('O'), M.atom(1), M.atom(2)].forEach(([x, y], i) => wLabel(g, '?', { x: x + (i ? (i === 1 ? 60 : -60) : 0), y: y + (i ? 80 : -88), size: 44, fill: WC.elec, weight: 700, o: 1 }));
+    const nb = waterMolecule(g, { x: 1450, y: 140, s: 1.4 }); wAim(nb, 2, 1230, 330); hBond(g, { w: 5 }).link(nb, 2, M);
+    wLabel(g, 'a neighbor', { x: 1450, y: 70, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  });
+  at('count', g => {
+    const s = 1.3, CX = 1240, CY = 430, d = 165 * s, C = waterMolecule(g, { x: CX, y: CY, s });
+    const dirOf = { n1: W_H1, n2: W_H2, n3: -W_H1, n4: -W_H2 }, mol = {};
+    Object.entries(dirOf).forEach(([k, a]) => { const r = a * Math.PI / 180; mol[k] = [CX + d * Math.cos(r), CY + d * Math.sin(r)]; });
+    const drawn = new Set(COUNT_DRAWN.map(([, k]) => k));
+    Object.entries(mol).forEach(([k, [x, y]]) => {
+      if (!drawn.has(k)) { mk('circle', { cx: x, cy: y, r: 46, fill: 'none', stroke: COL.dim, 'stroke-width': 3, 'stroke-dasharray': '8 8' }, g); wLabel(g, '?', { x, y: y + 14, size: 40, fill: COL.dim, o: 1 }); return; }
+      const q = waterMolecule(g, { x, y, s });
+      const hi = COUNT_DRAWN.find(([, kk]) => kk === k)[0];
+      if (hi) { wAim2(q, [x + (x - CX), y + (y - CY) - 80], [x + (x - CX), y + (y - CY) + 80]); hBond(g, { w: 5 }).link(C, hi, q); }
+      else { wAim(q, 1, CX, CY); hBond(g, { w: 5 }).link(q, 1, C); }
+    });
+  });
+  at('change', g => {
+    mk('rect', { x: 1000, y: 160, width: 520, height: 520, rx: 30, fill: '#14375c' }, g);
+    const cr = moleculeCrowd(g, { x: 1260, y: 420, w: 440, h: 440, n: 9, s: .62, bonds: true, seed: 6 });
+    cr.bonds.forEach((b, i) => { if (i % 3 === 1) put(b, { o: .15 }); });
+    wLabel(g, 'liquid water', { x: 1260, y: 730, size: 30, o: 1 });
+  });
+  at('true', g => {
+    const a = waterMolecule(g, { x: 1130, y: 420, s: 1.8, r: 90 }), b = waterMolecule(g, { x: 1430, y: 360, s: 1.8 }); wAim(b, 1, 1130, 420);
+    hBond(g, { w: 6 }).link(b, 1, a);
+    wLabel(g, 'solid: inside', { x: 1060, y: 600, size: 28, o: 1 }); wLabel(g, 'dashed: between', { x: 1300, y: 260, size: 28, fill: WC.bond, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('charge');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-charge', prompt: ['δ+ or δ−?'],
+    build: withPic('charge', grid([
+      { parts: ['the oxygen atom in water'], ans: ['n'], why: 'δ−: oxygen holds the shared electrons more of the time.' },
+      { parts: ['a hydrogen atom in water'], ans: ['p'], why: 'δ+: its electron is pulled toward the oxygen.' },
+      { parts: ['the part a neighbor’s hydrogen is drawn to'], ans: ['n'], why: 'δ−: a δ+ hydrogen is attracted to the δ− oxygen.' },
+      { parts: ['the part that points at a neighbor’s oxygen'], ans: ['p'], why: 'δ+: the hydrogen reaches for the δ− oxygen.' },
+    ], [['n', 'δ−'], ['p', 'δ+']], { multi: false, text: true })) },
+  { id: 'p-count', prompt: ['Look at the central molecule in the picture.'],
+    build: withPic('count', blanks([
+      { parts: ['hydrogen bonds drawn: ', { box: String(COUNT_DRAWN.length) }], why: `${COUNT_DRAWN.length} dashed links touch the central molecule.`, hint: 'Count the dashed lines that touch the central molecule.' },
+      { parts: ['more that could still form, at most: ', { box: String(MAX_HB - COUNT_DRAWN.length) }], why: `Up to ${MAX_HB} in all (2 at the oxygen, 2 at the hydrogens), so ${MAX_HB} − ${COUNT_DRAWN.length} = ${MAX_HB - COUNT_DRAWN.length}.`, hint: 'One molecule can make up to 4: two at its oxygen, two at its hydrogens.' },
+    ])) },
+  { id: 'p-change', prompt: ['Hydrogen bonds in liquid water keep breaking and re-forming. Why?'],
+    build: withPic('change', choice([
+      ['The molecules keep moving and jostling, and each hydrogen bond is weak.'],
+      ['The water molecules themselves keep breaking apart.'],
+      ['Hydrogen bonds are stronger than covalent bonds.'],
+      ['Oxygen gives its electrons away to a neighbor.'],
+    ], 0, 'Right. Constant motion breaks the weak links; new ones form with other neighbors at once.',
+    [null, 'The molecules stay whole: their covalent O–H bonds are far stronger. Only the hydrogen bonds come and go.',
+     'It is the other way round: a hydrogen bond is far weaker than a covalent bond, which is why it breaks so easily.',
+     'No electron leaves: the charges are partial, from uneven sharing.'])) },
+  { id: 'p-true', prompt: ['True or false?'],
+    build: withPic('true', grid([
+      { parts: ['A hydrogen bond links two water molecules.'], ans: ['t'], why: 'True: it sits between molecules.' },
+      { parts: ['A hydrogen bond is made of shared electrons, like the O–H bonds.'], ans: ['f'], why: 'False: it is only an attraction between partial charges.' },
+      { parts: ['One water molecule can form up to four hydrogen bonds.'], ans: ['t'], why: 'True: two at the oxygen, two at the hydrogens.' },
+      { parts: ['In liquid water a given hydrogen bond lasts a long time.'], ans: ['f'], why: 'False: it breaks and re-forms in a tiny fraction of a second.' },
+      { parts: ['Water is polar because its molecule is bent.'], ans: ['t'], why: 'True: the bend puts both hydrogens on one side.' },
+    ], TF, { multi: false, text: true })) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const withPic = (key, build) => (body, api) => { S.pics?.(key); return build(body, api); };
+
+boot();
+</script>
+</body>
+</html>

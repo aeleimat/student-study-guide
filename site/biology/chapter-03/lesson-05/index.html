@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 3, Lesson 5: Buffers, Ka and pKa, Acid Rain — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 3 (Water and Life), lesson 5: why cells and blood hold their pH, a buffer against pure water, what a
+// buffer is made of (weak acid + conjugate base; acetic acid / acetate; ammonia / ammonium), the blood's bicarbonate
+// buffer, check 1, Ka and pKa (13 of 1000 against a strong acid; direction; a pKa tells little for a strong acid), check 2,
+// monoprotic and polyprotic acids, the working range pKa ± 1, acid precipitation, summary, practice.
+// Plan, errata and storyboard: books/biology/chapters/chapter-03/lesson-05.md.
+const CHAPTER = { number: 305, label: '3, lesson 5', title: 'Buffers, Ka and pKa, Acid Rain', minutes: 7, language: 'en', lead: false };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+// Write an attribute only when it changes (Firefox repaints on every write).
+const setA = (e, k, v) => { if (e['_' + k] !== v) { e.setAttribute(k, v); e['_' + k] = v; } };
+const setText = (e, s) => { if (e.textContent !== s) e.textContent = s; };
+// Circles as one path: list of [x, y, r].
+const dots = list => list.map(([x, y, r]) => `M${(x - r).toFixed(1)} ${y.toFixed(1)}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`).join('');
+// A plain straight arrow (shaft and head) from a to b.
+function wArrow(p, [x1, y1], [x2, y2], { color = COL.chalk, w = 6, head = 16, o = 1 } = {}) {
+  const g = G(p, { o }), L = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / L, uy = (y2 - y1) / L;
+  path(g, `M${x1} ${y1}L${x2 - ux * head * .8} ${y2 - uy * head * .8}`, { stroke: color, 'stroke-width': w });
+  path(g, `M${x2 - ux * head - uy * head * .7} ${y2 - uy * head + ux * head * .7}L${x2} ${y2}L${x2 - ux * head + uy * head * .7} ${y2 - uy * head - ux * head * .7}Z`, { fill: color, stroke: color, 'stroke-width': 2 });
+  return g;
+}
+// Chemistry pieces laid out left to right in one row (measured), centred on x; each text gets _x0 and _w.
+function chemRow(p, pieces, { x, y, size = 40, gap = 16, fill = COL.chalk, weight = 600, fills = [] } = {}) {
+  const els = pieces.map((s, i) => wChem(p, s, { y, size, fill: fills[i] || fill, weight, anchor: 'start', o: 0 }));
+  const ws = els.map(e => e.getComputedTextLength()), total = ws.reduce((a, b) => a + b, 0) + gap * (els.length - 1);
+  let cx = x - total / 2;
+  els.forEach((e, i) => { put(e, { x: cx }); e._x0 = cx; e._w = ws[i]; cx += ws[i] + gap; });
+  return els;
+}
+// Question cards: wChem markup as plain text with Unicode super- and subscripts.
+const SUP = { 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹', '+': '⁺', '−': '⁻', '.': '·' };
+const SUB = { 0: '₀', 1: '₁', 2: '₂', 3: '₃', 4: '₄', 5: '₅', 6: '₆', 7: '₇', 8: '₈', 9: '₉', a: 'ₐ' };
+const uni = str => wChemParts(str).map(([s, k]) => k === 'n' ? s : [...s].map(c => (k === 'sup' ? SUP : SUB)[c] ?? c).join('')).join('');
+// blanks rows are set as maths, which slants letters; chemical symbols (H, Ka, pH) stay upright.
+const roman = build => (body, api) => { const r = build(body, api); body.querySelectorAll('svg.m tspan[font-style]').forEach(t => t.removeAttribute('font-style')); return r; };
+const mn = v => String(v).replace('-', '−');
+
+/* ---------- shared numbers (computed, never typed twice) ---------- */
+const PKA = 4.76, KA = Math.pow(10, -PKA);                 // acetic acid (errata 10): Ka = 1.7 × 10^−5
+const PKA_R = Math.round(PKA * 10) / 10;                   // "about 4.8", the slide's value for the working range
+const KA_TXT = wSci(KA);                                   // '1.7 × 10^{−5}'
+const C_BUF = .1, H_ADD = 1e-3;                            // 0.1 M acetic acid + 0.1 M acetate; 0.001 M H+ added
+const phPure = x => wPH(x / 2 + Math.sqrt(x * x / 4 + 1e-14));          // pure water + x M of a strong acid
+const phBuf = x => PKA + Math.log10((C_BUF - x) / (C_BUF + x));         // the buffer + x M H+ (x < 0: base)
+const ph2 = v => v.toFixed(2);
+const WATER_END = ph2(phPure(H_ADD)), BUF_END = ph2(phBuf(H_ADD));       // '3.00', '4.75'
+const WATER_DROP = (7 - +WATER_END).toFixed(2), BUF_DROP = (PKA - +BUF_END).toFixed(2);   // '4.00', '0.01'
+const SPLIT = Math.round(1000 * wSplitFrac(KA, C_BUF));                   // 13 of 1000 at 0.1 M (errata 13)
+const PCT = d => Math.round(100 * wBaseFrac(PKA_R + d, PKA_R));           // 9, 50, 91 % acetate at pKa − 1, pKa, pKa + 1
+const PHOS = [2.15, 7.20, 12.35], PHOS_TXT = PHOS.map(v => v.toFixed(2));   // phosphoric acid (errata 14)
+const BLOOD = 7.4, CELL = 7, RAIN_CLEAN = 5.6, RAIN_ACID = 4.4;
+const RAIN_CUT = RAIN_CLEAN;                                              // acid precipitation: below pH 5.6
+// check 2: two acids by Ka
+const Q2 = { kx: 1e-3, ky: 1e-6 }; Q2.px = Math.round(wPH(Q2.kx)); Q2.py = Math.round(wPH(Q2.ky)); Q2.ratio = Math.round(Q2.kx / Q2.ky);
+Q2.sx = Math.round(100 * wSplitFrac(Q2.kx, C_BUF)); Q2.sy = Math.round(1000 * wSplitFrac(Q2.ky, C_BUF));   // 10 of 100, 3 of 1000
+// practice
+const PR = { pka: 6.8 }; PR.lo = (PR.pka - 1).toFixed(1); PR.hi = (PR.pka + 1).toFixed(1); PR.best = PR.pka.toFixed(1);
+const PC = { ka: 1e-4, pk: 7, a: 3, b: 6 }; PC.pka = Math.round(wPH(PC.ka)); PC.kexp = PC.pk; PC.strong = Math.min(PC.a, PC.b);
+const CELL_BEST = PHOS.reduce((b, v) => Math.abs(v - CELL) < Math.abs(b - CELL) ? v : b);   // 7.20
+const TERMS_RAIN = [4.5, 5.8];
+
+/* ---------- pieces ---------- */
+const hold = (a, k) => a.hold(k);
+// An OH− that will become water: a plain water built the same way with its first hydrogen hidden and the indigo ring and
+// − badge shown. w.make(t0) adds the arriving hydrogen and drops the marks: water.
+function hydroxide(p, s, x, y, r) {
+  const w = wIonChar(p, 'H2O', { s, ring: WC.base, sign: '−', marked: true }).pose(x, y, r);
+  put(w.balls[0], { o: 0 }); put(w.sticks[0], { o: 0 });
+  w.make = t0 => { show(w.balls[0], t0, .2); show(w.sticks[0], t0, .2); hide(w.ring, t0 + .1, .4); hide(w.badge, t0 + .1, .3); };
+  return w;
+}
+// The rotation that points a water's first hydrogen from (x, y) at a target point.
+const aimAt = (x, y, [tx, ty]) => Math.atan2(ty - y, tx - x) * 180 / Math.PI - W_H1;
+// A free H+ (pink ring and badge) at the size of the acid it leaves or joins.
+const proton = (p, s, o = 1) => wIonChar(p, 'H+', { s, o });
+// A tag under a character that swaps its wording when the character changes form: tag.swap(t0, i) shows wording i.
+function tagSwap(p, x, y, lines, t0) {
+  const g = G(p), sets = lines.map(([a, b, col]) => {
+    const q = G(g, { o: 0 });
+    wChem(q, a, { x, y, size: 30, fill: col, o: 1 }); if (b) wChem(q, b, { x, y: y + 38, size: 26, fill: COL.dim, weight: 500, o: 1 });
+    return q;
+  });
+  show(sets[0], t0, .4);
+  return Object.assign(g, { sets, swap(t, i, from) { hide(sets[from], t, .3); show(sets[i], t + .25, .4); } });
+}
+// A pipette, its tip at the origin.
+function dropper(p, { x = 0, y = 0, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  path(g, 'M-14 -150V-40L-4 -6H4L14 -40V-150Z', { fill: '#1c3f63', stroke: WC.glass, 'stroke-width': 4 });
+  mk('rect', { x: -10, y: -112, width: 20, height: 66, rx: 4, fill: WC.acid, 'fill-opacity': .75 }, g);
+  mk('rect', { x: -22, y: -210, width: 44, height: 64, rx: 20, fill: '#8f5f7a', stroke: '#b98aa6', 'stroke-width': 3 }, g);
+  return g;
+}
+// A cell cut open: membrane, nucleus. Origin at the centre.
+function cellBody(p, { x = 0, y = 0, r = 250, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: '#122b47', stroke: '#8fd6b0', 'stroke-width': 8 }, g);
+  mk('ellipse', { cx: r * .42, cy: -r * .48, rx: r * .26, ry: r * .2, fill: '#24496e', stroke: '#6fa98c', 'stroke-width': 3 }, g);
+  return g;
+}
+// A drop of blood with red cells in it. Origin at the centre.
+function bloodDrop(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M0 -120C40 -64 92 -20 92 34A92 92 0 0 1 -92 34C-92 -20 -40 -64 0 -120Z', { fill: '#7d1f24', stroke: '#e0716a', 'stroke-width': 4 });
+  for (const [cx, cy, r] of [[-34, 20, 24], [26, -6, 22], [18, 58, 24], [-30, 72, 18], [52, 40, 16]]) {
+    mk('circle', { cx, cy, r, fill: '#c0392b', stroke: '#e0716a', 'stroke-width': 2 }, g);
+    mk('circle', { cx, cy, r: r * .45, fill: '#a5302a' }, g);
+  }
+  mk('ellipse', { cx: -40, cy: -30, rx: 9, ry: 16, fill: '#fff', 'fill-opacity': .25 }, g);
+  return g;
+}
+// Balls and sticks of a flat structure: atoms [kind, x, y, r], bonds [i, j, double?]. Returns the atom groups.
+function structure(p, atoms, bonds) {
+  for (const [i, j, dbl] of bonds) {
+    const [, x1, y1] = atoms[i], [, x2, y2] = atoms[j];
+    if (!dbl) { path(p, `M${x1} ${y1}L${x2} ${y2}`, { stroke: WC.stick, 'stroke-width': 9 }); continue; }
+    const L = Math.hypot(x2 - x1, y2 - y1), nx = -(y2 - y1) / L * 7, ny = (x2 - x1) / L * 7;
+    path(p, `M${x1 + nx} ${y1 + ny}L${x2 + nx} ${y2 + ny}M${x1 - nx} ${y1 - ny}L${x2 - nx} ${y2 - ny}`, { stroke: WC.stick, 'stroke-width': 7 });
+  }
+  return atoms.map(([k, x, y, r]) => wAtom(p, k, { x, y, r, size: k === 'H' ? 20 : 26 }));
+}
+const ringAt = (p, x, y, r, col = WC.acid) => { const e = mk('circle', { cx: x, cy: y, r, fill: col, 'fill-opacity': .14, stroke: col, 'stroke-width': 4 }, p); put(e, { o: 0 }); return e; };
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const withPic = (key, build) => (body, api) => { S.pics?.(key); return build(body, api); };
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro: cells and blood hold their pH ---------- */
+['intro', 'A steady pH', (m, D) => {
+  const p = panel(0), tCell = m('cell'), tBlood = m('blood'), tSwing = m('swing'), tAsk = m('ask');
+  const cam = camera(p, D), W = cam.world;
+  cam.to({ x: 700, y: 430, z: 1.12 }, tSwing + .2, 2.2);
+  const CX = 520, CY = 400;
+  const cl = cellBody(W, { x: CX, y: CY, o: 0 }); show(cl, .15, .6);
+  say(W, 'a living cell', CX, 118, .4, { size: 30, fill: COL.dim, weight: 500 });
+  const pr = wProtein(W, { x: CX - 20, y: CY + 40, s: .5, o: 0 }); show(pr, .5, .6);
+  // the title, top right, until blood arrives there
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 3: WATER AND LIFE · LESSON 5', { x: 1190, y: 220, size: 26, fill: COL.dim, o: 1 });
+  ['Buffers, K_a and pK_a,', 'Acid Rain'].forEach((s, i) => wChem(ttl, s, { x: 1190, y: 310 + i * 78, size: 66, o: 1 }));
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); tw(ttl, { o: 0, y: -20 }, tBlood - .6, .6);
+  const rec = say(p, 'last time: pH = −log[H^+]', 1190, 520, 4.9, { size: 36, font: MATH, weight: 500 }); hide(rec, tBlood - .6, .5);
+  // the pH strip along the bottom; the cell's marker above, the blood's below
+  const strip = pHStrip(p, { x: 170, y: 770, w: 1260, h: 30, size: 22, o: 0 }); show(strip, 4.9, .6);
+  const mc = strip.marker({ color: '#8fd6b0', fmt: v => 'cell: pH ' + wDec(v), size: 26 }); show(mc, tCell + .3, .4);
+  const mb = strip.marker({ color: '#ff9a8f', fmt: v => 'blood: pH ' + wDec(v), above: false, size: 26 }); mb.set(BLOOD); show(mb, tBlood + .4, .4);
+  pulse(cl, tCell + .2, 1.05);
+  // blood, at the right
+  const bd = bloodDrop(W, { x: 1220, y: 400, o: 0 }); show(bd, tBlood + .1, .5);
+  say(W, 'human blood', 1220, 560, tBlood + .4, { size: 30, fill: '#ff9a8f' });
+  // swing: one pH unit is ten times the H+; the protein comes apart, then the cell is put right
+  const sw = say(p, '1 pH unit = 10 × the H^+', 1000, 640, tSwing + 1.2, { size: 30, fill: WC.acid, anchor: 'start' });
+  const lose = say(p, 'proteins stop working', 1000, 682, tSwing + 4.8, { size: 28, fill: COL.dim, weight: 500, anchor: 'start' });
+  hide(sw, tAsk, .4); hide(lose, tAsk, .4);
+  tw(pr.beads, { c_fill: '#8f9bb0' }, tSwing + 4, .8); tw(pr.beads, { c_fill: WC.prot }, tAsk + 1.4, .8);
+  const pH = t => CELL - io(ramp(t, tSwing + .4, tSwing + 1.6)) + io(ramp(t, tAsk + .2, tAsk + 1.4));
+  const fold = t => 1 - .9 * io(ramp(t, tSwing + 3.6, tSwing + 5.6)) + .9 * io(ramp(t, tAsk + .6, tAsk + 2.4));
+  // ask: H+ from the left and OH− from above drift toward the cell
+  const IN = [['H+', -80, 300, 240, 330, .8], ['H+', -80, 470, 262, 470, .8], ['H+', -80, 620, 300, 590, .8],
+    ['OH-', 980, -90, 760, 200, .55], ['OH-', 1060, 40, 800, 330, .55]]
+    .map(([k, x0, y0, x1, y1, s], i) => ({ q: wIonChar(W, k, { s, o: 0 }), x0, y0, x1, y1, i, t0: tAsk + .1 + .25 * i }));
+  IN.forEach(d => show(d.q, d.t0, .4));
+  const qm = say(W, '?', 850, 190, tAsk + 1.6, { size: 96, weight: 700 }); pulse(qm, tAsk + 2.4, 1.25);
+  clockRun(t => {
+    pr.set(fold(t), t, { apart: true });
+    mc.set(Math.round(pH(t) * 10) / 10);
+    IN.forEach(d => { const f = out(ramp(t, d.t0, d.t0 + 2.2)); d.q.pose(+(lerp(d.x0, d.x1, f) + 5 * Math.sin(1.6 * t + d.i)).toFixed(1), +(lerp(d.y0, d.y1, f) + 5 * Math.sin(1.2 * t + 2 * d.i)).toFixed(1)); });
+  }, D);
+}],
+
+/* ---------- a buffer against pure water ---------- */
+['buffer', 'A buffer', (m, D) => {
+  const p = panel(0), tW = m('water'), tDrop = m('drop'), tBuf = m('buf'), tAdd = m('add'), tDef = m('def');
+  const LX = 420, RX = 1180, BY = 680, BH = 340, SURF = BY - BH * .78;
+  const tint = k => mix(WC.water, WC.acid, k);             // the water's tint from its pH: pinker as it gets more acid
+  const tintOf = v => tint(.5 * clamp01((7 - v) / 4));
+  const LG = G(p, { x: 380 }); tw(LG, { x: 0 }, tBuf - .2, 1.2);   // the water glass alone, centred, until the buffer joins it
+  const L = beaker(LG, { x: LX, y: BY, w: 380, h: BH, level: .78, o: 0 }), Rb = beaker(p, { x: RX, y: BY, w: 380, h: BH, level: .78, o: 0 });
+  show(L, .15, .5); show(Rb, tBuf, .6);
+  setA(L.water, 'fill', tintOf(7)); setA(Rb.water, 'fill', tintOf(PKA));
+  say(LG, 'pure water', LX, 735, .3, { size: 32 });
+  say(p, 'acetic acid + acetate', RX, 735, tBuf + .3, { size: 32 });
+  say(p, '0.1 M of each', RX, 772, tBuf + .6, { size: 24, fill: COL.dim, weight: 500 });
+  // water molecules in the left glass; the buffer pair in the right one (half each: pH = pKa)
+  const WM = [[320, 470, 20], [450, 520, -50], [540, 470, 100], [360, 600, 150], [500, 620, 200], [430, 440, 80]].map(([x, y, r]) => ({ q: waterMolecule(LG, { x, y, r, s: .5, o: 0 }), x, y, r }));
+  WM.forEach(w => show(w.q, .3, .5));
+  const AC = [];
+  for (let i = 0; i < 12; i++) {
+    const c = i % 4, r = Math.floor(i / 4), x = RX - 126 + c * 84 + (r % 2) * 20, y = 470 + r * 74, held = (i + r) % 2 ? 1 : 0;
+    AC.push({ a: wAcid(p, { x, y, s: .55, held, o: 0, aH: held ? -35 : -35 }), x, y, i });
+  }
+  AC.forEach(d => show(d.a, tBuf + .5 + .03 * d.i, .4));
+  // the pH readouts under each glass
+  const rl = wLabel(LG, 'pH 7.00', { x: LX, y: 838, size: 60, weight: 700, o: 0 }), rr = wLabel(p, 'pH ' + ph2(PKA), { x: RX, y: 838, size: 60, weight: 700, o: 0 });
+  show(rl, 1.7, .4); show(rr, tBuf + 4, .4);
+  const cl = say(LG, `change: ${WATER_DROP}`, LX, 880, tDrop + 1.9, { size: 28, fill: WC.acid });
+  const cr = say(p, `change: ${BUF_DROP}`, RX, 880, tAdd + 3.6, { size: 28, fill: '#8fd6b0' });
+  // the dropper: over the left glass, then over the right one
+  const dp = dropper(p, { x: LX + 380, y: 290, o: 0 }); show(dp, tW + .6, .4);
+  const dl = say(p, '+ 0.001 M H^+', LX + 420, 160, tW + 3.4, { size: 30, fill: WC.acid, anchor: 'start' });
+  tw(dp, { x: RX }, tBuf - .2, 1.6); tw(dl, { x: RX + 40 }, tBuf - .2, 1.6); hide(dp, tAdd + 2.6, .4); hide(dl, tAdd + 2.6, .4);
+  // each drop: falls from the tip, hits the surface, its H+ spread out (left: they stay; right: acetate takes them up)
+  const T1 = tW + 3.6, T2 = tAdd + .4, FALL = .55;
+  const drop = mk('circle', { r: 11, fill: WC.acid }, p); put(drop, { o: 0 });
+  const hl = path(LG, '', { fill: WC.acid }), hr = path(p, '', { fill: WC.acid });
+  const HN = 8, HSPOT = Array.from({ length: HN }, (_, i) => [LX - 150 + 300 * wHash(i, 61), SURF + 30 + 200 * wHash(i, 62), wHash(i, 63) * 6.28]);
+  const takers = AC.filter(d => d.a.k === 0).slice(0, 4);
+  const mixL = t => io(ramp(t, T1 + FALL, T1 + FALL + 3)), mixR = t => io(ramp(t, T2 + FALL, T2 + FALL + 2.4));
+  takers.forEach((d, j) => { tw(d.a.ring, { o: 1 }, T2 + FALL + .9 + .3 * j, .2); tw(d.a.ring, { o: 0 }, T2 + FALL + 1.3 + .3 * j, .4); });
+  // def: the word, and the right glass marked
+  say(p, 'buffer: a solution that resists change in pH', 800, 72, tDef + .3, { size: 40, fill: '#8fd6b0' });
+  say(p, 'when a little acid or base is added', 800, 116, tDef + 1.6, { size: 28, fill: COL.dim, weight: 500 });
+  const box = mk('rect', { x: RX - 220, y: 300, width: 440, height: 600, rx: 26, fill: 'none', stroke: '#8fd6b0', 'stroke-width': 4 }, p); put(box, { o: 0 }); show(box, tDef + .5, .5);
+  clockRun(t => {
+    const k1 = mixL(t), k2 = mixR(t);
+    // the falling drops
+    const f1 = ramp(t, T1, T1 + FALL), f2 = ramp(t, T2, T2 + FALL), on1 = t >= T1 && t < T1 + FALL, on2 = t >= T2 && t < T2 + FALL;
+    const dx = on1 ? LX + 380 : RX, dy = on1 ? lerp(296, SURF, f1 * f1) : lerp(296, SURF, f2 * f2), dO = on1 || on2 ? 1 : 0;
+    if (st(drop).o !== dO || st(drop).x !== dx || st(drop).y !== +dy.toFixed(1)) put(drop, { x: dx, y: +dy.toFixed(1), o: dO });
+    // left: the H+ spread and stay; right: each goes to an acetate and is taken up
+    let d1 = '', d2 = '';
+    if (t >= T1 + FALL) HSPOT.forEach(([x, y, ph]) => { d1 += dots([[lerp(LX, x, k1) + 5 * Math.sin(1.4 * t + ph), lerp(SURF + 6, y, k1) + 5 * Math.sin(1.1 * t + 2 * ph), 8]]); });
+    if (t >= T2 + FALL) HSPOT.forEach(([, , ph], i) => {
+      const d = takers[i % takers.length], j = i % takers.length, arr = T2 + FALL + .9 + .3 * j;
+      if (t > arr) return;
+      const q = io(ramp(t, T2 + FALL, arr)), [tx, ty] = d.a.hp();
+      d2 += dots([[lerp(RX + (i - 4) * 12, tx, q), lerp(SURF + 6, ty, q), 8 * (1 - .4 * q)]]);
+    });
+    setA(hl, 'd', d1); setA(hr, 'd', d2);
+    const pl = phPure(H_ADD * k1), pb = phBuf(H_ADD * k2);
+    setText(rl, 'pH ' + ph2(pl)); setText(rr, 'pH ' + ph2(pb));
+    setA(L.water, 'fill', tintOf(pl)); setA(Rb.water, 'fill', tintOf(pb));
+    WM.forEach((w, i) => w.q.pose(+(w.x + 4 * Math.sin(1.3 * t + i)).toFixed(1), +(w.y + 4 * Math.sin(1.1 * t + 2 * i)).toFixed(1), +(w.r + 6 * Math.sin(.9 * t + i)).toFixed(1)));
+    AC.forEach(d => d.a.pose(+(d.x + 3 * Math.sin(1.2 * t + d.i)).toFixed(1), +(d.y + 3 * Math.sin(1.5 * t + 2 * d.i)).toFixed(1)));
+  }, D);
+}],
+
+/* ---------- what a buffer is made of ---------- */
+['comp', 'Two partners', (m, D) => {
+  const p = panel(0), tPair = m('pair'), tAc = m('acetic'), tIn = m('hin'), tOut = m('hout'), tBoth = m('both'), tBase = m('base');
+  const S1 = 1.75, AX = 470, BX = 1130, CY = 370;
+  // the reaction line, then its acetic-acid wording
+  const e1 = chemRow(p, ['HA', '⇌', 'H^+', '+', 'A^−'], { x: 800, y: 120, size: 54, gap: 22, fills: [WC.acid, null, WC.acid, null, WC.base] });
+  e1.forEach((e, i) => { show(e, .3 + [0, .2, .4, .4, .5][i], .4); hide(e, tAc + .1, .3); });
+  const e2 = chemRow(p, ['CH_3COOH', '⇌', 'H^+', '+', 'CH_3COO^−'], { x: 800, y: 120, size: 54, gap: 22, fills: [WC.acid, null, WC.acid, null, WC.base] });
+  e2.forEach(e => show(e, tAc + .35, .4));
+  // the two partners: the weak acid holds its H (upper left); its conjugate base has none
+  const A = wAcid(p, { x: AX, y: CY, s: S1, held: 1, aH: -145, o: 0 }), B = wAcid(p, { x: BX, y: CY, s: S1, held: 0, aH: -35, o: 0 });
+  show(A, .4, .5); show(B, .6, .5);
+  const tA = tagSwap(p, AX, 548, [['weak acid', 'HA', WC.acid], ['weak acid', 'acetic acid, CH_3COOH', WC.acid], ['conjugate base', 'acetate, CH_3COO^−', WC.base]], tPair + .4);
+  const tB = tagSwap(p, BX, 548, [['conjugate base', 'A^−', WC.base], ['conjugate base', 'acetate, CH_3COO^−', WC.base], ['weak acid', 'acetic acid, CH_3COOH', WC.acid]], tPair + 1.4);
+  tA.swap(tAc + .4, 1, 0); tB.swap(tAc + 1.4, 1, 0);
+  // "the particle left when the acid has given up a proton"
+  const gv = G(p, { o: 0 }); wArrow(gv, [620, 300], [980, 300], { color: COL.dim, w: 5 }); wChem(gv, 'gives up H^+', { x: 800, y: 276, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  show(gv, tPair + 4.4, .5); hide(gv, tIn, .4);
+  // hin: an H+ comes down to the acetate, which takes it up and becomes acetic acid
+  const P1 = proton(p, S1, 0), [b1x, b1y] = B.hp();
+  show(P1, tIn + .1, .3);
+  const inA = tIn + .2, inB = tIn + 2.2;
+  hide(P1, inB + .1, .15);
+  tB.swap(inB + .2, 2, 1);
+  const q1 = say(p, 'CH_3COO^− + H^+ → CH_3COOH', 800, 680, tIn + 1.2, { size: 40 }); hide(q1, tOut + .2, .3);
+  // hout: an OH− comes in from the left; acetic acid hands it its H+; water forms; acetate is left
+  const [a1x, a1y] = A.hp(), WX = 250, WY = 232, W = hydroxide(p, S1 * .72, 120, WY, aimAt(WX, WY, [a1x, a1y]));
+  put(W, { o: 0 }); show(W, tOut + .2, .5);
+  const P2 = proton(p, S1, 0);
+  const oA = tOut + .2, oB = tOut + 1.9, hop0 = tOut + 2.6, hop1 = tOut + 3.6;
+  show(P2, hop0, .15); hide(P2, hop1, .15); W.make(hop1);
+  tA.swap(hop0 + .3, 2, 1);
+  const wl = say(p, 'water', WX - 60, 122, hop1 + .4, { size: 28, fill: COL.dim, weight: 500 });
+  const q2 = say(p, 'CH_3COOH + OH^− → CH_3COO^− + H_2O', 800, 680, tOut + 1.2, { size: 40 }); hide(q2, tBase, .3);
+  // both: the pH barely moves (a small gauge: + 0.001 M H+, then the same amount of OH−)
+  const gs = pHStrip(p, { x: 440, y: 790, w: 720, min: 3, max: 7, h: 24, size: 20, label: 'pH', o: 0 }); show(gs, tIn + 2.4, .5);
+  const gm = gs.marker({ color: '#8fd6b0', fmt: v => 'pH ' + v.toFixed(2), size: 26 }); show(gm, tIn + 2.4, .5);
+  const bl = say(p, 'one partner spent, the other made: [H^+] barely moves', 800, 880, tBoth + .4, { size: 28, fill: '#8fd6b0' });
+  pulse(gm, tBoth + .6, 1.25);
+  hide(gs, tBase, .4); hide(bl, tBase, .4); hide(wl, tBase, .4);
+  // base: the same idea with a weak base and its conjugate acid
+  const nb = G(p, { o: 0 }); show(nb, tBase + .3, .6);
+  mk('rect', { x: 260, y: 618, width: 1080, height: 262, rx: 22, fill: '#14375c', stroke: COL.faint, 'stroke-width': 2 }, nb);
+  wAmmonia(nb, { x: 520, y: 730, s: .9 }); wAmmonia(nb, { x: 1080, y: 730, s: .9, plus: true });
+  wArrow(nb, [660, 716], [930, 716], { color: COL.chalk, w: 4, head: 14 }); wArrow(nb, [930, 748], [660, 748], { color: COL.dim, w: 4, head: 14 });
+  wChem(nb, '+ H^+', { x: 795, y: 700, size: 28, fill: WC.acid, o: 1 });
+  wChem(nb, 'ammonia, NH_3', { x: 520, y: 838, size: 28, fill: WC.base, o: 1 }); wChem(nb, 'weak base', { x: 520, y: 866, size: 22, fill: COL.dim, weight: 500, o: 1 });
+  wChem(nb, 'ammonium, NH_4^+', { x: 1080, y: 838, size: 28, fill: WC.acid, o: 1 }); wChem(nb, 'conjugate acid', { x: 1080, y: 866, size: 22, fill: COL.dim, weight: 500, o: 1 });
+  const gH = t => H_ADD * (ramp(t, inB, inB + .6) - ramp(t, hop1, hop1 + .6));
+  clockRun(t => {
+    // the partners breathe; the H+ and OH− travel
+    const bA = 3 * Math.sin(1.3 * t), bB = 3 * Math.sin(1.3 * t + 2);
+    A.pose(AX, +(CY + bA).toFixed(1)); B.pose(BX, +(CY + bB).toFixed(1));
+    hold(B, ramp(t, inB - .1, inB + .2)); hold(A, 1 - ramp(t, hop0 - .1, hop0 + .15));
+    const [bx, by] = B.hp(), q = io(ramp(t, inA, inB));
+    P1.pose(+lerp(1500, bx, q).toFixed(1), +lerp(-60, by, q).toFixed(1));
+    const f = out(ramp(t, oA, oB)), wx = lerp(120, WX, f) + 3 * Math.sin(1.1 * t), wy = WY + 3 * Math.sin(1.4 * t);
+    W.pose(+wx.toFixed(1), +wy.toFixed(1), aimAt(WX, WY, [a1x, a1y]));
+    const [ax, ay] = A.hp(), [hx, hy] = W.atom(0), h = io(ramp(t, hop0, hop1));
+    P2.pose(+lerp(ax, hx, h).toFixed(1), +lerp(ay, hy, h).toFixed(1));
+    gm.set(Math.round(phBuf(gH(t)) * 100) / 100);
+  }, D);
+}],
+
+/* ---------- the blood's buffer ---------- */
+['blood', 'Blood', (m, D) => {
+  const p = panel(0), tPair = m('pair'), tIn = m('hin'), tOut = m('hout'), tHold = m('hold');
+  const cam = camera(p, D, { x: 560, y: 380, z: 1.25 }), Wd = cam.world;
+  cam.to({ x: 800, y: 450, z: 1 }, tPair - .2, 2);
+  // the vessel, its red cells flowing; a working muscle below it
+  path(Wd, 'M-320 200H1920V470H-320Z', { fill: '#2a1a2e', stroke: '#c0392b', 'stroke-width': 10 });   // the vessel, fill and walls in one path
+  const rbc = path(Wd, '', { fill: '#c0392b', stroke: '#e0716a', 'stroke-width': 2 });   // red cells: one path, rewritten on a 24 fps clock
+  const NR = 11, RB = Array.from({ length: NR }, (_, i) => [wHash(i, 71) * 2200, 236 + 196 * wHash(i, 72), 22 + 6 * wHash(i, 73)]);
+  const mus = G(Wd);
+  path(mus, 'M110 640Q360 590 620 640Q650 730 620 820Q360 870 110 820Q80 730 110 640Z', { fill: '#9c3d4e', stroke: '#d9707f', 'stroke-width': 4 });
+  path(mus, 'M150 660Q360 625 590 660M140 700Q360 665 605 700M135 740Q360 705 610 740M140 780Q360 745 605 780M150 812Q360 785 590 812', { stroke: '#c86275', 'stroke-width': 3 });
+  show(wLabel(Wd, 'working muscle', { x: 365, y: 884, size: 28, fill: COL.dim, weight: 500, o: 0 }), tPair + 1.9, .5);
+  wLabel(Wd, 'blood vessel', { x: 140, y: 182, size: 26, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+  // the pair in the vessel: carbonic acid (holds its H, upper left) and bicarbonate
+  const S1 = 1.15, AX = 760, BX = 1130, CY = 335;
+  const A = wAcid(Wd, { x: AX, y: CY, s: S1, held: 1, aH: -145, o: 0 }), B = wAcid(Wd, { x: BX, y: CY, s: S1, held: 0, aH: -35, o: 0 });
+  show(A, tPair + .2, .5); show(B, tPair + 2.6, .5);
+  const tA = tagSwap(Wd, AX, 515, [['carbonic acid, H_2CO_3', 'weak acid', WC.acid], ['bicarbonate, HCO_3^−', 'conjugate base', WC.base]], tPair + .4);
+  const tB = tagSwap(Wd, BX, 515, [['bicarbonate, HCO_3^−', 'conjugate base', WC.base], ['carbonic acid, H_2CO_3', 'weak acid', WC.acid]], tPair + 2.8);
+  // hin: an H+ leaves the muscle, rides the flow, and bicarbonate takes it up
+  const P1 = proton(Wd, S1, 0); show(P1, tIn + .1, .3);
+  const mg = mk('ellipse', { cx: 365, cy: 730, rx: 270, ry: 110, fill: WC.acid, 'fill-opacity': .25 }, Wd); put(mg, { o: 0 });
+  tw(mg, { o: 1 }, tIn, .4); tw(mg, { o: 0 }, tIn + 1.4, .8);
+  const iA = tIn + .2, iB = tIn + 3.4;
+  hide(P1, iB + .1, .15);
+  tB.swap(iB + .2, 1, 0);
+  const la = say(p, 'acid from the muscle', 250, 120, tIn + .4, { size: 30, fill: WC.acid, anchor: 'start' }); hide(la, tOut, .4);
+  // hout: extra base (OH−) comes in from the left; carbonic acid gives its H+; water forms
+  const [a1x, a1y] = A.hp(), WX = 600, WY = 262, rW = aimAt(WX, WY, [a1x, a1y]), WS = 1;
+  const W = hydroxide(Wd, WS, 380, WY, rW);
+  put(W, { o: 0 }); show(W, tOut + .2, .5);
+  const P2 = proton(Wd, S1, 0);
+  const oA = tOut + .2, oB = tOut + 1.8, hop0 = tOut + 2.2, hop1 = tOut + 3;
+  show(P2, hop0, .15); hide(P2, hop1, .15); W.make(hop1);
+  tA.swap(hop0 + .3, 1, 0);
+  const lb = say(p, 'extra base, OH^−', 250, 120, tOut + .3, { size: 30, fill: WC.base, anchor: 'start' }); hide(lb, tHold, .4);
+  const lw = say(Wd, 'water', WX, 182, hop1 + .4, { size: 26, fill: COL.dim, weight: 500 });
+  // hold: the blood's pH stays put
+  const strip = pHStrip(p, { x: 840, y: 740, w: 690, min: 6, max: 9, h: 26, size: 22, label: 'pH', o: 0 }); show(strip, tPair + 2.4, .5);
+  const mk1 = strip.marker({ color: '#ff9a8f', fmt: v => 'blood: pH ' + wDec(v), size: 28, o: 0 }); mk1.set(BLOOD); show(mk1, tPair + 2.6, .4);
+  show(strip.band(7.35, 7.45, { color: '#ff9a8f' }), tHold + .3, .5); pulse(mk1, tHold + .4, 1.2);
+  say(p, 'held close to 7.4', strip.at(BLOOD), 846, tHold + .8, { size: 30, fill: '#ff9a8f' });
+  clockRun(t => {
+    let d = '';
+    const tr = Math.floor(t * 24) / 24;
+    RB.forEach(([x0, y, r], i) => { const x = ((x0 + 90 * tr) % 2200) - 300, yy = y + 6 * Math.sin(.9 * tr + i); d += dots([[x, yy, r]]); });
+    setA(rbc, 'd', d);
+    hold(B, ramp(t, iB - .1, iB + .2)); hold(A, 1 - ramp(t, hop0 - .1, hop0 + .15));
+    const [bx, by] = B.hp(), q = ramp(t, iA, iB);
+    // up out of the muscle, along with the flow, then onto the bicarbonate's free place
+    const seg = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)], K1 = [420, 650], K2 = [560, 430], K3 = [1240, 432];
+    const [px, py] = q < .3 ? seg(K1, K2, io(q / .3)) : q < .8 ? seg(K2, K3, io((q - .3) / .5)) : seg(K3, [bx, by], io((q - .8) / .2));
+    P1.pose(+px.toFixed(1), +py.toFixed(1));
+    const f = out(ramp(t, oA, oB));
+    W.pose(+(lerp(380, WX, f) + 3 * Math.sin(1.2 * t)).toFixed(1), +(WY + 3 * Math.sin(1.5 * t)).toFixed(1), rW);
+    const [ax, ay] = A.hp(), [hx, hy] = W.atom(0), h = io(ramp(t, hop0, hop1));
+    P2.pose(+lerp(ax, hx, h).toFixed(1), +lerp(ay, hy, h).toFixed(1));
+  }, D);
+}],
+
+['q1', 'Quick check', (m, D) => {
+  // the two partners and an arriving H+; the card sits at the left
+  const p = panel(0), S1 = 1.25;
+  const A = wAcid(p, { x: 1010, y: 470, s: S1, held: 1, aH: -145 }), B = wAcid(p, { x: 1380, y: 470, s: S1, held: 0, aH: -35 });
+  wChem(p, 'acetic acid', { x: 1010, y: 600, size: 30, fill: WC.acid, o: 1 }); wChem(p, 'CH_3COOH', { x: 1010, y: 638, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wChem(p, 'acetate', { x: 1380, y: 600, size: 30, fill: WC.base, o: 1 }); wChem(p, 'CH_3COO^−', { x: 1380, y: 638, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  const H = proton(p, S1).pose(1195, 210);
+  S.q1 = { A, B, H, qm: wLabel(p, '?', { x: 1195, y: 330, size: 64, weight: 700, o: 1 }) };
+  clockRun(t => H.pose(1195, +(210 + 6 * Math.sin(1.6 * t)).toFixed(1)), D);
+}, { ask: done => quiz({ x: 40, y: 110, w: 760, cls: 'side' }, [{
+  id: 'c-buffer',
+  prompt: [uni('A buffer holds acetic acid and acetate. Some H^+ arrives. Which partner takes it up?')],
+  build: choice([[uni('acetic acid, CH_3COOH')], [uni('acetate, CH_3COO^−')], ['water alone'], ['neither: the pH jumps']], 1,
+    uni('Right. Acetate is the conjugate base: it takes up the H^+ and becomes acetic acid.'),
+    [uni('Acetic acid is the partner that gives H^+ away; it has no room for another.'), null, 'Water alone cannot hold the pH steady: the buffer pair does the job.', 'Stopping that jump is exactly what a buffer is for.'],
+    () => {
+      const { B, H, qm } = S.q1, [bx, by] = B.hp();
+      fx(qm, { o: 0 }, 0, .3); fx(H, { x: bx, y: by }, .1, 1.1);
+      fxp(q => B.hold(q), 1.1, .3); fx(H, { o: 0 }, 1.3, .2);
+    }),
+}], done) }],
+
+/* ---------- Ka and pKa ---------- */
+['ka', 'Ka and pKa', (m, D) => {
+  const p = panel(0), tSplit = m('split'), tStrong = m('strong'), tKa = m('ka'), tPka = m('pka'), tDir = m('dir'), tNone = m('none');
+  const NC = 40, NR = 25, SP = 13, gx = c => -253.5 + c * SP, gy = r => -156 + r * SP;
+  const IDX = Array.from({ length: NC * NR }, (_, i) => i);
+  // left: 1000 acetic acid, SPLIT of them split (chosen once, spread out)
+  const pick = IDX.map(i => [wHash(i, 81), i]).sort((a, b) => a[0] - b[0]).slice(0, SPLIT).map(q => q[1]).sort((a, b) => a - b);
+  const gL = G(p, { x: 420, y: 430, o: 0 }); show(gL, .3, .6);
+  path(gL, dots(IDX.filter(i => !pick.includes(i)).map(i => [gx(i % NC), gy(Math.floor(i / NC)), 4.2])), { fill: WC.acid, 'fill-opacity': .8 });
+  const sp = pick.map((i, k) => {
+    const x = gx(i % NC), y = gy(Math.floor(i / NC)), g = G(gL, { x, y }), t0 = tSplit + 1.4 + k * 3.6 / SPLIT;
+    const whole = mk('circle', { r: 4.2, fill: WC.acid, 'fill-opacity': .8 }, g);
+    const base = mk('circle', { r: 5.5, fill: WC.base }, g); put(base, { o: 0 });
+    const hp = mk('circle', { r: 3.6, fill: '#ffd0e0' }, g); put(hp, { o: 0 });
+    const ring = mk('circle', { r: 9, fill: 'none', stroke: COL.chalk, 'stroke-width': 2 }, g); put(ring, { o: 0, s: .6 });
+    hide(whole, t0, .2); show(base, t0, .2); tw(hp, { o: 1, x: 7, y: -8 }, t0, .4, out);
+    tw(ring, { o: 1, s: 1 }, t0, .2, out); tw(ring, { o: 0, s: 2.2 }, t0 + .2, .6);
+    return t0;
+  });
+  const tlL = say(p, '1000 acetic acid molecules (0.1 M)', 420, 236, .5, { size: 30 });
+  const cntL = wChem(p, '', { x: 420, y: 650, size: 32, fill: COL.chalk, o: 0 }); show(cntL, tSplit + 1, .4);
+  // right: 1000 HCl, all split, in ten bands
+  const gR = G(p, { x: 1180, y: 430, o: 0 }); show(gR, tStrong + .1, .5);
+  const bands = Array.from({ length: 10 }, (_, b) => {
+    const cells = IDX.filter(i => Math.floor((i % NC) / 4) === b).map(i => [gx(i % NC), gy(Math.floor(i / NC))]);
+    const w = path(gR, dots(cells.map(([x, y]) => [x, y, 4.2])), { fill: WC.acid, 'fill-opacity': .8 });
+    const s = G(gR, { o: 0 });
+    path(s, dots(cells.map(([x, y]) => [x, y, 4.6])), { fill: '#7fcf8f' }); path(s, dots(cells.map(([x, y]) => [x + 6, y - 6, 2.6])), { fill: '#ffd0e0' });
+    const t0 = tStrong + 1 + b * .16; hide(w, t0, .2); show(s, t0, .2);
+    return t0;
+  });
+  const tlR = say(p, '1000 hydrochloric acid, HCl (0.1 M)', 1180, 236, tStrong + .2, { size: 30 });
+  const cntR = wChem(p, '', { x: 1180, y: 650, size: 32, fill: COL.chalk, o: 0 }); show(cntR, tStrong + .8, .4);
+  const lg = G(p, { o: 0 }); show(lg, tSplit + 1.6, .5);
+  [[WC.acid, 'whole acid'], [WC.base, 'conjugate base'], ['#ffd0e0', 'H^+']].forEach(([c, s], i) => { mk('circle', { cx: 250 + i * 230, cy: 718, r: 8, fill: c }, lg); wChem(lg, s, { x: 266 + i * 230, y: 727, size: 24, fill: COL.dim, weight: 500, anchor: 'start', o: 1 }); });
+  hide(lg, tKa, .4);
+  // ka: the grids move up and shrink; the constant is built below them
+  tw(gL, { x: 330, y: 190, s: .5 }, tKa + .1, 1.2); tw(gR, { x: 1270, y: 190, s: .5 }, tKa + .1, 1.2);
+  [tlL, tlR, cntL, cntR].forEach(e => hide(e, tKa, .4));
+  const sl = say(p, `acetic acid: ${SPLIT} of 1000 split`, 330, 308, tKa + 1.1, { size: 26 });
+  const srA = say(p, 'HCl: essentially all split', 1270, 308, tKa + 1.2, { size: 26 });
+  const kf = G(p, { o: 0 }); show(kf, tKa + 1.2, .5);
+  wChem(kf, 'K_a =', { x: 730, y: 452, size: 56, anchor: 'end', font: MATH, weight: 500, o: 1 });
+  const num = wChem(kf, '[H^+][A^−]', { x: 860, y: 420, size: 50, font: MATH, weight: 500, o: 1 }), den = wChem(kf, '[HA]', { x: 860, y: 498, size: 50, font: MATH, weight: 500, o: 1 });
+  path(kf, 'M750 438H970', { stroke: COL.chalk, 'stroke-width': 4 });
+  tw(num, { c_fill: '#ffb0cc' }, tKa + 4.1, .5); const nl = say(p, 'the products: H^+ and the conjugate base', 1000, 420, tKa + 4.2, { size: 26, fill: '#ffb0cc', anchor: 'start', weight: 500 });
+  tw(den, { c_fill: WC.acid }, tKa + 7.6, .5); const dl = say(p, 'the acid left whole', 1000, 498, tKa + 7.7, { size: 26, fill: WC.acid, anchor: 'start', weight: 500 });
+  hide(nl, tPka, .4); hide(dl, tPka, .4);
+  say(p, `for acetic acid: K_a = ${KA_TXT}`, 800, 582, tKa + 10.4, { size: 38, font: MATH, weight: 500 });
+  // pka
+  const pk = chemRow(p, ['pK_a = −log K_a', `= ${ph2(PKA)}`, `≈ ${wDec(PKA_R)}`], { x: 800, y: 664, size: 46, gap: 22 });
+  [0, 5.3, 7.6].forEach((dt, i) => show(pk[i], tPka + .3 + dt, .4));
+  put(pk[2], { c_fill: COL.dim });
+  pulse(pk[1], tDir + .2, 1.15);
+  // dir: the direction, link by link
+  const ch = chemRow(p, ['smaller K_a', '→', 'less dissociation', '→', 'larger pK_a', '→', 'weaker acid'], { x: 800, y: 772, size: 32, gap: 18, fills: [null, COL.dim, null, COL.dim, null, COL.dim, WC.acid] });
+  [0, 1.2, 1.4, 2.6, 2.8, 3.8, 3.95].forEach((dt, i) => show(ch[i], tDir + 1.4 + dt, .4));   // the last link at ≈ 43.3 s, on "weaker acid"
+  // none: HCl is almost all split, so a pKa says little about it
+  tw(gR, { o: .3 }, tNone + .2, .6); hide(srA, tNone + .1, .3);
+  say(p, 'almost no HCl left whole:', 1270, 308, tNone + .5, { size: 26 });
+  say(p, 'a pK_a tells us little', 1270, 342, tNone + 1.4, { size: 26, fill: COL.dim, weight: 500 });
+  say(p, 'pK_a: useful for weak acids', 330, 342, tNone + 5.1, { size: 26, fill: WC.acid });
+  // a soft frame breathes round whatever the voice is reading, and glides to the next item (life in the long holds)
+  const FOCUS = [[tKa + 1.2, 610, 368, 380, 152], [tKa + 4.1, 742, 376, 236, 60], [tKa + 7.6, 786, 456, 148, 60], [tKa + 10.4, 470, 546, 660, 52],
+    [tPka + .2, 450, 624, 700, 60], [tDir + 1.2, 110, 738, 1380, 52], [tNone + .3, 1090, 278, 360, 80], [tNone + 5, 160, 280, 340, 80]];
+  const glow = mk('rect', { rx: 14, fill: '#8fd6b0', 'fill-opacity': 0, stroke: '#8fd6b0', 'stroke-width': 3, 'stroke-opacity': 0 }, p);
+  p.insertBefore(glow, kf);
+  clockRun(t => {
+    let k = -1; FOCUS.forEach((f, i) => { if (t >= f[0]) k = i; });
+    if (k >= 0) {
+      const a = FOCUS[Math.max(0, k - 1)], b = FOCUS[k], q = k ? io(ramp(t, b[0], b[0] + .5)) : 1, on = ramp(t, FOCUS[0][0], FOCUS[0][0] + .5);
+      const r = [1, 2, 3, 4].map(j => lerp(a[j], b[j], q).toFixed(1)), br = .5 + .5 * Math.sin(3 * t);
+      setA(glow, 'x', r[0]); setA(glow, 'y', r[1]); setA(glow, 'width', r[2]); setA(glow, 'height', r[3]);
+      setA(glow, 'fill-opacity', (on * (.06 + .07 * br)).toFixed(3)); setA(glow, 'stroke-opacity', (on * (.35 + .45 * br)).toFixed(3));
+    } else { setA(glow, 'fill-opacity', '0'); setA(glow, 'stroke-opacity', '0'); }
+  }, D);
+  clockRun(t => {
+    const kL = sp.filter(t0 => t >= t0).length, kR = bands.filter(t0 => t >= t0).length;
+    wChemSet(cntL, `split: ${kL} of 1000`);
+    wChemSet(cntR, kR < 10 ? `split: ${kR * 100} of 1000` : 'split: essentially all');
+  }, D);
+}],
+
+['q2', 'Quick check', (m, D) => {
+  // two acids by their Ka, how much of each splits hidden until the answer; the card at the right
+  const p = panel(0), B = 200, sp = (B - 30) / 10;
+  const box = (cx, cy, name, ka, split, pk) => {
+    const g = G(p);
+    wLabel(g, name, { x: cx, y: cy - B / 2 - 34, size: 34, o: 1 });
+    mk('rect', { x: cx - B / 2, y: cy - B / 2, width: B, height: B, rx: 16, fill: '#14375c', stroke: COL.faint, 'stroke-width': 2 }, g);
+    const all = Array.from({ length: 100 }, (_, i) => [cx - B / 2 + 15 + sp * (i % 10 + .5), cy - B / 2 + 15 + sp * (Math.floor(i / 10) + .5)]);
+    path(g, dots(all.map(([x, y]) => [x, y, 5])), { fill: WC.acid, 'fill-opacity': .8 });
+    const sg = G(g, { o: 0 }); path(sg, dots(all.slice(0, split).map(([x, y]) => [x, y, 6.5])), { fill: WC.base });
+    wChem(g, `K_a = ${wSci(ka)}`, { x: cx, y: cy + B / 2 + 50, size: 30, font: MATH, weight: 500, o: 1 });
+    const qm = wLabel(g, '?', { x: cx, y: cy + 24, size: 80, weight: 700, o: 1 });
+    const ans = G(g, { o: 0 }); wChem(ans, `pK_a = ${pk}`, { x: cx, y: cy + B / 2 + 92, size: 30, fill: '#8fd6b0', o: 1 });
+    return { sg, qm, ans };
+  };
+  S.q2 = [box(230, 380, 'acid X', Q2.kx, Q2.sx, Q2.px), box(590, 380, 'acid Y', Q2.ky, Math.round(Q2.sy / 10), Q2.py)];
+  S.q2note = G(p, { o: 0 });
+  wLabel(S.q2note, `at 0.1 M: about ${Q2.sx} in 100 split`, { x: 230, y: 690, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(S.q2note, `about ${Q2.sy} in 1000 split`, { x: 590, y: 690, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(S.q2note, 'weaker', { x: 590, y: 760, size: 34, fill: WC.acid, o: 1 });
+}, { ask: done => quiz({ x: 860, y: 110, w: 700, cls: 'side' }, [{
+  id: 'c-strength',
+  prompt: [uni(`Acid X has K_a = ${wSci(Q2.kx)} and acid Y has K_a = ${wSci(Q2.ky)}. Which is the weaker acid?`)],
+  build: choice([[uni(`X, pK_a ${Q2.px}`)], [uni(`Y, pK_a ${Q2.px}`)], [uni(`Y, pK_a ${Q2.py}`)], ['They are equally strong.']], 2,
+    uni(`Right. Y has the smaller K_a, so it dissociates less: pK_a = ${Q2.py}, larger than X’s ${Q2.px}. Smaller K_a, larger pK_a, weaker acid.`),
+    [uni('X has the larger K_a: it dissociates more, so it is the stronger one.'), uni(`Y is the weaker one, but pK_a = −log K_a = ${Q2.py}, not ${Q2.px}.`), null, uni(`Their K_a values differ ${Q2.ratio} times.`)],
+    () => { S.q2.forEach((b, i) => { fx(b.qm, { o: 0 }, 0, .3); fx(b.sg, { o: 1 }, .2 + .3 * i, .5); fx(b.ans, { o: 1 }, .6 + .3 * i, .4); }); fx(S.q2note, { o: 1 }, 1, .5); }),
+}], done) }],
+
+/* ---------- one proton or several ---------- */
+['proto', 'Protons to give', (m, D) => {
+  const p = panel(0), tMono = m('mono'), tPoly = m('poly'), tCellp = m('cellp');
+  const cam = camera(p, D, { x: 560, y: 430, z: 1.12 }), W = cam.world;
+  cam.to({ x: 800, y: 450, z: 1 }, tPoly + .1, 2);
+  // acetic acid, flat: CH3–C(=O)–O–H, the last H the one it can give
+  const ac = G(W, { x: 380, y: 400, o: 0 }); show(ac, .2, .6);
+  structure(ac, [['C', -110, 0, 34], ['H', -150, -64, 19], ['H', -186, 22, 19], ['H', -118, 76, 19], ['C', 0, 0, 34], ['O', 54, -84, 32], ['O', 74, 58, 32], ['H', 152, 58, 19]],
+    [[0, 1], [0, 2], [0, 3], [0, 4], [4, 5, true], [4, 6], [6, 7]]);
+  const r0 = ringAt(ac, 152, 58, 34); show(r0, tMono + .3, .4); pulse(r0, tMono + .8, 1.25);
+  say(W, 'acetic acid, CH_3COOH', 380, 230, .5, { size: 34 });
+  say(W, 'monoprotic', 380, 560, tMono + .5, { size: 36, fill: WC.acid });
+  say(W, `one proton to give, one pK_a (${ph2(PKA)})`, 380, 600, tMono + 1.2, { size: 26, fill: COL.dim, weight: 500 });
+  // phosphoric acid: P with a double-bonded O and three O–H
+  const PX = 1000, PY = 380, ph = G(W, { x: PX, y: PY, o: 0 }); show(ph, tPoly + .3, .6);
+  const HS = [[-176, -24], [176, -24], [0, 178]];
+  structure(ph, [['P', 0, 0, 40], ['O', 0, -104, 32], ['O', -100, 22, 32], ['O', 100, 22, 32], ['O', 0, 104, 32], ['H', ...HS[0], 19], ['H', ...HS[1], 19], ['H', ...HS[2], 19]],
+    [[0, 1, true], [0, 2], [0, 3], [0, 4], [2, 5], [3, 6], [4, 7]]);
+  HS.forEach(([x, y], i) => { const r = ringAt(ph, x, y, 34); show(r, tPoly + 1 + .4 * i, .3); pulse(r, tPoly + 1.2 + .4 * i, 1.2); wLabel(ph, String(i + 1), { x: x + (i === 2 ? 44 : i ? 30 : -30), y: y - 30, size: 24, fill: WC.acid, o: 0 }); show(ph.lastChild, tPoly + 1.1 + .4 * i, .3); });
+  say(W, 'phosphoric acid, H_3PO_4', PX, 222, tPoly + .4, { size: 34 });
+  say(W, 'polyprotic: three protons, one pK_a each', PX, 640, tPoly + 2.2, { size: 28, fill: WC.acid });
+  // the three pKa values
+  const rows = PHOS_TXT.map((v, i) => {
+    const g = G(W, { o: 0 }), y = 300 + i * 74;
+    const hi = mk('rect', { x: 1240, y: y - 38, width: 270, height: 56, rx: 12, fill: '#8fd6b0', 'fill-opacity': .18, stroke: '#8fd6b0', 'stroke-width': 3 }, g); put(hi, { o: 0 });
+    wChem(g, `${i + 1}:`, { x: 1262, y, size: 30, fill: WC.acid, anchor: 'start', o: 1 }); wChem(g, `pK_a ${v}`, { x: 1308, y, size: 34, anchor: 'start', o: 1 });
+    show(g, tPoly + [5.6, 6.9, 8.4][i], .4);
+    return { g, hi };
+  });
+  // cellp: on a pH strip, the three values against the cell's pH
+  const strip = pHStrip(W, { x: 760, y: 770, w: 740, h: 24, size: 18, label: 'pH', o: 0 }); show(strip, tPoly + 5.4, .5);
+  PHOS.forEach((v, i) => { const d = mk('circle', { cx: strip.at(v), cy: 770, r: 9, fill: COL.board, stroke: WC.acid, 'stroke-width': 4 }, W); put(d, { o: 0 }); show(d, tPoly + [5.6, 6.9, 8.4][i] + .2, .3); });
+  const cm = strip.marker({ color: '#8fd6b0', fmt: v => 'cell: about pH ' + wDec(v), size: 26 }); cm.set(CELL); show(cm, tCellp + .3, .4);
+  const best = PHOS.indexOf(CELL_BEST); show(rows[best].hi, tCellp + .6, .4); pulse(rows[best].g, tCellp + .7, 1.06);
+  say(W, 'the middle one suits the cell', 1375, 540, tCellp + 1, { size: 26, fill: '#8fd6b0' });
+}],
+
+/* ---------- the working range ---------- */
+['range', 'Where a buffer works', (m, D) => {
+  const p = panel(0), tAxis = m('axis'), tMid = m('mid'), tLow = m('low'), tHigh = m('high'), tRng = m('rng'), tOut = m('out');
+  const LO = PKA_R - 1, HI = PKA_R + 1;
+  // the axis is a pH strip from 2 to 8
+  // alone at first, the axis sits mid-stage; it drops to its place as the bar and the partners arrive
+  const AXG = G(p, { y: -190 }); tw(AXG, { y: 0 }, tMid - .7, 1);
+  const strip = pHStrip(AXG, { x: 200, y: 640, w: 1200, min: 2, max: 8, h: 30, size: 24, o: 0 }), at = strip.at; show(strip, .3, .6);
+  const tk = G(AXG, { o: 0 }); show(tk, tAxis + 1.4, .4);
+  path(tk, `M${at(PKA_R)} 600V730`, { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '7 6' });
+  wChem(tk, `pK_a ${wDec(PKA_R)}`, { x: at(PKA_R), y: 762, size: 28, o: 1 });
+  say(p, 'acetic acid and acetate', 800, 60, tMid, { size: 30, fill: COL.dim, weight: 500 });
+  // the shares: a bar at the top, ten partners below it (the leftmost hold their H)
+  const bar = wFracBar(p, { x: 330, y: 118, w: 940, h: 50, size: 30, names: ['acetic acid', 'acetate'], o: 0 }); show(bar, tMid + .2, .5);
+  const ten = Array.from({ length: 10 }, (_, i) => wAcid(p, { x: 350 + i * 100, y: 268, s: .72, aH: -35, o: 0 }));
+  ten.forEach((a, i) => show(a, tMid + .4 + .04 * i, .3));
+  const mkr = strip.marker({ color: '#8fd6b0', size: 28 }); show(mkr, tMid + .1, .3);
+  // the notes, one at a time along the bottom
+  const note = (a, b, t0, t1, col) => { const g = G(p, { o: 0 }); wChem(g, a, { x: 800, y: 830, size: 32, fill: col, o: 1 }); if (b) wChem(g, b, { x: 800, y: 870, size: 26, fill: COL.dim, weight: 500, o: 1 }); show(g, t0, .4); if (t1) hide(g, t1, .3); return g; };
+  note('pH = pK_a: half acetic acid, half acetate', 'both partners plentiful, so capacity is greatest', tMid + .6, tLow + .1, '#8fd6b0');
+  note(`pH ${wDec(LO)}: about ${PCT(-1)} % acetate`, 'running short of base', tLow + 2.6, tHigh + .1, WC.base);
+  note(`pH ${wDec(HI)}: about ${PCT(1)} % acetate`, 'running short of acid', tHigh + 2.8, tRng + .1, WC.acid);
+  note(`working range: pK_a ± 1 = ${wDec(LO)} to ${wDec(HI)}`, `best at pH ${wDec(PKA_R)}`, tRng + .6, tOut + .1, '#8fd6b0');
+  note('outside it, one partner is nearly used up', 'and the pH moves freely', tOut + .6, 0, COL.chalk);
+  // rng: the band and the capacity curve, f(1 − f), greatest at pKa
+  const band = strip.band(LO, HI, { color: '#8fd6b0' }); show(band, tRng + .3, .5);
+  let cd = '';
+  for (let k = 0; k <= 120; k++) { const v = PKA_R - 2.3 + 4.6 * k / 120, f = wBaseFrac(v, PKA_R); cd += (k ? 'L' : 'M') + at(v).toFixed(1) + ' ' + (598 - 4 * 170 * f * (1 - f)).toFixed(1); }
+  const curve = path(p, cd, { stroke: '#8fd6b0', 'stroke-width': 5 }, { d: 0, o: 0 }); draw(curve, tRng + 1, 2); show(curve, tRng + 1, .5);
+  say(p, 'capacity', at(PKA_R) + 130, 448, tRng + 2.2, { size: 26, fill: '#8fd6b0', anchor: 'start' });
+  // out: beyond the band greys
+  const gr = G(p, { o: 0 }); show(gr, tOut + .3, .5);
+  mk('rect', { x: at(2) - 4, y: 618, width: at(LO) - at(2), height: 44, fill: COL.board, 'fill-opacity': .6 }, gr);
+  mk('rect', { x: at(HI), y: 618, width: at(8) - at(HI) + 4, height: 44, fill: COL.board, 'fill-opacity': .6 }, gr);
+  const pH = t => PKA_R - io(ramp(t, tLow + .3, tLow + 2.3)) + 2 * io(ramp(t, tHigh + .3, tHigh + 2.8)) - io(ramp(t, tRng + 5.2, tRng + 6.4)) + (7 - PKA_R) * io(ramp(t, tOut + .4, tOut + 2.6));
+  clockRun(t => {
+    const v = Math.round(pH(t) * 100) / 100, f = wBaseFrac(v, PKA_R), nHA = 10 * (1 - f);
+    mkr.set(Math.round(v * 10) / 10); bar.set(f);
+    ten.forEach((a, i) => { a.hold(clamp01(nHA - i)); a.pose(350 + i * 100, +(268 + 6 * Math.sin(1.7 * t + .7 * i)).toFixed(1)); });   // the partners bob
+  }, D);
+}],
+
+/* ---------- acid precipitation ---------- */
+['rain', 'Acid rain', (m, D) => {
+  const p = panel(0), tClean = m('clean'), tDef = m('def'), tLake = m('lake'), tSoil = m('soil');
+  // the sky is a still rect in screen space (the camera never moves it, so it is never repainted with the world)
+  mk('rect', { x: 0, y: 0, width: 1600, height: 900, fill: '#132a45' }, p);
+  const cam = camera(p, D), W = cam.world;
+  cam.to({ x: 1110, y: 640, z: 1.7 }, tLake + .1, 2.2);
+  cam.to({ x: 1390, y: 740, z: 1.7 }, tSoil + .1, 2);
+  // the land: hill, soil (one path with its strata), a lake; a factory at the left, a forest at the right
+  path(W, 'M-200 690Q300 640 860 690L1340 690Q1460 600 1800 610L2400 610V770H-200Z', { fill: '#2f4a3a' });
+  path(W, 'M-200 760H2400V1160H-200Z', { fill: '#3a2a1f', stroke: 'none' });
+  path(W, 'M-200 800Q400 790 1800 806L2400 806M-200 846Q600 836 1800 852L2400 852', { stroke: '#4a3627', 'stroke-width': 4 });
+  const lake = path(W, 'M870 690Q1100 676 1330 690Q1320 752 1100 758Q880 752 870 690Z', { fill: WC.water, stroke: WC.waterHi, 'stroke-width': 4 });
+  const fish = G(W, { x: 1090, y: 722 });
+  path(fish, 'M-34 0Q-10 -18 18 0Q-10 18 -34 0ZM18 0L34 -12V12Z', { fill: '#e8a25a' }); mk('circle', { cx: -22, cy: -3, r: 2.5, fill: '#2a1806' }, fish);
+  const fac = G(W);
+  mk('rect', { x: 110, y: 560, width: 310, height: 140, fill: '#2a3b52', stroke: '#425874', 'stroke-width': 3 }, fac);
+  mk('rect', { x: 170, y: 390, width: 44, height: 172, fill: '#425874' }, fac); mk('rect', { x: 290, y: 430, width: 44, height: 132, fill: '#425874' }, fac);
+  for (let i = 0; i < 4; i++) mk('rect', { x: 140 + i * 70, y: 610, width: 34, height: 30, fill: '#f2d14b', 'fill-opacity': .5 }, fac);
+  const TREES = [[1380, 640, 46], [1450, 620, 52], [1520, 615, 48], [1590, 622, 50], [1420, 668, 40], [1550, 660, 44]];
+  path(W, TREES.map(([x, y]) => `M${x} ${y}V${y + 60}`).join(''), { stroke: WC.bark, 'stroke-width': 10 });   // all trunks, one path
+  const crowns = TREES.map(([x, y, r]) => { const c = mk('circle', { cx: x, cy: y - r * .5, r, fill: WC.leaf, stroke: WC.leafDk, 'stroke-width': 3 }, W); put(c, { 'a_fill-opacity': 1, 'a_stroke-opacity': 1 }); return c; });
+  // the cloud
+  const cloud = path(W, 'M720 220a60 60 0 0 1 80 -70a80 80 0 0 1 150 -10a60 60 0 0 1 100 40a50 50 0 0 1 -20 90H760a50 50 0 0 1 -40 -50Z', { fill: '#9fb0c6' });
+  put(cloud, { c_fill: '#9fb0c6' });
+  // rain: one path of streaks under the cloud; clean (pale blue) then acid (pink)
+  const rain = path(W, '', { stroke: '#9fd3f0', 'stroke-width': 4, 'stroke-linecap': 'round' }); put(rain, { c_stroke: '#9fd3f0', 'a_stroke-opacity': 1 });
+  const NS = 32, ST = Array.from({ length: NS }, (_, i) => [760 + 820 * wHash(i, 91), wHash(i, 92)]);
+  // CO2 rising into the cloud; the plume of oxides from the chimneys
+  const co2 = Array.from({ length: 3 }, (_, i) => { const g = G(W, { o: 0 }); mk('circle', { r: 9, fill: WC.O }, g); mk('circle', { cx: -18, r: 9, fill: WC.O }, g); mk('circle', { cx: 18, r: 9, fill: WC.O }, g); mk('circle', { r: 11, fill: '#5b6472' }, g); show(g, tClean + .3 + .5 * i, .4); return g; });
+  const plume = path(W, '', { fill: '#8a7f74', 'fill-opacity': 0 }); put(plume, { 'a_fill-opacity': 0 }); tw(plume, { 'a_fill-opacity': .75 }, tDef + .8, .6);
+  // text in screen space
+  const strip = pHStrip(p, { x: 110, y: 80, w: 520, min: 3, max: 8, h: 22, size: 18, o: 0 }); show(strip, tClean + .4, .5);
+  const mr = strip.marker({ color: '#9fd3f0', fmt: v => 'rain: pH ' + wDec(v), above: false, size: 26, o: 0 }); show(mr, tClean + .5, .4);
+  const cutL = G(p, { o: 0 }); show(cutL, tDef + 1.2, .4);
+  path(cutL, `M${strip.at(RAIN_CUT)} 62V98`, { stroke: COL.chalk, 'stroke-width': 3 });
+  const c1 = say(p, 'CO_2 dissolves in rain: clean rain is about pH 5.6', 60, 300, tClean + 2.4, { size: 30, fill: '#9fd3f0', anchor: 'start' }); hide(c1, tDef, .4);
+  const d1 = say(p, 'acid precipitation: rain, snow or fog below pH 5.6', 800, 862, tDef + .6, { size: 34, fill: WC.acid });
+  const d2 = say(p, 'sulfur and nitrogen oxides (SO_2, NO_x) from burning fuel', 400, 490, tDef + 5.6, { size: 26, anchor: 'start' });
+  hide(d1, tLake, .4); hide(d2, tLake, .4);
+  const l1 = say(p, 'in lakes and streams, the acid harms life', 800, 862, tLake + 1.6, { size: 34 }); hide(l1, tSoil, .4);
+  say(p, 'in soils, the chemistry changes; some forests decline', 800, 862, tSoil + 1.8, { size: 34 });
+  // lake: it turns acid, the fish fades; soil: nutrients wash out, trees thin
+  tw(lake, { c_fill: mix(WC.water, WC.acid, .4) }, tLake + 1.4, 1.4); put(lake, { c_fill: WC.water });
+  hide(fish, tLake + 2.4, 1.2);
+  const nut = path(W, '', { fill: '#d8e07a' }), soilH = path(W, '', { fill: WC.acid });
+  const NU = Array.from({ length: 12 }, (_, i) => [1340 + 260 * wHash(i, 95), 784 + 60 * wHash(i, 96), wHash(i, 97)]);
+  crowns.forEach((c, i) => { tw(c, { c_fill: '#8a7a4a' }, tSoil + 2.4 + .2 * i, 1); if (i % 2) tw(c, { 'a_fill-opacity': .25, 'a_stroke-opacity': .25 }, tSoil + 3.4 + .2 * i, 1); });
+  tw(rain, { 'a_stroke-opacity': 0 }, tSoil + 1.2, 1);   // the soil shot is about the ground: the rain eases off
+  // what the camera has left is not drawn: decided every frame from the view at t (seek and play agree)
+  const vis = (e, on) => { const v = on ? 'inline' : 'none'; if (e._vis !== v) { e.style.display = v; e._vis = v; } };
+  const pHr = t => RAIN_CLEAN - (RAIN_CLEAN - RAIN_ACID) * io(ramp(t, tDef + 2.6, tDef + 5));
+  tw(cloud, { c_fill: '#a8909e' }, tDef + 1.6, 1.4); tw(rain, { c_stroke: WC.acid }, tDef + 2.6, 1.6);
+  clockRun(t => {
+    // rain, plume, CO2 and soil step on a 20 fps clock (Firefox repaints each rewrite); the plume and the CO2 hold still
+    // once the camera is in; anything outside the view at t is not drawn
+    const tr = Math.floor(t * 20) / 20, tf = Math.min(tr, tLake + 2.4), v = cam.at(t), x0 = v.x - 800 / v.z, y0 = v.y - 450 / v.z;
+    const rainOn = t < tSoil + 2.2;
+    vis(rain, rainOn); vis(fac, x0 < 430); vis(plume, x0 < 940 && y0 < 430); vis(cloud, x0 < 1060 && y0 < 320);
+    const co2o = clamp01((1.25 - v.z) / .25);
+    co2.forEach(g => vis(g, co2o > 0));
+    let d = '';
+    if (rainOn) for (const [x, ph] of ST) { const y = 260 + ((ph * 430 + 520 * tr) % 430); d += `M${x.toFixed(0)} ${y.toFixed(0)}l-6 24`; }
+    setA(rain, 'd', d);
+    co2.forEach((g, i) => {   // posed every frame from t, shown or not, so seek and step agree
+      const u = ((tf - tClean) * .14 + i / 3) % 1, w = tf < tClean ? 0 : u; put(g, { x: +(1250 - 260 * w + 30 * i).toFixed(1), y: +(600 - 360 * w).toFixed(1) }); });
+    let pd = '';
+    if (tf > tDef) for (let i = 0; i < 8; i++) { const u = ((tf - tDef) * .12 + i / 8) % 1; pd += dots([[lerp(200 + (i % 2) * 120, 880, u).toFixed(1) * 1, (lerp(380, 220, Math.sqrt(u)) - 40 * Math.sin(u * 3.1)).toFixed(1) * 1, 18 + 26 * u]]); }
+    setA(plume, 'd', pd);
+    mr.set(Math.round(pHr(t) * 10) / 10);
+    let nd = '', hd = '';
+    // nutrients wash down but stop short of the caption (world y ≤ 930); H+ come in from above
+    if (t > tSoil) NU.forEach(([x, y, ph], i) => { const u = ramp(tr, tSoil + 1 + ph * 2, tSoil + 4 + ph * 2); if (u < 1) nd += dots([[x + 6 * Math.sin(2 * tr + i), Math.min(930, y + 90 * u * u), 8 * (1 - .6 * u * u)]]); });
+    if (t > tSoil) NU.forEach(([x, y, ph], i) => { const u = ramp(tr, tSoil + .4 + ph, tSoil + 1.6 + ph); hd += dots([[x + 10, lerp(700, y - 6, u), 6]]); });
+    setA(nut, 'd', nd); setA(soilH, 'd', hd);
+  }, D);
+}],
+
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['Cells need a steady pH near 7. A buffer, a weak acid', 'with its conjugate base, absorbs added H^+ or OH^−.', g => { wAcid(g, { x: 130, y: 0, s: .55 }); wAcid(g, { x: 225, y: 0, s: .55, held: 0 }); }],
+    ['K_a: how far a weak acid dissociates; pK_a = −log K_a.', 'Smaller K_a, larger pK_a, weaker acid.', g => { wChem(g, 'K_a ↓', { x: 180, y: -8, size: 30, font: MATH, o: 1 }); wChem(g, 'pK_a ↑', { x: 180, y: 32, size: 30, font: MATH, fill: WC.acid, o: 1 }); }],
+    ['A buffer works within pK_a ± 1,', 'and best at pH = pK_a.', g => {
+      let d = ''; for (let k = 0; k <= 40; k++) { const v = -3 + 6 * k / 40, f = 1 / (1 + Math.pow(10, -v)); d += (k ? 'L' : 'M') + (180 + v * 30).toFixed(1) + ' ' + (36 - 240 * f * (1 - f)).toFixed(1); }
+      mk('rect', { x: 150, y: -40, width: 60, height: 80, rx: 6, fill: '#8fd6b0', 'fill-opacity': .2 }, g); path(g, d, { stroke: '#8fd6b0', 'stroke-width': 4 }); }],
+    ['Acid precipitation: rain, snow or fog', `below pH ${wDec(RAIN_CUT)}.`, g => {
+      path(g, 'M120 0a26 26 0 0 1 34 -30a34 34 0 0 1 64 -4a26 26 0 0 1 22 34Z', { fill: '#a8909e' });
+      path(g, 'M140 14l-5 16M175 14l-5 16M210 14l-5 16', { stroke: WC.acid, 'stroke-width': 4, 'stroke-linecap': 'round' }); }],
+  ];
+  const icons = [], gs = [];
+  let wMax = 0;
+  rows.forEach(([a, b, icon], i) => {
+    // all four rows wait faintly from the start; each lights up as it is read (row 1 with "To sum up")
+    const g = G(p, { y: 190 + i * 160, o: 0 });
+    const ic = G(g); icon(ic); icons.push(ic);
+    const ta = wChem(g, a, { x: 330, y: -6, size: 36, anchor: 'start', o: 1 }), tb = wChem(g, b, { x: 330, y: 40, size: 32, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+    wMax = Math.max(wMax, ta.getComputedTextLength(), tb.getComputedTextLength());
+    tw(g, { o: .2 }, .1, .5); tw(g, { o: 1 }, i ? m('w' + (i + 1)) - .25 : m('w1') - .3, .6);
+    gs.push(g);
+  });
+  const dx = Math.round(800 - (100 + 330 + wMax) / 2);   // the block (icons at 100, text to 330 + widest line) sits centred
+  gs.forEach(g => put(g, { x: dx }));
+  say(p, 'Now try the chapter practice.', 800, 850, m('end') - .2, { size: 32, fill: WC.bond });
+  clockRun(t => icons.forEach((ic, i) => put(ic, { y: +(5 * Math.sin(1.6 * t + 1.3 * i)).toFixed(2) })), D);
+}],
+
+['final1', 'Chapter practice', (m, D) => {
+  // A picture on the right for each practice question; the card's build shows the one it needs (pics.show(key)).
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('range', g => {
+    const s = pHStrip(g, { x: 1010, y: 430, w: 540, min: 4, max: 10, h: 28, size: 22 });
+    path(g, `M${s.at(PR.pka)} 380V480`, { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '7 6' });
+    wChem(g, `pK_a ${wDec(PR.pka)}`, { x: s.at(PR.pka), y: 360, size: 32, o: 1 });
+    wLabel(g, '? ← → ?', { x: s.at(PR.pka), y: 560, size: 36, fill: '#8fd6b0', o: 1 });
+  });
+  at('conv', g => {
+    wChem(g, 'pK_a = −log K_a', { x: 1280, y: 300, size: 44, font: MATH, weight: 500, o: 1 });
+    wChem(g, 'K_a = 10^{−pK_a}', { x: 1280, y: 380, size: 40, font: MATH, weight: 500, o: 1 });
+    wChem(g, 'larger K_a ⇔ smaller pK_a', { x: 1280, y: 500, size: 32, o: 1 }); wChem(g, '⇔ stronger acid', { x: 1280, y: 546, size: 32, fill: WC.acid, o: 1 });
+  });
+  at('cell', g => {
+    const s = pHStrip(g, { x: 1000, y: 430, w: 560, h: 28, size: 18, step: 2 });
+    PHOS.forEach(v => { mk('circle', { cx: s.at(v), cy: 430, r: 9, fill: COL.board, stroke: WC.acid, 'stroke-width': 4 }, g); });
+    const mk1 = s.marker({ color: '#8fd6b0', fmt: v => 'cell: pH ' + wDec(v), o: 1 }); mk1.set(CELL);
+    wLabel(g, 'three acids, three pKa values', { x: 1280, y: 560, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  });
+  at('add', g => {
+    wAcid(g, { x: 1130, y: 420, s: 1.1, aH: -145 }); wAcid(g, { x: 1430, y: 420, s: 1.1, held: 0 });
+    wChem(g, 'acetic acid', { x: 1130, y: 530, size: 28, fill: WC.acid, o: 1 }); wChem(g, 'acetate', { x: 1430, y: 530, size: 28, fill: WC.base, o: 1 });
+    hydroxide(g, .8, 1280, 250, 30); wChem(g, 'OH^−', { x: 1280, y: 170, size: 28, fill: WC.base, o: 1 });
+  });
+  at('terms', g => {
+    path(g, 'M1110 300a60 60 0 0 1 80 -70a80 80 0 0 1 150 -10a60 60 0 0 1 100 40a50 50 0 0 1 -20 90H1150a50 50 0 0 1 -40 -50Z', { fill: '#a8909e' });
+    path(g, 'M1170 380l-8 26M1230 400l-8 26M1290 380l-8 26M1350 400l-8 26M1410 380l-8 26', { stroke: WC.acid, 'stroke-width': 5, 'stroke-linecap': 'round' });
+    const s = pHStrip(g, { x: 1040, y: 560, w: 480, min: 3, max: 8, h: 24, size: 20 });
+    path(g, `M${s.at(RAIN_CUT)} 536V584`, { stroke: COL.chalk, 'stroke-width': 3 }); wLabel(g, wDec(RAIN_CUT), { x: s.at(RAIN_CUT), y: 524, size: 24, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('range');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-range', prompt: [uni(`A weak acid has pK_a ${wDec(PR.pka)}.`)],
+    build: withPic('range', roman(blanks([
+      { parts: ['it buffers from pH ', { box: PR.lo }, ' to pH ', { box: PR.hi }], why: `pKₐ ± 1: ${PR.lo} to ${PR.hi}.`, hint: 'The working range is pKₐ minus one to pKₐ plus one.' },
+      { parts: ['and best at pH ', { box: PR.best }], why: 'Best where pH = pKₐ: half acid, half conjugate base.', hint: 'Capacity is greatest where both partners are equal.' },
+    ]))) },
+  { id: 'p-conv', prompt: [uni('Use pK_a = −log K_a.')],
+    build: withPic('conv', roman(blanks([
+      { parts: ['Kₐ = 1 × 10', E(mn(-PC.pka)), ' gives pKₐ = ', { box: String(PC.pka) }], why: `−log(10⁻${PC.pka}) = ${PC.pka}.`, hint: 'The pKₐ is the power of ten with its sign changed.' },
+      { parts: [`pKₐ = ${PC.pk} gives Kₐ = 1 × 10`, E('−'), { box: String(PC.kexp) }], why: `Kₐ = 10^−pKₐ = 10⁻${PC.kexp}.`, hint: 'Run it backwards: Kₐ = 10 to the power −pKₐ.' },
+      { parts: [`of pKₐ ${PC.a} and pKₐ ${PC.b}, the stronger acid has pKₐ `, { box: String(PC.strong) }], why: 'Smaller pKₐ, larger Kₐ, stronger acid.', hint: 'A stronger acid has a larger Kₐ, so a smaller pKₐ.' },
+    ]))) },
+  { id: 'p-cell', prompt: ['A cell stays near pH 7. Which weak acid, with its conjugate base, buffers best there?'],
+    build: withPic('cell', choice(PHOS_TXT.map(v => [uni(`one with pK_a ${v}`)]).concat([['any of them']]), PHOS.indexOf(CELL_BEST),
+      `Right. pH ${CELL} lies inside ${PHOS_TXT[1]} ± 1, close to the pKₐ, where both partners are plentiful.`,
+      [`pH ${CELL} is far outside ${PHOS_TXT[0]} ± 1: one partner is nearly used up there.`, null, `pH ${CELL} is far outside ${PHOS_TXT[2]} ± 1.`, 'A buffer works only within about pKₐ ± 1.'])) },
+  { id: 'p-add', prompt: [uni('An acetic acid / acetate buffer gets a little hydroxide, OH^−. What happens?')],
+    build: withPic('add', choice([[uni('Acetate takes up the OH^−.')], ['The buffer is used up at once.'], [uni('Acetic acid gives up H^+, which joins the OH^− to make water.')], ['The pH jumps by several units.']], 2,
+      uni('Right. The weak acid gives up H^+; with OH^− it makes water, and acetate is left.'),
+      [uni('Acetate takes up H^+, not OH^−: it is the partner for added acid.'), 'A little base uses up only a little of the acetic acid.', null, 'Absorbing it is what the buffer does: the pH barely moves.'])) },
+  { id: 'p-terms', prompt: ['True or false?'],
+    build: withPic('terms', grid([
+      { parts: ['A strong acid dissociates essentially completely, so a pKₐ tells us little about it.'], ans: ['t'], why: 'True: almost none of it is left whole.' },
+      { parts: ['A buffer works equally well at any pH.'], ans: ['f'], why: 'False: only within about pKₐ ± 1.' },
+      { parts: ['A polyprotic acid has one pKₐ for each proton it can give.'], ans: ['t'], why: `True: phosphoric acid has three, ${PHOS_TXT.join(', ')}.` },
+      ...TERMS_RAIN.map(v => ({ parts: [`Rain at pH ${wDec(v)} is acid precipitation.`], ans: [v < RAIN_CUT ? 't' : 'f'], why: v < RAIN_CUT ? `True: ${wDec(v)} is below ${wDec(RAIN_CUT)}.` : `False: ${wDec(v)} is above ${wDec(RAIN_CUT)}, the pH of clean rain.` })),
+    ], TF, { multi: false, text: true })) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+/* This book's own settings, imported by engine.css. The engine files next to this one are the same in every book
+   and are replaced when the engine is updated; this file is not.
+   Settings (uncomment to use):
+:root {
+  --math-font: "Avenir Next", Arial, sans-serif;   face for numbers and formulas (default: a serif, see engine.js)
+  --progress-key: "progress";                      localStorage key shared with the cover (default: one per book folder)
+  --page: #e9e5d8; --board: #fbfaf5; --panel: #fff; --edge: #d8d2c0;      a light board: the palette at the top of
+  --chalk: #1d1d1f; --dim: #6a6a6e; --faint: #c4bfae;                       engine.css, redefined; the stage, cards,
+  --task: #e2589b; --quiz: #1f6fc5; --good: #3f8a1d; --bad: #d9473a;        bar and COL follow (#rrggbb for the ink
+  --on-fill: #fff; --vignette: rgba(90, 70, 30, .08); color-scheme: light;  and board colours COL reads)
+  --rule: #ece8e0; --track: #e6e2d5; --track-ask: #cfdeeb;                   and the shades between them
+  --bar-edge: #eae6da; --hover: #efede6; --veil: #e9e5d8;
+}
+   Style overrides go here too. They come before the engine's rules, so make each selector more specific than the
+   engine's, e.g. ':root .card.band' for '.card.band'. */
+
+/* Biology: the deep-water board from style.json (navy board, cream ink, system UI face).
+   Lessons sit in chapter-NN/lesson-NN/, so the progress key is pinned: the cover passes the same key to Contents.book. */
+:root {
+  --progress-key: "animebook:progress:biology";
+  --page: #08111f; --board: #0f1e33; --panel: #152a45; --edge: #2c4568;
+  --chalk: #f2efe6; --dim: #9fb0c6; --faint: #4b6180;
+  --task: #f39a2b; --quiz: #5fd3e8; --good: #8fd6b0; --bad: #f08c7a;
+  --ui: system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --vignette: rgba(0, 0, 0, .35); color-scheme: dark;
+  --rule: #213a5a; --track: #213a5a; --track-ask: #1f4a5e;
+  --bar-edge: #1c3352; --hover: #1f3858; --veil: #060d18;
+}
+
+/* Practice screens: larger type beside the picture on the right of the stage. */
+:root .card.screen .prompt { font-size: 44px; line-height: 1.25; }
+:root .card.screen:not(.fin) .body { zoom: 1.2; }
+:root .card.screen .grid .opt { font-size: 22px; }

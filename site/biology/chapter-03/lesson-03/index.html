@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 3, Lesson 3: Floating Ice and Water the Solvent — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 3 (Water and Life), lesson 3: part A floating ice (the open lattice, density, lakes in winter, check 1),
+// part B water the solvent (solution, solvent, solute; hydration shells; hydrophilic and hydrophobic), part C concentration
+// (collisions, molecular mass, the mole, molar mass, molarity, check 2), summary, practice. Molecules and ions are the cast.
+// Plan, errata and storyboard: books/biology/chapters/chapter-03/lesson-03.md.
+const CHAPTER = { number: 303, label: '3, lesson 3', title: 'Floating Ice and Water the Solvent', minutes: 7, language: 'en', lead: false, next: '../lesson-04/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const angLerp = (a, b, k) => a + ((((b - a) % 360) + 540) % 360 - 180) * k;
+const notToScale = (p, x, y, t0) => say(p, 'not to scale', x, y, t0, { size: 22, fill: COL.dim, anchor: 'end', weight: 500 });
+// A plain straight arrow (shaft and head) from a to b.
+function wArrow(p, [x1, y1], [x2, y2], { color = COL.chalk, w = 6, head = 16, o = 1 } = {}) {
+  const g = G(p, { o }), L = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / L, uy = (y2 - y1) / L;
+  path(g, `M${x1} ${y1}L${x2 - ux * head * .8} ${y2 - uy * head * .8}`, { stroke: color, 'stroke-width': w });
+  path(g, `M${x2 - ux * head - uy * head * .7} ${y2 - uy * head + ux * head * .7}L${x2} ${y2}L${x2 - ux * head + uy * head * .7} ${y2 - uy * head - ux * head * .7}Z`, { fill: color, stroke: color, 'stroke-width': 2 });
+  return g;
+}
+// A leader line from a label to the thing it names.
+const leader = (p, a, b, t0, color = COL.dim) => { const e = path(p, `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`, { stroke: color, 'stroke-width': 2.5 }, { d: 0 }); draw(e, t0, .5); return e; };
+// Write an attribute only when it changes (Firefox repaints on every write).
+const setA = (e, k, v) => { if (e['_' + k] !== v) { e.setAttribute(k, v); e['_' + k] = v; } };
+const setText = (e, s) => { if (e.textContent !== s) e.textContent = s; };
+// Stop drawing world pieces the camera's view has left (a pure function of t through cam.at): items [el, x0, y0, x1, y1].
+const cull = (cam, items, t) => { const v = cam.at(t), hw = 800 / v.z, hh = 450 / v.z;
+  items.forEach(([el, x0, y0, x1, y1]) => { const d = x1 > v.x - hw && x0 < v.x + hw && y1 > v.y - hh && y0 < v.y + hh ? '' : 'none'; if (el.style.display !== d) el.style.display = d; }); };
+// Circles as one path: list of [x, y, r].
+const dots = list => list.map(([x, y, r]) => `M${(x - r).toFixed(1)} ${y.toFixed(1)}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`).join('');
+// A heap of salt crystals (white squares) on a base line at y = 0, centred on x = 0, of half-width w; grows with s.
+function saltHeap(p, { w = 90, h = 50, n = 70, seed = 4, o = 1 } = {}) {
+  const g = G(p, { o }); let d = '';
+  for (let i = 0; i < n; i++) {
+    const u = wHash(i, seed) * 2 - 1, top = h * (1 - u * u), y = -wHash(i, seed + 1) * top, x = u * w, c = 7 + 4 * wHash(i, seed + 2);
+    d += `M${(x - c / 2).toFixed(1)} ${(y - c).toFixed(1)}h${c.toFixed(1)}v${c.toFixed(1)}h${(-c).toFixed(1)}Z`;
+  }
+  path(g, `M${-w - 8} 0Q0 ${-h * 2.1} ${w + 8} 0Z`, { fill: '#cfd6df' });
+  path(g, d, { fill: '#ffffff', stroke: '#9aa6b4', 'stroke-width': 1.5 });
+  return g;
+}
+// A weighing scale with a pan at its origin and a readout window below. sc.set(str) writes the readout.
+function scalePan(p, { x = 0, y = 0, w = 300, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  path(g, `M${-w / 2} 0H${w / 2}`, { stroke: WC.glass, 'stroke-width': 10 });
+  mk('rect', { x: -22, y: 4, width: 44, height: 50, fill: '#33475f' }, g);
+  mk('rect', { x: -w * .45, y: 52, width: w * .9, height: 110, rx: 14, fill: '#22344b', stroke: WC.glass, 'stroke-width': 3 }, g);
+  mk('rect', { x: -w * .3, y: 72, width: w * .6, height: 64, rx: 8, fill: '#0b1626' }, g);
+  const read = wLabel(g, '', { y: 118, size: 40, fill: '#9ff0b8', weight: 700, o: 1 });
+  return Object.assign(g, { read, set(str) { setText(read, str); return g; } });
+}
+// A water drop icon (origin at its round bottom's centre).
+const dropIcon = (p, x, y, s = 1, o = 1) => { const g = G(p, { x, y, s, o }); path(g, 'M0 -60C16 -40 34 -22 34 0A34 34 0 0 1 -34 0C-34 -22 -16 -40 0 -60Z', { fill: WC.waterHi, stroke: '#7fb6e6', 'stroke-width': 3 }); return g; };
+
+/* ---------- shared numbers (computed, never typed twice) ---------- */
+const r6 = v => Math.round(v * 1e6) / 1e6;
+const fmt = v => String(r6(v));
+const MASS = { H: 1, O: 16, Na: 23, Cl: 35.5 };            // rounded atomic masses (errata 12)
+const M_H2O = r6(2 * MASS.H + MASS.O);                      // 18 g/mol
+const M_NACL = r6(MASS.Na + MASS.Cl);                       // 58.5 g/mol
+const AVO = '6.02 × 10²³';                                  // one value (errata 10)
+const moles = (g, mm) => r6(g / mm), molarity = (n, L) => r6(n / L);
+const D_LIQ = 1.00, D_ICE = .92;                            // g/mL; ice "about 0.92"
+const UNDER = Math.round(D_ICE / D_LIQ * 100);              // per cent of floating ice under water
+const SOLUBILITY = 36;                                      // about 36 g NaCl per 100 mL of water, room temperature (errata 1)
+const EX = { g: 11.7, L: .25 }; EX.n = moles(EX.g, M_NACL); EX.M = molarity(EX.n, EX.L);        // 0.2 mol, 0.8 M
+const ONE = { g: M_NACL, L: 1 }; ONE.n = moles(ONE.g, M_NACL); ONE.M = molarity(ONE.n, ONE.L);  // 1 mol, 1 M
+const Q2 = { g: 29.25, L: .5 }; Q2.n = moles(Q2.g, M_NACL); Q2.M = molarity(Q2.n, Q2.L);        // 0.5 mol, 1 M
+const PW = { g: 36 }; PW.n = moles(PW.g, M_H2O);                                                // 2 mol
+const PS = { g: 117, L: 2 }; PS.n = moles(PS.g, M_NACL); PS.M = molarity(PS.n, PS.L);           // 2 mol, 1 M
+const PMAKE = { L: .5, M: .2 }; PMAKE.g = r6(PMAKE.M * PMAKE.L * M_NACL);                        // 5.85 g
+
+/* ---------- backdrops and pieces ---------- */
+// A table at dusk under a window onto a frozen lake (intro, ice): a glass with a floating ice cube (A), a glass of water
+// for salt (B) and a volumetric flask (F). Group origins are their bottom centres on the table (y 760).
+const CUBE_Y = -196;   // the cube's centre in glass A, just under the surface at -200 (it floats mostly under)
+function tableScene(p) {
+  const g = G(p);
+  mk('rect', { x: -400, y: -400, width: 2400, height: 1700, fill: '#122640' }, g);
+  const win = G(g, { x: 80, y: 70 });
+  mk('rect', { x: 0, y: 0, width: 520, height: 350, fill: '#24406a' }, win);
+  path(win, dots(Array.from({ length: 26 }, (_, i) => [10 + wHash(i, 2) * 500, 10 + wHash(i, 3) * 160, 1 + 1.5 * wHash(i, 4)])), { fill: '#e8eefa', 'fill-opacity': .7 });
+  path(win, 'M0 210Q130 160 260 200T520 185V350H0Z', { fill: '#1a3150' });
+  path(win, 'M0 262Q260 246 520 262V350H0Z', { fill: WC.ice });
+  path(win, 'M60 300l60 14l40 -10M300 290l50 22l70 -8M210 330l40 -12', { stroke: '#9fbfd8', 'stroke-width': 3 });
+  mk('rect', { x: 0, y: 0, width: 520, height: 350, fill: 'none', stroke: '#5c412b', 'stroke-width': 16 }, win);
+  path(win, 'M260 0V350M0 175H520', { stroke: '#5c412b', 'stroke-width': 10 });
+  mk('rect', { x: -400, y: 760, width: 2400, height: 600, fill: '#3a2a1f' }, g);
+  mk('rect', { x: -400, y: 756, width: 2400, height: 12, fill: '#5c412b' }, g);
+  const glass = (x) => {
+    const q = G(g, { x, y: 760 });
+    mk('ellipse', { cx: 0, cy: 6, rx: 118, ry: 10, fill: '#2a1e16' }, q);
+    path(q, 'M-98 -200L-84 -6Q-83 0 -76 0H76Q83 0 84 -6L98 -200Z', { fill: WC.water });
+    return q;
+  };
+  const A = glass(330), B = glass(700);
+  const cube = G(A, { y: CUBE_Y });
+  mk('rect', { x: -44, y: -44, width: 88, height: 88, rx: 10, fill: '#a8d2ee', 'fill-opacity': .78, stroke: '#e6f3fb', 'stroke-width': 3 }, cube);
+  mk('rect', { x: -44, y: -44, width: 88, height: 10, rx: 4, fill: WC.ice }, cube);   // the bit above the surface
+  path(cube, 'M-30 -24l18 0M-26 -10l10 0', { stroke: '#ffffff', 'stroke-width': 4, 'stroke-opacity': .6 });
+  for (const q of [A, B]) {
+    path(q, 'M-98 -200Q0 -192 98 -200', { stroke: WC.waterHi, 'stroke-width': 5 });
+    path(q, 'M-110 -260L-86 -6Q-85 6 -74 6H74Q85 6 86 -6L110 -260', { stroke: WC.glass, 'stroke-width': 6 });
+    path(q, 'M-86 -236L-70 -40', { stroke: '#fff', 'stroke-width': 7, 'stroke-opacity': .16 });
+  }
+  const F = volFlask(g, { x: 1080, y: 760, R: 92, neck: 40, neckH: 150, markAt: 96, o: 0 }); F.set(1);
+  return { g, A, B, cube, F, win };
+}
+
+// The ice lattice used in ice and q1: 20 molecules on a diamond grid. Molecule (u, v) (u + v even) has its hydrogens
+// pointing down-left and down-right at (u ± 1, v + 1), and receives two bonds from (u ± 1, v − 1): four bonds each.
+const LAT = []; for (let v = 0; v < 5; v++) for (let u = v % 2; u < 8; u += 2) LAT.push([u, v]);
+const latIndex = (u, v) => LAT.findIndex(([a, b]) => a === u && b === v);
+const LAT_BONDS = []; LAT.forEach(([u, v], i) => { const r = latIndex(u + 1, v + 1), l = latIndex(u - 1, v + 1); if (r >= 0) LAT_BONDS.push([i, 1, r]); if (l >= 0) LAT_BONDS.push([i, 2, l]); });
+const LAT_HOLES = []; for (let b = 1; b <= 3; b++) for (let a = 1; a <= 6; a++) if ((a + b) % 2) LAT_HOLES.push([a, b]);
+const latXY = (cx, cy, h, u, v) => [cx + h * (u - 3.5), cy + h * (v - 2)];
+// Draw a still lattice (q1, wrap, practice): returns { mols, bonds }.
+function stillLattice(p, cx, cy, h, s, o = {}) {
+  const bl = G(p), ml = G(p);
+  const mols = LAT.map(([u, v]) => { const [x, y] = latXY(cx, cy, h, u, v); return waterMolecule(ml, { x, y, s, face: o.face ?? true }); });
+  const bonds = LAT_BONDS.map(([i, hi, j]) => hBond(bl, { w: 3 }).link(mols[i], hi, mols[j]));
+  return { mols, bonds };
+}
+
+// Density as two horizontal bars (ice, dense).
+function densityBars(p, x, y, len) {
+  const g = G(p);
+  wLabel(g, 'density', { x, y: y - 64, size: 30, anchor: 'start', weight: 700, o: 1 });
+  const rows = [['liquid water', D_LIQ.toFixed(2) + ' g/mL', WC.waterHi, D_LIQ], ['ice', 'about ' + D_ICE.toFixed(2) + ' g/mL', '#a8d2ee', D_ICE]];
+  const bars = rows.map(([a, b, c, d], i) => {
+    const yy = y + i * 104;
+    wLabel(g, a, { x, y: yy - 12, size: 26, anchor: 'start', fill: COL.dim, weight: 500, o: 1 });
+    wLabel(g, b, { x: x + len, y: yy - 12, size: 26, anchor: 'end', o: 1 });
+    const r = mk('rect', { x, y: yy, width: len * d, height: 34, rx: 8, fill: c }, g); return r;
+  });
+  return { g, bars };
+}
+
+// The fish of the lake beat (origin at its middle, facing +x).
+function fish(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-40 0Q-10 -24 30 -6Q40 0 30 6Q-10 24 -40 0ZM-40 0L-62 -16L-58 0L-62 16Z', { fill: '#7fa7c9' });
+  mk('circle', { cx: 22, cy: -3, r: 3, fill: '#0f1e33' }, g);
+  return g;
+}
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const withPic = (key, build) => (body, api) => { S.pics?.(key); return build(body, api); };
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Water and life', (m, D) => {
+  const p = panel(0), sc = tableScene(p), tIce = m('ice'), tSalt = m('salt'), tCount = m('count');
+  say(p, 'BIOLOGY · CHAPTER 3: WATER AND LIFE · LESSON 3', 1190, 220, .05, { size: 26, fill: COL.dim });
+  const ttl = G(p, { o: 0, y: 24 });
+  ['Floating ice and', 'water the solvent'].forEach((s, i) => wLabel(ttl, s, { x: 1190, y: 310 + i * 78, size: 66, o: 1 }));
+  tw(ttl, { o: 1, y: 0 }, 1.5, 1.1, out);
+  // ice: the cube bobs in its glass; it floats
+  pulse(sc.cube, tIce + .2, 1.18);
+  say(p, 'ice floats', 330, 830, tIce + .4, { size: 32 });
+  // salt: a shaker tips over glass B; the crystals fall in, sink a little and vanish (dissolve)
+  const shaker = G(p, { x: 760, y: 330, o: 0 });
+  mk('rect', { x: -30, y: -40, width: 60, height: 90, rx: 12, fill: '#d6dde6' }, shaker);
+  mk('rect', { x: -32, y: -62, width: 64, height: 26, rx: 8, fill: '#9aa6b4' }, shaker);
+  path(shaker, dots([[-12, -54, 3], [0, -54, 3], [12, -54, 3]]), { fill: '#33475f' });
+  show(shaker, tSalt, .4); tw(shaker, { r: -140, x: 740, y: 360 }, tSalt + .2, .6); tw(shaker, { r: 0, x: 790, y: 330, o: 0 }, tSalt + 3.4, .6);
+  const grains = path(p, '', { fill: '#ffffff' });
+  const G0 = Array.from({ length: 14 }, (_, i) => ({ t0: tSalt + .8 + .14 * i, x: 690 + 40 * (wHash(i, 31) - .5), dx: 30 * (wHash(i, 32) - .5) }));
+  clockRun(t => {
+    put(sc.cube, { y: CUBE_Y + 3 * Math.sin(1.4 * t), r: 2 * Math.sin(.9 * t) });
+    let d = '';
+    G0.forEach(({ t0, x, dx }) => {
+      const e = t - t0; if (e < 0 || e > 2.4) return;
+      const y = e < .45 ? 400 + 150 * (e / .45) ** 2 : 550 + 60 * (e - .45);   // falls to the surface (y 560), then sinks slowly
+      const c = e < .45 ? 8 : 8 * (1 - (e - .45) / 1.95);                     // and shrinks away as it dissolves
+      if (c > .5) d += `M${(x + dx * e - c / 2).toFixed(1)} ${(y - c / 2).toFixed(1)}h${c.toFixed(1)}v${c.toFixed(1)}h${(-c).toFixed(1)}Z`;
+    });
+    setA(grains, 'd', d);
+  }, D);
+  say(p, 'water dissolves', 700, 830, tSalt + 1.2, { size: 32 });
+  // count: the flask and "mol / L"
+  show(sc.F, tCount + .1, .7);
+  say(p, 'how much? mol / L', 1080, 830, tCount + .8, { size: 32, fill: WC.bond });
+}],
+
+/* ---------- part A: floating ice ---------- */
+['ice', 'Why ice floats', (m, D) => {
+  // The camera pushes from the intro's ice cube into its water, where the molecules are drawn at scale K around the cube,
+  // so at zoom 1/K their own coordinates are the stage's. Left box: liquid, bonds blinking; right box: the same 20
+  // molecules freeze into the open lattice.
+  const p = panel(0), cam = camera(p, D), W = cam.world, sc = tableScene(W);
+  const tLiq = m('liquid'), tFr = m('freeze'), tLock = m('lock'), tSp = m('space'), tDen = m('dense');
+  const K = .04, CX = 330, CY = 760 + CUBE_Y + 10;
+  put(sc.F, { o: 1 });
+  cam.to({ x: CX, y: CY, z: 1 / K }, .15, 1.5);
+  const ins = G(W, { x: CX - K * 800, y: CY - K * 450, s: K });
+  mk('rect', { x: -30000, y: -20000, width: 60000, height: 40000, fill: '#14375c' }, ins);
+  // the room gives way to the molecules under one solid cover (a single rect's fill-opacity: in Firefox far cheaper than
+  // fading a group of 40 molecules under a 25x zoom); the room stops drawing once covered, the molecules start then
+  const cover = mk('rect', { x: CX - 1600, y: CY - 1000, width: 3200, height: 2000, fill: '#14375c', 'fill-opacity': 0 }, W);
+  put(cover, { 'a_fill-opacity': 0 }); tw(cover, { 'a_fill-opacity': 1 }, .5, .35, lin); tw(cover, { 'a_fill-opacity': 0 }, .95, .5, lin);
+  const T_IN = .86; ins.style.display = 'none';
+  prog(q => { ins.style.display = q >= 1 ? '' : 'none'; sc.g.style.display = q >= 1 ? 'none' : ''; }, T_IN, .01, lin);
+  const parts = [[sc.win, 80, 70, 600, 420], [sc.B, 585, 490, 815, 775], [sc.F, 985, 330, 1175, 770]];
+  clockRun(t => cull(cam, parts, t), D);   // every frame, so seeking and stepping hide the same pieces
+  // the pair of boxes sits centred until the density panel needs the right third
+  const SHIFT = 185, pair = G(ins, { x: SHIFT }), pl = G(p, { x: SHIFT });
+  tw(pair, { x: 0 }, tDen - .3, 1); tw(pl, { x: 0 }, tDen - .3, 1);
+  const S1 = .5, LX = 300, LY = 480, IX = 865, IY = 480, H = 70;
+  const boxL = mk('rect', { x: LX - 220, y: LY - 165, width: 440, height: 330, rx: 16, fill: '#173f66' }, pair);
+  const boxI = mk('rect', { x: IX - 285, y: IY - 180, width: 570, height: 360, rx: 16, fill: '#173f66' }, pair);
+  put(boxI, { c_fill: '#173f66' }); tw(boxI, { c_fill: '#25507a' }, tFr + .2, 2);
+  // liquid positions: a jittered 5 × 4 grid that tumbles; the ice box starts with the same kind of motion
+  const liqBase = (cx, cy, seed) => Array.from({ length: 20 }, (_, i) => [cx + ((i % 5) - 2) * 84 + (wHash(i, seed) - .5) * 30, cy + (Math.floor(i / 5) - 1.5) * 76 + (wHash(i, seed + 1) - .5) * 26, wHash(i, seed + 2) * 360]);
+  const liq = (b, i, t, seed) => { const ph = wHash(i, seed + 4) * 6.28, f = .8 + .6 * wHash(i, seed + 3);
+    return [b[0] + 16 * Math.sin(1.9 * f * t + ph), b[1] + 14 * Math.sin(1.6 * f * t + 2 * ph), b[2] + 50 * Math.sin(.9 * f * t + ph)]; };
+  const bL = liqBase(LX, LY, 11), bI = liqBase(IX, IY, 23);
+  const blL = G(pair), mlL = G(pair), blI = G(pair), mlI = G(pair);
+  const molL = bL.map(([x, y, r]) => waterMolecule(mlL, { x, y, r, s: S1 })), molI = bI.map(([x, y, r]) => waterMolecule(mlI, { x, y, r, s: S1 }));
+  // liquid bonds: each molecule to its nearest neighbour, blinking off and on (wOnOff)
+  const nearL = bL.map((a, i) => bL.reduce((best, b, j) => j !== i && Math.hypot(a[0] - b[0], a[1] - b[1]) < Math.hypot(a[0] - bL[best][0], a[1] - bL[best][1]) ? j : best, i ? 0 : 1));
+  const bondL = bL.map(() => hBond(blL, { w: 3.2 }));
+  const bondI = LAT_BONDS.map(() => hBond(blI, { w: 3.2 }));
+  const latP = LAT.map(([u, v]) => latXY(IX, IY, H, u, v));
+  const fq = t => io(ramp(t, tFr + .3, tFr + 2.6));   // how far the right box has frozen
+  clockRun(t => {
+    if (t < T_IN) return;   // hidden under the cover until then
+    molL.forEach((q, i) => q.pose(...liq(bL[i], i, t, 11)));
+    bondL.forEach((b, i) => { const on = wOnOff(i, t, 0, { period: 1.4, off: .5 }); b.link(molL[i], 1 + (i % 2), molL[nearL[i]]); const o = on.on ? 1 : .06; if (st(b).o !== o) put(b, { o }); });
+    const k = fq(t);
+    molI.forEach((q, i) => {
+      const [x, y, r] = liq(bI[i], i, t, 23), [lx, ly] = latP[i];
+      q.pose(lerp(x, lx + 2 * Math.sin(9 * t + i), k), lerp(y, ly + 2 * Math.sin(8 * t + 2 * i), k), angLerp(r, 3 * Math.sin(7 * t + i), k));
+    });
+    const bo = ramp(k, .75, 1);
+    bondI.forEach((b, q) => { const [i, hi, j] = LAT_BONDS[q]; b.link(molI[i], hi, molI[j]); if (st(b).o !== bo) put(b, { o: bo }); });
+  }, D);
+  // labels in screen space
+  say(pl, 'liquid water', LX, 220, tLiq + .2, { size: 34, weight: 700 });
+  say(pl, 'bonds break and re-form', LX, 262, tLiq + .8, { size: 28, fill: WC.bond, weight: 500 });
+  const pre = say(pl, 'the same water…', IX, 220, tLiq + 2, { size: 34, weight: 700, fill: COL.dim }); hide(pre, tFr, .3);
+  say(pl, 'ice', IX, 220, tFr + .3, { size: 34, weight: 700 });
+  say(pl, 'bonds stay put', IX, 262, tFr + 2.4, { size: 28, fill: WC.bond, weight: 500 });
+  // lock: one molecule and its four bonds; the gaps of the open lattice
+  const ci = latIndex(3, 1), cm = molI[ci];
+  const four = LAT_BONDS.map((b, q) => [b, q]).filter(([[i, , j]]) => i === ci || j === ci).map(([, q]) => q);
+  four.forEach((q, n) => { tw(bondI[q].line, { 'a_stroke-width': 7 }, tLock + .4 + .35 * n, .3); });
+  tw(cm.halo, { o: 1, c_fill: WC.bond }, tLock + .2, .5);
+  const holes = path(pair, LAT_HOLES.map(([a, b]) => { const [x, y] = latXY(IX, IY, H, a, b); return `M${x - H} ${y}L${x} ${y - H}L${x + H} ${y}L${x} ${y + H}Z`; }).join(''), { fill: WC.bond, 'fill-opacity': .13, stroke: WC.bond, 'stroke-opacity': .35, 'stroke-width': 2 }, { o: 0 });
+  pair.insertBefore(holes, blI);
+  show(holes, tLock + 3.2, .8);
+  const fb1 = say(pl, 'four bonds at fixed angles', IX, 712, tLock + 1, { size: 28 }), fb2 = say(pl, 'an open lattice with gaps', IX, 752, tLock + 3.5, { size: 28, fill: WC.bond });
+  hide(fb1, tSp + 1, .4); hide(fb2, tSp + 1, .4);
+  // space: the same 20 molecules; the liquid's box laid over the ice box leaves the extra room
+  const outL = mk('rect', { x: LX - 220, y: LY - 165, width: 440, height: 330, rx: 16, fill: 'none', stroke: COL.chalk, 'stroke-width': 4, 'stroke-dasharray': '12 8' }, pl); put(outL, { o: 0 }); show(outL, tSp + .3, .5);
+  const ghost = G(pl, { o: 0 });
+  path(ghost, `M${IX - 285} ${IY - 180}h570v360h-570ZM${IX - 285} ${IY - 165}v330h440v-330Z`, { fill: WC.bond, 'fill-opacity': .22, 'fill-rule': 'evenodd' });
+  mk('rect', { x: IX - 285, y: IY - 165, width: 440, height: 330, rx: 16, fill: 'none', stroke: COL.chalk, 'stroke-width': 4, 'stroke-dasharray': '12 8' }, ghost);
+  tw(ghost, { o: 1 }, tSp + 1.2, .6);
+  say(pl, '20 molecules', LX, 712, tSp + .5, { size: 28 });
+  say(pl, 'the same 20, with more room', IX, 712, tSp + 1.6, { size: 28 });
+  say(pl, 'the lattice’s extra space', IX, 752, tSp + 2.1, { size: 28, fill: WC.bond });
+  // dense: density bars, then a cube floating mostly under
+  const bars = densityBars(p, 1215, 300, 330); put(bars.g, { o: 0 }); show(bars.g, tDen + .4, .6);
+  bars.bars.forEach((b, i) => { put(b, { a_width: 0 }); tw(b, { a_width: 330 * [D_LIQ, D_ICE][i] }, tDen + .8 + .5 * i, .8, out); });
+  const fl = G(p, { o: 0 }); show(fl, tDen + 3.2, .6);
+  mk('rect', { x: 1215, y: 600, width: 340, height: 220, rx: 10, fill: WC.water }, fl);
+  const cube = G(fl, { x: 1385, y: 600 });
+  const cs = 120, top = -cs * (1 - UNDER / 100);
+  mk('rect', { x: -cs / 2, y: top, width: cs, height: cs, rx: 8, fill: '#a8d2ee', 'fill-opacity': .85, stroke: WC.ice, 'stroke-width': 3 }, cube);
+  path(fl, 'M1215 600H1555', { stroke: WC.waterHi, 'stroke-width': 5 });
+  wLabel(fl, `ice floats, about ${UNDER} % under`, { x: 1385, y: 572, size: 26, o: 1 });
+  clockRun(t => put(cube, { y: 600 + 2 * Math.sin(1.3 * t) }), D);
+  notToScale(p, 1560, 870, tSp + .5);
+}],
+
+['lake', 'Lakes in winter', (m, D) => {
+  // A lake in cross-section: five layers coloured by temperature from one function of time; the density curve on the
+  // right reads the top layer's temperature. On "sinkice" a second lake shows what would happen if ice sank.
+  const p = panel(0), tC = m('cool'), tS = m('sink'), tL = m('lid'), tB = m('below'), tX = m('sinkice');
+  mk('rect', { x: 0, y: 0, width: 1600, height: 300, fill: '#16304f' }, p);
+  mk('rect', { x: 0, y: 296, width: 1600, height: 604, fill: '#3a2a1f' }, p);
+  const BAS = 'M90 300L950 300L880 560Q780 810 520 810Q260 810 160 560Z';
+  const clip = mk('clipPath', { id: 'lake3' }, mk('defs', {}, p)); path(clip, BAS, {});
+  const lake = G(p); lake.setAttribute('clip-path', 'url(#lake3)');
+  const Ly = k => 300 + 102 * k;
+  const layers = [0, 1, 2, 3, 4].map(k => mk('rect', { x: 80, y: Ly(k), width: 880, height: 103, fill: '#2f6f8f' }, lake));
+  // temperatures: autumn 8 °C everywhere; cooling from the surface brings each layer to 4 °C, the bottom first (the
+  // cooled water sinks); then the top layer alone falls towards 0 °C and stays on top; then it freezes.
+  const Tk = (k, t) => {
+    const reach = tC + 1 + .9 * (4 - k);
+    let T = 8 - 4 * io(ramp(t, reach, reach + 1.4));
+    if (k === 0) T = 4 - 3.4 * io(ramp(t, tS, tS + 3.2));
+    return T;
+  };
+  const colT = T => T >= 4 ? mix('#173f6e', '#2f6f8f', (T - 4) / 4) : mix('#5b8fc0', '#173f6e', T / 4);
+  const ice = mk('rect', { x: 80, y: 300, width: 880, height: 0, fill: WC.ice }, lake);
+  const iceH = t => 46 * io(ramp(t, tL + .2, tL + 2.2));
+  // lattice flicker in the cold top layer
+  const flick = path(lake, '', { stroke: '#d8ecfa', 'stroke-width': 2.5, fill: 'none' });
+  let fd = ''; for (let i = 0; i < 18; i++) { const x = 140 + i * 45 + (i % 2) * 10, y = 340 + (i % 3) * 18; fd += `M${x} ${y - 9}l9 9l-9 9l-9 -9Z`; }
+  setA(flick, 'd', fd); put(flick, { o: 0 });
+  path(p, BAS, { stroke: '#5c412b', 'stroke-width': 8, fill: 'none' });
+  // sinking cold water while the lake cools to 4 °C
+  const downs = G(p, { o: 0 }); [260, 520, 780].forEach(x => wArrow(downs, [x, 330], [x, 470], { color: WC.cold, w: 5, head: 14 }));
+  show(downs, tC + .8, .4); hide(downs, tS - .6, .5);
+  hide(say(p, 'a lake in late autumn: 8 °C all through', 520, 270, .3, { size: 28, fill: COL.dim, weight: 500 }), tC + .5, .4);
+  hide(say(p, 'cooled water is denser: it sinks', 520, 270, tC + 1, { size: 28, fill: WC.cold }), tS - .15, .3);
+  // thermometer in the deep water, reading the bottom layer
+  const th = thermometer(p, { x: 300, y: 760, h: 200, w: 18, min: 0, max: 10, ticks: 5, side: 1, size: 28, color: WC.cold });
+  // fish below, once the lid is on
+  const fishes = [fish(p, { x: 600, y: 640, s: 1.1, o: 0 }), fish(p, { x: 450, y: 720, s: .9, o: 0 })];
+  fishes.forEach((f, i) => show(f, tB + 2.2 + .4 * i, .6));
+  clockRun(t => {
+    layers.forEach((r, k) => setA(r, 'fill', colT(Tk(k, t))));
+    th.set(Tk(4, t));
+    const ih = iceH(t).toFixed(1); setA(ice, 'height', ih);
+    const T0 = Tk(0, t), fo = t < tL + 1.2 ? clamp01((3 - T0) / 1.5) * (.45 + .35 * Math.sin(9 * t)) : 0;
+    put(flick, { o: Math.round(fo * 100) / 100 });
+    fishes.forEach((f, i) => put(f, { x: (i ? 430 : 620) + 60 * Math.sin(.5 * t + i * 2), y: (i ? 715 : 640) + 6 * Math.sin(1.3 * t + i), s: (i ? .9 : 1.1) * (Math.cos(.5 * t + i * 2) >= 0 ? 1 : -1) }));
+  }, D);
+  // sink: colder than 4 °C, the top water expands and stays up
+  const upL = G(p, { o: 0 }); wArrow(upL, [880, 396], [880, 330], { color: COL.chalk, w: 5, head: 14 });
+  show(upL, tS + .6, .4); hide(upL, tL, .4);
+  hide(say(p, 'colder than 4 °C: lighter, stays on top', 520, 270, tS + .2, { size: 28 }), tL + .8, .4);
+  // lid
+  hide(say(p, 'ice floats: a lid', 520, 270, tL + 1.4, { size: 30, weight: 700 }), tB + .6, .4);
+  // below: heat leaving the water is held back by the lid
+  const ups = [300, 560, 820].map((x, i) => { const a = heatArrow(p, [x, 560], [x, 356], { waves: 2, amp: 8, w: 6 }); a.in(tB + .4 + .3 * i, .8); return a; });
+  say(p, 'the lid slows heat loss (lesson 2)', 520, 270, tB + 1, { size: 28, fill: WC.heat });
+  say(p, 'liquid below: fish survive', 520, 860, tB + 2.6, { size: 28, fill: COL.chalk });
+  say(p, 'air −10 °C', 1400, 60, tB + .2, { size: 26, fill: COL.dim, weight: 500 });
+  // the density curve: temperature 0 … 10 °C left to right, densest at 4 °C
+  const cur = G(p, { o: 0 }); show(cur, .3, .6);
+  const CX0 = 1060, CW = 460, CY0 = 300, CH = 300;
+  const cxT = T => CX0 + CW * T / 10, cyT = T => CY0 + (T >= 4 ? CH * ((T - 4) / 6) ** 2 : CH * .55 * ((4 - T) / 4) ** 2);
+  mk('rect', { x: 1000, y: 140, width: 580, height: 600, rx: 18, fill: '#0f1e33', 'fill-opacity': .9, stroke: COL.faint, 'stroke-width': 2 }, cur);
+  path(cur, `M${CX0} ${CY0 - 60}V${CY0 + CH + 40}H${CX0 + CW + 20}`, { stroke: COL.dim, 'stroke-width': 3 });
+  let cd = ''; for (let i = 0; i <= 60; i++) { const T = i / 6; cd += (i ? 'L' : 'M') + cxT(T).toFixed(1) + ' ' + cyT(T).toFixed(1); }
+  path(cur, cd, { stroke: WC.bond, 'stroke-width': 5 });
+  [0, 4, 8].forEach(T => wLabel(cur, T + ' °C', { x: cxT(T), y: CY0 + CH + 76, size: 24, fill: COL.dim, weight: 500, o: 1 }));
+  wLabel(cur, 'density', { x: CX0 - 10, y: CY0 - 74, size: 26, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+  wLabel(cur, 'higher', { x: CX0 - 14, y: CY0 + 8, size: 20, fill: COL.dim, anchor: 'end', weight: 500, o: 1 });
+  path(cur, `M${cxT(4)} ${CY0 - 40}V${CY0 + CH + 40}`, { stroke: COL.faint, 'stroke-width': 2, 'stroke-dasharray': '6 6' });
+  const pk = say(cur, '4 °C: densest', cxT(4) + 14, CY0 - 30, tC + 4, { size: 28, anchor: 'start', weight: 700 });
+  const dot = mk('circle', { r: 13, fill: COL.chalk, stroke: '#0f1e33', 'stroke-width': 3 }, cur);
+  const dotT = say(cur, '', 0, 0, .5, { size: 24, weight: 600, anchor: 'start' });
+  clockRun(t => { const T = Tk(0, t); put(dot, { x: cxT(T), y: cyT(T) }); put(dotT, { x: cxT(T) + 22, y: cyT(T) + 40 }); setText(dotT, 'surface ' + wDeg(T)); }, D);
+  hide(cur, tX - .2, .5);
+  // sinkice: if ice sank, the lake would fill with ice from the bottom up
+  const alt = G(p, { o: 0 }); show(alt, tX + .2, .6);
+  mk('rect', { x: 1000, y: 140, width: 580, height: 600, rx: 18, fill: '#0f1e33', 'fill-opacity': .9, stroke: COL.faint, 'stroke-width': 2 }, alt);
+  wLabel(alt, 'if ice sank…', { x: 1290, y: 200, size: 32, weight: 700, o: 1 });
+  const ab = G(alt, { x: 1290 - 520 * .6, y: 117, s: .6 });
+  const clip2 = mk('clipPath', { id: 'lake3b' }, mk('defs', {}, ab)); path(clip2, BAS, {});
+  const al = G(ab); al.setAttribute('clip-path', 'url(#lake3b)');
+  mk('rect', { x: 80, y: 300, width: 880, height: 520, fill: '#173f6e' }, al);
+  const aIce = mk('rect', { x: 80, y: 820, width: 880, height: 0, fill: WC.ice }, al);
+  path(ab, BAS, { stroke: '#5c412b', 'stroke-width': 10, fill: 'none' });
+  prog(q => { const h = (520 * q).toFixed(1); setA(aIce, 'height', h); setA(aIce, 'y', (820 - 520 * q).toFixed(1)); }, tX + .7, 3.2, io);
+  say(alt, 'frozen from the bottom up', 1290, 640, tX + 1.4, { size: 28 });
+  say(alt, '…and could freeze solid', 1290, 684, tX + 3.6, { size: 28, fill: COL.bad });
+}],
+
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  mk('rect', { x: 90, y: 90, width: 700, height: 300, rx: 16, fill: '#173f66' }, p);
+  const ml = G(p); const lm = Array.from({ length: 12 }, (_, i) => waterMolecule(ml, { x: 160 + (i % 6) * 112 + (wHash(i, 5) - .5) * 30, y: 175 + Math.floor(i / 6) * 120 + (wHash(i, 6) - .5) * 30, r: wHash(i, 7) * 360, s: .45 }));
+  const base = lm.map(q => ({ ...st(q) }));
+  clockRun(t => lm.forEach((q, i) => q.pose(base[i].x + 8 * Math.sin(1.7 * t + i), base[i].y + 7 * Math.sin(1.4 * t + 2 * i), base[i].r + 30 * Math.sin(t + i))), D);
+  wLabel(p, 'liquid water', { x: 440, y: 72, size: 30, o: 1 });
+  mk('rect', { x: 90, y: 450, width: 700, height: 330, rx: 16, fill: '#25507a' }, p);
+  stillLattice(p, 440, 615, 58, .42);
+  wLabel(p, 'ice', { x: 440, y: 830, size: 30, o: 1 });
+  notToScale(p, 790, 870, .2);
+}, { ask: done => quiz({ x: 860, y: 90, w: 700, cls: 'side' }, [{
+  id: 'c-icefloat',
+  prompt: ['Why does ice float on liquid water?'],
+  build: choice([
+    ['Its molecules are heavier.'],
+    ['Hydrogen bonds hold its molecules in an open lattice, further apart, so it is less dense.'],
+    ['Its molecules stop moving, and cold things float.'],
+    ['Ice is made of a different molecule.'],
+  ], 1, 'Right. Locked in the lattice, the same molecules take up more room, so ice has a lower density and floats.',
+  ['The molecules are the same H₂O and weigh the same; in ice they take up more room.', null,
+   'Spacing, not stillness, is the reason: the bonds hold the molecules further apart.',
+   'Ice is still H₂O; only the arrangement of the molecules changes.']),
+}], done) }],
+
+/* ---------- part B: water the solvent ---------- */
+['solv', 'Water the solvent', (m, D) => {
+  // A glass of water seen at molecule level, with solute dots falling in and spreading out; on "why" the camera pushes
+  // in on one molecule and its hydrogen-bonded neighbours.
+  const p = panel(0), cam = camera(p, D, { x: 520 }), W = cam.world, tMix = m('mix'), tSv = m('solvent'), tSu = m('solute'), tAq = m('aq'), tWhy = m('why');
+  const bk = beaker(W, { x: 520, y: 840, w: 640, h: 640, level: .86 });
+  const S2 = .45, M0 = [520, 560];
+  const dl = G(W), ml = G(W), bl = G(W);   // solute dots under the waters
+  cam.to({ x: 800 }, tMix - .2, 1.3);        // the beaker moves aside for the labels
+  // the centre molecule and three bonded neighbours (two take its hydrogens, one gives it one)
+  const C0 = waterMolecule(ml, { x: M0[0], y: M0[1], s: S2 });
+  const nb = [[37.75, 'in'], [142.25, 'in'], [-90, 'out']].map(([a, kind]) => {
+    const r = a * Math.PI / 180, x = M0[0] + 98 * Math.cos(r), y = M0[1] + 98 * Math.sin(r);
+    return { q: waterMolecule(ml, { x, y, s: S2, r: kind === 'in' ? a - 90 : a + 180 - W_H1 }), kind };
+  });
+  // the rest of the water, kept clear of the centre group
+  const others = [];
+  for (let i = 0; i < 40 && others.length < 18; i++) {
+    const x = 270 + wHash(i, 41) * 500, y = 330 + wHash(i, 42) * 470;
+    if (Math.hypot(x - M0[0], y - M0[1] + 20) < 175 || others.some(o => Math.hypot(o[0] - x, o[1] - y) < 92)) continue;
+    others.push([x, y, wHash(i, 43) * 360]);
+  }
+  const om = others.map(([x, y, r]) => waterMolecule(ml, { x, y, r, s: S2 }));
+  // waters the push leaves out of frame stop moving at "why" and stop drawing once it ends (Firefox paint)
+  const parts = om.map((q, i) => [q, others[i][0] - 50, others[i][1] - 50, others[i][0] + 50, others[i][1] + 50]);
+  clockRun(t => cull(cam, parts, t), D);
+  const all = [C0, ...nb.map(n => n.q), ...om], base = all.map(q => ({ ...st(q) }));
+  const bonds = [hBond(bl, { w: 3 }), hBond(bl, { w: 3 }), hBond(bl, { w: 3 })]; bonds.forEach(b => put(b, { o: 0 }));
+  // solute dots: a pinch falls in at the top, then spreads until even
+  const ND = 16, sp = Array.from({ length: ND }, (_, i) => [300 + (i % 4) * 140 + 40 * (wHash(i, 51) - .5), 360 + Math.floor(i / 4) * 120 + 30 * (wHash(i, 52) - .5)]);
+  const dotsEl = path(dl, '', { fill: WC.solute, stroke: '#8a6d16', 'stroke-width': 2 });
+  // dots near the focus molecule or under the "polar" card fade before the push
+  const nearF = sp.map(([x, y]) => Math.hypot(x - M0[0], y - M0[1]) < 150 || (x > 625 && y < 500));
+  const dotsN = path(dl, '', { fill: WC.solute, stroke: '#8a6d16', 'stroke-width': 2 }); hide(dotsN, tWhy - .3, .5);
+  const glow = path(dl, '', { fill: WC.solute, 'fill-opacity': .3 }); put(glow, { o: 0 });
+  const dropT = i => .3 + .06 * i;
+  const dotAt = (i, t) => {
+    const e = t - dropT(i), fall = clamp01(e / .6), cx = 520 + 50 * (wHash(i, 53) - .5), cy = lerp(150, 345 + 30 * wHash(i, 54), fall * fall);
+    const k = io(ramp(t, tMix + .2 + .05 * i, tMix + 3.4 + .05 * i));
+    return [lerp(cx, sp[i][0], k) + 6 * Math.sin(1.7 * t + i), lerp(cy, sp[i][1], k) + 6 * Math.sin(1.3 * t + 2 * i), e];
+  };
+  clockRun(t => {
+    const still = 1 - ramp(t, tWhy, tWhy + .3);
+    all.forEach((q, i) => { const b = base[i], a = i < 4 ? 2 : 6 * still; q.pose(b.x + a * Math.sin(1.6 * t + i), b.y + a * Math.sin(1.3 * t + 2 * i), b.r + (i < 4 ? 2 : 14 * still) * Math.sin(1.1 * t + i)); });
+    bonds[0].link(C0, 1, nb[0].q); bonds[1].link(C0, 2, nb[1].q); bonds[2].link(nb[2].q, 1, C0);
+    const d = [], dn = [], g = [];
+    const td = Math.min(t, tWhy + .3);   // in the close-up only the focus group moves (Firefox repaints the zoomed world on any change)
+    for (let i = 0; i < ND; i++) { const [x, y, e] = dotAt(i, td); if (e >= 0) { (nearF[i] ? dn : d).push([x, y, 11]); if (t < tWhy) g.push([x, y, 22]); } }
+    setA(dotsEl, 'd', dots(d)); setA(dotsN, 'd', dots(dn)); setA(glow, 'd', dots(g));
+  }, D);
+  // labels at the right, each with its moment
+  const L = G(p);
+  say(L, 'solution', 930, 210, tMix + .3, { size: 36, anchor: 'start', weight: 700 });
+  say(L, 'the same all the way through', 930, 252, tMix + 1, { size: 28, anchor: 'start', fill: COL.dim, weight: 500 });
+  all.forEach((q, i) => tw(q.halo, { o: .5, c_fill: WC.bond }, tSv + .3 + .02 * i, .5));
+  all.forEach((q, i) => tw(q.halo, { o: 0 }, tSu, .4));
+  say(L, 'solvent: the water', 930, 360, tSv + .3, { size: 36, anchor: 'start', weight: 700, fill: WC.bond });
+  say(L, 'does the dissolving', 930, 402, tSv + .9, { size: 28, anchor: 'start', fill: COL.dim, weight: 500 });
+  show(glow, tSu + .2, .4); tw(glow, { o: .2 }, tSu + 2.2, .6);
+  say(L, 'solute: the dots', 930, 510, tSu + .3, { size: 36, anchor: 'start', weight: 700, fill: WC.solute });
+  say(L, 'what is dissolved', 930, 552, tSu + .9, { size: 28, anchor: 'start', fill: COL.dim, weight: 500 });
+  dropIcon(L, 965, 700, .9, 0); show(L.lastChild, tAq + .2, .5);
+  say(L, 'aqueous solution', 1010, 668, tAq + .3, { size: 36, anchor: 'start', weight: 700 });
+  say(L, 'water is the solvent', 1010, 710, tAq + 1, { size: 28, anchor: 'start', fill: COL.dim, weight: 500 });
+  // why: push in on the centre molecule; its partial charges and its hydrogen bonds
+  hide(L, tWhy - .1, .5); hide(glow, tWhy - .5, .4);
+  prog(q => { L.style.display = glow.style.display = q >= 1 ? 'none' : ''; }, tWhy + .45, .01, lin);
+  cam.to({ x: M0[0], y: M0[1] + 10, z: 2.4 }, tWhy + .2, 1.8);
+  const dl2 = C0.deltas(tWhy + 2.4, { size: 16, layer: W, nudge: { 0: [0, -6] } });
+  bonds.forEach((b, i) => { show(b, tWhy + 6 + .5 * i, .1); b.form(tWhy + 6 + .5 * i, .6); });
+  const back = (x, y, w, h, t0) => { const r = mk('rect', { x, y, width: w, height: h, rx: 16, fill: COL.board, 'fill-opacity': .88 }, p); put(r, { o: 0 }); show(r, t0, .4); };
+  back(1060, 120, 480, 124, tWhy + 2.1);
+  say(p, 'polar', 1300, 172, tWhy + 2.2, { size: 44, weight: 700 });
+  say(p, 'δ− oxygen end, δ+ hydrogen ends', 1300, 222, tWhy + 2.8, { size: 28, fill: COL.dim, weight: 500 });
+  back(1060, 760, 480, 70, tWhy + 6.5);
+  say(p, 'forms hydrogen bonds readily', 1300, 806, tWhy + 6.6, { size: 32, fill: WC.bond });
+}],
+
+['hydr', 'Hydration shells', (m, D) => {
+  // Push from a beaker with salt on the bottom into the crystal's corner, drawn at scale K around the heap; waters turn
+  // to the ions, pull one sodium and one chloride out, and close round each as a hydration shell. Every molecule's
+  // place is a function of time: shell slots (wShellSlot) around ions that move on their own paths.
+  const p = panel(0), cam = camera(p, D), W = cam.world, pL = G(p);
+  const tCr = m('crystal'), tW = m('water'), tNa = m('na'), tCl = m('cl'), tPu = m('pull'), tSh = m('shell'), tDo = m('done'), tLi = m('limit');
+  const room = G(W); beaker(room, { x: 800, y: 820, w: 660, h: 600, level: .86 });
+  const heap = saltHeap(room, { w: 120, h: 40, n: 60 }); put(heap, { x: 800, y: 812 });
+  const top = say(pL, 'table salt: sodium chloride, NaCl', 800, 120, .2, { size: 34 }); hide(top, 1.1, .4);
+  const K = .05, CX = 800, CY = 790;
+  cam.to({ x: CX, y: CY, z: 1 / K }, .6, 2.2);
+  const ins = G(W, { x: CX - K * 800, y: CY - K * 450, s: K });
+  mk('rect', { x: -30000, y: -20000, width: 60000, height: 40000, fill: '#14375c' }, ins);
+  // as in "ice": one solid cover between the beaker and the crystal, and each side drawn only while it shows
+  const cover = mk('rect', { x: CX - 1600, y: CY - 1000, width: 3200, height: 2000, fill: '#14375c', 'fill-opacity': 0 }, W);
+  put(cover, { 'a_fill-opacity': 0 }); tw(cover, { 'a_fill-opacity': 1 }, 1.25, .4, lin); tw(cover, { 'a_fill-opacity': 0 }, 1.75, .6, lin);
+  const T_IN = 1.66; ins.style.display = 'none';
+  prog(q => { ins.style.display = q >= 1 ? '' : 'none'; room.style.display = q >= 1 ? 'none' : ''; }, T_IN, .01, lin);
+  // crystal: 4 × 6 ions, sodium where (c + r) is even
+  const zin = G(ins, { x: 340 - 300 * 1.3, y: 400 - 400 * 1.3, s: 1.3 }), Z = ([x, y]) => [340 + (x - 300) * 1.3, 400 + (y - 400) * 1.3];
+  const SP = 86, X0 = 150, Y0 = 260, cryL = G(zin), wl = G(zin), il = G(zin);
+  const ions = [];
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 4; c++) ions.push(wIon(cryL, (c + r) % 2 ? 'Cl' : 'Na', { x: X0 + c * SP, y: Y0 + r * SP }));
+  const NA = ions[1 * 4 + 3], CL = ions[4 * 4 + 3];
+  il.appendChild(NA); il.appendChild(CL);
+  const naHome = [X0 + 3 * SP, Y0 + SP], clHome = [X0 + 3 * SP, Y0 + 4 * SP];
+  const naAt = t => { const k = io(ramp(t, tPu + .3, tPu + 3.3)), d = io(ramp(t, tDo + .2, tDo + 3.4)); return [lerp(naHome[0], 680, k) + 170 * d + 4 * Math.sin(1.2 * t), lerp(naHome[1], 300, k) + 4 * Math.sin(1.5 * t)]; };
+  const clAt = t => { const k = io(ramp(t, tPu + .9, tPu + 3.9)), d = io(ramp(t, tDo + .2, tDo + 3.4)); return [lerp(clHome[0], 820, k) + 250 * d + 4 * Math.sin(1.1 * t + 1), lerp(clHome[1], 585, k) + 4 * Math.sin(1.4 * t + 1)]; };
+  // waters: six for each ion. Front slots (k 5, 0, 1: the open side) fill on "water"; back slots fill as the ion leaves.
+  const SW3 = .6, N6 = 6, front = [5, 0, 1], back = [2, 3, 4];
+  const startXY = (i, seed) => [760 + wHash(i, seed) * 440, 120 + wHash(i, seed + 1) * 520];
+  const team = [];
+  [[NA, naAt, 61], [CL, clAt, 71]].forEach(([ion, at, seed]) => {
+    for (let k = 0; k < N6; k++) {
+      const isF = front.includes(k), [sx, sy] = startXY(k, seed);
+      const q = waterMolecule(wl, { x: sx, y: sy, s: SW3, r: wHash(k, seed + 2) * 360 });
+      const arrive = isF ? [tW + .1 + .3 * front.indexOf(k), 2.4] : [tPu + 1.8 + .4 * back.indexOf(k), 2.6];
+      const turnAt = ion === NA ? tNa + .3 : tCl + .3;
+      team.push({ q, ion, at, k, sx, sy, r0: st(q).r, arrive, turnAt: isF ? turnAt + .25 * front.indexOf(k) : arrive[0] + .6 });
+    }
+  });
+  // a few more waters in the background, not in any shell
+  const free = [[620, 120], [1150, 290], [1150, 690], [560, 700], [1120, 110]].map(([x, y], i) => waterMolecule(wl, { x, y, s: SW3, r: wHash(i, 81) * 360, o: .6 }));
+  const fb = free.map(q => ({ ...st(q) }));
+  // while an ion is still in the crystal its front waters sit at +-35 degrees rather than 60, clear of the neighbouring ions
+  const outK = (ion, t) => ion === NA ? io(ramp(t, tPu + .3, tPu + 2)) : io(ramp(t, tPu + .9, tPu + 2.6));
+  clockRun(t => {
+    if (t < T_IN) return;   // hidden under the cover until then
+    NA.pose(...naAt(t)); CL.pose(...clAt(t));
+    team.forEach(({ q, ion, at, k, sx, sy, r0, arrive, turnAt }, i) => {
+      const [ix, iy] = at(t), a = io(ramp(t, arrive[0], arrive[0] + arrive[1])), u = io(ramp(t, turnAt, turnAt + 1.2));
+      const spin = 18 * io(ramp(t, tDo + .2, tDo + 4)) * (ion === NA ? 1 : -1);
+      const corr = (k === 5 ? 25 : k === 1 ? -25 : 0) * (1 - outK(ion, t));
+      const [x, y, r] = wShellSlot(ion, ix, iy, k, N6, { s: SW3, gap: 22 * (1 - u) + (ion === NA ? 12 : 0), a0: spin + corr });
+      const jx = 5 * (1 - a) * Math.sin(1.7 * t + i) + 2 * Math.sin(2.3 * t + i), jy = 5 * (1 - a) * Math.sin(1.3 * t + 2 * i) + 2 * Math.sin(1.9 * t + 2 * i);
+      q.pose(lerp(sx, x, a) + jx, lerp(sy, y, a) + jy, angLerp(r0 + 25 * Math.sin(.8 * t + i) * (1 - u), r, u));
+    });
+    free.forEach((q, i) => q.pose(fb[i].x + 10 * Math.sin(1.1 * t + i), fb[i].y + 9 * Math.sin(.9 * t + 2 * i), fb[i].r + 20 * Math.sin(.7 * t + i)));
+  }, D);
+  // labels (screen space; the camera holds still once inside)
+  say(pL, 'Na⁺', 0, 0, tCr + .8, { size: 30, weight: 700, fill: '#d2b8f2', anchor: 'start' });
+  say(pL, 'Cl⁻', 0, 0, tCr + 2.2, { size: 30, weight: 700, fill: '#a8e8b4', anchor: 'start' });
+  const naT = pL.children[pL.children.length - 2], clT = pL.lastChild; hide(naT, tW + 1.4, .4); hide(clT, tW + 1.4, .4);   // the waters take that place; the lines at the top name the ions
+  clockRun(t => { const [ax, ay] = Z(naAt(t)), [bx, by] = Z(clAt(t)); put(naT, { x: ax + 56, y: ay - 46 }); put(clT, { x: bx + 70, y: by + 74 }); }, D);
+  pulse(NA, tCr + .8, 1.25); pulse(CL, tCr + 2.2, 1.2);
+  const lab1 = say(pL, 'sodium ion: small, positive', 480, 100, tCr + .8, { size: 30 });
+  const lab2 = say(pL, 'chloride ion: larger, negative', 480, 142, tCr + 2.2, { size: 30, fill: COL.dim, weight: 500 });
+  hide(lab1, tW - .3, .4); hide(lab2, tW - .3, .4);
+  notToScale(pL, 1560, 870, tCr + 1);
+  say(pL, 'water crowds the surface', 480, 100, tW + .3, { size: 30 });
+  hide(pL.lastChild, tNa - .2, .3);
+  // na: oxygen ends in
+  tw(NA.ring, { o: 1 }, tNa + .4, .5);
+  team.filter(w => w.ion === NA && front.includes(w.k)).forEach((w, i) => { tw(w.q.halo, { o: .75, c_fill: WC.O }, tNa + 1.4 + .25 * i, .5); tw(w.q.halo, { o: 0 }, tPu, .5); });
+  const naL = G(zin); const clL = team.filter(w => w.ion === CL && w.k === 0)[0].q.deltas(tCl + 1.6, { size: 24, layer: zin });
+  say(pL, 'around Na⁺: the δ− oxygen ends point in', 480, 100, tNa + .5, { size: 30, fill: '#ffb3a6' });
+  hide(pL.lastChild, tPu - .2, .3);
+  tw(CL.ring, { o: 1 }, tCl + .4, .5);
+  say(pL, 'around Cl⁻: the δ+ hydrogen ends point in', 480, 142, tCl + .5, { size: 30 });
+  hide(pL.lastChild, tPu - .2, .3);
+  hide(naL, tPu + .2, .4); hide(clL, tPu + .2, .4);
+  say(pL, 'pulled out of the crystal', 480, 100, tPu + .6, { size: 30 });
+  hide(pL.lastChild, tSh - .2, .3);
+  // shell: dashed spheres round each ion and the name
+  const ringR = (ion) => ion.R + SW3 * (ion.sign === '+' ? W_RO + 2 * W_OH : W_RH + 2 * W_OH + W_RO) + (ion.sign === '+' ? 28 : 16);
+  const shells = [NA, CL].map(ion => { const c = mk('circle', { r: ringR(ion), fill: 'none', stroke: WC.bond, 'stroke-width': 3, 'stroke-dasharray': '10 8' }, il); put(c, { o: 0 }); return c; });
+  shells.forEach((c, i) => tw(c, { o: 1 }, tSh + .3 + .4 * i, .6));
+  [NA, CL].forEach(ion => { tw(ion.ring, { o: 0 }, tSh, .4); });
+  clockRun(t => { const a = naAt(t), b = clAt(t); put(shells[0], { x: a[0], y: a[1] }); put(shells[1], { x: b[0], y: b[1] }); }, D);
+  const hs = G(pL, { o: 0 }); show(hs, tSh + .6, .5);
+  wLabel(hs, 'hydration shell', { x: 1380, y: 380, size: 40, weight: 700, fill: WC.bond, o: 1 });
+  wLabel(hs, 'a sphere of water', { x: 1380, y: 424, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(hs, 'molecules round each ion', { x: 1380, y: 460, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  hide(hs, tDo + .2, .4);
+  say(pL, 'the ions stay apart: the salt is dissolved', 800, 860, tDo + .6, { size: 30 });
+  // limit: back to a beaker, spoon by spoon; only about 36 g dissolves in 100 mL
+  hide(cam.el, tLi - .1, .5); hide(pL, tLi - .1, .5);
+  const B = G(p, { o: 0 }); show(B, tLi + .2, .6);
+  B.style.display = 'none'; prog(() => { B.style.display = ''; }, tLi + .2, .01, lin);
+  prog(q => { cam.el.style.display = q >= 1 ? 'none' : ''; }, tLi + .5, .01, lin);
+  mk('rect', { x: 0, y: 0, width: 1600, height: 900, fill: COL.board }, B);
+  beaker(B, { x: 560, y: 800, w: 460, h: 460, level: .8 });
+  wLabel(B, '100 mL of water', { x: 560, y: 850, size: 28, o: 1 });
+  const add = t => 50 * ramp(t, tLi + 1.6, tLi + 6.4), dissolved = t => Math.min(SOLUBILITY, add(t)), extra = t => Math.max(0, add(t) - SOLUBILITY);
+  const pile = saltHeap(B, { w: 110, h: 34, n: 50, seed: 9 }); put(pile, { x: 560, y: 792, s: .01 });
+  const spoon = G(B, { x: 560, y: 210, o: 0 }); path(spoon, 'M-40 0Q0 30 40 0Z', { fill: '#b9c3cf' }); path(spoon, 'M40 -2L170 -40', { stroke: '#b9c3cf', 'stroke-width': 10 });
+  show(spoon, tLi + 1, .4); hide(spoon, tLi + 6.6, .4);
+  const fall = path(B, '', { fill: '#ffffff' });
+  const ra = wLabel(B, '', { x: 900, y: 420, size: 34, anchor: 'start', o: 1 }), rd = wLabel(B, '', { x: 900, y: 480, size: 34, anchor: 'start', fill: WC.bond, o: 1 }), rx = wLabel(B, '', { x: 900, y: 540, size: 34, anchor: 'start', fill: COL.dim, o: 1 });
+  clockRun(t => {
+    const a = add(t), e = extra(t); let d = '';
+    if (a > 0 && a < 50) for (let i = 0; i < 10; i++) { const f = ((t * 1.6 + i / 10) % 1), x = 548 + 24 * wHash(i, 91), y = 230 + 560 * f; if (y < 790) d += `M${x.toFixed(1)} ${y.toFixed(1)}h7v7h-7Z`; }
+    setA(fall, 'd', d);
+    const s = e > 0 ? Math.sqrt(e / (50 - SOLUBILITY)) : .01; put(pile, { s: Math.round(s * 1000) / 1000 });
+    setText(ra, `salt added: ${Math.round(a)} g`); setText(rd, `dissolved: ${Math.round(dissolved(t))} g`); setText(rx, `left on the bottom: ${Math.round(e)} g`);
+  }, D);
+  say(B, `about ${SOLUBILITY} g per 100 mL`, 900, 260, tLi + 1.6, { size: 40, weight: 700 });
+  say(B, 'at room temperature', 900, 306, tLi + 2.2, { size: 28, fill: COL.dim, weight: 500 });
+}],
+
+['phil', 'Hydrophilic and hydrophobic', (m, D) => {
+  // Three panels: sugar and a protein hold their waters with bonds (hydrophilic); oil gives them nothing to hold, and the
+  // waters bond to each other and push the oil into one drop (hydrophobic).
+  const p = panel(0), tPo = m('polar'), tPr = m('protein'), tPh = m('phil'), tOi = m('oil'), tPb = m('phobic');
+  const PX = [290, 800, 1310], frames = PX.map(x => mk('rect', { x: x - 235, y: 170, width: 470, height: 570, rx: 26, fill: '#14375c', stroke: COL.faint, 'stroke-width': 3 }, p));
+  const S4 = .45;
+  put(frames[2], { o: .3 }); show(frames[2], tOi, .5);   // the oil panel waits, dim, until oil is named
+  say(p, 'Water dissolves more than ions', 800, 110, .2, { size: 40, weight: 700 });   // the opening line, so the first seconds are not three empty panels
+  // sugar: a ring with four OH groups, each holding a water by a hydrogen bond
+  const sg = G(p, { o: 0 }); show(sg, tPo + .2, .6);
+  const SX = 290, SY = 475, hexP = Array.from({ length: 6 }, (_, i) => [SX + 70 * Math.cos((i * 60 - 30) * Math.PI / 180), SY + 70 * Math.sin((i * 60 - 30) * Math.PI / 180)]);
+  path(sg, 'M' + hexP.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join('L') + 'Z', { stroke: '#9aa3ad', 'stroke-width': 9, fill: '#1d4466' });
+  path(sg, dots(hexP.map(([x, y]) => [x, y, 13])), { fill: '#9aa3ad' });
+  const sbl = G(sg), sml = G(sg), sW = [];
+  [0, 1, 3, 4].forEach((v, n) => {
+    const [x, y] = hexP[v], a = Math.atan2(y - SY, x - SX), ox = x + 42 * Math.cos(a), oy = y + 42 * Math.sin(a);
+    path(sg, `M${x.toFixed(1)} ${y.toFixed(1)}L${ox.toFixed(1)} ${oy.toFixed(1)}`, { stroke: WC.stick, 'stroke-width': 6 });
+    mk('circle', { cx: ox, cy: oy, r: 14, fill: WC.O, stroke: WC.Oedge, 'stroke-width': 2 }, sg);
+    const hx = ox + 22 * Math.cos(a + .9), hy = oy + 22 * Math.sin(a + .9); mk('circle', { cx: hx, cy: hy, r: 9, fill: WC.H, stroke: WC.Hedge, 'stroke-width': 1.5 }, sg);
+    // the water: its hydrogen points at the sugar's O
+    const wx = ox + 100 * Math.cos(a - .35), wy = oy + 100 * Math.sin(a - .35);
+    const q = waterMolecule(sml, { x: wx, y: wy, s: S4 }); wAim(q, 1, ox, oy);
+    const b = hBond(sbl, { w: 3 }); sW.push([q, b, [ox, oy], { ...st(q) }]);
+  });
+  say(sg, 'δ− / δ+ patches', SX, 680, tPo + 1.4, { size: 24, fill: COL.dim, weight: 500 });
+  say(p, 'sugar', SX, 220, tPo + .2, { size: 34, weight: 700 });
+  say(p, 'polar molecule', SX, 790, tPo + 1, { size: 28 });
+  // protein: a large folded chain with charged and polar patches, each with its water
+  const pr = G(p, { o: 0 }); show(pr, tPr + .2, .6);
+  const PXc = 800, PYc = 485;
+  let bd = ''; for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI, r = 125 + 18 * Math.sin(5 * a) + 10 * Math.sin(3 * a + 1); bd += (i ? 'L' : 'M') + (PXc + r * Math.cos(a)).toFixed(1) + ' ' + (PYc + .85 * r * Math.sin(a)).toFixed(1); }
+  path(pr, bd + 'Z', { fill: '#5d6f91', stroke: '#9fb0cf', 'stroke-width': 4 });
+  path(pr, 'M720 420q40 -60 80 0t80 0M730 490q50 40 100 0t70 -10', { stroke: '#9fb0cf', 'stroke-width': 6, 'stroke-opacity': .6 });
+  const pbl = G(pr), pml = G(pr), pW = [];
+  [[-90, '+'], [-30, '−'], [30, 'δ−'], [90, '+'], [150, '−'], [210, 'δ+']].forEach(([deg, kind], n) => {
+    const a = deg * Math.PI / 180, r = 125 + 18 * Math.sin(5 * a) + 10 * Math.sin(3 * a + 1), x = PXc + r * Math.cos(a), y = PYc + .85 * r * Math.sin(a);
+    const pol = kind.length > 1, c = kind === '+' ? WC.pos : kind === '−' ? WC.O : '#dfe8f2';   // charged: blue / red; polar: pale
+    mk('circle', { cx: x, cy: y, r: pol ? 19 : 17, fill: c, stroke: '#0f1e33', 'stroke-width': 2 }, pr);
+    wLabel(pr, kind, { x, y: y + (pol ? 6 : 8), size: pol ? 17 : 22, weight: 700, fill: pol ? '#0f1e33' : COL.chalk, o: 1 });
+    const ion = { sign: kind.endsWith('+') ? '+' : '−', R: 17 };
+    const [wx, wy, wr] = wShellSlot(ion, PXc, PYc, 0, 1, { s: S4, a0: deg, gap: r - 17 + 12 });
+    const q = waterMolecule(pml, { x: wx, y: wy, r: wr, s: S4 }); pW.push([q, { ...st(q) }]);
+  });
+  say(p, 'protein', PXc, 220, tPr + .2, { size: 34, weight: 700 });
+  say(p, 'ionic and polar regions', PXc, 790, tPr + 1, { size: 28 });
+  // phil: both panels are hydrophilic
+  [0, 1].forEach(i => tw(frames[i], { c_stroke: WC.bond, 'a_stroke-width': 5 }, tPh + .3 + .3 * i, .5));
+  [0, 1].forEach(i => { const g = G(p, { o: 0 }); dropIcon(g, PX[i] - 150, 278, .55); wLabel(g, 'hydrophilic', { x: PX[i] - 120, y: 270, size: 28, anchor: 'start', fill: WC.bond, weight: 700, o: 1 }); show(g, tPh + .6 + .3 * i, .5); });
+  say(p, 'an affinity for water', 545, 860, tPh + 1.4, { size: 28, fill: COL.dim, weight: 500 });
+  // oil: four chains wander among the waters, no bonds; then the waters bond to each other and squeeze the oil into a drop
+  const ol = G(p, { o: 0 }); show(ol, tOi + .2, .6);
+  const OX = 1310, OY = 470, ochains = [[-120, -150], [110, -120], [-110, 120], [120, 140]].map(([dx, dy], i) => {
+    const g = G(ol, { x: OX + dx, y: OY + dy, r: wHash(i, 95) * 180 });
+    const pts = Array.from({ length: 6 }, (_, j) => [(j - 2.5) * 20, (j % 2 ? 8 : -8)]);
+    path(g, 'M' + pts.map(([x, y]) => `${x} ${y}`).join('L'), { stroke: '#a77a26', 'stroke-width': 5 });
+    path(g, dots(pts.map(([x, y]) => [x, y, 10])), { fill: WC.oil, stroke: '#a77a26', 'stroke-width': 2 });
+    return { g, dx, dy };
+  });
+  const oml = G(ol), obl = G(ol);
+  const NW = 8, ring = Array.from({ length: NW }, (_, k) => { const a = k / NW * 2 * Math.PI; return [OX + 168 * Math.cos(a), OY + 175 * Math.sin(a)]; });
+  const ow = ring.map((xy, k) => waterMolecule(oml, { x: xy[0], y: xy[1], s: S4, r: wHash(k, 97) * 360 }));
+  const obonds = ring.map(() => hBond(obl, { w: 3 })); obonds.forEach(b => put(b, { o: 0 }));
+  const sq = t => io(ramp(t, tPb + .2, tPb + 2.4));
+  clockRun(t => {
+    sW.forEach(([q, b, o, s0], i) => { q.pose(s0.x + 2 * Math.sin(1.6 * t + i), s0.y + 2 * Math.sin(1.3 * t + i), s0.r + 2 * Math.sin(t + i)); const [hx, hy] = q.atom(1), dx = o[0] - hx, dy = o[1] - hy, L = Math.hypot(dx, dy); b.set([hx + dx / L * 10, hy + dy / L * 10], [o[0] - dx / L * 17, o[1] - dy / L * 17]); });
+    pW.forEach(([q, s0], i) => q.pose(s0.x + 2 * Math.sin(1.5 * t + i), s0.y + 2 * Math.sin(1.2 * t + i), s0.r + 2 * Math.sin(1.1 * t + i)));
+    const k = sq(t);
+    ochains.forEach(({ g, dx, dy }, i) => put(g, { x: OX + lerp(dx + 25 * Math.sin(.9 * t + i), dx * .28, k), y: OY + lerp(dy + 25 * Math.sin(.7 * t + 2 * i), dy * .28, k), r: lerp(wHash(i, 95) * 180 + 25 * Math.sin(.6 * t + i), 90 * i + 20, k) }));
+    ow.forEach((q, j) => {
+      const [rx, ry] = ring[j], wx = rx + 30 * Math.sin(.8 * t + j * 1.7) - 18 * Math.cos(.6 * t + j), wy = ry + 34 * Math.sin(.7 * t + j * 2.3);
+      const tx = OX + 150 * Math.cos(j / NW * 2 * Math.PI), ty = OY + 155 * Math.sin(j / NW * 2 * Math.PI);
+      const nx = OX + 150 * Math.cos((j + 1) / NW * 2 * Math.PI), ny = OY + 155 * Math.sin((j + 1) / NW * 2 * Math.PI);
+      const rr = Math.atan2(ny - ty, nx - tx) * 180 / Math.PI - W_H1;
+      q.pose(lerp(wx, tx, k) + 2 * Math.sin(2 * t + j), lerp(wy, ty, k) + 2 * Math.sin(1.7 * t + j), angLerp(wHash(j, 97) * 360 + 60 * Math.sin(.9 * t + j), rr, k));
+    });
+    obonds.forEach((b, j) => b.link(ow[j], 1, ow[(j + 1) % NW]));
+  }, D);
+  obonds.forEach((b, j) => { show(b, tPb + 2.2 + .1 * j, .1); b.form(tPb + 2.2 + .1 * j, .5); });
+  const drop = mk('ellipse', { cx: OX, cy: OY, rx: 82, ry: 82, fill: WC.oil, 'fill-opacity': .14, stroke: WC.oil, 'stroke-width': 3, 'stroke-dasharray': '8 7' }, ol); put(drop, { o: 0 });
+  ol.insertBefore(drop, ol.firstChild); show(drop, tPb + 2.2, .6);
+  say(p, 'oil', OX, 220, tOi + .2, { size: 34, weight: 700, fill: WC.oil });
+  say(p, 'no charged or polar regions', OX, 790, tOi + 1.4, { size: 28 });
+  tw(frames[2], { c_stroke: WC.oil, 'a_stroke-width': 5 }, tPb + .3, .5);
+  say(p, 'hydrophobic', OX, 270, tPb + .4, { size: 30, weight: 700, fill: WC.oil });
+  say(p, 'water bonds to water, oil gathers in a drop', OX, 860, tPb + 2.8, { size: 26, fill: COL.dim, weight: 500 });
+}],
+
+/* ---------- part C: concentration ---------- */
+['conc', 'Why concentration matters', (m, D) => {
+  // Two beakers of solute dots in straight-line motion; every meeting (two dots closer than a touch) flashes, and the
+  // counters count those same meetings, found once by stepping the same motion in time.
+  const p = panel(0), tCo = m('collide'), tMo = m('more'), tCt = m('count');
+  const boxes = [[420, 4, 7], [1180, 14, 8]].map(([cx, n, seed]) => {
+    beaker(p, { x: cx, y: 780, w: 500, h: 470, level: .86 });
+    const X0 = cx - 215, X1 = cx + 215, Y0 = 780 - 390, Y1 = 780 - 24;
+    const ds = Array.from({ length: n }, (_, i) => ({ x: X0 + wHash(i, seed) * (X1 - X0), y: Y0 + wHash(i, seed + 1) * (Y1 - Y0), vx: 70 + 80 * wHash(i, seed + 2), vy: 60 + 80 * wHash(i, seed + 3), sx: wHash(i, seed + 4) > .5 ? 1 : -1, sy: wHash(i, seed + 5) > .5 ? 1 : -1 }));
+    const tri = (a, lo, hi) => { const L = hi - lo, u = ((a - lo) % (2 * L) + 2 * L) % (2 * L); return lo + (u < L ? u : 2 * L - u); };
+    const at = (d, t) => [tri(d.x + d.sx * d.vx * t, X0, X1), tri(d.y + d.sy * d.vy * t, Y0, Y1)];
+    // meetings: closer than 28 px, counted once per approach
+    const ev = [], near = new Set();
+    for (let s = 0; s * .02 < D + 1; s++) { const t = s * .02; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+      const [ax, ay] = at(ds[i], t), [bx, by] = at(ds[j], t), key = i * 100 + j, c = Math.hypot(ax - bx, ay - by) < 28;
+      if (c && !near.has(key)) { near.add(key); ev.push([t, (ax + bx) / 2, (ay + by) / 2]); } else if (!c) near.delete(key);
+    } }
+    const dEl = path(p, '', { fill: WC.solute, stroke: '#8a6d16', 'stroke-width': 2 });
+    const pool = Array.from({ length: 8 }, () => { const c = mk('circle', { r: 0, fill: 'none', stroke: '#ffffff', 'stroke-width': 4 }, p); put(c, { o: 0 }); return c; });
+    const cnt = wLabel(p, '', { x: cx, y: 860, size: 32, o: 0 });
+    return { cx, ds, at, ev, dEl, pool, cnt, n };
+  });
+  clockRun(t => boxes.forEach(b => {
+    setA(b.dEl, 'd', dots(b.ds.map(d => [...b.at(d, t), 13])));
+    const live = t >= tCo ? b.ev.filter(([te]) => te >= tCo && t - te >= 0 && t - te < .5) : [];
+    b.pool.forEach((c, i) => {
+      const e = live[i];
+      if (!e) { put(c, { x: 0, y: 0, o: 0 }); setA(c, 'r', '0'); return; }
+      const u = (t - e[0]) / .5; put(c, { x: e[1], y: e[2], o: 1 - u }); setA(c, 'r', (14 + 26 * u).toFixed(1));
+    });
+    const n = t >= tMo ? b.ev.filter(([te]) => te >= tMo && te <= t).length : 0;
+    setText(b.cnt, `meetings: ${n}`);
+  }), D);
+  say(p, 'most reactions in cells happen in water', 800, 110, .3, { size: 32 });
+  say(p, 'a reaction needs molecules to collide', 800, 160, tCo + .2, { size: 30, fill: WC.solute });
+  boxes.forEach(b => show(b.cnt, tMo + .1, .4));
+  say(p, 'a little solute per liter', 420, 340, tMo + .4, { size: 28, fill: COL.dim, weight: 500 });
+  say(p, 'more solute per liter', 1180, 340, tMo + .8, { size: 28, fill: COL.dim, weight: 500 });
+  const hw = G(p, { o: 0 }); show(hw, tCt + .2, .6);
+  mk('rect', { x: 560, y: 205, width: 480, height: 76, rx: 18, fill: COL.board, stroke: WC.bond, 'stroke-width': 3 }, hw);
+  wLabel(hw, 'how much is dissolved?', { x: 800, y: 255, size: 34, weight: 700, fill: WC.bond, o: 1 });
+}],
+
+['mole', 'Counting in moles', (m, D) => {
+  // One big water molecule with its atoms' masses; on "mol" the camera pulls back until it is one grain of a heap too
+  // big to count; the heap goes on a scale. The heap is drawn at the molecule's own scale, so the pull-back is true.
+  const p = panel(0), tMa = m('mass'), tMo = m('mol'), tAv = m('avo'), tMr = m('molar'), tDa = m('dalton');
+  const cam = camera(p, D, { x: 760, y: 450, z: 1 }), W = cam.world;
+  const MX = 560, MY = 420, S5 = 3;
+  // the heap: rows of molecules (as three dots each) under the big one, in a mound
+  const NR = 18, hp = [], hh = [];
+  for (let r = 0; r < NR; r++) {
+    const half = 2 + r * 1.4, y = MY + 60 + r * 230;
+    for (let c = -Math.floor(half); c <= Math.floor(half); c++) {
+      if (r === 0 && c === 0) continue;
+      const x = MX + c * 250 + (r % 2) * 125 + 40 * (wHash(r * 50 + c, 3) - .5), yy = y + 40 * (wHash(r * 50 + c, 4) - .5), a = wHash(r * 50 + c, 5) * 6.28;
+      hp.push([x, yy, 88]); hh.push([x + 125 * Math.cos(a), yy + 125 * Math.sin(a), 48], [x + 125 * Math.cos(a + 1.82), yy + 125 * Math.sin(a + 1.82), 48]);
+    }
+  }
+  const heapG = G(W, { o: 0 });
+  path(heapG, dots(hh), { fill: WC.H }); path(heapG, dots(hp), { fill: WC.O });
+  show(heapG, tMo + .2, .6);
+  const big = waterMolecule(W, { x: MX, y: MY - 30, s: S5 });
+  clockRun(t => big.pose(MX + 4 * Math.sin(1.3 * t), MY - 30 + 4 * Math.sin(1.1 * t), 3 * Math.sin(.9 * t)), D);
+  // mass: the atoms' masses beside them (world, fade on the pull-back)
+  const tags = G(W, { o: 0 }); show(tags, .3, .5); hide(tags, tMo + .6, .4);
+  wLabel(tags, `O ${MASS.O}`, { x: MX, y: MY - 160, size: 44, weight: 700, o: 1 });
+  wLabel(tags, `H ${MASS.H}`, { x: MX + 175, y: MY + 190, size: 40, weight: 700, o: 1 });
+  wLabel(tags, `H ${MASS.H}`, { x: MX - 175, y: MY + 190, size: 40, weight: 700, o: 1 });
+  const ma = G(p, { o: 0 }); show(ma, .3, .5); hide(ma, tMo + .4, .4);
+  wLabel(ma, 'molecular mass', { x: 1060, y: 330, size: 44, weight: 700, anchor: 'start', o: 1 });
+  wLabel(ma, 'the sum of its atoms’ masses', { x: 1060, y: 376, size: 28, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+  const sum = say(ma, `${MASS.H} + ${MASS.H} + ${MASS.O} = ${M_H2O}`, 1060, 480, m('mass', 5.2), { size: 52, anchor: 'start', weight: 700, fill: WC.bond });
+  // mol: pull back until the molecule is one grain of the heap
+  const Z1 = .05, HX = 1060, HY = 470, heapC = [MX, MY + 60 + 9 * 230];
+  cam.to({ x: heapC[0] - (HX - 800) / Z1, y: heapC[1] - (HY - 450) / Z1, z: Z1 }, tMo + .3, 3.2);
+  const pin = mk('circle', { r: 18, fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, p); put(pin, { o: 0 });
+  tw(pin, { o: 1 }, tMo + 3.6, .3); tw(pin, { o: 0 }, tMo + 5.4, .6);
+  clockRun(t => { const [x, y] = cam.screen(MX, MY - 30, t); put(pin, { x, y }); }, D);
+  say(p, 'too many to count one by one', HX, 220, tMo + 3.4, { size: 30, fill: COL.dim, weight: 500 });
+  // avo: the mole
+  const av = G(p, { o: 0 }); show(av, tAv + .2, .5);
+  wLabel(av, `1 mole = ${AVO} units`, { x: 100, y: 330, size: 42, weight: 700, anchor: 'start', o: 1 });
+  wLabel(av, 'atoms, molecules or ions', { x: 100, y: 376, size: 28, fill: COL.dim, anchor: 'start', weight: 500, o: 1 });
+  const ul = path(av, 'M100 350H640', { stroke: WC.bond, 'stroke-width': 4 }, { d: 0 }); draw(ul, tAv + 1.2, 1.4);
+  say(p, 'Avogadro’s number', 100, 440, m('avo', 7.6), { size: 32, anchor: 'start', fill: WC.bond });
+  // atoms, molecules or ions: one of each pops in as it is named
+  const units = G(p); hide(units, tMr - .3, .4);
+  [[g => wAtom(g, 'O', { r: 26, size: 22 }), 'atom', 3.4], [g => waterMolecule(g, { s: .5 }), 'molecule', 4.4], [g => wIon(g, 'Na', { s: .8 }), 'ion', 5.6]].forEach(([draw1, lab, dt], i) => {
+    const g = G(units, { x: 160 + 150 * i, y: 500, o: 0, s: .3 }); draw1(g); wLabel(g, lab, { y: 66, size: 24, fill: COL.dim, weight: 500, o: 1 });
+    pop(g, tAv + dt);
+  });
+  // molar: the heap on a scale reads its mass
+  const scl = scalePan(p, { x: HX, y: 600, w: 520, o: 0 }); show(scl, tMr + .1, .4);
+  cam.to({ y: heapC[1] - (HY - 450) / Z1 - 34 / Z1 }, tMr + .4, .9, out);   // the heap settles onto the pan
+  prog(q => scl.set(fmt(Math.round(q * M_H2O * 10) / 10) + ' g'), tMr + 1.2, 1.8, out);
+  say(p, 'molar mass: the mass of 1 mole', 100, 560, tMr + .4, { size: 32, anchor: 'start' });
+  say(p, `water: ${M_H2O} g/mol`, 100, 608, m('molar', 4.4), { size: 36, anchor: 'start', weight: 700, fill: WC.heat });
+  // the result glows while it is talked about, and "1 mole of water" names what is on the pan
+  const rg = mk('rect', { x: HX - 160, y: 600 + 68, width: 320, height: 72, rx: 12, fill: 'none', stroke: WC.heat, 'stroke-width': 4, 'stroke-opacity': 0 }, p);
+  clockRun(t => { const so = t < tMr + 3 ? 0 : Math.min(1, (t - tMr - 3) / .6) * (.35 + .3 * Math.sin(2.2 * (t - tMr - 3))); setA(rg, 'stroke-opacity', so.toFixed(2)); }, D);
+  say(p, '1 mole of water', HX, 800, m('molar', 7.1), { size: 30, fill: WC.heat });
+  // dalton: one molecule against one mole
+  const da = G(p, { o: 0 }); show(da, tDa + .2, .5);
+  waterMolecule(da, { x: 150, y: 718, s: .55 });
+  wLabel(da, `one molecule: ${M_H2O} daltons (Da)`, { x: 200, y: 730, size: 30, anchor: 'start', o: 1 });
+  wLabel(da, `one mole: ${M_H2O} grams`, { x: 200, y: 780, size: 30, anchor: 'start', o: 1 });
+  say(p, 'same number, different units', 100, 850, m('dalton', 2.9), { size: 30, anchor: 'start', fill: WC.bond, weight: 700 });
+}],
+
+['calc', 'Moles from grams', (m, D) => {
+  const p = panel(0), tNa = m('nacl'), tFo = m('formula'), tEx = m('ex');
+  // nacl: sodium and chlorine with their masses; they join, and a mole of salt goes on the scale
+  const na = wAtom(p, 'Na', { x: 200, y: 300, r: 50, o: 0 }), cl = wAtom(p, 'Cl', { x: 470, y: 300, r: 62, o: 0 });
+  show(na, tNa + .2, .5); show(cl, tNa + 2.2, .5);
+  say(p, `${MASS.Na}`, 200, 400, tNa + .5, { size: 40, weight: 700 });
+  say(p, `${MASS.Cl}`, 470, 400, tNa + 2.6, { size: 40, weight: 700 });
+  say(p, '+', 335, 316, tNa + 2.2, { size: 48, weight: 700, fill: COL.dim });
+  say(p, `= ${M_NACL} g/mol`, 340, 480, m('nacl', 5.2), { size: 44, weight: 700, fill: WC.heat });
+  say(p, 'molar mass of NaCl', 340, 524, m('nacl', 5.6), { size: 28, fill: COL.dim, weight: 500 });
+  const scl = scalePan(p, { x: 340, y: 680, w: 380 });
+  const hp = saltHeap(p, { w: 110, h: 44, n: 70, seed: 12 }); put(hp, { x: 340, y: 674, s: .01 });
+  const mass = t => M_NACL * io(ramp(t, m('nacl', 6), m('nacl', 8))) - (M_NACL - EX.g) * io(ramp(t, tEx + .4, tEx + 1.8));
+  clockRun(t => { const g = mass(t), s = Math.max(.01, Math.sqrt(g / M_NACL)); put(hp, { s: Math.round(s * 1000) / 1000 }); scl.set(fmt(Math.round(g * 10) / 10) + ' g'); }, D);
+  const one = say(p, '= 1 mol of NaCl', 600, 690, m('nacl', 8.2), { size: 30, anchor: 'start' }); hide(one, tEx + .2, .4);
+  // formula: n = m / M, each letter named
+  const fo = G(p, { o: 0 }); tw(fo, { o: .22 }, .3, .6); tw(fo, { o: 1 }, tFo + .1, .6);
+  const mv = (str, x, y, italic = true) => { const e = T(fo, str, { x, y, size: 84, font: MATH, anchor: 'middle', o: 1 }); if (italic) e.style.fontStyle = 'italic'; return e; };
+  const fn = mv('n', 960, 360), fm = mv('m', 1150, 302), fM = mv('M', 1150, 414); mv('=', 1045, 356, false);
+  path(fo, 'M1098 330H1202', { stroke: COL.chalk, 'stroke-width': 4 });
+  const nameAt = [tFo + .7, tFo + 1.8, tFo + 3.1];
+  [[fn, 'moles', 960, 444, 'middle'], [fm, 'mass (g)', 1222, 290, 'start'], [fM, 'molar mass (g/mol)', 1222, 402, 'start']].forEach(([e, str, x, y, anchor], i) => {
+    say(fo, str, x, y, nameAt[i], { size: 28, fill: COL.dim, anchor, weight: 500 });
+    tw(e, { c_fill: WC.bond }, nameAt[i], .3); tw(e, { c_fill: COL.chalk }, nameAt[i] + 1.1, .5);
+  });
+  // ex: 11.7 g of salt
+  say(p, `${fmt(EX.g)} g of NaCl`, 1060, 560, tEx + .4, { size: 34 });
+  say(p, `${fmt(EX.g)} ÷ ${fmt(M_NACL)}`, 1060, 650, m('ex', 2.7), { size: 48, weight: 700 });
+  say(p, `= ${fmt(EX.n)} mol`, 1060, 720, m('ex', 4.8), { size: 52, weight: 700, fill: WC.bond });
+}],
+
+['molar', 'Molarity', (m, D) => {
+  // A 250 mL flask: salt in, a little water, a swirl, then water up to the mark; on "one" the camera pans to a 1 L
+  // flask. The flask's level and the readouts come from one function of time.
+  const p = panel(0), cam = camera(p, D, { x: 640 }), W = cam.world;
+  const tDe = m('def'), tFl = m('flask'), tSu = m('sum'), tDi = m('div'), tWh = m('why'), tOn = m('one');
+  // def: the definition stays at the top (screen space)
+  const df = G(p, { o: 0 }); show(df, tDe + .2, .6);
+  mk('rect', { x: 340, y: 40, width: 920, height: 150, rx: 18, fill: COL.board, stroke: COL.faint, 'stroke-width': 2 }, df);
+  wLabel(df, 'molarity  =', { x: 640, y: 128, size: 40, anchor: 'end', weight: 700, o: 1 });
+  wLabel(df, 'moles of solute', { x: 850, y: 100, size: 36, o: 1 });
+  path(df, 'M680 116H1020', { stroke: COL.chalk, 'stroke-width': 3 });
+  wLabel(df, 'liters of solution', { x: 850, y: 160, size: 36, fill: WC.bond, o: 1 });
+  say(df, 'unit: M = mol/L', 1240, 128, m('def', 3.8), { size: 30, anchor: 'end', fill: COL.dim, weight: 500 });
+  // flask: 250 mL
+  const FX = 520, fl = volFlask(W, { x: FX, y: 840, R: 125, neck: 50, neckH: 190, markAt: 120, label: '250 mL' });
+  const boat = G(W, { x: 1000, y: 820 }); path(boat, 'M-80 0L-60 22H60L80 0Z', { fill: '#b9c3cf' });
+  const bh = saltHeap(boat, { w: 56, h: 26, n: 40, seed: 14 });
+  const boatT = say(W, `${fmt(EX.g)} g NaCl`, 1000, 880, tDe + 1, { size: 26 });
+  const pour1 = [tFl + .5, tFl + 2.2], water1 = [tFl + 3, tFl + 4.4], swirl = [tFl + 4.6, tFl + 6.2], water2 = [tFl + 6.4, tFl + 7.6];
+  tw(boat, { x: FX + 70, y: 840 - 2 * 125 - 230, r: -50 }, pour1[0] - .4, .6); tw(bh, { o: 0 }, pour1[0] + .2, 1.4);
+  tw(boat, { x: 1000, y: 820, r: 0, o: 0 }, pour1[1] + .1, .6); hide(boatT, pour1[0] - .3, .4);
+  const grains = path(W, '', { fill: '#ffffff' });
+  const level = t => .45 * io(ramp(t, ...water1)) + .55 * io(ramp(t, ...water2));
+  const ionsIn = path(W, '', { fill: '#b28be0' }), ionsIn2 = path(W, '', { fill: '#7fcf8f' });
+  const bottle = G(W, { x: FX + 130, y: 300, o: 0 }); mk('rect', { x: -40, y: -60, width: 80, height: 120, rx: 18, fill: '#d6e8f5', 'fill-opacity': .8 }, bottle); path(bottle, 'M0 -60V-80L-122 -96', { stroke: '#d6e8f5', 'stroke-width': 8 });
+  show(bottle, water1[0] - .5, .4); hide(bottle, water1[1] + .1, .3); show(bottle, water2[0] - .4, .3); hide(bottle, water2[1] + .2, .4);
+  const stream1 = path(W, '', { stroke: WC.waterHi, 'stroke-width': 8 });
+  const bottomHeap = saltHeap(W, { w: 60, h: 22, n: 36, seed: 15 }); put(bottomHeap, { x: FX, y: 834, s: .01 });
+  W.insertBefore(bottomHeap, ionsIn);
+  clockRun(t => {
+    const k = level(t); fl.set(k);
+    const sw = Math.sin(Math.PI * 4 * ramp(t, ...swirl)) * 7 * (ramp(t, ...swirl) < 1 ? 1 : 0); put(fl, { r: sw });
+    let d = '';
+    if (t > pour1[0] && t < pour1[1] + .6) for (let i = 0; i < 12; i++) { const f = ((t - pour1[0]) * 1.4 + i / 12) % 1, y = 330 + (840 - 20 - 330) * f; if (t - pour1[0] < 1.7 || f > .5) d += `M${(FX - 8 + 16 * wHash(i, 3)).toFixed(1)} ${y.toFixed(1)}h7v7h-7Z`; }
+    setA(grains, 'd', d);
+    const on = (t > water1[0] && t < water1[1]) || (t > water2[0] && t < water2[1]);
+    setA(stream1, 'd', on ? `M${FX + 8} 206V${(840 + fl.levelY(k)).toFixed(0)}` : '');
+    // the salt, once dissolved: a few ions spread through the solution
+    const dis = ramp(t, swirl[0], swirl[1]);
+    const a = [], b = [];
+    if (k > .2) for (let i = 0; i < 10; i++) { const ang = i * 2.4 + .3 * Math.sin(t + i), rr = 30 + 70 * wHash(i, 7), y = 840 - 125 + rr * Math.sin(ang) * .8; if (840 + fl.levelY(k) < y - 10) (i % 2 ? b : a).push([FX + rr * Math.cos(ang), y, i % 2 ? 9 : 7]); }
+    const heapLeft = 1 - dis;
+    setA(ionsIn, 'd', dis > 0 ? dots(a) : ''); setA(ionsIn2, 'd', dis > 0 ? dots(b) : '');
+    put(ionsIn, { o: dis }); put(ionsIn2, { o: dis });
+    put(bottomHeap, { s: Math.max(.01, heapLeft * (t > pour1[0] + .6 ? Math.min(1, (t - pour1[0] - .6) / 1.2) : 0)) });
+  }, D);
+  cam.to({ x: 800 }, tFl + 7.8, 1);   // the flask moves aside for the sums
+  // sum: made up to 0.25 L of solution
+  say(W, 'made up to the mark:', 760, 520, tSu + .2, { size: 30, anchor: 'start' });
+  say(W, `${fmt(EX.L)} L of solution`, 760, 562, tSu + .7, { size: 34, anchor: 'start', weight: 700, fill: WC.bond });
+  // div: the sum, from the numbers
+  say(W, `${fmt(EX.n)} mol ÷ ${fmt(EX.L)} L`, 760, 670, tDi + .3, { size: 42, anchor: 'start', weight: 700 });
+  say(W, `= ${fmt(EX.M)} M`, 760, 734, m('div', 3.6), { size: 50, anchor: 'start', weight: 700, fill: WC.heat });
+  // why: the water added was less than 0.25 L; the dissolved salt fills the rest (exaggerated)
+  const ex = G(W, { o: 0 }); show(ex, tWh + .6, .6);
+  const yW = 840 + fl.markY + 34;
+  mk('rect', { x: FX - 23, y: 840 + fl.markY, width: 46, height: 34, fill: '#b28be0', 'fill-opacity': .55 }, ex);
+  path(ex, `M${FX - 46} ${yW}H${FX + 46}`, { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '7 6' });
+  wLabel(ex, 'water added ends here', { x: FX - 60, y: yW + 8, size: 24, anchor: 'end', fill: COL.dim, weight: 500, o: 1 });
+  wLabel(ex, 'dissolved salt takes up the rest', { x: FX - 60, y: 840 + fl.markY + 4, size: 24, anchor: 'end', fill: '#d2b8f2', weight: 500, o: 1 });
+  hide(say(W, 'divide by the solution’s volume, not the water’s', 800, 870, tWh + 1.4, { size: 28, fill: COL.dim, weight: 500 }), tOn - .1, .3);
+  notToScale(W, FX - 60, 840 + fl.markY - 40, tWh + 1);
+  // one: pan to a 1 L flask with 58.5 g made up to the mark
+  cam.to({ x: 2150 }, tOn + .1, 1.7);
+  const F2X = 1850, f2 = volFlask(W, { x: F2X, y: 840, R: 185, neck: 60, neckH: 220, markAt: 140, label: '1 L' }); f2.set(1);
+  path(W, dots(Array.from({ length: 16 }, (_, i) => [F2X + (wHash(i, 21) - .5) * 240, 840 - 185 + (wHash(i, 22) - .5) * 220, i % 2 ? 10 : 8])), { fill: '#b28be0' });
+  say(W, `${fmt(ONE.g)} g ÷ ${fmt(M_NACL)} g/mol = ${fmt(ONE.n)} mol`, 2150, 520, tOn + 2.2, { size: 38, anchor: 'start', weight: 700 });
+  say(W, `${fmt(ONE.n)} mol ÷ ${fmt(ONE.L)} L = ${fmt(ONE.M)} M`, 2150, 600, tOn + 3.6, { size: 38, anchor: 'start', weight: 700, fill: WC.heat });
+  say(W, 'exactly one molar', 2150, 660, tOn + 4.4, { size: 30, anchor: 'start', fill: COL.dim, weight: 500 });
+}],
+
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const f = volFlask(p, { x: 520, y: 640, R: 120, neck: 46, neckH: 170, markAt: 110, label: '0.5 L' }); f.set(1);
+  const hp = saltHeap(p, { w: 70, h: 30, n: 50, seed: 17 }); put(hp, { x: 860, y: 520 });
+  wLabel(p, `${Q2.g} g NaCl`, { x: 860, y: 566, size: 30, o: 1 });
+  wLabel(p, `${M_NACL} g/mol`, { x: 860, y: 440, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  wLabel(p, 'made up to 0.5 L of solution', { x: 520, y: 100, size: 30, o: 1 });
+  S.q2M = wLabel(p, 'M = ?', { x: 1240, y: 380, size: 64, weight: 700, fill: WC.heat, o: 1 });
+}, { ask: done => quiz(BAND, [{
+  id: 'c-molar',
+  prompt: [`${Q2.g} g of NaCl (molar mass ${M_NACL} g/mol) is made up to ${Q2.L} L of solution. What is its molarity?`],
+  build: blanks([{ parts: ['molarity = ', { box: fmt(Q2.M) }, ' moles per liter'],
+    why: `${Q2.g} ÷ ${M_NACL} = ${fmt(Q2.n)} mol, and ${fmt(Q2.n)} mol ÷ ${Q2.L} L = ${fmt(Q2.M)} M.`,
+    hint: 'First find the moles (mass ÷ molar mass), then divide by the liters of solution.',
+    fx: () => { S.q2M.textContent = `M = ${fmt(Q2.M)}`; pulseFx(S.q2M, 1.2); } }]),
+}], done) }],
+
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['Hydrogen bonds lock ice into an open lattice:', 'less dense, it floats, and lakes stay liquid below.', g => {
+      const ms = [[150, -20], [200, 30], [250, -20], [200, -70]].map(([x, y]) => waterMolecule(g, { x, y, s: .32 }));
+      hBond(g, { w: 2.5 }).link(ms[3], 1, ms[2]); hBond(g, { w: 2.5 }).link(ms[3], 2, ms[0]); hBond(g, { w: 2.5 }).link(ms[0], 1, ms[1]); hBond(g, { w: 2.5 }).link(ms[2], 2, ms[1]); }],
+    ['Water is the solvent: ions dissolve in hydration shells,', 'polar and charged molecules too; oil is hydrophobic.', g => {
+      const ion = wIon(g, 'Na', { x: 200, y: 0, s: .7 });
+      for (let k = 0; k < 6; k++) { const [x, y, r] = wShellSlot(ion, 200, 0, k, 6, { s: .32 }); waterMolecule(g, { x, y, r, s: .32 }); } }],
+    [`Moles count units: 1 mol = ${AVO};`, 'molar mass links grams to moles (n = m ÷ M).', g => { const h = saltHeap(g, { w: 60, h: 24, n: 40 }); put(h, { x: 200, y: 20 }); wLabel(g, '1 mol', { x: 200, y: -36, size: 22, o: 1 }); }],
+    ['Molarity is moles of solute', 'per liter of solution (M, mol/L).', g => { volFlask(g, { x: 200, y: 60, R: 42, neck: 16, neckH: 46, markAt: 28 }).set(1); }],
+  ];
+  const groups = [];
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: 100, y: 215 + i * 150, o: 0 });   // the block sits centred
+    const ic = G(g); icon(ic);
+    T(g, a, { x: 330, y: -6, size: 36, weight: 600 }); T(g, b, { x: 330, y: 40, size: 32, fill: COL.dim });
+    tw(g, { o: .2 }, .05, .3); tw(g, { o: 1 }, i ? m('w' + (i + 1)) - .3 : .3, .5); groups.push([g, ic]);
+  });
+  say(p, 'Now try the chapter practice.', 800, 840, m('end'), { size: 32, fill: WC.bond });
+  clockRun(t => groups.forEach(([, ic], i) => put(ic, { y: 5 * Math.sin(1.6 * t + 1.3 * i), r: 3 * Math.sin(1.1 * t + i) })), D);
+}],
+
+['final1', 'Chapter practice', (m, D) => {
+  // A picture on the right for each practice question; the card's build shows the one it needs (S.pics(key)).
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('moles', g => {
+    const q = waterMolecule(g, { x: 1260, y: 330, s: 2.2 });
+    wLabel(g, `O ${MASS.O}`, { x: 1260, y: 230, size: 38, weight: 700, o: 1 });
+    wLabel(g, `H ${MASS.H}`, { x: 1390, y: 470, size: 34, weight: 700, o: 1 }); wLabel(g, `H ${MASS.H}`, { x: 1130, y: 470, size: 34, weight: 700, o: 1 });
+    dropIcon(g, 1260, 700, 1.6); wLabel(g, `${PW.g} g of water`, { x: 1260, y: 800, size: 34, o: 1 });
+  });
+  at('molarity', g => {
+    volFlask(g, { x: 1180, y: 760, R: 150, neck: 56, neckH: 200, markAt: 130, label: `${PS.L} L` }).set(1);
+    const h = saltHeap(g, { w: 70, h: 30, n: 50, seed: 19 }); put(h, { x: 1460, y: 700 });
+    wLabel(g, `${PS.g} g NaCl`, { x: 1460, y: 750, size: 30, o: 1 });
+    wLabel(g, `NaCl: ${M_NACL} g/mol`, { x: 1260, y: 120, size: 32, o: 1 });
+  });
+  at('shell', g => {
+    const ion = wIon(g, 'Cl', { x: 1260, y: 440, s: 1.5 });
+    wLabel(g, 'Cl⁻', { x: 1260, y: 330, size: 40, weight: 700, fill: '#a8e8b4', o: 1 });
+    for (let k = 0; k < 6; k++) { const a = k * 60 * Math.PI / 180; mk('circle', { cx: 1260 + 170 * Math.cos(a), cy: 440 + 170 * Math.sin(a), r: 44, fill: 'none', stroke: COL.dim, 'stroke-width': 3, 'stroke-dasharray': '7 6' }, g); wLabel(g, '?', { x: 1260 + 170 * Math.cos(a), y: 452 + 170 * Math.sin(a), size: 34, fill: COL.dim, o: 1 }); }
+    wLabel(g, 'which end faces the ion?', { x: 1260, y: 720, size: 30, o: 1 });
+  });
+  at('terms', g => {
+    stillLattice(g, 1250, 230, 44, .28, { face: false });
+    const dr = G(g); mk('ellipse', { cx: 1130, cy: 560, rx: 70, ry: 70, fill: WC.oil, 'fill-opacity': .5, stroke: WC.oil, 'stroke-width': 3 }, dr);
+    wLabel(g, 'oil', { x: 1130, y: 670, size: 28, o: 1 });
+    volFlask(g, { x: 1400, y: 680, R: 80, neck: 30, neckH: 90, markAt: 56 }).set(1);
+    wLabel(g, 'mol/L', { x: 1400, y: 720, size: 28, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => { put(g, { o: k === key ? 1 : 0 }); g.style.display = k === key ? '' : 'none'; });
+  S.pics('moles');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-moles', prompt: [`Water is H₂O. Use H = ${MASS.H} and O = ${MASS.O}.`],
+    build: withPic('moles', blanks([
+      { parts: ['molar mass of water = ', { box: fmt(M_H2O) }, ' grams per mole'], why: `${MASS.H} + ${MASS.H} + ${MASS.O} = ${M_H2O} g/mol.`, hint: 'Add the masses of all three atoms.' },
+      { parts: [`${PW.g} g of water = `, { box: fmt(PW.n) }, ' moles'], why: `${PW.g} ÷ ${M_H2O} = ${fmt(PW.n)} mol.`, hint: 'Moles = mass ÷ molar mass.' },
+    ])) },
+  { id: 'p-molarity', prompt: [`Sodium chloride, NaCl: ${M_NACL} g/mol.`],
+    build: withPic('molarity', blanks([
+      { parts: [`${PS.g} g of NaCl = `, { box: fmt(PS.n) }, ' moles'], why: `${PS.g} ÷ ${M_NACL} = ${fmt(PS.n)} mol.`, hint: 'Moles = mass ÷ molar mass.' },
+      { parts: [`made up to ${PS.L} L of solution, it is `, { box: fmt(PS.M) }, ' moles per liter'], why: `${fmt(PS.n)} mol ÷ ${PS.L} L = ${fmt(PS.M)} M.`, hint: 'Divide the moles by the liters of solution.' },
+      { parts: [`to make ${PMAKE.L} L of ${PMAKE.M} M solution you need `, { box: fmt(PMAKE.g) }, ' grams'], why: `${PMAKE.M} mol/L × ${PMAKE.L} L = ${fmt(PMAKE.M * PMAKE.L)} mol, and ${fmt(PMAKE.M * PMAKE.L)} × ${M_NACL} = ${fmt(PMAKE.g)} g.`, hint: 'Moles = molarity × liters; grams = moles × molar mass.' },
+    ])) },
+  { id: 'p-shell', prompt: ['In a hydration shell, which end of a water molecule faces a chloride ion (Cl⁻)?'],
+    build: withPic('shell', choice([
+      ['The oxygen end.'],
+      ['The hydrogen end.'],
+      ['Both ends equally.'],
+      ['Neither: water does not touch ions.'],
+    ], 1, 'Right. Chloride is negative, so the slightly positive (δ+) hydrogen ends point in.',
+    ['The δ− oxygen end faces a positive ion, such as sodium. Chloride is negative.', null,
+     'The molecule is polar: one end is attracted, the other is turned away.',
+     'Water crowds round each ion: that is the hydration shell.'])) },
+  { id: 'p-terms', prompt: ['True or false?'],
+    build: withPic('terms', grid([
+      { parts: ['Ice is less dense than liquid water because its hydrogen bonds lock an open lattice.'], ans: ['t'], why: 'True: the same molecules take up more room.' },
+      { parts: ['The solvent is the substance that is dissolved.'], ans: ['f'], why: 'False: that is the solute. The solvent does the dissolving.' },
+      { parts: ['Oil is hydrophobic.'], ans: ['t'], why: 'True: it has no charged or polar regions for water to hold.' },
+      { parts: ['Molarity is moles of solute per liter of water added.'], ans: ['f'], why: 'False: per liter of solution, made up to the mark.' },
+      { parts: [`One mole contains ${AVO} units.`], ans: ['t'], why: 'True: that is Avogadro’s number.' },
+    ], TF, { multi: false, text: true })) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+boot();
+</script>
+</body>
+</html>

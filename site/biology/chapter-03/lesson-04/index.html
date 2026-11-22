@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 3, Lesson 4: Water Splitting, Acids, Bases and pH — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 3 (Water and Life), lesson 4: water splits by proton transfer (hydronium, hydroxide), how rarely,
+// equal [H+] and [OH−] in pure water (1e−7 M at 25 °C, Kw 1e−14), acids and bases as proton donors and acceptors, check 1,
+// pH = −log[H+] both ways, the 0–14 scale (a factor of ten per step), familiar solutions, check 2, why cells stay near 7,
+// summary, practice. Molecules and ions are the cast. Plan, errata and storyboard: books/biology/chapters/chapter-03/lesson-04.md.
+const CHAPTER = { number: 304, label: '3, lesson 4', title: 'Water Splitting, Acids, Bases and pH', minutes: 6, language: 'en', lead: false, next: '../lesson-05/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+// A plain straight arrow (shaft and head) from a to b.
+function wArrow(p, [x1, y1], [x2, y2], { color = COL.chalk, w = 6, head = 16, o = 1 } = {}) {
+  const g = G(p, { o }), L = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / L, uy = (y2 - y1) / L;
+  path(g, `M${x1} ${y1}L${x2 - ux * head * .8} ${y2 - uy * head * .8}`, { stroke: color, 'stroke-width': w });
+  path(g, `M${x2 - ux * head - uy * head * .7} ${y2 - uy * head + ux * head * .7}L${x2} ${y2}L${x2 - ux * head + uy * head * .7} ${y2 - uy * head - ux * head * .7}Z`, { fill: color, stroke: color, 'stroke-width': 2 });
+  return g;
+}
+// Write an attribute only when it changes (Firefox repaints on every write).
+const setA = (e, k, v) => { if (e['_' + k] !== v) { e.setAttribute(k, v); e['_' + k] = v; } };
+// Circles as one path: list of [x, y, r].
+const dots = list => list.map(([x, y, r]) => `M${(x - r).toFixed(1)} ${y.toFixed(1)}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`).join('');
+// Chemistry pieces laid out left to right in one row (measured), centred on x; each text gets _x0 and _w.
+function chemRow(p, pieces, { x, y, size = 40, gap = 16, fill = COL.chalk, weight = 600 } = {}) {
+  const els = pieces.map(s => wChem(p, s, { y, size, fill, weight, anchor: 'start', o: 0 }));
+  const ws = els.map(e => e.getComputedTextLength()), total = ws.reduce((a, b) => a + b, 0) + gap * (els.length - 1);
+  let cx = x - total / 2;
+  els.forEach((e, i) => { put(e, { x: cx }); e._x0 = cx; e._w = ws[i]; cx += ws[i] + gap; });
+  return els;
+}
+// A small decimal written out in full, digits grouped in threes after the point: 1e-7 → '0.000 000 1'.
+function longDec(v, sig = 1) {
+  const e = Math.floor(Math.log10(v) + 1e-9), s = v.toFixed(-e + sig - 1), [a, b] = s.split('.');
+  return a + '.' + b.replace(/(\d{3})(?=\d)/g, '$1 ');
+}
+// Question cards: wChem markup as plain text with Unicode super- and subscripts.
+const SUP = { 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹', '+': '⁺', '−': '⁻', '.': '·' };
+const SUB = { 0: '₀', 1: '₁', 2: '₂', 3: '₃', 4: '₄', 5: '₅', 6: '₆', 7: '₇', 8: '₈', 9: '₉' };
+const uni = str => wChemParts(str).map(([s, k]) => k === 'n' ? s : [...s].map(c => (k === 'sup' ? SUP : SUB)[c] ?? c).join('')).join('');
+// blanks rows are set as maths, which slants letters; chemical symbols (H, OH, pH, M) stay upright.
+const roman = build => (body, api) => { const r = build(body, api); body.querySelectorAll('svg.m tspan[font-style]').forEach(t => t.removeAttribute('font-style')); return r; };
+
+/* ---------- shared numbers (computed, never typed twice) ---------- */
+const KW = 1e-14, KW_EXP = Math.round(Math.log10(KW));            // ion product of water at 25 °C (errata 8): −14
+const H_PURE = Math.pow(10, KW_EXP / 2);                           // [H+] = [OH−] = 1e−7 M in pure water
+const H_EXP = Math.round(Math.log10(H_PURE));                      // −7
+const ohOf = h => KW / h;
+const pexp = v => Math.round(Math.log10(v));                       // the power of an exact power of ten
+const mn = v => String(v).replace('-', '−');                       // a typographic minus
+const WATER_MOL_L = 1000 / 18.015;                                 // 55.5 mol of water in a liter
+const SPLIT_MILLION = Math.round(WATER_MOL_L / H_PURE / 1e6);      // one split molecule in about 555 million (errata 6)
+const ACID_LOG = -4, BASE_LOG = -10;                               // [H+] after the acid, after the base (log10)
+const BACK_PH = 8.5;                                               // the "backwards" example
+const PH_CLASS = v => Math.abs(v - 7) < 1e-9 ? 'n' : v < 7 ? 'a' : 'b';
+const EXAMPLES = [['lemon', 2, 'lemon juice, about'], ['coffee', 5, 'black coffee, about'], ['water', 7, 'pure water,'], ['blood', 7.4, 'human blood, about'],
+  ['sea', 8, 'seawater, about'], ['ammonia', 12, 'household ammonia,'], ['bleach', 13, 'bleach,']];   // errata 9
+const exPH = k => EXAMPLES.find(e => e[0] === k)[1];
+const timesMore = (a, b) => Math.round(wHof(a) / wHof(b));          // how many times more H+ at pH a than at pH b
+const Q2 = { a: 4, b: 6 }; Q2.x = timesMore(Q2.a, Q2.b);            // 100
+const PC = { h: 1e-3, p9: 9, p3: 3 };
+PC.pH = Math.round(wPH(PC.h)); PC.e9 = -pexp(wHof(PC.p9)); PC.oh3 = -pexp(ohOf(wHof(PC.p3)));   // 3, 9, 11
+const HALF = 6.5, HALF_H = wSci(wHof(HALF));                       // 3.2 × 10^−7
+const LEMON_COFFEE = timesMore(exPH('lemon'), exPH('coffee'));      // 1000
+const BLOOD_DROP = timesMore(exPH('blood') - 1, exPH('blood'));     // 10
+
+/* ---------- pieces ---------- */
+// The kitchen counter of the intro: a half lemon, a beaker of water, a bar of soap.
+function kitchen(p) {
+  const g = G(p);
+  mk('rect', { x: 0, y: 0, width: 1600, height: 700, fill: '#132a45' }, g);
+  mk('rect', { x: 0, y: 700, width: 1600, height: 200, fill: '#3a2a1f' }, g);
+  mk('rect', { x: 0, y: 696, width: 1600, height: 10, fill: '#5c412b' }, g);
+  const lemon = G(g, { x: 190, y: 640 });
+  mk('ellipse', { rx: 96, ry: 62, fill: '#f2d14b', stroke: '#c9a227', 'stroke-width': 6 }, lemon);
+  mk('ellipse', { rx: 80, ry: 50, fill: '#fbe68a' }, lemon);
+  path(lemon, Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4; return `M0 0L${(76 * Math.cos(a)).toFixed(1)} ${(47 * Math.sin(a)).toFixed(1)}`; }).join(''), { stroke: '#f2d14b', 'stroke-width': 5 });
+  mk('ellipse', { rx: 10, ry: 7, fill: '#f6dc6a' }, lemon);
+  const bk = beaker(g, { x: 480, y: 700, w: 260, h: 300 });
+  const crowd = moleculeCrowd(g, { x: 480, y: 575, w: 200, h: 200, n: 6, s: .42, temp: 20, seed: 7 });
+  const soap = G(g, { x: 770, y: 652 });
+  mk('rect', { x: -96, y: -46, width: 192, height: 92, rx: 30, fill: '#bfe3f0', stroke: '#8fc3d8', 'stroke-width': 4 }, soap);
+  mk('rect', { x: -70, y: -28, width: 140, height: 30, rx: 14, fill: '#d8f0f8' }, soap);
+  path(soap, 'M-40 -70a14 14 0 1 0 0.1 0M10 -92a10 10 0 1 0 0.1 0M52 -66a8 8 0 1 0 0.1 0', { stroke: '#e6f3fb', 'stroke-width': 3 });
+  return { g, lemon, soap, bk, crowd };
+}
+
+// [H+] and [OH−] as two bars on a log scale: each bar's height counts the powers of ten above 10^−14, so the two always
+// add to 14 and the beam between their tops pivots on a fixed fulcrum (the see-saw). b.set(logH, grow) poses both from
+// the one value [H+] = 10^logH; [OH−] = Kw / [H+].
+const BX0 = 1090, BX1 = 1310, BBASE = 650, BK = 30, BW = 100, BMID = (BX0 + BX1) / 2;
+function ionBars(p, { beam = false } = {}) {
+  const g = G(p);
+  const base = path(g, `M${BX0 - 80} ${BBASE}H${BX1 + 80}`, { stroke: COL.dim, 'stroke-width': 3 });
+  const hb = mk('rect', { x: BX0 - BW / 2, width: BW, rx: 8, fill: WC.acid }, g), ob = mk('rect', { x: BX1 - BW / 2, width: BW, rx: 8, fill: WC.base }, g);
+  const labels = G(g, { o: 0 });
+  wChem(labels, '[H^+]', { x: BX0, y: BBASE + 44, size: 32, fill: WC.acid, o: 1 }); wChem(labels, '[OH^−]', { x: BX1, y: BBASE + 44, size: 32, fill: WC.base, o: 1 });
+  wLabel(labels, 'log scale', { x: BMID, y: BBASE + 80, size: 20, fill: COL.dim, weight: 500, o: 1 });
+  const reads = G(g, { o: 0 });
+  const rH = wChem(reads, '', { x: BX0 - BW / 2 - 12, size: 28, fill: WC.acid, anchor: 'end', o: 1 }), rO = wChem(reads, '', { x: BX1 + BW / 2 + 12, size: 28, fill: WC.base, anchor: 'start', o: 1 });
+  const bm = G(g, { o: beam ? 1 : 0 }), fy = BBASE - BK * (H_EXP - KW_EXP);
+  const beamL = path(bm, '', { stroke: COL.chalk, 'stroke-width': 5 });
+  const fulcrum = G(bm, { x: BMID, y: fy }); path(fulcrum, 'M-18 30L18 30L0 0Z', { fill: COL.dim });
+  const b = { g, base, labels, reads, beam: bm, fulcrum, logH: null,
+    set(logH, grow = 1) {
+      const key = logH.toFixed(4) + '/' + grow.toFixed(4); if (key === b._k) return b; b._k = key; b.logH = logH;
+      const logOH = Math.log10(ohOf(Math.pow(10, logH)));
+      const h1 = BK * (logH - KW_EXP) * grow, h2 = BK * (logOH - KW_EXP) * grow;
+      setA(hb, 'y', (BBASE - h1).toFixed(1)); setA(hb, 'height', Math.max(0, h1).toFixed(1));
+      setA(ob, 'y', (BBASE - h2).toFixed(1)); setA(ob, 'height', Math.max(0, h2).toFixed(1));
+      wChemSet(rH, wSci(Math.pow(10, logH)) + ' M'); put(rH, { y: +(BBASE - h1 + 10).toFixed(1) });
+      wChemSet(rO, wSci(Math.pow(10, logOH)) + ' M'); put(rO, { y: +(BBASE - h2 + 10).toFixed(1) });
+      setA(beamL, 'd', `M${BX0} ${(BBASE - h1).toFixed(1)}L${BX1} ${(BBASE - h2).toFixed(1)}`);
+      return b;
+    },
+  };
+  return b.set(H_EXP, 1);
+}
+
+// The acid–base beaker: glass and six background waters (dy moves it up for the quick check).
+function abBeaker(p, dy = 0) {
+  const bk = beaker(p, { x: 500, y: 820 + dy, w: 600, h: 500, level: .82 });
+  const waters = [[270, 700, 30], [400, 770, -60], [560, 740, 100], [700, 650, 200], [720, 770, 150], [265, 560, -20]]
+    .map(([x, y, r]) => waterMolecule(p, { x, y: y + dy, r, s: .75, o: .8 }));
+  return { bk, waters, base: waters.map(q => ({ ...st(q) })) };
+}
+// Ammonia: N with three H (local angles 30, 90, 150) and a fourth place "up" (−90) that a taken proton fills (NH4+).
+function nh3(p, { x = 0, y = 0, r = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, r, s, o }), sticks = [], balls = [];
+  for (const a of [30, 90, 150, -90]) {
+    const hx = W_OH * Math.cos(a * Math.PI / 180), hy = W_OH * Math.sin(a * Math.PI / 180);
+    sticks.push(path(g, `M0 0L${hx.toFixed(1)} ${hy.toFixed(1)}`, { stroke: WC.stick, 'stroke-width': 9 }));
+    const b = G(g, { x: hx, y: hy }); mk('circle', { r: W_RH, fill: WC.H, stroke: WC.Hedge, 'stroke-width': 2 }, b); mk('circle', { cx: -5, cy: -6, r: 5, fill: '#fff' }, b); balls.push(b);
+  }
+  mk('circle', { r: 32, fill: '#7f90bd', stroke: '#56658f', 'stroke-width': 3 }, g);
+  mk('ellipse', { cx: -11, cy: -13, rx: 9, ry: 5.5, fill: '#fff', 'fill-opacity': .35 }, g);
+  const up = G(g, { r: -r });
+  wLabel(up, 'N', { y: 10, size: 28, weight: 700, fill: '#fff', o: 1 });
+  const badge = G(up, { x: 40, y: -40, o: 0 }); mk('circle', { r: 13, fill: '#0f1e33', stroke: COL.chalk, 'stroke-width': 2.5 }, badge); wLabel(badge, '+', { y: 8, size: 24, weight: 700, o: 1 });
+  return Object.assign(g, { sticks, balls, badge, up });
+}
+// One proton handed from a donor's hydrogen place to a receiver's free place, along a line: positions only.
+const handOver = (from, to, t, t0, dur) => { const q = io(ramp(t, t0, t0 + dur)); return [lerp(from[0], to[0], q), lerp(from[1], to[1], q)]; };
+
+// Familiar solutions as small flat icons (origin at the centre, about 70 px).
+function phIcon(p, kind, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  if (kind === 'lemon') {
+    mk('circle', { r: 32, fill: '#f2d14b', stroke: '#c9a227', 'stroke-width': 4 }, g); mk('circle', { r: 25, fill: '#fbe68a' }, g);
+    path(g, Array.from({ length: 6 }, (_, i) => { const a = i * Math.PI / 3; return `M0 0L${(24 * Math.cos(a)).toFixed(1)} ${(24 * Math.sin(a)).toFixed(1)}`; }).join(''), { stroke: '#f2d14b', 'stroke-width': 3.5 });
+  } else if (kind === 'coffee') {
+    path(g, 'M-28 -18H28L22 26Q21 32 15 32H-15Q-21 32 -22 26Z', { fill: '#e9e2d0', stroke: '#b9ad92', 'stroke-width': 3 });
+    mk('ellipse', { cx: 0, cy: -18, rx: 28, ry: 7, fill: '#5a3a24' }, g);
+    path(g, 'M27 -6q16 0 16 12t-18 12', { stroke: '#e9e2d0', 'stroke-width': 5 });
+    path(g, 'M-8 -32q-6 -8 0 -16M8 -32q-6 -8 0 -16', { stroke: COL.dim, 'stroke-width': 3 });
+  } else if (kind === 'water' || kind === 'blood') {
+    const [f, e] = kind === 'water' ? [WC.waterHi, '#7fb6e6'] : ['#c0392b', '#e0716a'];
+    path(g, 'M0 -36C12 -20 26 -6 26 10A26 26 0 0 1 -26 10C-26 -6 -12 -20 0 -36Z', { fill: f, stroke: e, 'stroke-width': 3 });
+    mk('ellipse', { cx: -9, cy: 6, rx: 5, ry: 8, fill: '#fff', 'fill-opacity': .35 }, g);
+  } else if (kind === 'sea') {
+    path(g, 'M-34 -12q8.5 -10 17 0t17 0t17 0t17 0M-34 4q8.5 -10 17 0t17 0t17 0t17 0M-34 20q8.5 -10 17 0t17 0t17 0t17 0', { stroke: '#4a8fe7', 'stroke-width': 5 });
+  } else if (kind === 'ammonia') {
+    mk('rect', { x: -18, y: -14, width: 36, height: 48, rx: 8, fill: '#9fb7d6', stroke: '#6f88aa', 'stroke-width': 3 }, g);
+    path(g, 'M-8 -14V-26H14V-20H24', { stroke: '#d8dee8', 'stroke-width': 6 });
+    mk('rect', { x: -12, y: 0, width: 24, height: 16, rx: 3, fill: '#e6f3fb' }, g);
+  } else if (kind === 'bleach') {
+    path(g, 'M-22 34V-6Q-22 -18 -8 -22H6V-32H16V-22Q24 -18 24 -6V34Z', { fill: '#f4f4f0', stroke: '#b9b9b0', 'stroke-width': 3 });
+    mk('rect', { x: 4, y: -38, width: 14, height: 8, rx: 2, fill: '#4a8fe7' }, g);
+    path(g, 'M-14 -2q-10 10 0 20', { stroke: '#b9b9b0', 'stroke-width': 4 });
+  }
+  return g;
+}
+
+// A box of dots that drift a little: pink H+ and indigo OH− in schematic proportion. box.set(t) poses them from t.
+// frame: false leaves the box's outline to the caller (drawn earlier, empty).
+function ionBox(p, cx, cy, nH, nOH, { w = 240, h = 180, seed = 3, o = 0, frame = true } = {}) {
+  const g = G(p, { o });
+  if (frame) mk('rect', { x: cx - w / 2, y: cy - h / 2, width: w, height: h, rx: 16, fill: '#14375c', stroke: COL.faint, 'stroke-width': 2 }, g);
+  const ph = path(g, '', { fill: WC.acid }), po = path(g, '', { fill: WC.base });
+  const base = (n, k) => Array.from({ length: n }, (_, i) => [cx + (wHash(i, seed + k) - .5) * (w - 40), cy + (wHash(i, seed + k + 1) - .5) * (h - 40), wHash(i, seed + k + 2) * 6.28]);
+  const bh = base(nH, 0), bo = base(nOH, 5);
+  const at = (list, t) => dots(list.map(([x, y, a]) => [x + 6 * Math.sin(1.3 * t + a), y + 6 * Math.sin(1.1 * t + 2 * a), 9]));
+  return Object.assign(g, { set(t) { setA(ph, 'd', at(bh, t)); setA(po, 'd', at(bo, t)); return g; } }).set(0);
+}
+
+// A box holding n pink dots on a 10 × 10 grid (pH comparisons): box.n(k) shows the first k.
+function hundredBox(p, cx, cy, { o = 0, size = 160 } = {}) {
+  const g = G(p, { o }), sp = (size - 20) / 10;
+  mk('rect', { x: cx - size / 2, y: cy - size / 2, width: size, height: size, rx: 14, fill: '#14375c', stroke: COL.faint, 'stroke-width': 2 }, g);
+  const all = Array.from({ length: 100 }, (_, i) => [cx - size / 2 + 10 + sp * (i % 10 + .5), cy - size / 2 + 10 + sp * (Math.floor(i / 10) + .5), sp * .34]);
+  const d = path(g, '', { fill: WC.acid });
+  return Object.assign(g, { n(k) { setA(d, 'd', dots(all.slice(0, k))); return g; } }).n(0);
+}
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const withPic = (key, build) => (body, api) => { S.pics?.(key); return build(body, api); };
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Water and life', (m, D) => {
+  const p = panel(0), tSour = m('sour'), tSlip = m('slip'), tCell = m('cell'), tLive = tCell + 3.6, tSee = tCell + 6.85;
+  const sc = kitchen(p);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 3: WATER AND LIFE · LESSON 4', { x: 1190, y: 220, size: 26, fill: COL.dim, o: 1 });
+  ['Water splitting,', 'acids, bases and pH'].forEach((s, i) => wLabel(ttl, s, { x: 1190, y: 310 + i * 78, size: 66, o: 1 }));
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); tw(ttl, { o: 0, y: -20 }, tLive - .4, .6);
+  // "water splits, a little": a lens over the beaker; one molecule lets a proton go, then takes it back
+  const MX = 480, MY = 250, lens = G(p, { o: 0 });
+  path(lens, `M${MX - 30} 445L${MX - 100} ${MY + 82}M${MX + 30} 445L${MX + 100} ${MY + 82}`, { stroke: WC.glass, 'stroke-width': 3, 'stroke-opacity': .6 });
+  mk('circle', { cx: MX, cy: MY, r: 122, fill: '#14375c', stroke: WC.glass, 'stroke-width': 4 }, lens);
+  const mw = wIonChar(lens, 'H2O', { s: .9, ring: WC.base, sign: '−', marked: false }).pose(MX - 14, MY + 10, -30 - W_H1);
+  put(mw.balls[0], { o: 0 });
+  const [p0x, p0y] = mw.atom(0), ux = Math.cos(-Math.PI / 6), uy = Math.sin(-Math.PI / 6);
+  const mp = wIonChar(lens, 'H+', { s: .9, face: false, marked: false }).pose(p0x, p0y);
+  show(lens, 1.9, .6);
+  say(p, 'water splits, a little', MX, 104, 2.4, { size: 32 });
+  const tS0 = 3.1, tS1 = 4.7;
+  hide(mw.sticks[0], tS0, .2); show(mw.sticks[0], tS1 + .35, .2);
+  [mw.ring, mw.badge, mp.ring, mp.badge].forEach(e => { show(e, tS0 + .3, .3); hide(e, tS1 - .1, .3); });
+  // sour, slippery
+  pulse(sc.lemon, tSour + .1, 1.12); say(p, 'sour', 190, 800, tSour + .2, { size: 34 });
+  pulse(sc.soap, tSlip + .1, 1.12); say(p, 'slippery', 770, 800, tSlip + .2, { size: 34 });
+  // cell: a little extra H+ over the lemon, a little extra OH− over the soap
+  const ions = [['H+', 145, 520, tCell + .3], ['H+', 240, 495, tCell + .5], ['OH-', 722, 525, tCell + 1.1], ['OH-', 822, 500, tCell + 1.3]]
+    .map(([k, x, y, t0], i) => { const q = wIonChar(p, k, { x, y, s: k === 'H+' ? .8 : .5, o: 0 }); tw(q, { o: 1 }, t0, .4); return { q, x, y, i }; });
+  const xH = say(p, 'a little extra H^+', 190, 432, tCell + .6, { size: 30, fill: WC.acid }), xO = say(p, 'a little extra OH^−', 770, 432, tCell + 1.4, { size: 30, fill: WC.base });
+  hide(xH, tSee, .4); hide(xO, tSee, .4);
+  // a living cell tolerates very little of either
+  const cl = G(p, { o: 0 }); show(cl, tLive, .8);
+  mk('circle', { cx: 1200, cy: 390, r: 240, fill: '#122b47', stroke: COL.faint, 'stroke-width': 3 }, cl);
+  mk('ellipse', { cx: 1200, cy: 400, rx: 175, ry: 125, fill: '#163d5e', stroke: '#8fd6b0', 'stroke-width': 8 }, cl);
+  mk('ellipse', { cx: 1262, cy: 372, rx: 52, ry: 40, fill: '#24496e', stroke: '#6fa98c', 'stroke-width': 3 }, cl);
+  wLabel(cl, '?', { x: 1150, y: 428, size: 76, weight: 700, o: 1 });
+  wLabel(cl, 'a living cell tolerates', { x: 1200, y: 688, size: 30, o: 1 });
+  wLabel(cl, 'very little of either', { x: 1200, y: 726, size: 30, fill: COL.dim, weight: 500, o: 1 });
+  const orb = [wIonChar(cl, 'H+', { s: .8 }), wIonChar(cl, 'OH-', { s: .5 })];
+  // see: the ions drop into the water; how we measure them: the pH scale
+  const into = [[425, 560], [520, 615], [455, 650], [545, 540]];
+  const strip = pHStrip(p, { x: 990, y: 828, w: 420, h: 22, size: 18, label: 'pH', o: 0 }); show(strip, tSee + .6, .6);
+  clockRun(t => {
+    sc.crowd.set(t);
+    const k = io(ramp(t, tS0, tS0 + .5)) - io(ramp(t, tS1, tS1 + .5));
+    mp.pose(p0x + ux * 46 * k, p0y + uy * 46 * k);
+    ions.forEach(({ q, x, y, i }) => {
+      const f = io(ramp(t, tSee + .1 + .15 * i, tSee + 1.3 + .15 * i)), [tx, ty] = into[i];
+      q.pose(lerp(x, tx, f) + 4 * Math.sin(1.7 * t + i), lerp(y, ty, f) + 5 * Math.sin(1.3 * t + 2 * i));
+    });
+    orb.forEach((q, i) => { const a = .8 * t + i * Math.PI; q.pose(1200 + 200 * Math.cos(a), 390 + 200 * Math.sin(a)); });
+  }, D);
+}],
+
+/* ---------- water splits ---------- */
+['split', 'Water splits', (m, D) => {
+  const p = panel(0), tPair = m('pair'), tHop = m('hop'), tGo = tHop + 1.2, tLand = tGo + 3, tE = tHop + 5.05, tHyd = m('hydronium'), tOH = m('hydroxide'), tShort = m('short');
+  // one push: from the beaker into two molecules joined by a hydrogen bond (world = stage once z is 1)
+  const cam = camera(p, D, { x: 800, y: 450, z: .32 }), W = cam.world;
+  cam.to({ z: 1 }, .3, 1.6);
+  // The beaker's water, surface and glass are drawn in the world only while the view still shows the glass; once the
+  // view is all water (z ≥ ZIN, decided from cam.at(t) every frame) one still screen-space rect stands in for them.
+  const ZIN = .77, WATER = '#14375c';
+  const inside = mk('rect', { x: 0, y: 0, width: 1600, height: 900, fill: WATER, display: 'none' }, p); p.insertBefore(inside, cam.el);
+  const outer = G(W);
+  path(outer, 'M-250 -480H1850V1730H-250Z', { fill: WATER });
+  path(outer, 'M-250 -480H1850', { stroke: WC.waterHi, 'stroke-width': 14 });
+  path(outer, 'M-290 -600V1700Q-290 1770 -220 1770H1820Q1890 1770 1890 1700V-600', { stroke: WC.glass, 'stroke-width': 20 });
+  hide(say(p, 'pure water', 800, 100, .1, { size: 34 }), 1.3, .4);
+  // the neighbours: dim waters drawn as three merged paths (sticks, hydrogens, oxygens), colours pre-mixed with the water
+  const NB = [[230, 210, 20], [430, 130, -60], [660, 150, 110], [1180, 160, 200], [1420, 260, 40], [170, 520, 150], [290, 790, -30],
+    [1270, 650, 80], [1460, 770, -120], [1110, 830, 10], [90, 330, 60], [1520, 600, 160]];
+  const dim = (c, k) => mix(c, WATER, k);
+  const nSt = path(W, '', { stroke: dim(WC.stick, .58), 'stroke-width': 8 }), nH = path(W, '', { fill: dim(WC.H, .58) }), nO = path(W, '', { fill: dim(WC.O, .58) });
+  put(nSt, { c_stroke: dim(WC.stick, .58) }); put(nH, { c_fill: dim(WC.H, .58) }); put(nO, { c_fill: dim(WC.O, .58) });
+  tw(nSt, { c_stroke: dim(WC.stick, .78) }, tShort, .6); tw(nH, { c_fill: dim(WC.H, .78) }, tShort, .6); tw(nO, { c_fill: dim(WC.O, .78) }, tShort, .6);
+  const NS = .9, hl = [W_H1, W_H2].map(a => a * Math.PI / 180);
+  const drawNB = (a, cl) => {
+    let ds = '', dh = '', dd = '';
+    NB.forEach(([x0, y0, r0], i) => {
+      const x = x0 + a * 4 * Math.sin(1.4 * cl + i), y = y0 + a * 4 * Math.sin(1.1 * cl + 2 * i), r = (r0 + a * 6 * Math.sin(.9 * cl + i)) * Math.PI / 180;
+      hl.forEach(h => { const hx = x + NS * W_OH * Math.cos(h + r), hy = y + NS * W_OH * Math.sin(h + r); ds += `M${x.toFixed(1)} ${y.toFixed(1)}L${hx.toFixed(1)} ${hy.toFixed(1)}`; dh += dots([[hx, hy, NS * W_RH]]); });
+      dd += dots([[x, y, NS * W_RO]]);
+    });
+    setA(nSt, 'd', ds); setA(nH, 'd', dh); setA(nO, 'd', dd);
+  };
+  drawNB(0, 0);   // drawn once: rewriting these stage-wide paths every frame repainted the whole stage in Firefox
+  // the pair: A will lose its bonded hydrogen as a bare proton; B will take it as its third hydrogen
+  const pg = G(W), AX = 730, BXp = 1015;
+  const A = wIonChar(pg, 'H2O', { s: 1.5, ring: WC.base, sign: '−', marked: false }).pose(AX, 400, -W_H1);
+  const B = wIonChar(pg, 'H3O+', { s: 1.5, marked: false, badge: [-30, -52] }).pose(BXp, 400, -90);
+  put(A.balls[0], { o: 0 }); put(B.balls[2], { o: 0 }); put(B.sticks[2], { o: 0 });
+  const [hx0, hy0] = A.atom(0), [hx1, hy1] = B.atom(2);
+  const bond = hBond(pg, { w: 6 }).set([hx0 + 28, hy0], [BXp - 48, 400]); put(bond, { o: 0 });
+  const pr = wIonChar(pg, 'H+', { s: 1.5, face: false, marked: false }).pose(hx0, hy0);
+  const el = mk('circle', { r: 9, fill: WC.elec, stroke: '#fff3cf', 'stroke-width': 2 }, pg); put(el, { o: 0 });
+  // pair: the bond, the names
+  show(bond, tPair + .5, .1); bond.form(tPair + .5, .7);
+  const lb = say(p, 'hydrogen bond', (hx0 + BXp) / 2, 338, tPair + 1, { size: 30, fill: WC.bond }); hide(lb, tHop + .8, .3);
+  const wA = say(p, 'water', AX, 556, tPair + 1.3, { size: 28, fill: COL.dim, weight: 500 }), wB = say(p, 'water', BXp, 556, tPair + 1.3, { size: 28, fill: COL.dim, weight: 500 });
+  // hop: the bonded hydrogen (and its electron) lights; the bare proton crosses; the electron stays on A
+  tw(pr, { s: 1.85 }, tHop + .2, .25, out); tw(pr, { s: 1.5 }, tHop + .45, .4);
+  show(el, tHop + .3, .3);
+  hide(A.sticks[0], tGo, .3); hide(bond, tGo + .2, .4);
+  show(pr.ring, tGo + .1, .3); show(pr.badge, tGo + .1, .3); hide(pr.ring, tLand, .3); hide(pr.badge, tLand, .3);
+  const plab = say(p, 'proton, H^+', hx0, 338, tGo + .3, { size: 30, fill: WC.acid }); hide(plab, tLand + .2, .3);
+  show(B.sticks[2], tLand - .2, .3);
+  const le = say(p, 'its electron stays behind', AX + 50, 300, tE + .2, { size: 28, fill: WC.elec });
+  tw(el, { s: 1.6 }, tE + .2, .25, out); tw(el, { s: 1 }, tE + .45, .4); hide(le, tOH, .4);
+  // hydronium: B has gained the proton
+  hide(wB, tHyd, .3); show(B.ring, tHyd + .2, .5); show(B.badge, tHyd + .5, .3);
+  say(p, 'hydronium ion, H_3O^+', BXp + 140, 412, tHyd + .4, { size: 34, fill: WC.acid, anchor: 'start' });
+  say(p, 'gained a proton', BXp + 140, 452, tHyd + 1, { size: 26, fill: COL.dim, weight: 500, anchor: 'start' });
+  // hydroxide: A has lost it
+  hide(wA, tOH, .3); show(A.ring, tOH + .2, .5); show(A.badge, tOH + .5, .3);
+  say(p, 'hydroxide ion, OH^−', AX, 572, tOH + .4, { size: 34, fill: WC.base });
+  say(p, 'lost a proton', AX, 610, tOH + 1, { size: 26, fill: COL.dim, weight: 500 });
+  // short: the equation, the two rings fly into its two ions
+  const eq = chemRow(p, ['H_2O', '⇌', 'H^+', '+', 'OH^−'], { x: 800, y: 740, size: 58, gap: 26 });
+  eq.forEach((e, i) => show(e, tShort + .4 + [0, .3, .9, .9, .9][i], .4));
+  const fly = (ion, e, col, t0) => {
+    const c = mk('circle', { r: 118, fill: 'none', stroke: col, 'stroke-width': 4 }, p); put(c, { x: st(ion).x, y: st(ion).y, o: 0, s: 1 });
+    tw(c, { o: 1 }, t0, .15); tw(c, { x: e._x0 + e._w / 2, y: 722, s: .44 }, t0 + .1, .8, io); hide(c, t0 + .9, .3);
+    tw(e, { c_fill: col }, t0 + .8, .3);
+  };
+  fly(B, eq[2], WC.acid, tShort + 1.2); fly(A, eq[4], WC.base, tShort + 1.5);
+  say(p, 'for short:', eq[0]._x0 - 28, 740, tShort + .3, { size: 30, fill: COL.dim, weight: 500, anchor: 'end' });
+  say(p, 'H^+ is understood as a proton riding on a water molecule (H_3O^+)', 800, 808, tShort + 4.8, { size: 28, fill: COL.dim, weight: 500 });
+  // the neighbours stand still (merged paths), the pair too (moving it repaints the dashed bond every frame); the proton and electron move
+  clockRun(t => {
+    const allWater = cam.at(t).z >= ZIN;
+    setA(outer, 'display', allWater ? 'none' : 'inline'); setA(inside, 'display', allWater ? 'inline' : 'none');
+    const q = io(ramp(t, tGo, tLand)); pr.pose(lerp(hx0, hx1, q), lerp(hy0, hy1, q));
+    put(plab, { x: +lerp(hx0, hx1, q).toFixed(1) });
+    const orbit = u => [hx0 + 34 * Math.cos(4 * u), hy0 + 34 * Math.sin(4 * u)];
+    const [ox, oy] = orbit(Math.min(t, tGo)), k = io(ramp(t, tGo, tGo + .7));
+    // the two new ions' rings breathe once named (small regions: cheap in Firefox)
+    put(B.ring, { s: +(1 + .05 * ramp(t, tHyd, tHyd + .7) * Math.sin(2.6 * t)).toFixed(3) });
+    put(A.ring, { s: +(1 + .05 * ramp(t, tOH, tOH + .7) * Math.sin(2.6 * t + 1.5)).toFixed(3) });
+    put(el, { x: +lerp(ox, AX + 49, k).toFixed(1), y: +lerp(oy, 382, k).toFixed(1) });
+  }, D);
+}],
+
+/* ---------- how rare; equal amounts in pure water ---------- */
+['pure', 'Pure water', (m, D) => {
+  const p = panel(0), t0 = m('rare'), tC0 = t0 + 2.5, tC1 = t0 + 6.6, tEq = m('equal'), tConc = m('conc'), tVal = m('val'), tKw = m('kw'), tSame = tKw + 4.7;
+  // a block of 500 water molecules, checked row by row; the count runs to 555 million before one is found split
+  const L = G(p);
+  mk('rect', { x: 108, y: 182, width: 624, height: 504, rx: 18, fill: '#14375c', stroke: COL.faint, 'stroke-width': 2 }, L);
+  const cells = []; for (let r = 0; r < 20; r++) for (let c = 0; c < 25; c++) cells.push([132 + c * 24, 206 + r * 24, 7]);
+  path(L, dots(cells), { fill: WC.waterHi });
+  const scan = mk('rect', { x: 112, y: 0, width: 616, height: 26, rx: 6, fill: WC.bond, 'fill-opacity': .3 }, L); put(scan, { o: 0 });
+  show(scan, .5, .3); hide(scan, tC1, .3);
+  const count = wLabel(L, '', { x: 420, y: 150, size: 34, o: 1 });
+  const N = SPLIT_MILLION * 1e6;
+  const pop1 = G(p, { x: 420, y: 434, s: .4, o: 0 });
+  mk('circle', { r: 82, fill: COL.board, stroke: COL.chalk, 'stroke-width': 3 }, pop1);
+  tw(pop1, { s: 1, o: 1 }, tC1 + .1, .45, back); hide(pop1, tEq + .6, .4);
+  // the split's two ions pop with the disc (their own tweens, same ease), then fly to the bars themselves
+  const fH = wIonChar(p, 'H+', { s: .32, o: 0 }).pose(420 - 38 * .4, 434 - 22 * .4), fO = wIonChar(p, 'OH-', { s: .22, o: 0 }).pose(420 + 26 * .4, 434 + 16 * .4);
+  tw(fH, { x: 382, y: 412, s: .8, o: 1 }, tC1 + .1, .45, back); tw(fO, { x: 446, y: 450, s: .55, o: 1 }, tC1 + .1, .45, back);
+  say(p, `1 split in about ${SPLIT_MILLION} million`, 420, 740, tC1 + .4, { size: 32 });
+  // meanwhile, at the right: the question and its answer, large
+  const big = G(p);
+  say(big, 'how rare is a split?', BMID, 330, .4, { size: 40, fill: COL.dim, weight: 500 });
+  say(big, 'one molecule', BMID, 430, tC1 + .3, { size: 52 });
+  say(big, `in about ${SPLIT_MILLION} million`, BMID, 500, tC1 + .6, { size: 52, fill: WC.bond });
+  hide(big, tEq + .1, .4);
+  // equal: one H+ and one OH− from each split; two equal bars
+  [[fH, BX0], [fO, BX1]].forEach(([f, bx], i) => { tw(f, { x: bx, y: 600 }, tEq + .3 + .2 * i, 1, io); hide(f, tEq + 1.5 + .2 * i, .4); });
+  const ib = ionBars(p); ib.set(H_EXP, 0); put(ib.base, { o: 0 }); show(ib.base, tEq + 1.1, .4);
+  prog(q => ib.set(H_EXP, q), tEq + 1.4, 1.2);
+  say(p, '=', BMID, 566, tEq + 2.6, { size: 66, weight: 500 });
+  say(p, 'equal', BMID, 604, tEq + 2.8, { size: 26, fill: COL.dim, weight: 500 });
+  // conc: square brackets mean concentration
+  show(ib.labels, tConc + .2, .5);
+  const cover = mk('rect', { x: 100, y: 110, width: 640, height: 584, rx: 18, fill: COL.board }, p); put(cover, { o: 0 }); tw(cover, { o: .55 }, tConc, .6);   // one solid cover dims the grid
+  // the two ions that the brackets count, bobbing beside their bars from here on
+  const bobH = wIonChar(p, 'H+', { s: .7, o: 0 }), bobO = wIonChar(p, 'OH-', { s: .45, o: 0 });
+  show(bobH, tConc + .4, .4); show(bobO, tConc + .4, .4);
+  say(p, '[ ] = concentration, in moles per liter (M)', BMID, 160, tConc + .6, { size: 28 });
+  // val: both 10^−7 M at 25 °C
+  show(ib.reads, tVal + .4, .5);
+  say(p, 'at 25 °C', BMID, 206, tVal + 1.6, { size: 28, fill: COL.dim, weight: 500 });
+  // kw: the product, built term by term
+  const row = chemRow(p, ['[H^+] × [OH^−]', `= 10^{${mn(H_EXP)}} × 10^{${mn(H_EXP)}}`, `= 10^{${mn(KW_EXP)}}`, '= K_{w}'], { x: 800, y: 812, size: 44 });
+  row.forEach((e, i) => show(e, tKw + .3 + [0, 1.1, 2.2, 3][i], .4));
+  const bx0 = row[2]._x0 + 18, bx1 = row[3]._x0 + row[3]._w + 14, box = G(p, { x: (bx0 + bx1) / 2, y: 797, o: 0 });
+  mk('rect', { x: -(bx1 - bx0) / 2, y: -40, width: bx1 - bx0, height: 64, rx: 12, fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, box);
+  show(box, tKw + 3.3, .3); pulse(box, tSame + .1, 1.08);
+  say(p, 'the same in any water solution at 25 °C', 800, 868, tSame + .3, { size: 26, fill: COL.dim, weight: 500 });
+  clockRun(t => {
+    const ph = ramp(t, .5, tC0) + Math.max(0, t - tC0) / .32;
+    put(scan, { y: +(186 + 476 * (ph % 1)).toFixed(1) });
+    const n = t < tC0 ? Math.round(500 * ramp(t, .5, tC0)) : Math.round(500 + (N - 500) * ramp(t, tC0, tC1) ** 3);
+    const s = 'molecules checked: ' + wNum(n); if (count.textContent !== s) count.textContent = s;
+    if (t > tConc) { bobH.pose(BX0 - 120, +(600 + 6 * Math.sin(1.6 * t)).toFixed(1)); bobO.pose(BX1 + 125, +(596 + 6 * Math.sin(1.6 * t + 2)).toFixed(1)); }
+  }, D);
+}],
+
+/* ---------- acids and bases ---------- */
+['acidbase', 'Acids and bases', (m, D) => {
+  const p = panel(0), tA = m('acid'), tGive = tA + 2.4, tS = m('seesaw'), tB = m('base'), tGrab = tB + 2.4, tSame = m('same');
+  const ab = abBeaker(p);
+  const ib = ionBars(p, { beam: true }); put(ib.labels, { o: 1 }); put(ib.reads, { o: 1 });
+  const prod = G(p, { x: BMID, y: 790 }); wChem(prod, `[H^+] × [OH^−] = 10^{${mn(KW_EXP)}}`, { size: 32, o: 1 });
+  // acid: HCl comes down and hands its proton to a water, which becomes hydronium; Cl− is left
+  const S1 = 1.1, u = [Math.cos(20 * Math.PI / 180), Math.sin(20 * Math.PI / 180)], P0 = [430, 472];
+  const CL = [P0[0] - 68 * u[0], P0[1] - 68 * u[1]], W1O = [P0[0] + u[0] * (60 + W_OH * S1), P0[1] + u[1] * (60 + W_OH * S1)];
+  const AG = G(p);
+  const W1 = wIonChar(AG, 'H3O+', { s: S1, marked: false, badge: [-12, -46] }).pose(W1O[0], W1O[1], 200 + 90);
+  put(W1.balls[2], { o: 0 }); put(W1.sticks[2], { o: 0 });
+  const T1 = W1.atom(2);
+  const hcl = G(AG, { x: CL[0], y: CL[1] });
+  const stick = path(hcl, `M0 0L${(68 * u[0]).toFixed(1)} ${(68 * u[1]).toFixed(1)}`, { stroke: WC.stick, 'stroke-width': 9 });
+  const clA = wAtom(hcl, 'Cl', { r: 34, size: 26 });
+  const clI = wIon(AG, 'Cl', { x: CL[0], y: CL[1], s: 34 / 44, o: 0 });
+  const pr1 = wIonChar(AG, 'H+', { s: S1, face: false, marked: false });
+  const drop = t => -620 * (1 - io(ramp(t, tA + .2, tA + 1.9)));
+  hide(stick, tGive, .3); show(pr1.ring, tGive + .1, .3); show(pr1.badge, tGive + .1, .3); hide(pr1.ring, tGive + 1.4, .3); hide(pr1.badge, tGive + 1.4, .3);
+  show(W1.sticks[2], tGive + 1.2, .3); show(W1.ring, tGive + 1.5, .4); show(W1.badge, tGive + 1.7, .3);
+  hide(clA, tGive + .9, .4); show(clI, tGive + .9, .4);
+  const lHCl = say(p, 'HCl', CL[0], 392, tA + 1.9, { size: 30 }); hide(lHCl, tGive + .9, .3);
+  say(AG, 'Cl^−', CL[0] - 6, 392, tGive + 1.2, { size: 30, fill: '#7fcf8f' });
+  say(AG, 'H_3O^+', W1O[0] + 92, W1O[1] - 40, tGive + 1.8, { size: 30, fill: WC.acid, anchor: 'start' });
+  const la = say(p, 'acid = proton donor', 500, 110, tA + .2, { size: 40, fill: WC.acid }); hide(la, tB, .4);
+  const lr = say(p, '[H^+] rises', BMID, 214, tA + 4.8, { size: 30, fill: WC.acid }); hide(lr, tB, .4);
+  // seesaw: the product holds, so OH− falls
+  const lf = say(p, 'so [OH^−] falls', BMID, 258, tS + .3, { size: 30, fill: WC.base }); hide(lf, tB, .4);
+  pulse(prod, tS + .4, 1.1); pulse(ib.fulcrum, tS + .2, 1.5);
+  // base: a fresh beaker; ammonia takes a proton off a water, which is left as hydroxide
+  hide(AG, tB, .5);
+  const lw = say(p, 'fresh pure water', BMID, 236, tB + .4, { size: 28, fill: COL.dim, weight: 500 }); hide(lw, tGrab + 1.2, .4);
+  const BG = G(p, { o: 0 }); show(BG, tB + .4, .5);
+  const W2 = wIonChar(BG, 'H2O', { s: S1, ring: WC.base, sign: '−', marked: false, badge: [-44, -30] }).pose(470, 560, -40 - W_H1);
+  put(W2.balls[0], { o: 0 });
+  const P1 = W2.atom(0), u2 = [Math.cos(-40 * Math.PI / 180), Math.sin(-40 * Math.PI / 180)];
+  const NO = [P1[0] + u2[0] * (60 + W_OH * S1), P1[1] + u2[1] * (60 + W_OH * S1)];
+  const n3 = nh3(BG, { x: NO[0], y: NO[1], s: S1, r: 140 + 90 }); put(n3.balls[3], { o: 0 }); put(n3.sticks[3], { o: 0 });
+  const T2 = [NO[0] - u2[0] * W_OH * S1, NO[1] - u2[1] * W_OH * S1];
+  const pr2 = wIonChar(BG, 'H+', { s: S1, face: false, marked: false });
+  const drop2 = t => -620 * (1 - io(ramp(t, tB + .5, tB + 2.1)));
+  hide(W2.sticks[0], tGrab, .3); show(n3.sticks[3], tGrab + 1.2, .3); show(n3.badge, tGrab + 1.5, .3);
+  show(W2.ring, tGrab + 1.5, .4); show(W2.badge, tGrab + 1.7, .3);
+  const lN = say(BG, 'NH_3', NO[0] + 92, NO[1] - 6, tB + 2.1, { size: 30, anchor: 'start' }); hide(lN, tGrab + 1.2, .3);
+  say(BG, 'NH_4^+', NO[0] + 92, NO[1] - 6, tGrab + 1.5, { size: 30, anchor: 'start' });
+  say(BG, 'OH^−', 372, 520, tGrab + 1.9, { size: 30, fill: WC.base, anchor: 'end' });
+  const lb = say(p, 'base = proton acceptor', 500, 110, tB + .3, { size: 40, fill: WC.base }); hide(lb, tSame, .4);
+  const lx = say(p, '[H^+] falls, [OH^−] rises', BMID, 236, tGrab + 1.7, { size: 30 }); hide(lx, tSame, .4);
+  // same: two wordings, one idea
+  say(p, 'acids: proton donors → raise [H^+]', 800, 84, tSame + .3, { size: 34, fill: WC.acid });
+  say(p, 'bases: proton acceptors → lower [H^+]', 800, 136, tSame + 1.2, { size: 34, fill: WC.base });
+  const logH = t => H_EXP + (ACID_LOG - H_EXP) * (io(ramp(t, tA + 4.6, tA + 7.6)) - io(ramp(t, tB + .3, tB + 1.3))) + (BASE_LOG - H_EXP) * io(ramp(t, tGrab + 1.4, tGrab + 4.4));
+  clockRun(t => {
+    ib.set(+logH(t).toFixed(3));
+    ab.waters.forEach((q, i) => { const b = ab.base[i]; q.pose(b.x + 4 * Math.sin(1.3 * t + i), b.y + 4 * Math.sin(1.1 * t + 2 * i), b.r + 6 * Math.sin(.9 * t + i)); });
+    const d = drop(t); put(hcl, { y: CL[1] + d });
+    pr1.pose(...(t < tGive ? [P0[0], P0[1] + d] : handOver(P0, T1, t, tGive, 1.4)));
+    const d2 = drop2(t); put(n3, { y: +(NO[1] + d2).toFixed(1) });
+    pr2.pose(...handOver(P1, T2, t, tGrab, 1.4));
+  }, D);
+}],
+
+['q1', 'Quick check', (m, D) => {
+  // the bars at pure water, both values hidden; the card sits at the left
+  const p = panel(0), ib = ionBars(p); put(ib.labels, { o: 1 });
+  S.q1q = [BX0, BX1].map((x, i) => wLabel(p, '?', { x, y: 400, size: 60, weight: 700, fill: i ? WC.base : WC.acid, o: 1 }));
+  wChem(p, `[H^+] × [OH^−] = 10^{${mn(KW_EXP)}}`, { x: BMID, y: 190, size: 30, o: 1 });
+  wLabel(p, 'pure water + a base', { x: BMID, y: 110, size: 34, o: 1 });
+  const n3 = nh3(p, { x: BMID, y: 290, s: .8, r: 180 }); put(n3.balls[3], { o: 0 }); put(n3.sticks[3], { o: 0 });
+  S.q1bars = ib;
+  clockRun(t => put(n3, { y: +(290 + 6 * Math.sin(1.4 * t)).toFixed(1) }), D);
+}, { ask: done => quiz({ x: 40, y: 110, w: 760, cls: 'side' }, [{
+  id: 'c-base',
+  prompt: ['A base is added to pure water. What happens to the two ions?'],
+  build: choice([[uni('[H^+] falls and [OH^−] rises')], ['Both fall.'], [uni('[H^+] rises and [OH^−] falls')], ['Nothing changes.']], 0,
+    uni('Right. A base accepts protons, so [H^+] falls; [H^+] × [OH^−] stays 10^{−14}, so [OH^−] rises.'),
+    [null, uni('Their product stays 10^{−14}, so when one falls the other must rise.'), uni('That is what an acid does: it donates protons and raises [H^+].'), 'Then it would not be a base: a base takes protons from water.'],
+    () => { S.q1q.forEach(e => fx(e, { o: 0 }, 0, .3)); fx(S.q1bars.reads, { o: 1 }, .3, .4); fxp(q => S.q1bars.set(H_EXP + (BASE_LOG - H_EXP) * q), 0, 1.4); }),
+}], done) }],
+
+/* ---------- pH ---------- */
+['ph', 'pH', (m, D) => {
+  const p = panel(0), tDef = m('def'), tSeven = m('seven'), tFour = m('four'), tBack = m('back'), tDown = m('down');
+  const HX = v => 170 + v * 90;
+  // tiny and awkward: the same numbers written out in full
+  const w1 = say(p, `[H^+] = ${longDec(H_PURE)} M`, 800, 330, .1, { size: 54, weight: 500 });
+  const w2 = say(p, `[H^+] = ${longDec(wHof(BACK_PH), 2)} M`, 800, 450, 1.2, { size: 54, weight: 500 });
+  hide(w1, tDef - .2, .4); hide(w2, tDef - .2, .4);
+  // def: the formula; the two ladders, joined
+  // the line being read breathes: a soft pink glow under the formula until the marker takes over
+  const glow = mk('rect', { x: 530, y: 112, width: 540, height: 80, rx: 20, fill: WC.acid, 'fill-opacity': 0 }, p);
+  say(p, 'pH = −log[H^+]', 800, 170, tDef + .2, { size: 66, weight: 500, font: MATH });
+  say(p, 'the negative logarithm of the H^+ concentration', 800, 222, tDef + 1, { size: 26, fill: COL.dim, weight: 500 });
+  const lad = G(p, { o: 0 }); show(lad, tDef + 1.2, .8);
+  let tk = '', jn = '';
+  for (let v = 0; v <= 14; v++) { tk += `M${HX(v)} 370v20M${HX(v)} 570v20`; jn += `M${HX(v)} 396V564`; }
+  path(lad, 'M150 380H1450M150 580H1450', { stroke: COL.chalk, 'stroke-width': 3 });
+  path(lad, tk, { stroke: COL.chalk, 'stroke-width': 3 }); path(lad, jn, { stroke: COL.faint, 'stroke-width': 1.5 });
+  for (let v = 0; v <= 14; v++) {
+    wChem(lad, `10^{${mn(-v)}}`, { x: HX(v), y: 354, size: 24, fill: COL.dim, weight: 500, o: 1 });
+    wLabel(lad, String(v), { x: HX(v), y: 626, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  }
+  wChem(lad, '[H^+]', { x: 122, y: 390, size: 30, fill: WC.acid, anchor: 'end', o: 1 });
+  wLabel(lad, 'pH', { x: 122, y: 590, size: 30, anchor: 'end', o: 1 });
+  // the marker: one pH value drives the pointer, the line, the dot and both readouts
+  const v = t => 7 + (4 - 7) * io(ramp(t, tFour + .3, tFour + 1.5)) + (BACK_PH - 4) * io(ramp(t, tBack + 4.6, tBack + 5.8)) + (2 - BACK_PH) * io(ramp(t, tDown + .6, tDown + 2.6));
+  const mg = G(p, { o: 0 }); show(mg, tSeven + .3, .4);
+  path(mg, 'M-13 342L13 342L0 366Z', { fill: WC.acid });
+  const ring = G(mg, { y: 352 }); mk('circle', { r: 24, fill: 'none', stroke: WC.acid, 'stroke-width': 3 }, ring);   // pulses while the marker waits
+  const topR = wChem(mg, '', { y: 300, size: 30, fill: WC.acid, o: 1 });
+  const low = G(mg, { o: 0 }); show(low, tSeven + 2.4, .4);
+  path(low, 'M0 396V568', { stroke: WC.acid, 'stroke-width': 4 }); mk('circle', { cy: 580, r: 11, fill: WC.acid }, low);
+  const lowR = wChem(low, '', { y: 676, size: 32, fill: WC.acid, o: 1 });
+  const up = G(mg, { o: 0 }); path(up, 'M-12 412L0 396L12 412', { stroke: WC.acid, 'stroke-width': 4 }); show(up, tBack + 4.5, .3); hide(up, tDown, .3);
+  // the worked lines
+  const c7 = say(p, `−log(10^{${mn(H_EXP)}}) = ${wDec(wPH(H_PURE))}`, 800, 770, tSeven + 3, { size: 44, font: MATH, weight: 500 }); hide(c7, tFour + .2, .3);
+  const c4 = say(p, `−log(10^{${mn(-4)}}) = ${wDec(wPH(1e-4))}`, 800, 770, tFour + .6, { size: 44, font: MATH, weight: 500 }); hide(c4, tBack, .3);
+  const cb = say(p, '[H^+] = 10^{−pH}', 800, 770, tBack + .4, { size: 44, font: MATH, weight: 500 }); hide(cb, tDown, .3);
+  const cb2 = say(p, `10^{−${wDec(BACK_PH)}} = ${wSci(wHof(BACK_PH))} M`, 800, 836, tBack + 5.9, { size: 40, font: MATH, weight: 500, fill: WC.acid }); hide(cb2, tDown, .3);
+  // down: more H+ is to the left on both ladders
+  const a1 = wArrow(p, [1150, 262], [470, 262], { color: WC.acid, w: 5, o: 0 }); show(a1, tDown + .3, .5);
+  say(p, 'more H^+', 1170, 271, tDown + .4, { size: 30, fill: WC.acid, anchor: 'start' });
+  const a2 = wArrow(p, [1150, 736], [470, 736], { color: COL.chalk, w: 5, o: 0 }); show(a2, tDown + 1.4, .5);
+  say(p, 'lower pH', 1170, 745, tDown + 1.5, { size: 30, anchor: 'start' });
+  clockRun(t => {
+    const x = v(t); put(mg, { x: +HX(x).toFixed(1) });
+    wChemSet(topR, wSci(wHof(x)) + ' M'); wChemSet(lowR, 'pH ' + wDec(x));
+    const g = ramp(t, tDef + .2, tDef + 1) * (1 - ramp(t, tSeven, tSeven + .6));
+    setA(glow, 'fill-opacity', (g * (.1 + .06 * Math.sin(2.4 * t))).toFixed(3));
+    put(ring, { s: +(1 + .18 * Math.sin(3 * t)).toFixed(3) });
+  }, D);
+}],
+
+/* ---------- the scale ---------- */
+['scale', 'The pH scale', (m, D) => {
+  const p = panel(0), tBar = m('bar'), tN = m('neutral'), tAc = m('acidic'), tBa = m('basic'), tTen = m('ten'), tHund = m('hund');
+  // the pH ladder becomes the strip and rises into place
+  const SG = G(p, { y: 280 }), strip = pHStrip(SG, { x: 170, y: 300, w: 1260, h: 40, size: 26 });
+  tw(SG, { y: 0 }, tBar + .1, 1.1);
+  const at = strip.at;
+  // neutral, acidic, basic: labels above the strip, schematic ion boxes below it
+  const top = G(p);
+  const nm = strip.marker({ fmt: () => '' }); nm.set(7); show(nm, tN + .2, .3);
+  say(top, 'neutral', at(7), 196, tN + .3, { size: 34 });
+  say(top, '[H^+] = [OH^−]', at(7), 238, tN + .7, { size: 28, fill: COL.dim, weight: 500 });
+  const brace = (a, b, col, t0) => { const e = path(top, `M${at(a) + 6} 272V258H${at(b) - 6}V272`, { stroke: col, 'stroke-width': 4 }, { d: 0 }); draw(e, t0, .6); return e; };
+  brace(0, 6.8, WC.acid, tAc + .2); say(top, 'acidic: [H^+] > [OH^−]', at(3.4), 222, tAc + .4, { size: 32, fill: WC.acid });
+  brace(7.2, 14, WC.base, tBa + .2); say(top, 'basic: [H^+] < [OH^−]', at(10.6), 222, tBa + .4, { size: 32, fill: WC.base });
+  hide(top, tTen, .4); hide(nm, tTen, .4);
+  // the three boxes stand empty across the stage from the start; each fills with ions as its kind is named
+  const frames = G(p, { o: 0 }); show(frames, .3, .6); hide(frames, tHund, .4);
+  const bx = [[3, 12, 1, tAc], [7, 4, 4, tN], [11, 1, 12, tBa]].map(([v, a, b, t0], i) => {
+    mk('rect', { x: at(v) - 120, y: 430, width: 240, height: 180, rx: 16, fill: '#14375c', stroke: COL.faint, 'stroke-width': 2 }, frames);
+    wLabel(frames, 'pH ' + v, { x: at(v), y: 652, size: 28, fill: COL.dim, weight: 500, o: 1 });
+    const g = ionBox(p, at(v), 520, a, b, { seed: 3 + 7 * i, frame: false }); show(g, t0 + .6, .5);
+    return g;
+  });
+  hide(say(p, 'schematic: more or fewer, not to scale', 800, 712, tAc + 1.2, { size: 22, fill: COL.dim, weight: 500 }), tHund, .4);
+  // ten: every step is a factor of ten
+  const arcs = [];
+  for (let v = 14; v >= 1; v--) {
+    const x1 = at(v), x2 = at(v - 1), g = G(p, { o: 0 }), t0 = tTen + .2 + (14 - v) * .09;
+    path(g, `M${x1 - 4} 272Q${(x1 + x2) / 2} 214 ${x2 + 8} 268M${x2 + 8} 268l2 -14M${x2 + 8} 268l13 -5`, { stroke: COL.chalk, 'stroke-width': 3 });
+    wLabel(g, '×10', { x: (x1 + x2) / 2, y: 226, size: 18, fill: COL.dim, weight: 600, o: 1 });
+    show(g, t0, .25); arcs[v] = g;
+  }
+  // hund: pH 5 to pH 3 is two steps: × 10 × 10 = 100
+  bx.forEach(g => hide(g, tHund, .4));
+  for (const v of [5, 4]) { const x1 = at(v), x2 = at(v - 1), e = path(p, `M${x1 - 4} 272Q${(x1 + x2) / 2} 214 ${x2 + 8} 268`, { stroke: WC.acid, 'stroke-width': 7 }, { d: 0 }); draw(e, tHund + (v === 5 ? .5 : 1.7), .5); }
+  say(p, `× 10 × 10 = ${timesMore(3, 5)}`, at(4), 180, tHund + 2.4, { size: 34, fill: WC.acid });
+  const b5 = hundredBox(p, at(5) + 10, 520), b3 = hundredBox(p, at(3) - 10, 520);
+  b5.n(1); show(b5, tHund + .3, .4); show(b3, tHund + .3, .4);
+  prog(q => b3.n(q < .5 ? 1 : q < 1 ? timesMore(4, 5) : timesMore(3, 5)), tHund + .3, 1.9, lin);
+  say(p, 'pH 5: 1', at(5) + 10, 640, tHund + .5, { size: 28 });
+  const l3 = say(p, `pH 3: ${timesMore(3, 5)}`, at(3) - 10, 640, tHund + 2.3, { size: 28, fill: WC.acid });
+  say(p, `pH 3 has ${timesMore(3, 5)} times`, 1130, 500, tHund + 2.8, { size: 34 });
+  say(p, 'the H^+ of pH 5', 1130, 546, tHund + 3.1, { size: 34 });
+  say(p, `10^{5 − 3} = ${timesMore(3, 5)}`, 1130, 616, tHund + 3.6, { size: 40, font: MATH, weight: 500, fill: WC.acid });
+  clockRun(t => bx.forEach(g => g.set(t)), D);
+}],
+
+/* ---------- familiar solutions ---------- */
+['ex', 'Familiar solutions', (m, D) => {
+  const p = panel(0), strip = pHStrip(p, { x: 170, y: 450, w: 1260, h: 40, size: 26 }), at = strip.at;
+  // the icons wait on a shelf, then each flies to its place as it is named
+  path(p, 'M300 868H1300', { stroke: COL.faint, 'stroke-width': 4 });
+  // [kind, above?, label x, anchor, label row]
+  const PLACE = { lemon: [1, 0, 'middle', 0], coffee: [0, 0, 'middle', 0], water: [1, -10, 'end', 0], blood: [0, 20, 'start', 0], sea: [1, 10, 'start', 0], ammonia: [0, -35, 'start', 0], bleach: [1, 0, 'middle', 0] };
+  EXAMPLES.forEach(([k, v, name], i) => {
+    const [above, dx, anchor] = PLACE[k], x = at(v), tm = m(k);
+    const ic = phIcon(p, k, { x: 380 + i * 140, y: 820, o: 0 }); show(ic, .2 + .1 * i, .3);
+    tw(ic, { x, y: above ? 330 : 600 }, tm + .1, .9);
+    const dt = mk('circle', { cx: x, cy: 450, r: 8, fill: COL.board, stroke: COL.chalk, 'stroke-width': 3 }, p); put(dt, { o: 0 }); show(dt, tm + .9, .2);
+    const ld = path(p, above ? `M${x} 372V426` : `M${x} 530V560`, { stroke: COL.dim, 'stroke-width': 2.5 }, { d: 0 }); draw(ld, tm + .9, .3);
+    say(p, `${name} ${wDec(v)}`, x + dx, above ? 262 : 690, tm + .6, { size: 28, anchor });
+  });
+  // bio: most body fluids sit between 6 and 8
+  show(strip.band(6, 8), m('bio') + .2, .5);
+  say(p, 'most biological fluids: pH 6 to 8', 800, 820, m('bio') + .6, { size: 32, fill: '#8fd6b0' });
+}],
+
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0), strip = pHStrip(p, { x: 170, y: 230, w: 1260, h: 40, size: 26 }), at = strip.at;
+  [Q2.a, Q2.b].forEach(v => { const mk1 = strip.marker({ color: WC.acid }); mk1.set(v); put(mk1, { o: 1 }); });
+  path(p, `M${at(Q2.a)} 318V330H${at(Q2.b)}V318`, { stroke: COL.chalk, 'stroke-width': 3 });
+  const xa = at(Q2.a) - 20, xb = at(Q2.b) + 20;
+  const ba = hundredBox(p, xa, 470, { o: 1 }), bb = hundredBox(p, xb, 470, { o: 1 }).n(1);
+  const qm = wLabel(p, '?', { x: xa, y: 492, size: 72, weight: 700, o: 1 });
+  wLabel(p, 'pH ' + Q2.a, { x: xa, y: 594, size: 28, o: 1 }); wLabel(p, 'pH ' + Q2.b + ': 1', { x: xb, y: 594, size: 28, o: 1 });
+  wChem(p, 'H^+ in the same volume', { x: 1100, y: 470, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  S.q2 = { ba, qm };
+}, { ask: done => quiz(BAND, [{
+  id: 'c-times',
+  prompt: [`Solution A has pH ${Q2.a}; solution B has pH ${Q2.b}. How many times more H⁺ does A have?`],
+  build: roman(blanks([{ parts: ['A has ', { box: String(Q2.x) }, ' times as much H', E('+'), ' as B'],
+    why: `Two pH steps, each a factor of 10: 10 × 10 = ${Q2.x}.`,
+    hint: 'Each pH step is a factor of 10. Count the steps from 6 down to 4.',
+    fx: () => { fx(S.q2.qm, { o: 0 }, 0, .3); fxp(q => S.q2.ba.n(Math.max(1, Math.round(Q2.x * q))), .2, 1.2, lin); } }])),
+}], done) }],
+
+/* ---------- why cells care ---------- */
+['cells', 'Why it matters', (m, D) => {
+  const p = panel(0), tProt = m('prot'), tFlood = m('flood'), tLoose = m('loose'), tRange = m('range'), tNext = m('next');
+  const cam = camera(p, D), W = cam.world;
+  cam.to({ x: 760, y: 400, z: 1.22 }, tProt + .1, 1.8);   // the whole cell, outline and nucleus, stays in frame
+  mk('ellipse', { cx: 760, cy: 400, rx: 640, ry: 330, fill: '#163d5e', stroke: '#8fd6b0', 'stroke-width': 10 }, W);
+  mk('ellipse', { cx: 1230, cy: 250, rx: 90, ry: 70, fill: '#24496e', stroke: '#6fa98c', 'stroke-width': 4 }, W);
+  const wash = mk('ellipse', { cx: 760, cy: 400, rx: 630, ry: 320, fill: '#8f9bb0' }, W); put(wash, { o: 0 });
+  const PS = 1.25, pr = wProtein(W, { x: 760, y: 420, s: PS, o: 0 }); show(pr, .3, .6);
+  // the H+ flood: 22 ions stream in from the left; four land on − charges and cancel them
+  const HIT = [7, 2, 10, 6], NI = 22;
+  const ins = Array.from({ length: NI }, (_, i) => ({ t0: tFlood + .2 + .09 * i, out: tRange + .2 + .05 * i, from: [-120, 150 + 500 * wHash(i, 41)],
+    to: i < HIT.length ? null : [420 + 680 * wHash(i, 42), 200 + 420 * wHash(i, 43)], ph: wHash(i, 44) * 6.28, bead: HIT[i] }));
+  const hp = path(W, '', { fill: WC.acid, stroke: '#ffd0e0', 'stroke-width': 2 });
+  const fold = t => 1 - .9 * io(ramp(t, tLoose - .2, tLoose + 2.2)) + .9 * io(ramp(t, tRange + .5, tRange + 2.5));
+  tw(pr.beads, { c_fill: '#8f9bb0' }, tLoose + .5, .8); tw(pr.beads, { c_fill: WC.prot }, tRange + 1, .8);
+  tw(wash, { o: .18 }, tLoose + .5, .8); tw(wash, { o: 0 }, tRange + 1, .8);
+  // the words, in screen space along the top
+  const l1 = say(p, 'a protein: a chain folded by + and − charges', 800, 120, tProt + .6, { size: 34 }); hide(l1, tFlood, .4);
+  const l2 = say(p, 'extra H^+ cancels − charges', 800, 120, tFlood + .4, { size: 34, fill: WC.acid }); hide(l2, tRange, .4);
+  const l3 = say(p, 'the fold comes apart: the protein stops working', 800, 165, tLoose + .8, { size: 32 }); hide(l3, tRange, .4);
+  say(p, 'cells keep their inside near pH 7', 800, 120, tRange + .4, { size: 34 });
+  say(p, '1 pH unit = 10 × more or less H^+', 800, 165, tRange + 4.2, { size: 30, fill: COL.dim, weight: 500 });
+  const nx = G(p, { o: 0, x: 40 }); tw(nx, { o: 1, x: 0 }, tNext + .3, .6, out);
+  mk('rect', { x: 1080, y: 630, width: 310, height: 60, rx: 30, fill: '#0f1e33', stroke: WC.bond, 'stroke-width': 3 }, nx);
+  wLabel(nx, 'next lesson: buffers', { x: 1235, y: 670, size: 28, fill: WC.bond, o: 1 });
+  // the pH inside, along the bottom
+  const strip = pHStrip(p, { x: 370, y: 760, w: 860, h: 28, size: 22, label: 'pH' });   // inside the cell's outline
+  const mkr = strip.marker({ color: WC.acid, size: 28, o: 1 });
+  show(strip.band(6, 8), tRange + 3, .5);
+  const pH = t => 7 - 3 * io(ramp(t, tFlood + .3, tFlood + 2.5)) + 3 * io(ramp(t, tRange + .3, tRange + 1.8));
+  clockRun(t => {
+    const f = fold(t), arrived = ins.filter(d => d.bead !== undefined && t > d.t0 + 1.4 && t < d.out + .3).map(d => d.bead);
+    pr.set(f, t, { off: arrived, apart: true });
+    HIT.forEach(b => { const s = pr.signs[b], o = arrived.includes(b) ? 0 : 1; if (st(s).o !== o) put(s, { o }); });
+    let d = '';
+    ins.forEach((q, i) => {
+      if (t < q.t0 || t > q.out + 1.4) return;
+      const [bx, by] = q.bead !== undefined ? pr.bead(q.bead) : q.to;
+      const tx = bx + (q.bead !== undefined ? 0 : 8 * Math.sin(1.5 * t + q.ph)), ty = by + (q.bead !== undefined ? -24 * PS : 8 * Math.sin(1.2 * t + q.ph));
+      const a = io(ramp(t, q.t0, q.t0 + 1.4)), b = io(ramp(t, q.out, q.out + 1.4));
+      const x = lerp(lerp(q.from[0], tx, a), q.from[0], b), y = lerp(lerp(q.from[1], ty, a), q.from[1], b);
+      d += `M${(x - 10).toFixed(1)} ${y.toFixed(1)}a10 10 0 1 0 20 0a10 10 0 1 0 -20 0`;
+    });
+    setA(hp, 'd', d);
+    mkr.set(Math.round(pH(t) * 10) / 10);
+  }, D);
+}],
+
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0);
+  const rows = [
+    ['Water splits rarely, into H^+ and OH^−:', `10^{${mn(H_EXP)}} M of each in pure water at 25 °C.`, g => { wIonChar(g, 'H+', { x: 140, y: -4, s: .8 }); wIonChar(g, 'OH-', { x: 214, y: 6, s: .5 }); }],
+    ['Acids donate protons and raise [H^+];', 'bases accept them and lower it.', g => { wArrow(g, [150, 40], [150, -40], { color: WC.acid, w: 8, head: 20 }); wArrow(g, [215, -40], [215, 40], { color: WC.base, w: 8, head: 20 }); }],
+    ['pH = −log[H^+]; each step is a factor of 10;', 'below 7 is acidic, above 7 basic.', g => { pHStrip(g, { x: 100, y: 0, w: 170, h: 18, numbers: false }); }],
+    ['Cells stay near pH 7:', 'protein shape depends on charge.', g => { wProtein(g, { x: 182, y: 0, s: .4 }); }],
+  ];
+  const icons = [];
+  rows.forEach(([a, b, icon], i) => {
+    const g = G(p, { x: 234, y: 190 + i * 160, o: 0 });
+    const ic = G(g); icon(ic); icons.push(ic);
+    wChem(g, a, { x: 330, y: -6, size: 36, anchor: 'start', o: 1 }); wChem(g, b, { x: 330, y: 40, size: 32, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+    tw(g, { o: 1, x: 250 }, i ? m('w' + (i + 1)) : .15, .6);   // row 1 comes in with "To sum up"
+  });
+  say(p, 'Now try the chapter practice.', 800, 850, m('end'), { size: 32, fill: WC.bond });
+  clockRun(t => icons.forEach((ic, i) => put(ic, { y: +(5 * Math.sin(1.6 * t + 1.3 * i)).toFixed(2), r: +(3 * Math.sin(1.1 * t + i)).toFixed(2) })), D);
+}],
+
+['final1', 'Chapter practice', (m, D) => {
+  // A picture on the right for each practice question; the card's build shows the one it needs (pics.show(key)).
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const ladder = (g, from, to, y0, step) => {   // vertical joined ladders: [H+] on the left, pH on the right
+    let d = '';
+    for (let v = from; v <= to; v++) {
+      const y = y0 + (v - from) * step; d += `M1176 ${y}H1196M1196 ${y}H1324M1324 ${y}H1344`;
+      wChem(g, `10^{${mn(-v)}}`, { x: 1164, y: y + 8, size: 24, fill: COL.dim, weight: 500, anchor: 'end', o: 1 });
+      wLabel(g, String(v), { x: 1360, y: y + 9, size: 26, fill: COL.dim, weight: 500, anchor: 'start', o: 1 });
+    }
+    path(g, d, { stroke: COL.faint, 'stroke-width': 2 });
+    path(g, `M1186 ${y0}V${y0 + (to - from) * step}M1334 ${y0}V${y0 + (to - from) * step}`, { stroke: COL.chalk, 'stroke-width': 3 });
+    wChem(g, '[H^+]', { x: 1150, y: y0 - 30, size: 30, fill: WC.acid, o: 1 }); wLabel(g, 'pH', { x: 1360, y: y0 - 30, size: 30, o: 1 });
+  };
+  at('conv', g => {
+    ladder(g, 0, 14, 120, 40);
+    wChem(g, 'pH = −log[H^+]', { x: 1270, y: 760, size: 38, font: MATH, weight: 500, o: 1 });
+    wChem(g, `[H^+] × [OH^−] = 10^{${mn(KW_EXP)}}`, { x: 1270, y: 820, size: 34, font: MATH, weight: 500, o: 1 });
+  });
+  at('half', g => {
+    ladder(g, 6, 7, 260, 300);
+    const y = 260 + 150; mk('circle', { cx: 1334, cy: y, r: 10, fill: WC.acid }, g);
+    wLabel(g, 'pH ' + wDec(HALF), { x: 1360, y: y + 9, size: 30, fill: WC.acid, anchor: 'start', o: 1 });
+    wLabel(g, '?', { x: 1150, y: y + 16, size: 52, weight: 700, fill: WC.acid, o: 1 });
+    wChem(g, '[H^+] = 10^{−pH}', { x: 1270, y: 720, size: 40, font: MATH, weight: 500, o: 1 });
+  });
+  at('times', g => {
+    const s = pHStrip(g, { x: 1000, y: 420, w: 560, h: 30, size: 20 });
+    [['lemon', 1], ['coffee', 0], ['blood', 1]].forEach(([k, above]) => {
+      const v = exPH(k), x = s.at(v); phIcon(g, k, { x, y: above ? 310 : 560 });
+      wLabel(g, 'pH ' + wDec(v), { x, y: above ? 250 : 640, size: 28, o: 1 });
+    });
+  });
+  at('class', g => {
+    const s = pHStrip(g, { x: 1000, y: 400, w: 560, h: 30, size: 20 });
+    wLabel(g, 'acidic', { x: s.at(3.5), y: 340, size: 30, fill: WC.acid, o: 1 }); wLabel(g, 'basic', { x: s.at(10.5), y: 340, size: 30, fill: WC.base, o: 1 });
+    wLabel(g, 'neutral: 7', { x: s.at(7), y: 520, size: 28, o: 1 });
+    wChem(g, `[H^+] × [OH^−] = 10^{${mn(KW_EXP)}}`, { x: 1280, y: 640, size: 34, font: MATH, weight: 500, o: 1 });
+  });
+  at('terms', g => {
+    wProtein(g, { x: 1280, y: 330, s: .9 });
+    wIonChar(g, 'H+', { x: 1140, y: 640, s: 1 }); wIonChar(g, 'OH-', { x: 1400, y: 650, s: .7 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('conv');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-conv', prompt: [uni(`Use pH = −log[H^+] and [H^+] × [OH^−] = 10^{${mn(KW_EXP)}}.`)],
+    build: withPic('conv', roman(blanks([
+      { parts: ['[H', E('+'), '] = 1 × 10', E(mn(-3)), ' M, so pH = ', { box: String(PC.pH) }], why: uni(`−log(10^{−3}) = ${PC.pH}.`), hint: 'The pH is the power of ten with its sign changed.' },
+      { parts: [`pH ${PC.p9} means [H`, E('+'), '] = 10', E('−'), { box: String(PC.e9) }, ' M'], why: uni(`[H^+] = 10^{−pH} = 10^{−${PC.e9}} M.`), hint: 'Run it backwards: [H⁺] = 10 to the power −pH.' },
+      { parts: [`at pH ${PC.p3}, [OH`, E('−'), '] = 10', E('−'), { box: String(PC.oh3) }, ' M'], why: uni(`[H^+] = 10^{−${PC.p3}}, so [OH^−] = 10^{−14} ÷ 10^{−${PC.p3}} = 10^{−${PC.oh3}} M.`), hint: 'The two exponents add to −14.' },
+    ]))) },
+  { id: 'p-half', prompt: [uni(`A solution has pH ${wDec(HALF)}. Its [H^+] is closest to`)],
+    build: withPic('half', choice([[uni(`${wDec(HALF)} × 10^{−7} M`)], [uni(HALF_H + ' M')], [uni(wSci(wHof(HALF - 1)) + ' M')], [uni(`${wDec(HALF)} × 10^{−1} M`)]], 1,
+      uni(`Right. [H^+] = 10^{−${wDec(HALF)}} = ${HALF_H} M, between 10^{−7} and 10^{−6}.`),
+      ['The pH is the power of ten, not a number to multiply by.', null, uni(`That is pH ${wDec(HALF - 1)}: ten times too much H^+.`), 'The power must be −6.5: the pH, with its sign changed.'])) },
+  { id: 'p-times', prompt: [`Lemon juice is pH ${exPH('lemon')} and black coffee pH ${exPH('coffee')}. Blood can fall from pH ${wDec(exPH('blood'))} to ${wDec(exPH('blood') - 1)}.`],
+    build: withPic('times', roman(blanks([
+      { parts: ['lemon juice has ', { box: String(LEMON_COFFEE) }, ' times as much H', E('+')], why: `Three pH steps: 10 × 10 × 10 = ${LEMON_COFFEE}.`, hint: 'Count the pH steps from 5 down to 2; each is a factor of 10.' },
+      { parts: ['the blood’s H', E('+'), ' is multiplied by ', { box: String(BLOOD_DROP) }], why: `One pH step down is ${BLOOD_DROP} times more H⁺.`, hint: 'How many pH steps is 7.4 to 6.4?' },
+    ]))) },
+  { id: 'p-class', prompt: ['Acidic, neutral or basic? (at 25 °C)'],
+    build: withPic('class', grid([
+      ['pH 3', 3], [uni('[H^+] = 1 × 10^{−7} M'), wPH(1e-7)], [uni('[H^+] = 1 × 10^{−10} M'), wPH(1e-10)], [uni('[OH^−] = 1 × 10^{−5} M'), wPH(ohOf(1e-5))], ['pH 6.9', 6.9],
+    ].map(([s, v]) => ({ parts: [s], ans: [PH_CLASS(v)], why: uni(PH_CLASS(v) === 'n' ? 'Neutral: pH 7, [H^+] = [OH^−].' : `pH ${wDec(v)}: ${PH_CLASS(v) === 'a' ? 'below 7, acidic' : 'above 7, basic'}.`) })),
+    [['a', 'acidic', WC.acid], ['n', 'neutral'], ['b', 'basic', WC.base]], { multi: false, text: true })) },
+  { id: 'p-terms', prompt: ['True or false?'],
+    build: withPic('terms', grid([
+      { parts: ['An acid is a proton donor.'], ans: ['t'], why: uni('True: it hands H^+ to water and raises [H^+].') },
+      { parts: [uni('In pure water at 25 °C, [OH^−] is larger than [H^+].')], ans: ['f'], why: uni('False: they are equal, 10^{−7} M each.') },
+      { parts: [uni('A solution of pH 9 has more H^+ than one of pH 8.')], ans: ['f'], why: uni('False: a higher pH means less H^+, ten times less here.') },
+      { parts: [uni('Changing the pH by 1 changes [H^+] by a factor of 10.')], ans: ['t'], why: 'True: each step on the scale is a power of ten.' },
+      { parts: ['Cells stay near pH 7 partly because protein shape depends on charge.'], ans: ['t'], why: uni('True: extra H^+ changes the charges that hold a protein’s fold.') },
+    ], TF, { multi: false, text: true })) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+boot();
+</script>
+</body>
+</html>
