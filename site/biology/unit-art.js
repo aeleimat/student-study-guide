@@ -82,5 +82,13 @@
       P('M520 74L520 128', 'a') + P('M512 118L520 130L528 118', 'a') + Tx(530, 104, 'ΔG < 0', 13, 'faint') +
       `<g class="t hop" style="offset-path: path('M250 60C290 60 300 60 330 50C360 10 380 8 400 20C430 50 450 118 500 122C540 124 560 124 580 124')"><circle r="8" fill="none" stroke="currentColor" stroke-width="2.5"/></g>` +
       Tx(588, 160, 'progress', 13, 'faint', 'end')),
+    // Unit 9 (Chapter 9: Cellular Respiration): a mitochondrion with folded cristae; beside it a free-energy
+    // staircase that an electron pair steps down to O₂, again and again.
+    reset(P('M250 90C250 40 300 22 360 22C420 22 446 40 446 90C446 140 420 158 360 158C300 158 250 140 250 90Z') +
+      P('M268 90C268 54 300 38 360 38C420 38 430 54 430 90C430 126 420 142 360 142C300 142 268 126 268 90Z', 'a') +
+      P('M290 46L290 110C290 120 304 120 304 110L304 66C304 56 318 56 318 66L318 128C318 138 332 138 332 128L332 56C332 46 346 46 346 56L346 124C346 134 360 134 360 124L360 52C360 42 374 42 374 52L374 128C374 138 388 138 388 128L388 58C388 48 402 48 402 58L402 116', 'a') +
+      P('M470 34L500 34L500 66L530 66L530 98L560 98L560 130L590 130') + Tx(468, 26, 'e⁻', 13, 'faint') +
+      Tx(588, 160, 'O₂', 13, 'faint', 'end') + Tx(255, 176, 'mitochondrion', 13, 'faint') +
+      `<g class="t hop" style="offset-path: path('M478 26L508 26L508 58L538 58L538 90L568 90L568 122L586 122')"><circle r="5" fill="currentColor"/><circle cx="9" r="5" fill="currentColor"/></g>`),
   ];
 })();

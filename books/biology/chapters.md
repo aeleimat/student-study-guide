@@ -66,3 +66,19 @@ Slides cover concept 5.1 (polymers) and concept 5.5 (nucleic acids) only. Slide 
 | chapter-08/lesson-06 | The active site and how enzymes catalyse | 41–44 | 7 | ready |
 | chapter-08/lesson-07 | Temperature, pH, cofactors and inhibitors | 45–51 | 7 | ready |
 | chapter-08/lesson-08 | Allosteric regulation and feedback inhibition | 52–58 | 7 | ready |
+
+## Unit 9: Chapter 9: Cellular Respiration (source/chapter-09-cellular-respiration.pdf, slides)
+
+57 slides, concepts 9.1–9.6. No question slides: each lesson writes its own checks and practice. Handwritten notes are few (slides 5, 13, 21, 24–25, 27, 37); the loose ones are decided per lesson (e.g. slide 21's "payoff = 2 ATP + 2 NADH" is the net, slide 27's "connection reaction" is taught as pyruvate oxidation). Printed slips decided: slide 47 "pyruvate is reduced to NADH" taught as reduced by NADH; slide 48's "38 ATP or 32 ATP?" taught as about 30–32; slide 52's "amino groups feed in" taught as NH₃ leaving while the carbon skeleton feeds in. Every lesson after the first opens on the same respiration map (slide 19 redrawn) with its part lit (the map thread); lesson 1 pushes into it from sunlight and a mitochondrion, lesson 9 closes it with fuels feeding in and ATP switching off phosphofructokinase. Shared kit: site/biology/lib/resp.js. Team brief: chapters/chapter-09/BRIEF.md.
+
+| Lesson | Title | Pages | Minutes | Status |
+|---|---|---|---|---|
+| chapter-09/lesson-01 | Energy flow, catabolism and redox | 1–11 | 7 | ready |
+| chapter-09/lesson-02 | NAD⁺, NADH and the stepwise harvest | 12–17 | 7 | ready |
+| chapter-09/lesson-03 | The stages of cellular respiration | 18–21 | 7 | ready |
+| chapter-09/lesson-04 | Glycolysis | 22–25 | 7 | ready |
+| chapter-09/lesson-05 | Pyruvate oxidation and the citric acid cycle | 26–31 | 8 | ready |
+| chapter-09/lesson-06 | The electron transport chain | 32–35 | 7 | ready |
+| chapter-09/lesson-07 | Chemiosmosis, ATP synthase and the ATP count | 36–41 | 7 | ready |
+| chapter-09/lesson-08 | Fermentation and anaerobic respiration | 42–50 | 8 | ready |
+| chapter-09/lesson-09 | Connections to other pathways and regulation | 51–57 | 7 | ready |

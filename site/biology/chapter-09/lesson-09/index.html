@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 9, Lesson 9: Connections to Other Pathways and Regulation — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="../../lib/resp.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 9 (Cellular Respiration), lesson 9: a railway junction where trains from many lines share a few
+// tracks becomes the shared respiration map with its fuel doors lit; carbohydrates into glycolysis, proteins to amino
+// acids (NH₃ leaves, carbon skeletons feed in), fats to glycerol (glycolysis) and fatty acids (beta oxidation to
+// acetyl CoA), more than twice the ATP per gram; biosynthesis draws on the same crossroads; feedback control, as
+// isoleucine switched off enzyme 1 in chapter 8; phosphofructokinase as the valve (ATP and citrate inhibit, AMP
+// stimulates); a muscle fibre working and resting; the chapter recap on the map; practice.
+// Plan, errata and storyboard: books/biology/chapters/chapter-09/lesson-09.md.
+const CHAPTER = { number: 909, label: '9, lesson 9', title: 'Connections to Other Pathways and Regulation', minutes: 7, language: 'en', lead: false };
+
+/* ---------- small helpers ---------- */
+const plain = s => s.replace(/[_^]\{([^}]*)\}/g, '$1').replace(/[_^](.)/g, '$1');
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, weight: 700, ...o, o: 0 }); if (t0 !== null) show(e, t0); return e; };
+const txt = (p, str, x, y, o = {}) => wChem(p, str, { x, y, weight: 700, ...o, o: 1 });
+const DARK = '#0a1626', RED = MC.inhib, GREEN = MC.stim, BUILD = '#7fd1b9';
+// a beat's sentence start (from the voice's cues), so actions can land on a sentence without a mark
+const cue = (id, i) => TIMINGS[id].cues[i][0];
+const ss = v => { const c = mClamp(v); return c * c * (3 - 2 * c); };
+const r2k = k => Math.round(mClamp(k) * 2000) / 2000;
+// show or hide a group without leaving an empty style attribute behind (a seeked and a played frame must match)
+const vis = (e, on) => {
+  if (!on) { if (e.style.display !== 'none') e.style.display = 'none'; return; }
+  if (e.style.display) { e.style.display = ''; if (!e.getAttribute('style')) e.removeAttribute('style'); }
+};
+const rrect = (w, h, r, cx = 0, cy = 0) => {
+  const L = cx - w / 2, R = cx + w / 2, U = cy - h / 2, B = cy + h / 2; r = Math.min(r, w / 2, h / 2);
+  return `M${cF(L + r)} ${cF(U)}H${cF(R - r)}Q${cF(R)} ${cF(U)} ${cF(R)} ${cF(U + r)}V${cF(B - r)}Q${cF(R)} ${cF(B)} ${cF(R - r)} ${cF(B)}H${cF(L + r)}Q${cF(L)} ${cF(B)} ${cF(L)} ${cF(B - r)}V${cF(U + r)}Q${cF(L)} ${cF(U)} ${cF(L + r)} ${cF(U)}Z`;
+};
+// A label (centred text) with a leader to the thing it names; fades in at t0 (null: o 0, not scheduled).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 700, sub, subFill = COL.dim } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(plain(str), size);
+  txt(g, str, tx, ty, { size, fill, weight });
+  if (sub) txt(g, sub, tx, ty + size * 1.05, { size: size * .8, fill: subFill, weight: 600 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.05 + size * .3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  path(g, `M${cF(sx)} ${cF(sy)}L${cF(ax)} ${cF(ay)}`, { stroke: line, 'stroke-width': 2.5 }); mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g);
+  if (t0 !== null) show(g, t0, .4);
+  return g;
+}
+// A dark pill with a line of text, centred on (x, y); fades in at t0 (null: o 0, not scheduled).
+function pill(p, str, x, y, t0, { size = 28, color = COL.chalk, edge = COL.faint, weight = 700 } = {}) {
+  const g = G(p, { x, y, o: 0 }), w = uiW(plain(str), size) + 44, h = size + 24;
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill: DARK, stroke: edge, 'stroke-width': 2.5 }, g);
+  txt(g, str, 0, size * .36, { size, fill: color, weight });
+  if (t0 !== null) { show(g, t0, .4); pulse(g, t0 + .1, 1.05); }
+  return g;
+}
+// One caption line at a time under the picture: [t0, text, colour?] …; each hides as the next comes.
+function capLine(p, items, y = 850, size = 28) {
+  return items.map(([t0, str, col], i) => {
+    const e = pill(p, str, 800, y, t0, { size, color: col || COL.chalk, edge: col || COL.faint });
+    const nx = items[i + 1]; if (nx) hide(e, nx[0] - .35, .3);
+    return e;
+  });
+}
+// A numbered badge.
+function badge(p, str, x, y, { o = 0, r = 22, fill = '#3b8fd9' } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill, stroke: '#cfe6ff', 'stroke-width': 3 }, g);
+  txt(g, str, 0, r * .4, { size: r * 1.15, fill: '#ffffff', weight: 800 });
+  return g;
+}
+// An outline (rounded rectangle) that marks something; fades in at t0, out at t1.
+function mark(p, w, h, x, y, t0, t1, { color = MC.elec, sw = 4 } = {}) {
+  const g = G(p, { x, y, o: 0 });
+  path(g, rrect(w, h, Math.min(h / 2, 30)), { stroke: color, 'stroke-width': sw, fill: 'none' });
+  if (t0 !== null) show(g, t0, .3);
+  if (t1 != null) hide(g, t1, .3);
+  return g;
+}
+// polylines: a point k of the way along, the direction there (degrees), the length, an offset copy, a cubic Bézier
+function plen(pts) { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return L; }
+function along(pts, k) {
+  const L = []; let tot = 0;
+  for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); L.push(d); tot += d; }
+  let want = mClamp(k) * tot;
+  for (let i = 0; i < L.length; i++) { if (want <= L[i] || i === L.length - 1) { const u = L[i] ? Math.min(1, want / L[i]) : 1; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * u, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * u]; } want -= L[i]; }
+  return pts[pts.length - 1];
+}
+function dirAt(pts, k) { const a = along(pts, Math.max(0, k - .004)), b = along(pts, Math.min(1, k + .004)); return Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI; }
+function offsetPts(pts, d) {
+  return pts.map((q, i) => { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [q[0] - (b[1] - a[1]) / L * d, q[1] + (b[0] - a[0]) / L * d]; });
+}
+function bezPts(P0, P1, P2, P3, n = 28) {
+  const pts = [];
+  for (let i = 0; i <= n; i++) { const u = i / n, v = 1 - u, a = v * v * v, b = 3 * v * v * u, c = 3 * v * u * u, d = u * u * u; pts.push([a * P0[0] + b * P1[0] + c * P2[0] + d * P3[0], a * P0[1] + b * P1[1] + c * P2[1] + d * P3[1]]); }
+  return pts;
+}
+const polyD = pts => 'M' + pts.map(cP).join('L');
+
+/* ---------- the railway junction (intro backdrop) ---------- */
+// Three lines come in from the left, share one track through the junction and split again on the right; three trains
+// in the fuels' colours (gold, blue, lilac) run in on one line and out on another. .set(t, glow)
+function junction(p) {
+  const g = G(p);
+  mk('rect', { x: -400, y: -400, width: 2400, height: 800, fill: '#132a45' }, g);
+  path(g, 'M-400 400L-400 330Q0 250 300 318T900 300T1500 312T2000 330L2000 400Z', { fill: '#1a3552' });
+  mk('rect', { x: -400, y: 400, width: 2400, height: 900, fill: '#1b3247' }, g);
+  const T0 = [760, 640], T1 = [1000, 640];
+  const ins = [bezPts([-300, 480], [300, 480], [480, 640], T0), [[-300, 640], T0], bezPts([-300, 800], [300, 800], [480, 640], T0)];
+  const outs = [bezPts(T1, [1280, 640], [1460, 480], [1900, 480]), [T1, [1900, 640]], bezPts(T1, [1280, 640], [1460, 800], [1900, 800])];
+  const trunk = [T0, T1];
+  const track = pts => {
+    const L = plen(pts); let d = '';
+    for (let s = 8; s < L; s += 26) { const q = along(pts, s / L), a = dirAt(pts, s / L) * Math.PI / 180, nx = -Math.sin(a) * 17, ny = Math.cos(a) * 17; d += `M${cF(q[0] - nx)} ${cF(q[1] - ny)}L${cF(q[0] + nx)} ${cF(q[1] + ny)}`; }
+    path(g, d, { stroke: '#6b4f36', 'stroke-width': 6 });
+    path(g, polyD(offsetPts(pts, 9)) + polyD(offsetPts(pts, -9)), { stroke: '#a9b4c2', 'stroke-width': 4 });
+  };
+  [...ins, ...outs, trunk].forEach(track);
+  const glow = path(g, polyD([[700, 640], [1060, 640]]), { stroke: MC.elec, 'stroke-width': 36, 'stroke-opacity': .22, 'stroke-linecap': 'round' }, { o: 0 });
+  // signal box at the junction
+  mk('rect', { x: 846, y: 540, width: 70, height: 56, rx: 6, fill: '#2a4563', stroke: '#4a6788', 'stroke-width': 3 }, g);
+  mk('rect', { x: 858, y: 552, width: 46, height: 22, rx: 3, fill: '#f3c95c', 'fill-opacity': .7 }, g);
+  path(g, 'M840 540L881 514L922 540Z', { fill: '#3a5a7e' });
+  const COLS = [MC.glucose, MC.glycerol, MC.amino];
+  const routes = [0, 1, 2].map(i => [...ins[i], ...trunk.slice(1), ...outs[(i + 1) % 3].slice(1)]);
+  const lens = routes.map(plen);
+  const trains = COLS.map(c => [0, 1, 2].map(j => {
+    const car = G(g, { s: .999, o: 0 });
+    mk('rect', { x: -27, y: -14, width: 54, height: 28, rx: 7, fill: j ? c : mix(c, '#000000', .25), stroke: mix(c, '#000000', .45), 'stroke-width': 3 }, car);
+    [-12, 6].forEach(wx => mk('rect', { x: wx, y: -7, width: 10, height: 14, rx: 2, fill: '#0f1e33', 'fill-opacity': .6 }, car));
+    return car;
+  }));
+  const jn = Object.assign(g, {
+    set(t, gk = 0) {
+      t = Math.round(t * 120) / 120;
+      trains.forEach((cars, i) => cars.forEach((car, j) => {
+        const L = lens[i], d = cFrac((t * 150 + i * 880) / L) * L - j * 60, k = d / L;
+        const q = along(routes[i], k);
+        cSet(car, { x: q[0], y: q[1], r: dirAt(routes[i], k), o: k > .002 && k < .995 ? 1 : 0 });
+      }));
+      mO(glow, gk * (.55 + .45 * Math.sin(t * 4)));
+      return jn;
+    },
+  });
+  return jn.set(0);
+}
+
+/* ---------- fuel pieces ---------- */
+// A carbon skeleton: three grey carbons on a lilac backing (what is left of an amino acid). Origin = centre.
+function skeleton(p, { x = 0, y = 0, o = 0 } = {}) {
+  const g = G(p, { x, y, s: .999, o });
+  path(g, rrect(74, 26, 13), { fill: MC.amino, 'fill-opacity': .55, stroke: MC.aminoEdge, 'stroke-width': 2.5 });
+  [-22, 0, 22].forEach(bx => mk('circle', { cx: bx, cy: 0, r: 8, fill: MC.carbon, stroke: MC.carbonEdge, 'stroke-width': 2 }, g));
+  return g;
+}
+// The fat and carbohydrate bars: ATP per gram (fat more than twice). Origin = the carbohydrate icon.
+// .set(kc, kf, ghost, nums) bars grow, the "2 × carbohydrate" outline, the rough kcal/g numbers
+function barPair(p, { x = 0, y = 0, s = 1, o = 1, unit = 300, nums = true } = {}) {
+  const g = G(p, { x, y, s, o }), B0 = 150, H = 64, FY = 190;
+  fuelIcon(g, 'sugar', { x: 0, y: 0, s: 1.5 });
+  txt(g, '1 g carbohydrate', 0, 66, { size: 24, fill: MC.glucose });
+  fuelIcon(g, 'fat', { x: 12, y: FY, s: .9 });
+  txt(g, '1 g fat', 0, FY + 70, { size: 24, fill: MC.fatTail });
+  const bc = mk('rect', { x: B0, y: -H / 2, width: 0, height: H, rx: 12, fill: MC.glucose, stroke: MC.glucoseEdge, 'stroke-width': 3 }, g);
+  const bf = mk('rect', { x: B0, y: FY - H / 2, width: 0, height: H, rx: 12, fill: MC.fatTail, stroke: '#a8862c', 'stroke-width': 3 }, g);
+  const gh = G(g, { o: 0 });
+  const ghr = [0, 1].map(i => mk('rect', { x: B0 + i * unit, y: FY - H / 2 - 6, width: unit, height: H + 12, rx: 12, fill: 'none', stroke: MC.glucose, 'stroke-width': 3, 'stroke-dasharray': '12 8' }, gh));
+  txt(gh, '2 × carbohydrate', B0 + unit, FY + H / 2 + 36, { size: 22, fill: MC.glucose, weight: 600 });
+  const nc = nums ? wLabel(g, 'about 4 kcal/g', { x: B0 + unit + 18, y: 9, size: 26, anchor: 'start', weight: 700, o: 0 }) : null;
+  const nf = nums ? wLabel(g, 'about 9 kcal/g', { x: B0 + 2.25 * unit + 18, y: FY + 9, size: 26, anchor: 'start', weight: 700, o: 0 }) : null;
+  const bp = Object.assign(g, {
+    set(kc, kf, kg = 0, kn = 0) {
+      cAttr(bc, 'width', Math.round(unit * r2k(kc))); cAttr(bf, 'width', Math.round(2.25 * unit * r2k(kf)));
+      mO(gh, r2k(kg)); if (nc) { mO(nc, r2k(kn)); mO(nf, r2k(kn)); }
+      return bp;
+    },
+    // the "2 × carbohydrate" outline's dashes creep along (t in seconds)
+    march(t) { const off = -Math.round((t * 24) % 20); ghr.forEach(r => cAttr(r, 'stroke-dashoffset', off)); return bp; },
+  });
+  return bp.set(0, 0);
+}
+// The building-blocks tray (biosynthesis): amino acids, fats, sugars, cell parts. Origin = top left.
+function tray(p, { x = 0, y = 0, s = 1, o = 1, w = 400, h = 620 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, rrect(w, h, 26, w / 2, h / 2), { fill: '#0b1828', stroke: BUILD, 'stroke-width': 3.5 });
+  txt(g, 'building blocks', w / 2, 52, { size: 28, fill: BUILD });
+  const items = [];
+  const row = (yy, label, draw) => { const r = G(g, { o: 0 }); draw(r); txt(r, label, 170, yy + 9, { size: 26, anchor: 'start' }); items.push(r); };
+  row(140, 'amino acids', r => fuelIcon(r, 'aminoAcid', { x: 100, y: 140, s: 1.3 }));
+  row(270, 'fats', r => fuelIcon(r, 'fat', { x: 100, y: 270, s: .8 }));
+  row(400, 'sugars', r => fuelIcon(r, 'sugar', { x: 100, y: 400, s: 1.3 }));
+  row(530, 'cell parts', r => {
+    for (let i = 0; i < 5; i++) {
+      const bx = 52 + i * 24;
+      [[512, 1], [548, -1]].forEach(([by, d]) => { path(r, `M${bx - 4} ${by + d * 10}L${bx - 4} ${by + d * 26}M${bx + 4} ${by + d * 10}L${bx + 4} ${by + d * 26}`, { stroke: MC.fatTail, 'stroke-width': 3 }); mk('circle', { cx: bx, cy: by, r: 10, fill: MC.membrane }, r); });
+    }
+  });
+  return Object.assign(g, { items, w, h });
+}
+// A muscle fibre: a cream capsule with striations that shortens as it contracts. Origin = centre. .set(c)
+function fibre(p, { x = 0, y = 0, s = 1, o = 1, w = 480, h = 100 } = {}) {
+  const g = G(p, { x, y, s, o }), n = 11;
+  const body = path(g, '', { fill: '#efe3c0', stroke: '#b8a77a', 'stroke-width': 4 });
+  const bands = [...Array(n)].map(() => mk('rect', { y: -h / 2 + 10, height: h - 20, rx: 3, fill: '#c9b27a' }, g));
+  const zl = [...Array(n - 1)].map(() => mk('rect', { y: -h / 2 + 6, height: h - 12, width: 3, fill: '#8f7a48' }, g));
+  const fb = Object.assign(g, {
+    set(c) {
+      c = r2k(c);
+      const ww = w * (1 - .16 * c), hh = h * (1 + .1 * c);
+      mD(body, rrect(ww, hh, hh / 2));
+      bands.forEach((b, i) => { const bw = Math.round(16 * (1 - .4 * c)), cx = -ww / 2 + hh / 2 * .5 + (i + .5) * (ww - hh / 2) / n; cAttr(b, 'x', Math.round(cx - bw / 2)); cAttr(b, 'width', bw); });
+      zl.forEach((z, i) => { const cx = -ww / 2 + hh / 2 * .5 + (i + 1) * (ww - hh / 2) / n; cAttr(z, 'x', Math.round(cx - 1.5)); });
+      return fb;
+    },
+  });
+  return fb.set(0);
+}
+// The ATP gauge: a tall tube, red "low" zone at the bottom, green "plenty" zone at the top. Origin = centre. .set(L)
+function atpGauge(p, { x = 0, y = 0, s = 1, o = 1, h = 280, w = 64, labels = true } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: 18, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+  mk('rect', { x: -w / 2 + 4, y: h / 2 - 4 - h * .28, width: w - 8, height: h * .28, rx: 12, fill: RED, 'fill-opacity': .18 }, g);
+  mk('rect', { x: -w / 2 + 4, y: -h / 2 + 4, width: w - 8, height: h * .28, rx: 12, fill: GREEN, 'fill-opacity': .18 }, g);
+  const fill = mk('rect', { x: -w / 2 + 9, y: h / 2 - 9, width: w - 18, height: 0, rx: 9, fill: MC.elec }, g);
+  txt(g, 'ATP level', 0, -h / 2 - 20, { size: 26, fill: MC.elec });
+  if (labels) { txt(g, 'plenty', w / 2 + 14, -h / 2 + 44, { size: 22, fill: GREEN, anchor: 'start' }); txt(g, 'low', w / 2 + 14, h / 2 - 22, { size: 22, fill: RED, anchor: 'start' }); }
+  const ga = Object.assign(g, {
+    set(L) { const hh = Math.round((h - 18) * r2k(L)); cAttr(fill, 'y', h / 2 - 9 - hh); cAttr(fill, 'height', hh); return ga; },
+  });
+  return ga.set(.5);
+}
+// A small nucleotide chip (ATP gold, ADP grey-gold, AMP green), origin = centre.
+function nucChip(p, str, { x = 0, y = 0, o = 1 } = {}) {
+  const col = str === 'ATP' ? MC.elec : str === 'AMP' ? GREEN : '#b9ab86';
+  const g = G(p, { x, y, o });
+  path(g, rrect(58, 30, 10), { fill: col, stroke: mix(col, '#000000', .4), 'stroke-width': 2.5 });
+  txt(g, str, 0, 6, { size: 16, fill: '#14233a', weight: 800 });
+  return g;
+}
+// pfkValve's citrate name is 18 px, too small on the shrunken valves: hide it and carry one name of the page's size
+// at the kit's own spot (read from the kit's text, so the page follows the kit's placement). Returns an update to call
+// after every pv.set. Exactly one citrate name shows.
+function citName(pv, size = 18) {
+  const rg = pv.sockets.cit.rg, kt = rg.querySelector('text');
+  let dx = -24, dy = -32, anchor = 'end';
+  if (kt) {
+    dx = +(kt.getAttribute('x') ?? dx) || dx; dy = +(kt.getAttribute('y') ?? dy) || dy; anchor = kt.getAttribute('text-anchor') || anchor;
+    put(kt, { o: 0 });
+  }
+  const lab = wLabel(pv, 'citrate', { size, fill: MC.cac, anchor, weight: 700, o: 0 });
+  return () => { const q = st(rg); cSet(lab, { x: q.x + dx, y: q.y + dy, o: q.o }); };
+}
+// A cycle glyph (a red ring with an arrowhead), origin = centre.
+function wheel(p, { x = 0, y = 0, R = 50, o = 1, label = '' } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r: R - 10, fill: mix(MC.cac, '#0f1e33', .55) }, g);
+  const a0 = -60 * Math.PI / 180, a1 = 250 * Math.PI / 180;
+  path(g, `M${cF(R * Math.cos(a0))} ${cF(R * Math.sin(a0))}A${R} ${R} 0 1 1 ${cF(R * Math.cos(a1))} ${cF(R * Math.sin(a1))}`, { stroke: MC.cac, 'stroke-width': 10 });
+  path(g, `M${cF(R * Math.cos(a0) - 14)} ${cF(R * Math.sin(a0) - 6)}L${cF(R * Math.cos(a0) + 8)} ${cF(R * Math.sin(a0) + 16)}L${cF(R * Math.cos(a0) + 12)} ${cF(R * Math.sin(a0) - 14)}Z`, { fill: MC.cac });
+  if (label) label.split('\n').forEach((l, i, a) => txt(g, l, 0, 6 + (i - (a.length - 1) / 2) * 18, { size: 15, weight: 800 }));
+  return g;
+}
+// A drawn-on arrow along a polyline, with a dark halo under it: .set(k) draw, head shows at the end.
+function routeArrow(p, pts, { color = BUILD, w = 6 } = {}) {
+  const g = G(p);
+  const halo = path(g, polyD(pts), { stroke: DARK, 'stroke-width': w + 8, 'stroke-linejoin': 'round' }, { d: 0 });
+  const sh = path(g, polyD(pts), { stroke: color, 'stroke-width': w, 'stroke-linejoin': 'round' }, { d: 0 });
+  const e = pts[pts.length - 1], a = dirAt(pts, 1) * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  const hd = path(g, `M${cF(e[0] + c * 6)} ${cF(e[1] + s * 6)}L${cF(e[0] - c * 18 - s * 12)} ${cF(e[1] - s * 18 + c * 12)}L${cF(e[0] - c * 18 + s * 12)} ${cF(e[1] - s * 18 - c * 12)}Z`, { fill: color }, { o: 0 });
+  const ra = Object.assign(g, { pts, set(k) { k = r2k(k); cSet(halo, { d: k }); cSet(sh, { d: k }); mO(hd, k > .97 ? 1 : 0); return ra; } });
+  return ra;
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Connections and regulation', (m, D) => {
+  const p = panel(0), tJ = m('junction'), tM = m('map'), tI = m('inputs');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const jn = junction(W);
+  txt(W, 'junction', 880, 712, { size: 26, fill: COL.dim, weight: 600 });
+  const ttl = G(p, { o: 0, y: 24 });
+  txt(ttl, 'BIOLOGY · CHAPTER 9 · LESSON 9', 1110, 170, { size: 26, fill: COL.dim });
+  txt(ttl, 'Connections to other pathways', 1110, 250, { size: 52 });
+  txt(ttl, 'and regulation', 1110, 310, { size: 38, fill: COL.dim, weight: 500 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tJ - .2, .5);
+  // the camera pushes into the junction; the respiration map opens round it
+  cam.to({ x: 880, y: 640, z: 4 }, tM, 1.6);
+  hide(cam.el, tM + .9, .6);
+  const MG = G(p, { x: 800, y: 490, s: .35, o: 0 });
+  const map = respMap(MG, { x: 0, y: 0, s: .9 });
+  show(MG, tM + .8, .6); tw(MG, { s: 1 }, tM + .8, 1.6, out);
+  const c7 = cue('intro', 7), tDial = c7 + 3.4;
+  capLine(p, [
+    [tJ + 1.6, 'many lines come in, share a few tracks, and leave on others'],
+    [cue('intro', 5), 'for eight lessons: one fuel, glucose', MC.glucose],
+    [tI + .2, 'but a cell does not live on glucose alone'],
+    [c7 + .3, 'today: the doors for other fuels …'],
+    [tDial, '… and the dial that controls the whole map', RED],
+  ], 850);
+  clockRun(t => {
+    vis(cam.el, t < tM + 1.6); vis(MG, t >= tM + .7);
+    jn.set(t, mRamp(t, tJ, tJ + .6) * (1 - mRamp(t, tM, tM + .5)));
+    map.flow(t, 1 - .7 * mRamp(t, tI, tI + .8)).shine(t)
+      .inputs([mRamp(t, c7 + .3, c7 + .9), mRamp(t, c7 + 1.7, c7 + 2.3), mRamp(t, c7 + 1, c7 + 1.6)])
+      .valve(mRamp(t, tDial, tDial + .8))
+      .focus(['inputs', 'valve'], mRamp(t, tI, tI + .8));
+  }, D);
+}],
+
+/* ---------- inputs ---------- */
+['inputs', 'Carbohydrates and proteins', (m, D) => {
+  const p = panel(0), tC = m('carbs'), tP = m('prot'), tS = m('skel');
+  const FX = 800, FY = 470, FP = (lx, ly) => [FX + lx, FY + ly];
+  const ff = fuelFunnel(p, { x: FX, y: FY });
+  const tAm = cue('inputs', 3), tW = cue('inputs', 6);
+  // carbohydrates: sugars drop into glycolysis, over and over
+  const sug = [0, 1, 2].map(() => { const g = G(p, { s: .999, o: 0 }); fuelIcon(g, 'sugar', { s: .75 }); return g; });
+  const sugPath = [FP(-500, -290), FP(-500, -150), FP(-500, -60), FP(-524, 120)];
+  say(p, 'digested', 320, 262, tC + 1.2, { size: 22, fill: COL.dim, anchor: 'start', weight: 600 });
+  // proteins: digested to amino acids; the amino group leaves as NH₃
+  say(p, 'digested', 1190, 262, tP + .8, { size: 22, fill: COL.dim, anchor: 'start', weight: 600 });
+  tag(p, 'amino group', [1480, 196], [1380, 262], tAm + 2, { size: 24, fill: MC.nh3, line: MC.nh3, sub: 'leaves as NH_3', subFill: MC.nh3 });
+  // skeletons: three carbon skeletons ride to pyruvate, acetyl CoA and the cycle
+  const ends = [[FP(340, -64), FP(-60, 126)], [FP(360, -64), FP(145, 126)], [FP(380, -64), FP(330, 82)]];
+  const sk = ends.map(() => skeleton(p));
+  const skPaths = ends.map(([a, b]) => [FP(370, -124), a, [a[0] + (b[0] - a[0]) * .84, a[1] + (b[1] - a[1]) * .84]]);
+  tag(p, 'carbon skeletons', [1390, 480], [1160, 482], tS + 1.4, { size: 26, fill: MC.amino, line: MC.amino });
+  capLine(p, [
+    [tC + .4, 'glycolysis accepts a wide range of carbohydrates', MC.glucose],
+    [tP + .4, 'proteins → amino acids; the amino group comes off', MC.amino],
+    [tS + .3, 'the carbon skeleton feeds in: at pyruvate, acetyl CoA or the cycle', MC.amino],
+    [tW, 'the slide says “amino groups feed in”: it is the carbon skeletons that burn'],
+  ], 820, 27);
+  clockRun(t => {
+    ff.focus(['carbohydrates', 'pathway', 'protein'], mRamp(t, tC, tC + .6)).deaminate(mRamp(t, tAm + .2, tAm + 2.2));
+    const tq = Math.round(t * 120) / 120;
+    sug.forEach((g, i) => {
+      const u = cFrac((tq - tC) * .3 + i / 3), q = along(sugPath, u);
+      cSet(g, { x: q[0], y: q[1], o: mRamp(t, tC + .2, tC + .7) * Math.min(1, u * 8, (1 - u) * 8) });
+    });
+    sk.forEach((g, i) => {
+      const k = io(mRamp(t, tS + .4 + .7 * i, tS + 2.6 + .7 * i)), q = along(skPaths[i], k);
+      cSet(g, { x: q[0], y: q[1], o: mRamp(t, tS + .2 + .7 * i, tS + .6 + .7 * i) });
+    });
+  }, D);
+}],
+
+/* ---------- fats ---------- */
+['fats', 'Fats', (m, D) => {
+  const p = panel(0), tF = m('fat'), tG = m('gly'), tA = m('fa'), tT = m('twice'), tK = m('gram'), tH = m('hubs');
+  const FX = 800, FY = 470, FP = (lx, ly) => [FX + lx, FY + ly];
+  const FG = G(p);
+  const ff = fuelFunnel(FG, { x: FX, y: FY });
+  // fat: digestion cuts the head from the tails
+  const cut = G(FG, { o: 0 });
+  path(cut, 'M617 96V206', { stroke: COL.chalk, 'stroke-width': 4, 'stroke-dasharray': '8 6' });
+  show(cut, tF + 3.6, .3); hide(cut, tA + .5, .4);
+  const dg = say(FG, 'digestion cuts them apart', 730, 156, tF + 3.6, { size: 24, anchor: 'start', weight: 600 });
+  hide(dg, tA - .3, .4);
+  // glycerol rides into glycolysis at glyceraldehyde 3-phosphate
+  const gl = G(FG, { s: .999, o: 0 }); fuelIcon(gl, 'glycerol', {});
+  const glPath = [FP(-194, -320), FP(-300, -150), FP(-300, -60), FP(-304, 112)];
+  mark(FG, 250, 58, 495, 620, tG + 4.2, tT - .5);
+  hide(say(FG, 'enters at glyceraldehyde 3-phosphate', 495, 770, tG + 4.4, { size: 26, fill: MC.glycerol }), tT - .5, .3);
+  // fatty acids: to the fatty-acid node, then beta oxidation in two-carbon pieces to acetyl CoA
+  const fa = [0, 1, 2].map(() => { const g = G(FG, { s: .999, o: 0 }); fuelIcon(g, 'fattyAcid', { s: .8 }); return g; });
+  // the acetyl CoA pieces ride down the right of the beta-oxidation line with their CoA tags to the right: the kit's
+  // "Fatty acids" and "beta oxidation" names sit in that lane, so hide them and name both on the left instead
+  [ff.parts.fattyAcids, ff.arrows.f_fatty].forEach(e => { const kt = e.querySelector('text'); if (kt) put(kt, { o: 0 }); });
+  txt(FG, 'Fatty acids', 716, 348, { size: 24, fill: MC.fatTail, anchor: 'end' });
+  txt(FG, 'beta oxidation', 800, 474, { size: 20, fill: COL.dim, anchor: 'end', weight: 600 });
+  say(FG, '2 C at a time', 800, 500, tA + 3.4, { size: 20, fill: COL.dim, anchor: 'end', weight: 600 });
+  mark(FG, 158, 56, 925, 620, tA + 7.4, tT - .5);
+  hide(FG, tT, .5); show(FG, tH, .5);
+  // the bars: fat holds more than twice the ATP per gram
+  const BG = G(p, { o: 0 }); show(BG, tT + .2, .5); hide(BG, tH - .5, .5);
+  txt(BG, 'ATP from one gram, oxidized', 760, 170, { size: 32 });
+  const bp = barPair(BG, { x: 330, y: 300 });
+  // kilocalorie ticks (75 px each: 4 on the carbohydrate bar, 9 on the fat bar), counted off as the voice gives them
+  const ticks = [[4, 300], [9, 490]].map(([n, yy]) => [...Array(n - 1)].map((_, j) => path(BG, `M${330 + 150 + 75 * (j + 1)} ${yy - 24}V${yy + 24}`, { stroke: DARK, 'stroke-width': 4, 'stroke-opacity': .55 }, { o: 0 })));
+  // the fuels keep flowing in through their doors while the hubs are named
+  const FEEDS = [[[-500, -64], [-525, 126], MC.glucose], [[-300, -64], [-305, 126], MC.glycerol], [[-20, -64], [110, 126], MC.fatTail],
+    [[340, -64], [-60, 126], MC.amino], [[360, -64], [145, 126], MC.amino], [[380, -64], [330, 82], MC.amino]].map(([a, b, c]) => [FP(...a), FP(...b), c]);
+  const feedDots = FEEDS.map(([, , c]) => [0, 1].map(() => { const d = G(FG, { s: .999, o: 0 }); mk('circle', { r: 8, fill: c, stroke: DARK, 'stroke-width': 2 }, d); return d; }));
+  say(BG, 'more than twice the ATP per gram', 800, 650, tT + 4.2, { size: 34, fill: MC.fatTail });
+  const rg = pill(BG, 'a rough guide, not from the slides', 800, 722, tK + 1.2, { size: 24, color: COL.dim });
+  say(BG, 'why a body stores its long-term energy as fat', 800, 800, cue('fats', 7) + .2, { size: 28, weight: 600 });
+  // hubs: three foods, a few doors, one end
+  [[150, 620, '1'], [925, 676, '2'], [1125, 712, '3']].forEach(([bx, by, n], i) => { const b = badge(FG, n, bx, by); show(b, tH + 1.4 + .8 * i, .3); pulse(b, tH + 1.5 + .8 * i, 1.15); });
+  mark(FG, 214, 124, 1340, 620, cue('fats', 9), null, { color: MC.oxph });
+  capLine(p, [[tH + .4, 'three kinds of food, a few doors: glycolysis, acetyl CoA, the citric acid cycle'], [cue('fats', 9) + .2, 'all of them lead on to oxidative phosphorylation', MC.oxph]], 850, 26);
+  clockRun(t => {
+    vis(FG, t < tT + .6 || t > tH - .1); vis(BG, t > tT && t < tH + .1);
+    ff.focus(['fat', 'pathway'], mRamp(t, tF, tF + .6) * (1 - mRamp(t, tH, tH + .8))).beta(mRamp(t, tA + 2.4, tA + 8.4));
+    const kg = io(mRamp(t, tG + .3, tG + 4)), q = along(glPath, kg);
+    cSet(gl, { x: q[0], y: q[1], o: mRamp(t, tG, tG + .3) * (1 - mRamp(t, tG + 4, tG + 4.5)) });
+    fa.forEach((g, i) => {
+      const k = io(mRamp(t, tA + .2 + .25 * i, tA + 2 + .25 * i)), a = FP(-110, -346 + 26 * i), b = FP(-20, -130);
+      cSet(g, { x: a[0] + (b[0] - a[0]) * k, y: a[1] + (b[1] - a[1]) * k, o: mRamp(t, tA, tA + .3) * (1 - mRamp(t, tA + 2.2 + .25 * i, tA + 2.6 + .25 * i)) });
+    });
+    bp.set(mRamp(t, tT + .6, tT + 1.6), io(mRamp(t, tT + 1.8, tT + 3.6)), mRamp(t, tT + 3.6, tT + 4.2), mRamp(t, tK + .3, tK + .9)).march(t);
+    // "about nine … for fat" counts off the fat bar, "about four for carbohydrate" the carbohydrate bar
+    ticks[1].forEach((e, j) => mO(e, mRamp(t, tK + 1.2 + .38 * j, tK + 1.4 + .38 * j)));
+    ticks[0].forEach((e, j) => mO(e, mRamp(t, tK + 4.6 + .6 * j, tK + 4.8 + .6 * j)));
+    const tq = Math.round(t * 120) / 120, fk = mRamp(t, tH + 1, tH + 1.6);
+    feedDots.forEach((ds, i) => ds.forEach((d, j) => {
+      const u = cFrac(tq * .4 + j / 2 + i * .17), [a, b] = FEEDS[i];
+      cSet(d, { x: Math.round(a[0] + (b[0] - a[0]) * u), y: Math.round(a[1] + (b[1] - a[1]) * u), o: fk * Math.min(1, u * 8, (1 - u) * 8) });
+    }));
+  }, D);
+  hide(rg, tH - .6, .3);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const ff = fuelFunnel(p, { x: 350, y: 490, s: .55 });
+  ff.focus(['fats', 'd_fats2', 'fattyAcids', 'f_fatty'], 1);
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-fa', prompt: ['What does a fatty acid become on its way into respiration?'],
+  build: choice([
+    ['Pyruvate'],
+    ['Acetyl CoA, by beta oxidation'],
+    ['NH₃'],
+    ['Glucose'],
+  ], 1,
+  'Right. Beta oxidation snips the tail two carbons at a time, and each piece becomes acetyl CoA for the citric acid cycle.',
+  ['Pyruvate comes out of glycolysis, from sugars and glycerol. Fatty acids skip glycolysis.', null,
+   'NH₃ comes from the amino groups of proteins, not from fats.',
+   'The cell is burning the fat, not rebuilding sugar from it. Think: the tail is snipped two carbons at a time.']),
+}], done) }],
+
+/* ---------- build ---------- */
+['build', 'Biosynthesis', (m, D) => {
+  const p = panel(0), tB = m('back'), tS = m('small'), tO = m('both');
+  const MX = 600, MY = 560, MS = .58, MP = (lx, ly) => [MX + lx * MS, MY + ly * MS];
+  const map = respMap(p, { x: MX, y: MY, s: MS });
+  const food = G(p, { o: 0 }); fuelIcon(food, 'carb', { x: 300, y: 196, s: .8 }); txt(food, 'food', 300, 244, { size: 24, fill: MC.glucose });
+  show(food, tS - .2, .4);
+  const tr = tray(p, { x: 1130, y: 170 });
+  const tT = cue('build', 1);
+  tr.items.forEach((it, i) => show(it, tT + .4 + 1.3 * i, .4));
+  // the outward arrows: from food, from glycolysis, from the cycle
+  const gA = MP(-517, -45), cA = MP(232, 0);
+  const RA = [routeArrow(p, [[368, 196], [1124, 196]]), routeArrow(p, [gA, [gA[0], 280], [1124, 280]]), routeArrow(p, [cA, [765, cA[1]], [765, 350], [1124, 350]])];
+  const dots = RA.map(r => [0, 1, 2].map(() => { const d = G(p, { s: .999, o: 0 }); mk('circle', { r: 8, fill: BUILD, stroke: DARK, 'stroke-width': 2 }, d); return d; }));
+  const drawAt = [[tS + .2, tS + 1.2], [tB + .4, tB + 1.8], [tB + 1.2, tB + 2.6]];
+  // small: the three sources light in turn
+  const lit = [[tS + .1, food], [tS + 2.2, null], [tS + 4.2, null]];
+  mark(p, 130, 92, 300, 212, lit[0][0], tO - .3, { color: MC.glucose });
+  mark(p, 290 * MS + 22, 130 * MS + 22, ...MP(-470, 20), lit[1][0], tO - .3, { color: MC.gly });
+  mark(p, 118, 118, ...MP(150, 20), lit[2][0], null, { color: MC.cac });
+  // both: one cycle intermediate, burned or built
+  const tokA = G(p, { s: .999, o: 0 }), tokB = G(p, { s: .999, o: 0 });
+  [tokA, tokB].forEach(g => { mk('circle', { r: 14, fill: MC.cac, stroke: '#fff', 'stroke-width': 3 }, g); });
+  const cyc = MP(150, 20), atp = MP(150, 172);
+  const bPath = [cyc, cA, [765, cA[1]], [765, 350], [1124, 350]];
+  tag(p, 'burned for ATP', [420, 790], [atp[0] - 24, atp[1] + 10], tO + 1.6, { size: 26, fill: MC.oxid, line: MC.oxid });
+  tag(p, 'built into something new', [950, 322], [930, 346], tO + 2.6, { size: 24, fill: BUILD, line: BUILD });
+  capLine(p, [
+    [tB + .3, 'biosynthesis (anabolism): the body builds what it needs', BUILD],
+    [tS + .2, 'small molecules from food, from glycolysis, or from the citric acid cycle'],
+    [cue('build', 5), 'breaking down and building up share the same crossroads'],
+    [cue('build', 6) + .2, 'so the cell must keep deciding which way the traffic goes', MC.elec],
+  ], 860, 26);
+  clockRun(t => {
+    const tq = Math.round(t * 120) / 120;
+    map.focus(['glycolysis', 'cycle', 'atp2'], mRamp(t, tS, tS + .6)).flow(t, .5).shine(t);
+    RA.forEach((r, i) => {
+      const k = mRamp(t, ...drawAt[i]); r.set(k);
+      dots[i].forEach((d, j) => { const u = cFrac(tq * .22 + j / 3 + i * .1), q = along(r.pts, u); cSet(d, { x: q[0], y: q[1], o: mRamp(t, drawAt[i][1], drawAt[i][1] + .4) * Math.min(1, u * 10, (1 - u) * 10) * (1 - .6 * mRamp(t, tO, tO + .4)) }); });
+    });
+    const ka = io(mRamp(t, tO + .6, tO + 1.6)), kb = io(mRamp(t, tO + 1.4, tO + 4));
+    cSet(tokA, { x: cyc[0], y: cyc[1] + (atp[1] - 34 - cyc[1]) * ka, o: mRamp(t, tO, tO + .4) * (1 - mRamp(t, tO + 1.6, tO + 2)) });
+    const qb = along(bPath, kb);
+    cSet(tokB, { x: qb[0], y: qb[1], o: mRamp(t, tO, tO + .4) });
+  }, D);
+}],
+
+/* ---------- control ---------- */
+['control', 'Who decides?', (m, D) => {
+  const p = panel(0), tN = m('need'), tD = m('dial'), tL = m('link'), tP = m('pfk');
+  const c3 = cue('control', 3), c4 = cue('control', 4), c7 = cue('control', 7), c9 = cue('control', 9), c10 = cue('control', 10);
+  const MG = G(p);
+  const map = respMap(MG, { x: 470, y: 520, s: .56 });
+  // the question stays up until the ATP loop on the map answers it
+  hide(pill(MG, 'who decides?', 470, 240, tN + .1, { size: 32 }), c7 + 2.4, .4);
+  const nm = say(MG, 'not a manager: feedback', 470, 304, cue('control', 1) + .2, { size: 26, fill: COL.dim, weight: 600 });
+  // the ATP gauge: low → speed up; plenty → slow down
+  const GG = G(p, { o: 0 }); show(GG, tD - .2, .5); hide(GG, tL - .2, .5);
+  const ga = atpGauge(GG, { x: 1010, y: 480, h: 340 });
+  const lo = say(GG, 'ATP low: respiration speeds up', 1140, 610, tD + 2, { size: 26, anchor: 'start', fill: MC.oxid });
+  const hi = say(GG, 'plenty of ATP: it slows down', 1140, 350, c3 + 1.6, { size: 26, anchor: 'start', fill: MC.redu });
+  const LAt = t => .5 - .38 * io(mRamp(t, tD + .3, tD + 2)) + .48 * io(mRamp(t, c3 + .2, c3 + 1.8));
+  hide(pill(p, 'regulate enzymes at strategic points', 800, 850, c4 + .3, { size: 28 }), c7, .3);
+  // link: chapter 8's feedback loop, small, as a ghost
+  const KG = G(p, { o: 0 }); show(KG, tL + .1, .5); hide(KG, c7 + 1.4, .5);
+  mk('rect', { x: 930, y: 190, width: 620, height: 460, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, KG);
+  txt(KG, 'chapter 8, lesson 8', 1240, 236, { size: 24, fill: COL.dim, weight: 600 });
+  txt(KG, 'feedback inhibition', 1240, 290, { size: 34, fill: MC.stop });
+  const SG = G(KG, { x: 1240, y: 420, s: .48 });
+  const st = pathwayStrip(SG, { x: 0, y: 0, w: 1100, labels: ['threonine', 'A', 'B', 'C', 'D', 'isoleucine'], names: ['', '', '', '', '', ''] });
+  txt(KG, 'isoleucine switched off enzyme 1', 1240, 610, { size: 26, fill: COL.chalk, weight: 600 });
+  const here = say(MG, 'here the end product is ATP', 470, 820, c7 + .4, { size: 30, fill: MC.elec });
+  const all = say(MG, 'and the pathway is the whole map', 470, 862, c7 + 2, { size: 26, fill: COL.dim, weight: 600 });
+  hide(MG, tP, .5); hide(here, tP, .3); hide(all, tP, .3); hide(nm, tL, .3);
+  // pfk: the glycolysis strip with step 3 starred, and the valve under it
+  const PG = G(p, { o: 0 }); show(PG, tP + .3, .6);
+  const gs = glycolysisStrip(PG, { x: 800, y: 190, w: 1440 });
+  const c3x = gs.pt(3)[0];
+  const wedge = G(PG, { o: 0 }); show(wedge, tP + 2, .5);
+  // its dashes run down from step 3 to the valve while the voice names the step
+  const wl = path(wedge, `M${cF(c3x - 64)} 316L342 550M${cF(c3x + 64)} 316L1258 550`, { stroke: COL.dim, 'stroke-width': 2.5, 'stroke-dasharray': '10 8' });
+  const pv = pfkValve(PG, { x: 800, y: 600 });
+  pill(PG, 'it commits the sugar to being split', 800, 790, c9 + 3.4, { size: 28 });
+  pill(PG, 'the main valve of the map', 800, 860, c10, { size: 30, color: MC.valve, edge: MC.valve });
+  clockRun(t => {
+    vis(MG, t < tP + .6); vis(KG, t > tL && t < c7 + 2); vis(PG, t > tP + .2);
+    const L = LAt(t); ga.set(L);
+    const act = mClamp(1.2 - 1.3 * L);
+    map.flow(t, act).shine(t).valve(mRamp(t, c7 + .4, c7 + 1.4))
+      .focus(['valve', 'glycolysis', 'atp'], mRamp(t, c7 + .4, c7 + 1));
+    st.build(1); st.flow(t, 1 - mRamp(t, tL + 4, tL + 6.5)); st.feedback(mRamp(t, tL + 3.2, tL + 7));
+    gs.focus([3], mRamp(t, tP + 1, tP + 1.6)); gs.star(mRamp(t, tP + 1.2, tP + 2));
+    pv.set({ open: .8, t, flow: mRamp(t, c9, c9 + .8) });
+    cAttr(wl, 'stroke-dashoffset', -Math.round((Math.round(t * 120) / 120 * 27) % 18));
+  }, D);
+  hide(lo, c3 + .2, .3); show(lo, c3 + 3.8, .3);
+}],
+
+/* ---------- valve ---------- */
+['valve', 'The valve', (m, D) => {
+  const p = panel(0), tA = m('atp'), tC = m('cit'), tM = m('amp'), tT = m('three');
+  const pv = pfkValve(p, { x: 800, y: 500, s: 1.2 }), cn = citName(pv);
+  // where each regulator comes from
+  const AG = G(p, { o: 0 }); show(AG, tA + .1, .4);
+  [[300, 180], [362, 150], [420, 190], [334, 236], [398, 250]].forEach(([x, y]) => atpBurst(AG, { x, y, r: 22, size: 11 }));
+  txt(AG, 'plenty of ATP', 360, 312, { size: 26, fill: MC.elec });
+  const CG = G(p, { o: 0 }); show(CG, tC + .1, .4);
+  wheel(CG, { x: 1330, y: 190, R: 56, label: 'citric\nacid\ncycle' });
+  txt(CG, 'citrate piles up', 1330, 290, { size: 26, fill: MC.cac });
+  const MG2 = G(p, { o: 0 }); show(MG2, tM + .1, .4);
+  [[300, 780], [370, 800], [340, 744]].forEach(([x, y]) => nucChip(MG2, 'AMP', { x, y }));
+  txt(MG2, 'ATP used up: AMP builds', 340, 856, { size: 24, fill: GREEN, weight: 600 });
+  hide(AG, tM + .4, .4); show(AG, tT, .4);
+  capLine(p, [
+    [tA + .3, 'ATP inhibits: plenty of ATP, less sugar split', RED],
+    [tC + .3, 'citrate inhibits: a full cycle, glycolysis can ease off', RED],
+    [tM + .3, 'AMP stimulates: a signal of low energy, the valve opens wider', GREEN],
+    [tT + .2, 'two brakes and one accelerator, all on one enzyme'],
+  ], 64, 28);
+  clockRun(t => {
+    const atp = mRamp(t, tA + .4, tA + 2.4) * (1 - mRamp(t, tM + .3, tM + 1.8)) + mRamp(t, tT + .2, tT + 1.8);
+    pv.set({ atp, cit: mRamp(t, tC + .4, tC + 2.4), amp: mRamp(t, tM + .8, tM + 2.8), t }); cn();
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const pv = pfkValve(p, { x: 340, y: 470, s: .66, labels: false, size: 32 });
+  const cn = citName(pv, 26); pv.set({ atp: .6, cit: .6, amp: .6, open: .45, t: 1 }); cn();
+  txt(p, 'phosphofructokinase and its three regulators', 340, 250, { size: 24, fill: COL.dim, weight: 600 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-amp', prompt: ['Which molecule stimulates phosphofructokinase?'],
+  build: choice([['ATP'], ['Citrate'], ['AMP'], ['Glycerol']], 2,
+    'Right. AMP builds up when ATP has been used, and it opens the valve wider.',
+    ['ATP inhibits the valve: plenty of energy slows glycolysis down.',
+     'Citrate inhibits too: a full citric acid cycle means glycolysis can ease off.', null,
+     'Glycerol is a fuel that joins glycolysis, not a regulator of the valve. Look for the one that signals low energy.']),
+}], done) }],
+
+/* ---------- loop ---------- */
+['loop', 'Supply follows demand', (m, D) => {
+  const p = panel(0), tR = m('run'), tS = m('spend'), tO = m('open'), tE = m('rest'), tC = m('close');
+  const fb = fibre(p, { x: 330, y: 240 });
+  txt(p, 'muscle fibre', 330, 160, { size: 26, fill: '#efe3c0' });
+  const work = say(p, 'working', 330, 330, tS + .2, { size: 24, fill: MC.oxid });
+  hide(work, tE, .3);
+  const rest = say(p, 'resting', 330, 330, tE + .4, { size: 24, fill: MC.redu });
+  // eight nucleotide slots under the fibre: ATP, or spent (ADP, AMP)
+  const slots = [...Array(8)].map((_, i) => {
+    const x = 330 + (i - 3.5) * 62, y = 392;
+    return { a: nucChip(p, 'ATP', { x, y, o: 0 }), b: nucChip(p, i % 3 === 1 ? 'AMP' : 'ADP', { x, y, o: 0 }), th: (i + .5) / 8 };
+  });
+  const ga = atpGauge(p, { x: 720, y: 270, h: 280 });
+  const pv = pfkValve(p, { x: 1210, y: 250, s: .6, labels: false, size: 36 });
+  const map = respMap(p, { x: 800, y: 640, s: .56 });
+  const LAt = t => .86 - .62 * io(mRamp(t, tS + .6, tO)) + .14 * io(mRamp(t, tO + 2, tE)) + .46 * io(mRamp(t, tE + .6, tC + 1.2));
+  const workAt = t => mRamp(t, tS, tS + .5) * (1 - mRamp(t, tE, tE + .8));
+  capLine(p, [
+    [tS + .3, 'working hard: ATP is spent, so ATP falls and AMP rises', MC.oxid],
+    [tO + .2, 'AMP opens the valve: glycolysis and the whole map speed up', GREEN],
+    [tE + .3, 'resting: ATP is no longer used, so it builds up', MC.elec],
+    [tC + .2, 'ATP loops back and slows phosphofructokinase: the map idles', RED],
+    [cue('loop', 8), 'supply follows demand, and no one is in charge'],
+  ], 862, 26);
+  clockRun(t => {
+    const tq = Math.round(t * 120) / 120, w = workAt(t), L = LAt(t);
+    fb.set(w * (.5 + .5 * Math.sin(tq * 2 * Math.PI / 1.1)));
+    ga.set(L);
+    slots.forEach(({ a, b, th }) => { mO(a, mRamp(L, th + .01, th + .05)); mO(b, 1 - mRamp(L, th - .05, th - .01)); });
+    const atp = mClamp((L - .48) / .3), amp = mClamp((.62 - L) / .3);
+    const op = mClamp(.7 + .3 * ss((amp - .6) / .4 + .5) - .35 * ss((atp - .6) / .4 + .5));
+    pv.set({ atp, amp, t, open: op });
+    map.flow(t, mClamp((op - .3) / .6)).shine(t).valve(mRamp(t, tC + .2, tC + 1.4))
+      .focus(['glycolysis', 'valve', 'atp', 'oxphos', 'electrons'], 1 - mClamp((op - .3) / .6) * .8);
+  }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'The chapter on one map', (m, D) => {
+  const p = panel(0), t1 = m('r1'), t2 = m('r2'), t3 = m('r3'), t4 = m('r4'), t5 = m('r5'), tE = m('end');
+  const map = respMap(p, { x: 800, y: 470, s: .95 });
+  const LISTS = [[0, []], [t1, ['glycolysis', 'atp1', 'cell']], [t2, ['pyruvateOx', 'cycle', 'mito', 'atp2', 'e2', 'e3', 'cell']],
+    [t3, ['electrons', 'oxphos', 'atp3', 'mito', 'cell']], [t4, ['glycolysis', 'ferment', 'cross', 'cell']], [t5, ['inputs', 'valve', 'glycolysis', 'cell']], [tE, []]];
+  const co2 = [0, 1].map(() => co2Molecule(p, { r: 13, label: false }));
+  const cyc = map.pt('cycle');
+  capLine(p, [
+    [t1 + .2, 'cytosol · glycolysis: glucose → 2 pyruvate, 2 ATP, 2 NADH', MC.gly],
+    [t2 + .2, 'mitochondrion · pyruvate oxidation and the citric acid cycle: CO_2 out, NADH and FADH_2 loaded', MC.pyrOx],
+    [t3 + .2, 'oxidative phosphorylation: the chain pumps protons, ATP synthase makes most of the ATP', MC.oxph],
+    [t4 + .2, 'no O_2: fermentation keeps glycolysis going', MC.ethanol],
+    [t5 + .2, 'other fuels join at a few doors; ATP closes the loop at phosphofructokinase', MC.elec],
+    [tE + .1, 'Now try the chapter practice.', WC.bond],
+  ], 840, 25);
+  clockRun(t => {
+    const tq = Math.round(t * 120) / 120;
+    let li = 0; for (let i = 0; i < LISTS.length; i++) if (t >= LISTS[i][0]) li = i;
+    const ts = LISTS[li][0], tn = li + 1 < LISTS.length ? LISTS[li + 1][0] : 1e9;
+    const k = LISTS[li][1].length ? mRamp(t, ts, ts + .5) * (1 - mRamp(t, tn - .4, tn)) : 0;
+    map.focus(LISTS[li][1], k).flow(t, mRamp(t, t3, t3 + .5) * (1 - .7 * mRamp(t, t4, t4 + .5)) + .3).shine(t)
+      .cross(mRamp(t, t4 + .2, t4 + .8) * (1 - mRamp(t, t5 - .3, t5)))
+      .ferment(mRamp(t, t4 + .4, t4 + 1) * (1 - mRamp(t, t5 - .3, t5)))
+      .inputs(mRamp(t, t5 + .3, t5 + 1.1)).valve(mRamp(t, t5 + 2.2, t5 + 3.2));
+    co2.forEach((c, i) => {
+      const u = cFrac((tq - t2) * .32 + i / 2), on = mRamp(t, t2 + 1.5, t2 + 2) * (1 - mRamp(t, t3 - .4, t3));
+      c.pose(cyc[0] + 40 + 110 * u, cyc[1] - 40 - 70 * u); mO(c, on * Math.min(1, u * 6, (1 - u) * 4));
+    });
+  }, D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const PCX = 1270;
+  at('doors', g => {
+    txt(g, 'where does each fuel enter?', PCX, 230, { size: 28 });
+    fuelFunnel(g, { x: PCX - 12, y: 480, s: .47 });
+  });
+  at('nh3', g => {
+    txt(g, 'an amino acid used for energy', PCX, 200, { size: 28 });
+    mk('circle', { cx: PCX - 70, cy: 440, r: 74, fill: MC.amino, stroke: MC.aminoEdge, 'stroke-width': 4 }, g);
+    [-34, 0, 34].forEach(bx => mk('circle', { cx: PCX - 70 + bx, cy: 440, r: 15, fill: MC.carbon, stroke: MC.carbonEdge, 'stroke-width': 2.5 }, g));
+    path(g, `M${PCX + 10} 400H${PCX + 120}L${PCX + 100} 450H${PCX + 30}Z`, { fill: MC.nh3, stroke: '#3d56b8', 'stroke-width': 3 });
+    txt(g, 'carbon skeleton', PCX - 70, 552, { size: 24, fill: MC.amino });
+    txt(g, 'amino group', PCX + 65, 384, { size: 24, fill: MC.nh3 });
+    mArrow(g, [PCX + 140, 430], [PCX + 240, 330], { color: COL.dim, w: 5, head: 16 });
+    mArrow(g, [PCX - 70, 580], [PCX - 70, 680], { color: COL.dim, w: 5, head: 16 });
+    txt(g, '?', PCX + 262, 320, { size: 56, fill: MC.elec, weight: 800 });
+    txt(g, '?', PCX - 70, 740, { size: 56, fill: MC.elec, weight: 800 });
+  });
+  at('fat', g => {
+    txt(g, 'ATP from one gram, oxidized', PCX, 260, { size: 28 });
+    barPair(g, { x: 1050, y: 400, s: .62, nums: false }).set(1, 1, 0, 0);
+    txt(g, 'why?', PCX, 640, { size: 40, fill: MC.elec, weight: 800 });
+  });
+  at('valve', g => {
+    const pv = pfkValve(g, { x: PCX, y: 460, s: .62, labels: false, size: 34 }), cn = citName(pv, 26);
+    pv.set({ atp: .6, cit: .6, amp: .6, open: .5, t: 1 }); cn();
+    txt(g, 'brake or accelerator?', PCX, 700, { size: 28, fill: MC.elec });
+  });
+  at('loop', g => {
+    fibre(g, { x: PCX - 60, y: 330, w: 400 }).set(.9);
+    txt(g, 'working hard', PCX - 60, 250, { size: 26, fill: MC.oxid });
+    atpGauge(g, { x: PCX + 230, y: 380, h: 240, labels: false }).set(.12);
+    txt(g, 'glycolysis: faster, slower, or the same?', PCX, 620, { size: 26, fill: MC.gly });
+  });
+  at('build', g => {
+    const tb = tray(g, { x: PCX - 60, y: 190, s: .8 });
+    tb.items.forEach(it => put(it, { o: 1 }));
+    [260, 380, 500].forEach(y => { mArrow(g, [PCX - 300, y], [PCX - 80, y], { color: BUILD, w: 6, head: 18 }); txt(g, '?', PCX - 330, y + 14, { size: 40, fill: MC.elec, weight: 800 }); });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('doors');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-doors', prompt: ['Where does each fuel enter the map?'],
+    build: withPic('doors', grid([
+      { parts: ['Glucose'], ans: ['g'], why: 'Glycolysis: glucose is its starting point.' },
+      { parts: ['Glycerol from a fat'], ans: ['g'], why: 'Glycolysis, at glyceraldehyde 3-phosphate.' },
+      { parts: ['Fatty acids, after beta oxidation'], ans: ['a'], why: 'Acetyl CoA: two carbons at a time, ready for the citric acid cycle.' },
+    ], [['g', 'glycolysis', null, 'G'], ['a', 'acetyl CoA', null, 'A']], { multi: false, text: true })) },
+  { id: 'p-nh3', prompt: ['An amino acid is used for energy. What leaves, and what feeds in?'],
+    build: withPic('nh3', choice([
+      ['NH₃ feeds glycolysis; the carbon skeleton leaves'],
+      ['The amino group leaves as NH₃; the carbon skeleton feeds in'],
+      ['Both feed in'],
+      ['Neither: amino acids are never used for energy'],
+    ], 1,
+    'Right. The nitrogen is a waste product and leaves as NH₃; the carbon skeleton joins at pyruvate, acetyl CoA or the cycle.',
+    ['Reversed: the nitrogen is the waste, and the carbon is the fuel.', null,
+     'The nitrogen is not burned: it leaves as NH₃.',
+     'They can be: once the amino group is off, the carbon skeleton is a fuel.'])) },
+  { id: 'p-fat', prompt: ['Why does a gram of fat give more than twice the ATP of a gram of carbohydrate?'],
+    build: withPic('fat', choice([
+      ['Fat has fewer carbons'],
+      ['Fat skips the electron transport chain'],
+      ['Its long tails carry many more electrons and hydrogens to hand to the carriers and the chain'],
+      ['Fat is broken down by glycolysis alone'],
+    ], 2,
+    'Right. Fat is more reduced: its tails carry many more electrons per gram into NADH, FADH₂ and the chain.',
+    ['A fatty-acid tail has many carbons. Think about the electrons each gram carries.',
+     'Its NADH and FADH₂ go to the chain like any others.', null,
+     'Fatty acids go through beta oxidation to acetyl CoA, then the cycle and the chain.'])) },
+  { id: 'p-valve', prompt: ['What does each molecule do to phosphofructokinase?'],
+    build: withPic('valve', grid([
+      { parts: ['ATP'], ans: ['i'], why: 'Inhibits: plenty of ATP slows the valve.' },
+      { parts: ['Citrate'], ans: ['i'], why: 'Inhibits: a full citric acid cycle.' },
+      { parts: ['AMP'], ans: ['s'], why: 'Stimulates: a signal of low energy.' },
+    ], [['i', 'inhibits', null, 'I'], ['s', 'stimulates', null, 'S']], { multi: false, text: true })) },
+  { id: 'p-loop', prompt: ['A muscle fibre works hard and its ATP level falls. What happens in glycolysis?'],
+    build: withPic('loop', choice([
+      ['It slows down to save sugar'],
+      ['Nothing changes'],
+      ['AMP rises, phosphofructokinase is stimulated, and glycolysis speeds up'],
+      ['ATP binds the valve harder'],
+    ], 2,
+    'Right. Low ATP lifts the brake and AMP presses the accelerator: supply rises to meet demand.',
+    ['Low ATP is the signal to go faster, not slower.',
+     'The valve responds to the ATP level, so a falling level changes it.', null,
+     'ATP is low, so less of it binds: the brake comes off.'])) },
+  { id: 'p-build', prompt: ['Where can the small molecules for biosynthesis come from?'],
+    build: withPic('build', choice([
+      ['Only from oxidative phosphorylation'],
+      ['Only from the electron transport chain'],
+      ['Only from oxygen'],
+      ['Directly from food, from glycolysis, or from the citric acid cycle'],
+    ], 3,
+    'Right. The same crossroads serve both directions: breaking down and building up.',
+    ['Oxidative phosphorylation makes ATP, not building blocks.',
+     'The chain passes electrons; it does not hand out small molecules.',
+     'Oxygen is the final electron acceptor, not a source of building blocks.', null])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const SIDE = { x: 700, y: 120, w: 860, cls: 'side' };
+
+boot();
+</script>
+</body>
+</html>

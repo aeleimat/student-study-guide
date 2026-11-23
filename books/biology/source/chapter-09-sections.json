@@ -1,0 +1,11 @@
+[
+ {"folder": "chapter-09/lesson-01", "title": "Energy flow, catabolism and redox", "start": 1, "end": 11, "unit": "Chapter 9: Cellular Respiration"},
+ {"folder": "chapter-09/lesson-02", "title": "NAD+, NADH and the stepwise harvest", "start": 12, "end": 17, "unit": "Chapter 9: Cellular Respiration"},
+ {"folder": "chapter-09/lesson-03", "title": "The stages of cellular respiration", "start": 18, "end": 21, "unit": "Chapter 9: Cellular Respiration"},
+ {"folder": "chapter-09/lesson-04", "title": "Glycolysis", "start": 22, "end": 25, "unit": "Chapter 9: Cellular Respiration"},
+ {"folder": "chapter-09/lesson-05", "title": "Pyruvate oxidation and the citric acid cycle", "start": 26, "end": 31, "unit": "Chapter 9: Cellular Respiration"},
+ {"folder": "chapter-09/lesson-06", "title": "The electron transport chain", "start": 32, "end": 35, "unit": "Chapter 9: Cellular Respiration"},
+ {"folder": "chapter-09/lesson-07", "title": "Chemiosmosis, ATP synthase and the ATP count", "start": 36, "end": 41, "unit": "Chapter 9: Cellular Respiration"},
+ {"folder": "chapter-09/lesson-08", "title": "Fermentation and anaerobic respiration", "start": 42, "end": 50, "unit": "Chapter 9: Cellular Respiration"},
+ {"folder": "chapter-09/lesson-09", "title": "Connections to other pathways and regulation", "start": 51, "end": 57, "unit": "Chapter 9: Cellular Respiration"}
+]

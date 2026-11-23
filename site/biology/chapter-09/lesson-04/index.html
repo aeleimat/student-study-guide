@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 9, Lesson 4: Glycolysis — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="../../lib/resp.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 9 (Cellular Respiration), lesson 4: a sugar cube coming apart in water, the respiration map with
+// glycolysis lit in the cytosol and a push into it; glucose (6 C) to two pyruvate (3 C each), no O₂ needed, two phases
+// and the ten-step strip; the investment phase (hexokinase, the phosphate that traps the sugar, the isomer, the
+// second ATP at phosphofructokinase, the key step); the split (aldolase, 6 C = 3 C + 3 C, DHAP to G3P, ×2); the payoff
+// phase (NAD⁺ to NADH, two substrate-level phosphorylations, water out, pyruvate); the ledger (4 − 2 = 2 ATP, 2 NADH,
+// 2 pyruvate, 2 H₂O, no CO₂, no O₂); ten glucose as an example; a summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-09/lesson-04.md.
+const CHAPTER = { number: 904, label: '9, lesson 4', title: 'Glycolysis', minutes: 7, language: 'en', lead: false, next: '../lesson-05/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const sayC = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const rp = (t, a, b) => io(mRamp(t, a, b));                                      // eased 0 → 1 between a and b
+const win = (t, a, b, f = .3) => mRamp(t, a, a + f) * (1 - mRamp(t, b - f, b));    // shown from a until b
+const lerp2 = (A, B, k) => [A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k];
+const arcPt = (A, B, k, lift = 70) => { const q = lerp2(A, B, k); return [q[0], q[1] - lift * Math.sin(Math.PI * k)]; };
+const tint = k => Math.round(mClamp(k) * 20) / 20;
+// A title and a dim second line, centred; fades in at t0.
+function banner(p, a, b, x, y, t0, { color = COL.chalk, size = 40 } = {}) {
+  const g = G(p, { o: 0 });
+  wChem(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wLabel(g, b, { x, y: y + size * .95, size: size * .62, fill: COL.dim, weight: 500, o: 1 });
+  show(g, t0, .5);
+  return g;
+}
+const panelBox = (g, x, y, w, h) => mk('rect', { x, y, width: w, height: h, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+// A label that is shown only from a to b (fades .3 s each way): text that changes on one spot never cross-fades.
+function during(p, str, x, y, a, b, o = {}) {
+  const e = wChem(p, str, { x, y, size: 28, weight: 700, ...o, o: 0 });
+  show(e, a, .3); if (b < 1e5) hide(e, b - .3, .3);
+  return e;
+}
+// A red circle with a slash over a small icon.
+function noSign(p, x, y, r = 30) {
+  const g = G(p, { x, y });
+  mk('circle', { r, fill: 'none', stroke: MC.inhib, 'stroke-width': 6 }, g);
+  path(g, `M${-r * .7} ${-r * .7}L${r * .7} ${r * .7}`, { stroke: MC.inhib, 'stroke-width': 6 });
+  return g;
+}
+// A strip of membrane (two rows of heads, tails between), vertical, centred on x.
+function membraneStrip(p, x, y1, y2) {
+  const g = G(p);
+  let d = '', t = '';
+  for (let y = y1; y <= y2; y += 22) { d += `M${x - 22} ${y}h.01M${x + 22} ${y}h.01`; t += `M${x - 14} ${y - 4}H${x - 2}M${x - 14} ${y + 4}H${x - 2}M${x + 14} ${y - 4}H${x + 2}M${x + 14} ${y + 4}H${x + 2}`; }
+  path(g, t, { stroke: '#e9c46a', 'stroke-width': 2.5 });
+  path(g, d, { stroke: MC.membrane, 'stroke-width': 18, 'stroke-linecap': 'round' });
+  return g;
+}
+// The sugar cube of the backdrop (an isometric cube), origin at its centre.
+function sugarCube(p, { x = 0, y = 0, s = 1, o = 1, a = 40 } = {}) {
+  const g = G(p, { x, y, s, o }), c = a * .87;
+  const stk = { stroke: '#a89f8a', 'stroke-width': 3, 'stroke-linejoin': 'round' };
+  path(g, `M0 ${-a}L${c} ${-a / 2}L0 0L${-c} ${-a / 2}Z`, { fill: '#fbf7ee', ...stk });
+  path(g, `M${-c} ${-a / 2}L0 0L0 ${a}L${-c} ${a / 2}Z`, { fill: '#e6dfcf', ...stk });
+  path(g, `M${c} ${-a / 2}L0 0L0 ${a}L${c} ${a / 2}Z`, { fill: '#d4ccb9', ...stk });
+  return g;
+}
+// The P of a phosphate on a ring or chain bead of scale sc: the bead's centre in parent, raised to where the kit draws it.
+const pSpot = ([bx, by], sc, r = 12) => [bx, by - (r + 14) * sc];
+// ATP that hands its phosphate on: { atp, adp, pg } posed by hand(k…). A sets where it waits, B where the P lands.
+function atpHand(p, { r = 22 } = {}) {
+  const atp = solute(p, 'ATP', { r, o: 0 }), adp = solute(p, 'ADP', { r, o: 0 }), pg = solute(p, 'P', { r, o: 0 });
+  return {
+    atp, adp, pg,
+    // enter 0..1 from S to A; hop 0..1 the P from A to B (ATP turns ADP at .55); leave 0..1 ADP from A to Z, fading
+    pose(S, A, B, Z, enter, hop, leave) {
+      const at = lerp2(S, A, enter), az = lerp2(A, Z, leave);
+      const show1 = mRamp(enter, 0, .25);
+      mPose(atp, at[0], at[1], show1 * (1 - mRamp(hop, .5, .55)));
+      mPose(adp, az[0], az[1], mRamp(hop, .55, .62) * (1 - mRamp(leave, .5, 1)));
+      const q = arcPt([A[0] + r * .9, A[1] - r * .9], B, hop, 60);
+      mPose(pg, q[0], q[1], hop > 0 ? 1 - mRamp(hop, .95, 1) : 0);
+    },
+  };
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A sugar cube in water', (m, D) => {
+  const p = panel(0), tCu = m('cube'), tM = m('map'), tL = m('lit'), tP = m('push');
+  // backdrop: a glass of water on a table, a sugar cube coming apart at its foot
+  const back = G(p, { o: 0 }); show(back, .1, .4);
+  mk('rect', { x: -10, y: 705, width: 1620, height: 205, fill: '#4a382b' }, back);
+  mk('rect', { x: -10, y: 698, width: 1620, height: 12, fill: '#6d5340' }, back);
+  const gx = 480;
+  path(back, `M${gx - 140} 350L${gx + 140} 350L${gx + 122} 690Q${gx + 120} 700 ${gx + 108} 700L${gx - 108} 700Q${gx - 120} 700 ${gx - 122} 690Z`, { fill: '#5fd3e8', 'fill-opacity': .22 });
+  path(back, `M${gx - 150} 240L${gx - 125} 690Q${gx - 122} 702 ${gx - 108} 702L${gx + 108} 702Q${gx + 122} 702 ${gx + 125} 690L${gx + 150} 240`, { stroke: '#cfe6ff', 'stroke-width': 5, fill: 'none' });
+  path(back, `M${gx - 140} 350H${gx + 140}`, { stroke: '#9fe3f0', 'stroke-width': 3 });
+  const cubeH = G(back, { x: gx, y: 655 }); sugarCube(cubeH, { a: 40 });   // pulse the holder
+  const grains = Array.from({ length: 26 }, (_, i) => ({ a: -170 + 160 * wHash(i, 3), ph: wHash(i, 7), sp: .1 + .08 * wHash(i, 11), e: mk('circle', { r: 3 + 2 * wHash(i, 5), fill: '#fbf7ee' }, back) }));
+  const cap = G(back, { o: 0 }); show(cap, tCu + .4, .4);
+  wLabel(cap, 'a sugar cube comes apart in water', { x: gx, y: 790, size: 30, weight: 700, o: 1 });
+  pulse(cubeH, tCu + .2, 1.1);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 9 · LESSON 4', { x: 1180, y: 280, size: 26, fill: COL.dim, o: 1 });
+  wLabel(ttl, 'Glycolysis', { x: 1180, y: 370, size: 72, o: 1, fill: MC.gly });
+  wLabel(ttl, 'splitting the sugar', { x: 1180, y: 430, size: 32, fill: COL.chalk, weight: 600, o: 1 });
+  wLabel(ttl, 'Cellular respiration', { x: 1180, y: 490, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tM - .3, .5);
+  hide(back, tM, .5);
+  // map: the shared respiration map; lit: glycolysis lit in the cytosol, the rest dimmed; push: into glycolysis
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const rm = respMap(W, { x: 800, y: 470, s: .95, o: 0 }); show(rm, tM + .3, .6);
+  const [gbx, gby] = rm.pt('glycolysis');
+  const ring = G(W, { x: gbx, y: gby, o: 0 });
+  mk('rect', { x: -160, y: -78, width: 320, height: 156, rx: 24, fill: 'none', stroke: MC.gly, 'stroke-width': 5 }, ring);
+  show(ring, tL + .9, .4); hide(ring, tP, .4);
+  const lc = G(p, { o: 0 }); show(lc, tL + .6, .4); hide(lc, tP - .2, .4);
+  wLabel(lc, 'glycolysis: the first stage, in the cytosol', { x: 800, y: 822, size: 32, weight: 700, fill: MC.gly, o: 1 });
+  wLabel(lc, 'before the mitochondrion', { x: 800, y: 862, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  const glc = glucoseRing(W, { x: gbx - 150, y: gby - 150, s: .55, o: 0 });
+  cam.to({ x: gbx + 20, y: gby - 30, z: 1.9 }, tP + .2, 2.2);
+  clockRun(t => {
+    // the backdrop's grains drift out of the cube once it is in the water (frozen once the map has come)
+    const u = Math.min(t, tM + .6), on = mRamp(u, tCu, tCu + .8);
+    grains.forEach((g, i) => {
+      const f = cFrac((u - tCu) * g.sp + g.ph), d = 30 + 260 * f, a = g.a * Math.PI / 180;
+      mPose(g.e, gx + Math.cos(a) * d * .45, 655 + Math.sin(a) * d * 1.1, on * (u >= tCu ? (1 - f) * .9 : 0));
+    });
+    rm.focus(['cell', 'glycolysis', 'atp1'], rp(t, tL + .2, tL + 1.1)).shine(t);
+    const k = rp(t, tP + .6, tP + 2.4);
+    glc.pose(gbx - 150, gby - 210 + 60 * k);
+    mO(glc, mRamp(t, tP + .6, tP + 1.2));
+  }, D);
+}],
+
+/* ---------- overview ---------- */
+['overview', 'Splitting of sugar', (m, D) => {
+  const p = panel(0), tN = m('name'), tC = m('cyto'), tP = m('phases'), tS = m('strip');
+  const cell = G(p, { o: 0 }); show(cell, tC + .2, .6);
+  mk('rect', { x: 80, y: 120, width: 1440, height: 365, rx: 44, fill: MC.cytosol, 'fill-opacity': .55, stroke: MC.membrane, 'stroke-width': 6 }, cell);
+  wLabel(cell, 'cytosol', { x: 116, y: 168, size: 26, fill: COL.dim, anchor: 'start', o: 1 });
+  banner(p, 'glycolysis = “splitting of sugar”', null, 800, 76, .3, { color: MC.gly });
+  // glucose (6 C) → two pyruvate (3 C each)
+  const g0 = glucoseRing(p, { x: 330, y: 300, s: 1.4, o: 0 }); show(g0, .5, .5);
+  say(p, 'glucose', 330, 425, .7, { size: 28, weight: 700, fill: MC.glucose });
+  say(p, '6 C', 330, 212, 3, { size: 28, weight: 700 });
+  const ar = G(p, { o: 0 }); show(ar, tN + 2.6, .5);
+  mArrow(ar, [470, 300], [1060, 300], { color: MC.gly, w: 10, head: 30 });
+  wLabel(ar, 'glycolysis', { x: 765, y: 196, size: 30, weight: 700, fill: MC.gly, o: 1 });   // clear of the moving glucose's top beads
+  wLabel(ar, 'ten steps', { x: 765, y: 405, size: 24, weight: 600, fill: COL.dim, o: 1 });
+  const mv = glucoseRing(p, { x: 330, y: 300, s: 1.4, o: 0 });
+  const t0 = tN + 4.4;
+  say(p, '3 C', 1125, 239, t0 + 4.6, { size: 28, weight: 700, anchor: 'end' });
+  say(p, '3 C', 1125, 379, t0 + 4.6, { size: 28, weight: 700, anchor: 'end' });
+  say(p, '2 pyruvate', 1220, 458, t0 + 4.4, { size: 30, weight: 700, fill: MC.pyruvate });
+  // cyto: no oxygen needed
+  const ox = G(p, { o: 0 }); show(ox, tC + 2, .4);
+  o2Molecule(ox, { x: 1290, y: 170, r: 14 }); noSign(ox, 1290, 170, 26);
+  wChem(ox, 'no O_2 needed', { x: 1328, y: 179, size: 24, weight: 700, fill: MC.inhib, anchor: 'start', o: 1 });
+  // phases: two bands
+  const band = (y, col, a, b, right, t1) => {
+    const g = G(p, { o: 0 }); show(g, t1, .5);
+    mk('rect', { x: 80, y, width: 1440, height: 80, rx: 18, fill: col, 'fill-opacity': .12, stroke: col, 'stroke-width': 3 }, g);
+    wLabel(g, a, { x: 110, y: y + 51, size: 30, weight: 700, fill: col, anchor: 'start', o: 1 });
+    wLabel(g, b, { x: 520, y: y + 51, size: 26, weight: 600, fill: COL.dim, anchor: 'start', o: 1 });
+    return g;
+  };
+  const b1 = band(505, MC.invest, 'energy investment phase', 'steps 1–5', '', tP + 2.9);
+  wLabel(b1, 'the cell spends 2 ATP', { x: 1355, y: 556, size: 26, weight: 700, anchor: 'end', o: 1 });
+  // the investment ATP come in one by one, then are spent (rise and fade, an empty dashed spot stays);
+  // the payoff ATP come in one by one as the voice says "earns that back, and more"
+  const spend = [1410, 1465].map((x, i) => {
+    mk('circle', { cx: x, cy: 545, r: 17, fill: 'none', stroke: COL.dim, 'stroke-width': 2, 'stroke-dasharray': '5 5' }, b1);
+    return { x, a: tP + 5.2 + i * .45, b: tP + 7.2 + i * .5, e: solute(p, 'ATP', { x, y: 545, r: 17, o: 0 }) };
+  });
+  const b2 = band(600, MC.payoff, 'energy payoff phase', 'steps 6–10', '', tP + 9.5);
+  wLabel(b2, 'earns it back, and more', { x: 1245, y: 651, size: 26, weight: 700, anchor: 'end', o: 1 });
+  const earn = [1300, 1355, 1410, 1465].map((x, i) => ({ x, a: tP + 12.4 + i * .35, e: solute(p, 'ATP', { x, y: 640, r: 17, o: 0 }) }));
+  // strip: the ten steps
+  const st = glycolysisStrip(p, { x: 800, y: 785 });
+  clockRun(t => {
+    const k = rp(t, t0, t0 + 3.2);
+    mv.pose(330 + 890 * k, 300); mv.split(rp(t, t0 + 2, t0 + 4.2)); mO(mv, t >= t0 ? 1 : 0);
+    st.build(rp(t, tS, tS + 2.6));
+    spend.forEach(({ x, a, b, e }) => { const kin = rp(t, a, a + .5), up = rp(t, b, b + 1.1); mPose(e, x, 555 - 10 * kin - 36 * up, kin * (1 - up)); });
+    earn.forEach(({ x, a, e }) => { const kin = rp(t, a, a + .5); mPose(e, x, 650 - 10 * kin, kin); });
+  }, D);
+}],
+
+/* ---------- invest ---------- */
+['invest', 'The energy investment phase', (m, D) => {
+  const p = panel(0), t1 = m('s1'), tT = m('trap'), t2 = m('s2'), t3 = m('s3'), tK = m('key'), tB = m('bill');
+  const st = glycolysisStrip(p, { x: 800, y: 785 });
+  const led = atpLedger(p, { x: 1110, y: 28, w: 450, size: 24, rowH: 54, labelW: 190, rows: [
+    { label: 'ATP used', kind: 'ATP', n: 2, value: '2', color: MC.invest }, { label: 'ATP formed', kind: 'ATP', n: 0, value: '0', color: MC.payoff }], o: 0 });
+  const enz = enzymeBlob(p, { x: 700, y: 615, R: 70, o: 0 }); show(enz, t1 + .3, .5);
+  during(p, 'hexokinase', 790, 650, t1 + .5, t2, { fill: MC.enzyme, anchor: 'start' });
+  during(p, 'phosphoglucoisomerase', 790, 650, t2 + .2, t3, { fill: MC.enzyme, anchor: 'start' });
+  during(p, 'phosphofructokinase', 790, 650, t3 + .2, 1e6, { fill: MC.enzyme, anchor: 'start' });
+  const ring = glucoseRing(p, { x: 700, y: 430, s: 1.5 });
+  const sixC = say(p, '6 C', 560, 442, .4, { size: 30, weight: 700, anchor: 'end' });
+  pulse(sixC, t2 + 4, 1.2);
+  // step 1 and step 3: an ATP hands a phosphate to the sugar
+  const h1 = { a: t1 + 1, b: t1 + 3.2, c: t1 + 5.4, d: t1 + 6, S: [360, 260], A: [520, 345], Z: [380, 230] };
+  const h3 = { a: t3 + 1.1, b: t3 + 3.3, c: t3 + 5.6, d: t3 + 6.2, S: [1060, 300], A: [880, 365], Z: [1060, 260] };
+  const H1 = atpHand(p), H3 = atpHand(p);
+  show(led, h1.c - .4, .4);
+  const names = [['glucose', 0, h1.c], ['glucose 6-phosphate', h1.c + .2, t2 + 2.6], ['fructose 6-phosphate', t2 + 2.8, h3.c], ['fructose 1,6-bisphosphate', h3.c + .2, 1e6]];
+  names.forEach(([s, a, b]) => during(p, s, 700, 268, a, b, { size: 30, fill: MC.glucose }));
+  // trap: the charged phosphate traps the sugar in the cell
+  const halo = mk('circle', { r: 30, fill: MC.elec, 'fill-opacity': .25, stroke: MC.elec, 'stroke-width': 4 }, p); put(halo, { o: 0 });
+  const tr = G(p, { o: 0 }); show(tr, tT + .3, .5); hide(tr, t2 - .1, .4);
+  membraneStrip(tr, 1035, 220, 680);
+  wLabel(tr, 'cell membrane', { x: 1035, y: 205, size: 22, weight: 600, fill: MC.membrane, o: 1 });
+  wLabel(tr, 'outside', { x: 1150, y: 450, size: 24, weight: 600, fill: COL.dim, anchor: 'start', o: 1 });
+  mArrow(tr, [805, 450], [995, 450], { color: COL.chalk, w: 5, head: 18 });
+  path(tr, 'M1003 420V480', { stroke: MC.inhib, 'stroke-width': 8 });
+  wLabel(tr, 'stuck inside', { x: 900, y: 428, size: 24, weight: 700, fill: '#ff8a76', o: 1 });
+  const bT = banner(p, 'reactive, and trapped in the cell', null, 700, 188, tT + .6, { size: 34, color: MC.elec }); hide(bT, t2 - .1, .4);
+  // key: phosphofructokinase, the key regulation step; bill: so far only spent
+  banner(p, 'so far: 2 ATP spent, nothing earned yet', null, 700, 188, tB + .3, { size: 32, color: MC.invest });
+  clockRun(t => {
+    const focusStep = t < t2 ? 1 : t < t3 ? 2 : t < tB ? 3 : null;
+    if (focusStep) st.focus(focusStep, rp(t, t1, t1 + .6)); else st.focus([1, 3], 1);
+    st.phases(1).star(rp(t, tK + .1, tK + .9));
+    ring.morph(rp(t, t2 + .5, t2 + 2.5));
+    const k1 = mRamp(t, h1.c - .05, h1.c), k3 = mRamp(t, h3.c - .05, h3.c);
+    ring.phos([k3, 0, 0, 0, 0, k1]);
+    H1.pose(h1.S, h1.A, pSpot(ring.bead(5), 1.5), h1.Z, rp(t, h1.a, h1.a + 1.6), mRamp(t, h1.b, h1.c), rp(t, h1.d, h1.d + 1.6));
+    H3.pose(h3.S, h3.A, pSpot(ring.bead(0), 1.5), h3.Z, rp(t, h3.a, h3.a + 1.6), mRamp(t, h3.b, h3.c), rp(t, h3.d, h3.d + 1.6));
+    const hp = pSpot(ring.bead(5), 1.5);
+    mPose(halo, hp[0], hp[1], win(t, tT + .3, t2 + .2) * (.6 + .4 * Math.sin(t * 5) ** 2));
+    led.row(0, .5 * rp(t, h1.c, h1.c + .6) + .25 * rp(t, h3.c, h3.c + .6) + .25 * rp(t, tB, tB + .8));
+    led.row(1, rp(t, tB + 1.2, tB + 2.2)).hi(0, rp(t, tB, tB + .6));
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const ring = glucoseRing(p, { x: 250, y: 450, s: 1.3 }).phos([0, 0, 0, 0, 0, 1]);
+  const hp = pSpot(ring.bead(5), 1.3);
+  mk('circle', { cx: hp[0], cy: hp[1], r: 26, fill: MC.elec, 'fill-opacity': .25, stroke: MC.elec, 'stroke-width': 4 }, p);
+  membraneStrip(p, 545, 230, 680);
+  mArrow(p, [340, 470], [505, 470], { color: COL.chalk, w: 5, head: 18 });
+  path(p, 'M513 440V500', { stroke: MC.inhib, 'stroke-width': 8 });
+  wLabel(p, 'glucose 6-phosphate', { x: 250, y: 290, size: 28, weight: 700, fill: MC.glucose, o: 1 });
+  wLabel(p, 'what does the P do?', { x: 300, y: 160, size: 30, weight: 700, fill: MC.P, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-phos', prompt: ['At step 1, hexokinase moves a phosphate from ATP to glucose. What does this do for the sugar?'],
+  build: choice([['it splits it into two three-carbon sugars'], ['it makes the sugar more reactive and traps it in the cell'], ['it turns it into pyruvate'], ['it makes ATP']], 1,
+    'Right. The charged phosphate makes the sugar more reactive, and it can’t cross the membrane, so the sugar stays in the cell.',
+    ['That is step 4, aldolase. Step 1 only adds a phosphate; the sugar still has all six carbons in one ring.', null,
+      'Pyruvate comes only after all ten steps. Step 1 is the very first.',
+      'Step 1 spends an ATP: the phosphate comes from ATP, which becomes ADP.']),
+}], done) }],
+
+/* ---------- split ---------- */
+['split', 'The split', (m, D) => {
+  const p = panel(0), tCl = m('cleave'), tC = m('count'), tI = m('iso'), tW = m('two');
+  const st = glycolysisStrip(p, { x: 800, y: 785 });
+  // the enzyme sits in a holder that rises to the sugar for the cut and drops back (posed every frame)
+  const enzH = G(p), enz = enzymeBlob(enzH, { x: 640, y: 615, R: 70, o: 0 }); show(enz, .3, .5);
+  during(p, 'aldolase', 540, 650, .4, tI, { fill: MC.enzyme, anchor: 'end' });
+  during(p, 'isomerase', 540, 650, tI + .2, tW, { fill: MC.enzyme, anchor: 'end' });
+  // glows behind each piece as the voice names it (G3P, then DHAP); drawn under the ring
+  const glows = [310, 490].map(y => mk('rect', { x: 552, y: y - 40, width: 176, height: 80, rx: 30, fill: MC.elec, 'fill-opacity': .16, stroke: MC.elec, 'stroke-width': 3 }, p));
+  glows.forEach(e => put(e, { o: 0 }));
+  const ringH = G(p);   // the ring's holder: the bond flexes (a small shake) before the cut
+  const ring = glucoseRing(ringH, { x: 640, y: 400, s: 1.5, apart: 60, color: MC.glucose }).morph(1).phos([1, 0, 0, 0, 0, 1]);
+  during(p, 'fructose 1,6-bisphosphate', 640, 250, .3, tCl + 4, { size: 30, fill: MC.glucose });
+  const tSp = tCl + 5.4;
+  // the cut: a dashed line drawn across the sugar just before it opens
+  const cut = path(p, 'M545 400H546', { stroke: COL.chalk, 'stroke-width': 4, 'stroke-dasharray': '12 10' }); put(cut, { o: 0 });
+  // count: each carbon lights in turn in turn as the voice counts
+  const ticks = [0, 1, 2, 3, 4, 5].map(() => { const e = mk('circle', { r: 21, fill: COL.chalk, 'fill-opacity': .4, stroke: COL.chalk, 'stroke-width': 3 }, p); put(e, { o: 0 }); return e; });
+  // iso: G3P made from DHAP keeps flowing up and away (used as fast as it forms)
+  const flow = [0, 1, 2].map(() => mk('circle', { r: 8, fill: MC.glucose, stroke: MC.glucoseEdge, 'stroke-width': 2 }, p));
+  flow.forEach(e => put(e, { o: 0 }));
+  // two: a gold frame runs along the payoff steps, then a 2 is written in front of each G3P
+  const sweep = mk('rect', { x: -73, y: -46, width: 146, height: 92, rx: 16, fill: 'none', stroke: MC.elec, 'stroke-width': 5 }, p); put(sweep, { o: 0 });
+  during(p, '2', 746, 322, tW + 5.8, 1e6, { size: 34, fill: MC.elec, anchor: 'end' });
+  during(p, '2', 746, 502, tW + 6, 1e6, { size: 34, fill: MC.elec, anchor: 'end' });
+  // the two pieces, named as the voice names them
+  during(p, 'G3P', 760, 322, tCl + 9.6, 1e6, { size: 34, fill: MC.glucose, anchor: 'start' });
+  during(p, 'glyceraldehyde 3-phosphate', 760, 354, tCl + 9.8, 1e6, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  during(p, 'DHAP', 760, 502, tCl + 13.6, tI + 4.6, { size: 34, fill: MC.glucose, anchor: 'start' });
+  during(p, 'dihydroxyacetone phosphate', 760, 534, tCl + 13.8, tI + 4.6, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  during(p, 'G3P', 760, 502, tI + 5, 1e6, { size: 34, fill: MC.glucose, anchor: 'start' });
+  during(p, 'glyceraldehyde 3-phosphate', 760, 534, tI + 5.2, 1e6, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  // count: 6 = 3 + 3, no bead lost
+  during(p, '6 C', 470, 412, .4, tC + .3, { size: 32 });
+  during(p, '3 C', 545, 322, tC + .6, 1e6, { size: 28, anchor: 'end' });
+  during(p, '3 C', 545, 502, tC + .6, 1e6, { size: 28, anchor: 'end' });
+  during(p, '6 = 3 + 3', 330, 424, tC + 1, 1e6, { size: 40, fill: MC.elec });
+  during(p, 'nothing lost', 330, 466, tC + 3.6, 1e6, { size: 24, fill: COL.dim, weight: 600 });
+  // iso: DHAP ⇄ G3P, used as fast as it forms
+  const iso = G(p, { o: 0 }); show(iso, tI + 1, .4); hide(iso, tW, .4);
+  mArrow(iso, [1110, 380], [1110, 330], { color: COL.chalk, w: 5, head: 16 }); mArrow(iso, [1110, 440], [1110, 490], { color: COL.chalk, w: 5, head: 16 });
+  mk('rect', { x: 1104, y: 378, width: 12, height: 64, rx: 6, fill: COL.chalk }, iso);
+  wLabel(iso, 'G3P is used as fast as it forms', { x: 760, y: 585, size: 24, weight: 600, fill: COL.dim, anchor: 'start', o: 1 });
+  // two: everything twice from here
+  const x2 = G(p, { o: 0 }); show(x2, tW + .5, .5);
+  mk('circle', { cx: 1330, cy: 412, r: 46, fill: MC.elec, stroke: MC.elecEdge, 'stroke-width': 3 }, x2);
+  wLabel(x2, '×2', { x: 1330, y: 426, size: 40, weight: 800, fill: '#3a2a06', o: 1 });
+  wLabel(x2, 'every payoff step', { x: 1330, y: 500, size: 24, weight: 700, o: 1 });
+  wLabel(x2, 'happens twice', { x: 1330, y: 530, size: 24, weight: 700, o: 1 });
+  clockRun(t => {
+    const s = t < tI ? 4 : t < tW ? 5 : 'payoff';
+    st.phases(1).focus(s, rp(t, 0, .6));
+    // cleave: the enzyme rises to the sugar and grips it, the bond flexes, the cut is drawn, the ring opens, the enzyme drops
+    const rise = rp(t, tCl + 3.8, tCl + 4.8) * (1 - rp(t, tSp + .2, tSp + 1.2));
+    put(enzH, { y: Math.round(-40 * rise) }); enz.bend(tint(rise));
+    const flex = win(t, tCl + 4.4, tSp + .2, .2);
+    put(ringH, { x: Math.round(30 * flex * Math.sin(t * 40)) / 10 });
+    const ck = rp(t, tCl + 4.6, tCl + 5.3);
+    mD(cut, `M545 400H${Math.round(546 + 190 * ck)}`); mO(cut, mRamp(t, tCl + 4.6, tCl + 4.7) * (1 - mRamp(t, tSp + .2, tSp + .8)));
+    ring.split(rp(t, tSp, tSp + 2.4));
+    // the DHAP's phosphate moves from its far end to the near one as the isomerase turns it into G3P
+    const kIso = rp(t, tI + 3, tI + 4.6);
+    ring.phos([1, 0, 0, kIso, 0, 1 - kIso]);
+    const pulseK = .7 + .3 * Math.sin(t * 4) ** 2;
+    mO(glows[0], win(t, tCl + 9.5, tCl + 13.4, .4) * pulseK);
+    mO(glows[1], (win(t, tCl + 13.5, tC - .2, .4) + win(t, tI + 2.8, tI + 5.2, .4)) * pulseK);
+    ticks.forEach((e, i) => {
+      const b = ring.bead(i);
+      mPose(e, b[0], b[1], mRamp(t, tC + .1 + i * .3, tC + .3 + i * .3) * (1 - mRamp(t, tC + 3.6, tC + 4.2)));
+    });
+    flow.forEach((e, i) => {
+      const f = cFrac((t - tI) / 1.8 + i / 3), on = win(t, tI + 5.2, tW, .4);
+      const q = f < .7 ? [1145, 490 - 160 * f / .7] : [1145 + 115 * (f - .7) / .3, 330 - 30 * (f - .7) / .3];
+      mPose(e, q[0], q[1], on * mRamp(f, 0, .1) * (1 - mRamp(f, .85, 1)));
+    });
+    const sw = rp(t, tW + 1.6, tW + 5.2);
+    mPose(sweep, 872 + 576 * sw, 777, win(t, tW + 1.3, tW + 5.6, .3));
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  glucoseRing(p, { x: 300, y: 440, s: 1.5, color: MC.glucose }).morph(1).phos([1, 0, 0, 0, 0, 1]);
+  path(p, 'M170 445H430', { stroke: COL.chalk, 'stroke-width': 4, 'stroke-dasharray': '12 10' });
+  wLabel(p, 'aldolase cuts here', { x: 300, y: 600, size: 26, weight: 700, fill: MC.enzyme, o: 1 });
+  wLabel(p, 'fructose 1,6-bisphosphate · 6 C', { x: 300, y: 260, size: 26, weight: 700, fill: MC.glucose, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-split', prompt: ['Step 4, aldolase, cuts fructose 1,6-bisphosphate. What does it make?'],
+  build: choice([['two six-carbon sugars'], ['two different three-carbon sugars, G3P and DHAP'], ['one pyruvate'], ['CO₂ and a smaller sugar']], 1,
+    'Right. The six carbons are shared out, 3 + 3: one G3P and one DHAP, and the isomerase then turns DHAP into G3P.',
+    ['Count the carbons: there are only six to share, so the pieces have three each.', null,
+      'Pyruvate comes only after step 10. Step 4 makes two three-carbon sugars.',
+      'No carbon leaves in glycolysis: all six end up in the two pieces.']),
+}], done) }],
+
+/* ---------- payoff ---------- */
+['payoff', 'The energy payoff phase', (m, D) => {
+  const p = panel(0), t6 = m('s6'), t7 = m('s7'), t8 = m('s8'), t9 = m('s9'), t10 = m('s10');
+  const bandG = G(p, { o: 0 }); show(bandG, .2, .5);
+  mk('rect', { x: 60, y: 134, width: 1480, height: 522, rx: 26, fill: MC.payoff, 'fill-opacity': .06, stroke: MC.payoff, 'stroke-opacity': .4, 'stroke-width': 3 }, bandG);
+  const st = glycolysisStrip(p, { x: 800, y: 785 });
+  const led = atpLedger(p, { x: 1100, y: 22, w: 460, size: 24, rowH: 54, labelW: 190, rows: [
+    { label: 'NADH', kind: 'NADH', n: 2, value: '2', color: MC.nad }, { label: 'ATP formed', kind: 'ATP', n: 4, value: '4', color: MC.payoff }], o: 0 });
+  show(led, t6 + 14.4, .4);
+  led.rows[1].icons.forEach((ic, j) => put(ic, { x: 217 + j * 54 }));   // the four ATP bursts spaced so their rays don't touch
+  const steps = [[6, 'triose phosphate dehydrogenase', 0, t7], [7, 'phosphoglycerokinase', t7, t8], [8, 'phosphoglyceromutase', t8, t9], [9, 'enolase', t9, t10], [10, 'pyruvate kinase', t10, 1e6]];
+  steps.forEach(([n, s, a, b]) => during(p, `step ${n} · ${s}`, 80, 110, a + .3, b, { size: 30, fill: MC.enzyme, anchor: 'start' }));
+  const YS = [300, 500], CX = 520, SC = 1.3;
+  const chains = YS.map(y => carbonChain(p, { x: CX, y, s: SC, n: 3, color: MC.glucose }));
+  const beadP = (c, i) => pSpot(c.bead(i), SC, 13);
+  // s6: oxidized; NAD⁺ → NADH; a phosphate is attached
+  const nads = YS.map(() => nadShuttle(p, { o: 0 }));
+  const pairs = YS.map(() => electron(p, { n: 2, r: 8, o: 0 }));
+  const prots = YS.map(() => proton(p, { r: 15, label: 'name', o: 0 }));
+  const pis = YS.map(() => solute(p, 'Pi', { r: 21, o: 0 }));
+  const rOx = redoxArrow(p, 'ox', { x: CX, y: 252, dir: -90, len: 50, label: 'oxidized', sub: 'G3P loses e⁻', size: 24 }).draw(0);
+  const rRed = redoxArrow(p, 'red', { x: 900, y: 262, dir: -90, len: 50, label: 'reduced', sub: 'NAD⁺ gains e⁻', size: 24 }).draw(0);
+  const rich = G(p, { o: 0 });
+  YS.forEach(y => mk('rect', { x: CX - 100, y: y - 52, width: 200, height: 92, rx: 30, fill: MC.elec, 'fill-opacity': .14, stroke: MC.elec, 'stroke-width': 3 }, rich));
+  during(p, 'rich in energy', 290, 410, t6 + 11.6, t7 + 1, { size: 26, fill: MC.elec });
+  // s7, s10: the phosphate hops to ADP (substrate-level phosphorylation)
+  const H7 = YS.map(() => atpHand(p)), H10 = YS.map(() => atpHand(p));
+  const subl = G(p, { o: 0 }); show(subl, t7 + 6, .5); hide(subl, t8 - .6, .4);   // gone before chip 8 lights
+  wLabel(subl, 'substrate-level phosphorylation', { x: 800, y: 606, size: 30, weight: 700, fill: MC.payoff, o: 1 });
+  wLabel(subl, 'an enzyme moves a phosphate from a substrate straight to ADP', { x: 800, y: 640, size: 22, weight: 600, fill: COL.dim, o: 1 });
+  during(p, 'substrate-level phosphorylation again', 800, 620, t10 + 5.6, 1e6, { size: 28, fill: MC.payoff });
+  // s9: water leaves; PEP
+  const waters = YS.map(() => waterMolecule(p, { s: .42, face: false, o: 0 }));
+  during(p, 'H₂O', 690, 350, t9 + 2.4, t9 + 5.4, { size: 24, fill: '#cfeefa' });
+  during(p, 'PEP: very high', 290, 396, t9 + 3.6, t10, { size: 26, fill: MC.elec });
+  during(p, 'potential energy', 290, 428, t9 + 3.6, t10, { size: 26, fill: MC.elec });
+  YS.forEach(y => during(p, 'pyruvate', CX, y + 66, t10 + 9.5, 1e6, { size: 26, fill: MC.pyruvate }));
+  clockRun(t => {
+    st.phases(1).focus(t < t7 ? 6 : t < t8 ? 7 : t < t9 ? 8 : t < t10 ? 9 : 10, rp(t, 0, .6));
+    const kPi = mRamp(t, t6 + 11, t6 + 13);               // the phosphate joins bead 2
+    const h7 = mRamp(t, t7 + 1.4, t7 + 3.6);               // that phosphate hops to ADP
+    const sh8 = rp(t, t8 + .6, t8 + 2.2);                  // the other phosphate moves from bead 0 to bead 1
+    const h10 = mRamp(t, t10 + 1.4, t10 + 3.8);            // the last one hops to ADP
+    const ph0 = 1 - sh8, ph1 = sh8 * (1 - mRamp(h10, 0, .05)), ph2 = mRamp(kPi, .95, 1) * (1 - mRamp(h7, 0, .05));
+    const col = mix(MC.glucose, MC.pyruvate, tint(rp(t, t10 + 8, t10 + 10)));
+    chains.forEach((c, i) => {
+      const y = YS[i];
+      c.phos([ph0, ph1, ph2]).color(col);
+      // NAD⁺ comes in, takes the electron pair, becomes NADH, then leaves for the tally
+      const inK = rp(t, t6 + .4, t6 + 2.4), outK = rp(t, t7 - 1, t7 + .4);
+      nads[i].pose(1240 - 340 * inK + 200 * outK, y).set(rp(t, t6 + 5.6, t6 + 8));
+      mO(nads[i], mRamp(inK, 0, .3) * (1 - outK));
+      const ek = rp(t, t6 + 3.4, t6 + 6.2), from = [CX + 40, y - 10], to = nads[i].seat(0);
+      const q = arcPt(from, [to[0] + 12, to[1]], ek, 60);
+      pairs[i].pose(q[0], q[1]); mO(pairs[i], ek > 0 ? 1 - mRamp(t, t6 + 6.1, t6 + 6.5) : 0);
+      const pk = rp(t, t6 + 6.4, t6 + 9.4);
+      mPose(prots[i], CX + 90 + 40 * pk, y - 38 - 50 * pk, mRamp(pk, 0, .15) * (1 - mRamp(pk, .7, 1)));
+      const pq = arcPt([CX + 150, y + 90], beadP(c, 2), kPi, 40);
+      mPose(pis[i], pq[0], pq[1], kPi > 0 ? 1 - mRamp(kPi, .95, 1) : 0);
+      // s9: water leaves each piece
+      const wk = rp(t, t9 + 1.8, t9 + 5.2);
+      mPose(waters[i], CX + 60 + 110 * wk, y + 30 + 30 * wk, mRamp(wk, 0, .1) * (1 - mRamp(wk, .7, 1)));
+    });
+    // steps 7 and 10: ADP comes in at the right, the phosphate hops from the chain onto it (ADP → ATP), and the ATP
+    // rises to the tally
+    [[H7, h7, t7, t7 + 14, 2], [H10, h10, t10, t10 + 7, 1]].forEach(([H, h, tA, tUp, bead]) => H.forEach((hh, i) => {
+      const y = YS[i], up = rp(t, tUp, tUp + 1.2), A = [790, y], at = lerp2(A, [1180, 120], up);
+      const enter = rp(t, tA + .2, tA + 1.4), start = lerp2([1000, y - 30], A, enter);
+      mPose(hh.adp, start[0], start[1], mRamp(enter, 0, .25) * (1 - mRamp(h, .5, .55)));
+      mPose(hh.atp, at[0], at[1], mRamp(h, .55, .62) * (1 - mRamp(up, .6, 1)));
+      const pq = arcPt(beadP(chains[i], bead), [A[0] - 22, A[1] - 22], h, 60);
+      mPose(hh.pg, pq[0], pq[1], h > 0 ? 1 - mRamp(h, .95, 1) : 0);
+    }));
+    rOx.draw(rp(t, t6 + 2.8, t6 + 5)); mO(rOx, 1 - mRamp(t, t6 + 14, t6 + 14.6));
+    rRed.draw(rp(t, t6 + 5.4, t6 + 7.6)); mO(rRed, 1 - mRamp(t, t6 + 14, t6 + 14.6));
+    mO(rich, win(t, t6 + 11.4, t7 + 1) * .9 + win(t, t9 + 3.4, t10) * .9);
+    led.row(0, rp(t, t6 + 14.8, t6 + 16)).row(1, .5 * rp(t, t7 + 14, t7 + 15.2) + .5 * rp(t, t10 + 7, t10 + 8.2));
+  }, D);
+}],
+
+/* ---------- yield ---------- */
+['yield', 'Adding it up', (m, D) => {
+  const p = panel(0), tM = m('made'), tU = m('used'), tN = m('net'), tH = m('nadh'), tY = m('pyr'), tC = m('co2'), tO = m('o2');
+  const led = atpLedger(p, { x: 860, y: 56, w: 680, size: 26, rowH: 66, labelW: 230, rows: [
+    { label: 'ATP formed', kind: 'ATP', n: 4, value: '4', color: MC.payoff },
+    { label: 'ATP used', kind: 'ATP', n: 2, value: '− 2', color: MC.invest },
+    { label: 'net ATP', kind: 'ATP', n: 2, value: '2', color: MC.elec },
+    { label: 'NADH', kind: 'NADH', n: 2, value: '2', color: MC.nad },
+    { label: 'pyruvate', kind: 'pyruvate', n: 2, value: '2', color: MC.pyruvate },
+    { label: 'H_2O', kind: 'H2O', n: 2, value: '2', color: '#cfeefa' },
+    { label: 'CO_2 released', kind: 'CO2', n: 1, value: '0', color: COL.chalk }] });
+  // the sum, written out on the left
+  const eq = [['4 made', tM + .4, MC.payoff], ['− 2 used', tU + .3, MC.invest], ['= 2 net ATP', tN + 2.4, MC.elec]];
+  let ex = 90; eq.forEach(([s, t0, c]) => { say(p, s, ex, 130, t0, { size: 46, weight: 800, fill: c, anchor: 'start' }); ex += uiW(s, 46) * 1.08 + 26; });
+  sayC(p, '2 NADH carry 4 e^− for later', 90, 200, tH + 1, { size: 28, weight: 700, fill: MC.nad, anchor: 'start' });
+  // carbons: glucose 6 C → two pyruvate 3 C each; no CO₂
+  const pyr = [320, 400].map(y => carbonChain(p, { x: 470, y, s: 1, n: 3, o: 0 }));
+  pyr.forEach(c => show(c, tY + .3, .4));
+  say(p, '2 pyruvate', 470, 470, tY + .5, { size: 26, weight: 700, fill: MC.pyruvate });
+  const wt = G(p, { o: 0 }); show(wt, tY + 2, .4);
+  [600, 680].forEach(x => waterMolecule(wt, { x, y: 360, s: .4, face: false }));
+  wChem(wt, '2 H_2O', { x: 640, y: 420, size: 26, weight: 700, fill: '#cfeefa', o: 1 });
+  const cr = G(p, { o: 0 }); show(cr, tC + .3, .5);
+  glucoseRing(cr, { x: 170, y: 360, s: .9 });
+  wLabel(cr, 'glucose', { x: 170, y: 445, size: 24, weight: 700, fill: MC.glucose, o: 1 });
+  mArrow(cr, [240, 360], [380, 360], { color: MC.gly, w: 6, head: 18 });
+  say(p, '6 C in = 3 C + 3 C out', 330, 540, tC + 2.6, { size: 34, weight: 800, fill: COL.chalk });
+  const nc = G(p, { o: 0 }); show(nc, tC + 5, .4);
+  co2Molecule(nc, { x: 640, y: 540, r: 16 }); noSign(nc, 640, 540, 34);
+  wChem(nc, 'no CO_2', { x: 640, y: 610, size: 26, weight: 700, fill: MC.inhib, o: 1 });
+  // o2: no oxygen used
+  const no2 = G(p, { o: 0 }); show(no2, tO + .3, .5);
+  o2Molecule(no2, { x: 150, y: 720, r: 18 }); noSign(no2, 150, 720, 36);
+  wChem(no2, 'no O_2 used: glycolysis runs', { x: 210, y: 712, size: 30, weight: 700, anchor: 'start', o: 1 });
+  wChem(no2, 'with or without oxygen', { x: 210, y: 752, size: 26, weight: 600, fill: COL.dim, anchor: 'start', o: 1 });
+  clockRun(t => {
+    led.row(0, rp(t, tM + .2, tM + 1.6)).row(1, rp(t, tU + .1, tU + 1.2)).row(2, rp(t, tN + 2.2, tN + 3.4)).hi(2, rp(t, tN + 3.4, tN + 4));
+    led.row(3, rp(t, tH + .2, tH + 1.4)).row(4, rp(t, tY + .2, tY + 1.4)).row(5, rp(t, tY + 1.8, tY + 3)).row(6, rp(t, tC + 4.8, tC + 5.8)).strike(6, rp(t, tC + 5.8, tC + 6.4));
+  }, D);
+}],
+
+/* ---------- example ---------- */
+['example', 'Ten glucose', (m, D) => {
+  const p = panel(0), tT = m('ten'), tN = m('net10'), tH = m('nadh10');
+  banner(p, 'a worked example: ten glucose', null, 800, 66, .3, { size: 38 });
+  say(p, 'an example, not from the slides', 800, 106, .5, { size: 22, fill: COL.dim, weight: 500 });
+  for (let i = 0; i < 10; i++) { const g = glucoseRing(p, { x: 305 + i * 110, y: 200, s: .5, o: 0 }); show(g, tT + .2 + i * .12, .3); }
+  const row = (y, a, b, col, t0, size = 36) => {
+    say(p, a, 560, y, t0, { size, weight: 700, fill: col, anchor: 'end' });
+    say(p, b, 590, y, t0 + .2, { size, weight: 800, fill: COL.chalk, anchor: 'start' });
+  };
+  row(330, 'ATP used:', '10 × 2 = 20 ATP', MC.invest, tT + 4.2);
+  row(410, 'ATP formed:', '10 × 4 = 40 ATP', MC.payoff, tT + 7.2);
+  const ln = G(p, { o: 0 }); show(ln, tN, .3); path(ln, 'M300 455H1300', { stroke: COL.faint, 'stroke-width': 3 });
+  row(530, 'net:', '40 − 20 = 20 ATP', MC.elec, tN + .2, 44);
+  const nb = atpBurst(p, { x: 1240, y: 516, r: 40, o: 0 }); show(nb, tN + .6, .4);
+  row(650, 'NADH:', '10 × 2 = 20 NADH', MC.nad, tH + .3);
+  clockRun(t => nb.shine(t), D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tE = m('end');
+  wLabel(p, 'Summary: glycolysis', { x: 560, y: 70, size: 36, weight: 700, o: 1 });
+  const ROWS = [
+    ['s1', 'Glucose (6 C) → 2 pyruvate (3 C each)', 'in the cytosol, with or without O_2', MC.gly],
+    ['s2', 'Spend 2 ATP, then make 4 ATP and 2 NADH', 'investment: steps 1–5 · payoff: steps 6–10', MC.payoff],
+    ['s3', 'Net: 2 ATP, 2 NADH, 2 pyruvate', 'and no CO_2 released', MC.elec],
+  ];
+  ROWS.forEach(([mk_, a, b, col], i) => {
+    const y = 200 + i * 200, g = G(p, { o: 0 });
+    panelBox(g, 40, y - 82, 1040, 170);
+    wChem(g, a, { x: 270, y: y - 4, size: 32, weight: 700, fill: col, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 270, y: y + 40, size: 24, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i === 0) glucoseRing(g, { x: 150, y: y + 4, s: .8, apart: 40 }).split(1);
+    if (i === 1) { solute(g, 'ATP', { x: 110, y: y - 20, r: 17 }); solute(g, 'ATP', { x: 160, y: y - 20, r: 17 }); wLabel(g, '− 2', { x: 210, y: y - 12, size: 24, weight: 800, fill: MC.invest, o: 1 });
+      [95, 135, 175, 215].forEach(x => solute(g, 'ATP', { x, y: y + 35, r: 14 })); }
+    if (i === 2) atpBurst(g, { x: 150, y, r: 44, label: '2 ATP', size: 18 });
+    show(g, m(mk_) + .1, .5);
+  });
+  const rm = respMap(p, { x: 1335, y: 430, s: .3, o: 0 }).focus(['cell', 'glycolysis', 'atp1'], 1);
+  show(rm, tE - 3, .6);
+  say(p, 'glycolysis: stage one', 1335, 560, tE - 2.6, { size: 24, weight: 700, fill: MC.gly });
+  say(p, 'Now try the chapter practice.', 800, 840, tE, { size: 32, fill: WC.bond });
+  clockRun(t => rm.shine(t), D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); panelBox(g, 980, 90, 580, 720); f(g); pics[k] = g; };
+  at('where', g => {
+    respMap(g, { x: 1270, y: 430, s: .38 });
+    wLabel(g, 'where does glycolysis run?', { x: 1270, y: 700, size: 26, weight: 700, o: 1 });
+  });
+  at('net', g => {
+    atpLedger(g, { x: 1010, y: 300, w: 520, size: 24, rowH: 64, labelW: 190, rows: [
+      { label: 'ATP used', kind: 'ATP', n: 2, value: '?', color: MC.invest }, { label: 'ATP formed', kind: 'ATP', n: 4, value: '?', color: MC.payoff }, { label: 'net ATP', kind: 'ATP', n: 0, value: '?', color: MC.elec }] }).set(1);
+    wLabel(g, 'per glucose', { x: 1270, y: 250, size: 28, weight: 700, o: 1 });
+  });
+  at('sub', g => {
+    substrateLevel(g, { x: 1270, y: 420, s: .7 }).set(.25);
+    wLabel(g, 'steps 7 and 10', { x: 1270, y: 660, size: 28, weight: 700, fill: MC.payoff, o: 1 });
+  });
+  at('redox', g => {
+    carbonChain(g, { x: 1130, y: 450, n: 3, color: MC.glucose }).phos([1, 0, 0]);
+    wLabel(g, 'G3P', { x: 1130, y: 520, size: 28, weight: 700, fill: MC.glucose, o: 1 });
+    nadShuttle(g, { x: 1420, y: 450 });
+    electron(g, { x: 1275, y: 380, n: 2, r: 9 });
+    mArrow(g, [1190, 410], [1250, 385], { color: COL.chalk, w: 4, head: 14 }); mArrow(g, [1300, 385], [1365, 415], { color: COL.chalk, w: 4, head: 14 });
+    wLabel(g, 'step 6: electrons move', { x: 1270, y: 250, size: 28, weight: 700, o: 1 });
+  });
+  at('yield', g => {
+    wLabel(g, 'one glucose: made or not?', { x: 1270, y: 160, size: 28, weight: 700, o: 1 });
+    [['NADH', '2 NADH'], ['pyruvate', '2 pyruvate'], ['CO2', 'CO_2'], ['O2', 'O_2']].forEach(([k, s], i) => {
+      respIcon(g, k, { x: 1120, y: 270 + i * 120, s: 1.4 });
+      wChem(g, s + '  ?', { x: 1220, y: 280 + i * 120, size: 30, weight: 700, anchor: 'start', o: 1 });
+    });
+  });
+  at('ten', g => {
+    for (let i = 0; i < 10; i++) glucoseRing(g, { x: 1080 + (i % 5) * 95, y: 220 + Math.floor(i / 5) * 110, s: .45 });
+    wLabel(g, '10 glucose', { x: 1270, y: 420, size: 30, weight: 700, fill: MC.glucose, o: 1 });
+    wLabel(g, 'net ATP = ?', { x: 1270, y: 540, size: 32, weight: 800, fill: MC.elec, o: 1 });
+    wLabel(g, 'NADH = ?', { x: 1270, y: 610, size: 32, weight: 800, fill: MC.nad, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('where');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-where', prompt: ['Where does glycolysis take place?'],
+    build: withPic('where', choice([['the mitochondrial matrix'], ['the inner mitochondrial membrane'], ['the cytosol'], ['the nucleus']], 2,
+      'Right. Glycolysis runs in the cytosol, before anything enters the mitochondrion.',
+      ['The citric acid cycle runs in the matrix. Glycolysis comes first, outside the mitochondrion.',
+        'Oxidative phosphorylation is in the inner membrane. Glycolysis comes before the mitochondrion on the map.', null,
+        'The nucleus takes no part in respiration. Look at the map: glycolysis is out in the cytosol.'])) },
+  { id: 'p-net', prompt: ['Per glucose, count the ATP of glycolysis:'],
+    build: withPic('net', blanks([
+      { parts: ['the investment phase uses ', { box: '2' }, ' ATP'], why: 'Steps 1 and 3 each spend one ATP: 2 used.', hint: 'Which steps put a phosphate on the sugar?' },
+      { parts: ['the payoff phase forms ', { box: '4' }, ' ATP'], why: 'Steps 7 and 10 each make one ATP per piece, and there are two pieces: 4 formed.', hint: 'Two steps make ATP, and every payoff step happens twice.' },
+      { parts: ['so the net is ', { box: '2' }, ' ATP'], why: 'Net = formed − used = 4 − 2 = 2 ATP.', hint: 'Net = formed minus used.' },
+    ])) },
+  { id: 'p-sub', prompt: ['Which statement describes substrate-level phosphorylation in glycolysis?'],
+    build: withPic('sub', choice([['ATP forms from an H⁺ gradient'], ['ATP gives a phosphate to glucose'], ['an enzyme moves a phosphate from a substrate straight to ADP, making ATP'], ['NAD⁺ gives electrons to oxygen']], 2,
+      'Right. At steps 7 and 10 an enzyme moves a phosphate from a pathway molecule straight onto ADP.',
+      ['That is chemiosmosis, in oxidative phosphorylation, later. Here the phosphate comes from a molecule in the pathway.',
+        'That is the investment phase: it uses ATP rather than making it.', null,
+        'Electrons go to oxygen at the end of the electron transport chain, and NADH (not NAD⁺) carries them there.'])) },
+  { id: 'p-redox', prompt: ['At step 6, which molecule is oxidized and which is reduced?'],
+    build: withPic('redox', choice([['NAD⁺ is oxidized, G3P is reduced'], ['G3P is oxidized, NAD⁺ is reduced to NADH'], ['both are oxidized'], ['both are reduced']], 1,
+      'Right. G3P loses electrons (oxidized) and NAD⁺ gains them (reduced), becoming NADH.',
+      ['Reversed: the electrons go from G3P to NAD⁺. Oxidation is the loss of electrons.', null,
+        'One gives electrons and one takes them: oxidation and reduction always come together.',
+        'One gives electrons and one takes them: oxidation and reduction always come together.'])) },
+  { id: 'p-yield', prompt: ['Glycolysis of one glucose …'],
+    build: withPic('yield', grid([
+      { parts: ['makes 2 NADH, 2 pyruvate'], ans: ['m'], why: 'True: step 6 makes the NADH, and each piece ends as pyruvate.' },
+      { parts: ['releases CO₂'], ans: ['n'], why: 'False: all six carbons end in the two pyruvate.' },
+      { parts: ['uses up O₂'], ans: ['n'], why: 'False: glycolysis runs with or without oxygen.' },
+    ], [['m', 'true', null, 'T'], ['n', 'false', null, 'F']], { multi: false, text: true })) },
+  { id: 'p-ten', prompt: ['A cell runs glycolysis on 10 glucose.'],
+    build: withPic('ten', blanks([
+      { parts: ['net ATP: ', { box: '20' }], why: '10 × 2 = 20 ATP net.', hint: 'Multiply the net per glucose (2 ATP) by 10.' },
+      { parts: ['NADH made: ', { box: '20' }], why: '10 × 2 = 20 NADH.', hint: 'Each glucose gives 2 NADH.' },
+    ])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

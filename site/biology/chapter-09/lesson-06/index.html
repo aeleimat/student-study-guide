@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 9, Lesson 6: The Electron Transport Chain — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="../../lib/resp.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 9 (Cellular Respiration), lesson 6: a water wheel smashed by one big drop and turned by a staircase
+// of small ones; the shared respiration map with oxidative phosphorylation lit; NADH and FADH2 carry the energy to the
+// chain in the inner membrane (cristae, more surface); complexes I to IV; NADH into I, FADH2 into II, Q, complex III,
+// cytochrome c, complex IV, each carrier reduced then oxidized; the free-energy staircase (about 50, 43, 10); oxygen
+// takes the electrons and two H+ to make water and pulls the chain (without it the chain backs up); the chain makes no
+// ATP itself, it breaks one big drop into small steps (lesson 7 makes the ATP); numbers; a summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-09/lesson-06.md.
+const CHAPTER = { number: 906, label: '9, lesson 6', title: 'The Electron Transport Chain', minutes: 7, language: 'en', lead: false, next: '../lesson-07/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const rk = k => Math.round(mClamp(k) * 2000) / 2000;
+const rt = t => Math.round(t * 60) / 60;
+const plain = str => str.replace(/[_^]/g, '');
+// A label (centred text, chem markup) with a leader to the thing it names; fades in at t0 (null: shown at once).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 26, fill = COL.chalk, line = COL.dim, weight = 700, sub = null } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(plain(str), size);
+  wChem(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  if (sub) wChem(g, sub, { x: tx, y: ty + size * 1.05, size: size * .78, fill: COL.dim, weight: 500, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + (sub ? size * 1.3 : size * .3); }
+  else { sx = tx; sy = ty - size * 1.05; }
+  path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 });
+  mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g);
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A title and a dim second line, centred; fades in at t0.
+function banner(p, a, b, x, y, t0, { color = COL.chalk, size = 38 } = {}) {
+  const g = G(p, { o: 0 });
+  wChem(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wChem(g, b, { x, y: y + size * .95, size: size * .64, fill: COL.dim, weight: 500, o: 1 });
+  show(g, t0, .5);
+  return g;
+}
+// Captions that replace one another on one line: [[t0, t1, text, colour]]; each fades out before the next comes in.
+function capLine(p, list, { y = 92, size = 32 } = {}) {
+  list.forEach(([t0, t1, str, color = COL.chalk]) => {
+    const g = G(p, { o: 0 });
+    wChem(g, str, { x: 800, y, size, weight: 700, fill: color, o: 1 });
+    show(g, t0, .3);
+    if (t1 != null) hide(g, t1 - .3, .25);
+  });
+}
+const panelBox = (g, x, y, w, h) => mk('rect', { x, y, width: w, height: h, rx: 22, fill: '#0b1828', stroke: COL.faint, 'stroke-width': 3 }, g);
+// A vertical bracket arrow (y1 → y2) with a tick at its start.
+function vBracket(p, x, y1, y2, color, { w = 5, head = 16 } = {}) {
+  const g = G(p);
+  mArrow(g, [x, y1], [x, y2], { color, w, head });
+  path(g, `M${x - 12} ${y1}H${x + 12}`, { stroke: color, 'stroke-width': 3 });
+  return g;
+}
+const dashH = (p, x1, x2, y, color = COL.dim, w = 2.5) => path(p, `M${x1} ${y}H${x2}`, { stroke: color, 'stroke-width': w, 'stroke-dasharray': '9 8' });
+// A red cross (centre, half-size r).
+function redX(p, x, y, r, o = 1) {
+  const g = G(p, { x, y, o });
+  path(g, `M${-r} ${-r}L${r} ${r}M${r} ${-r}L${-r} ${r}`, { stroke: MC.inhib, 'stroke-width': Math.max(6, r * .22), 'stroke-linecap': 'round' });
+  return g;
+}
+const boxD = (w, h, cx = 0, cy = 0) => `M${cx - w / 2} ${cy - h / 2}H${cx + w / 2}V${cy + h / 2}H${cx - w / 2}Z`;
+// A small inset: the mitochondrion with a marked stretch of inner membrane, "you are here".
+function mitoInset(p, t0) {
+  const g = G(p, { o: 0 });
+  mitoCutaway(g, { x: 120, y: 128, s: .14, porter: false, labels: false });
+  mk('rect', { x: 128, y: 82, width: 26, height: 22, fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, g);
+  path(g, 'M154 104L205 248', { stroke: COL.chalk, 'stroke-width': 2, 'stroke-dasharray': '6 6' });
+  if (t0 === null) put(g, { o: 1 }); else show(g, t0, .4);
+  return g;
+}
+
+/* ---------- the backdrop: water wheels, a cliff, a staircase of falls ---------- */
+const WOOD = '#b98a5a', WOOD_D = '#7a5634', WATER = '#7cc8e6';
+// A water wheel, origin = the axle. .set(deg, broken) turns it; broken 0..1 cracks it, tips it and throws two paddles.
+function waterWheel(p, { x = 0, y = 0, R = 70, o = 1, leg = R * 1.05 } = {}) {
+  const g = G(p, { x, y, o });
+  path(g, `M0 0L${cF(-R * .4)} ${cF(leg)}M0 0L${cF(R * .4)} ${cF(leg)}`, { stroke: WOOD_D, 'stroke-width': Math.max(4, R * .1) });
+  const body = G(g, { s: .999 });
+  let d = ''; for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; d += `M0 0L${cF(R * Math.cos(a))} ${cF(R * Math.sin(a))}`; }
+  path(body, d, { stroke: WOOD, 'stroke-width': Math.max(3, R * .07) });
+  mk('circle', { r: R, fill: 'none', stroke: WOOD, 'stroke-width': Math.max(4, R * .1) }, body);
+  let pd = '';
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4 + Math.PI / 8, c = Math.cos(a), s = Math.sin(a), w = R * .15, L = R * .32;
+    const pts = [[R * c - s * w, R * s + c * w], [R * c + s * w, R * s - c * w], [(R + L) * c + s * w, (R + L) * s - c * w], [(R + L) * c - s * w, (R + L) * s + c * w]];
+    pd += 'M' + pts.map(q => cF(q[0]) + ' ' + cF(q[1])).join('L') + 'Z';
+  }
+  path(body, pd, { fill: WOOD, stroke: WOOD_D, 'stroke-width': 2.5 });
+  mk('circle', { r: R * .2, fill: WOOD_D }, body);
+  const crack = path(body, `M${cF(-R * .1)} ${cF(-R * .95)}L${cF(R * .12)} ${cF(-R * .5)}L${cF(-R * .08)} ${cF(-R * .15)}L${cF(R * .1)} ${cF(R * .3)}`, { stroke: MC.inhib, 'stroke-width': Math.max(4, R * .08) }, { o: 0 });
+  const bits = [0, 1].map(() => { const b = G(g, { x: 1, y: 1, s: .999, o: 0 }); path(b, boxD(R * .3, R * .28), { fill: WOOD, stroke: WOOD_D, 'stroke-width': 2.5 }); return b; });
+  const ww = Object.assign(g, {
+    set(deg, br = 0) {
+      br = rk(br); deg = Math.round(deg * 4) / 4;
+      cSet(body, { r: deg % 360 + 28 * br, x: 10 * br, y: 22 * br, s: .999 });
+      mO(crack, br > 0 ? Math.min(1, br * 4) : 0);
+      bits.forEach((b, i) => {
+        const sx = i ? 1 : -1;
+        cSet(b, { x: sx * (R * .9 + 150 * br), y: -R * .7 - 160 * br + 220 * br * br, r: sx * 300 * br, s: .999 });
+        mO(b, br > 0 ? 1 - mRamp(br, .8, 1) : 0);
+      });
+      return ww;
+    },
+  });
+  return ww.set(0);
+}
+// A falling stream from (x, y0) to (x, y1): a pale band and droplets running down it; .set(t).
+function waterFall(p, x, y0, y1, { w = 24, n = 6, speed = .9 } = {}) {
+  const g = G(p);
+  mk('rect', { x: x - w / 2, y: y0, width: w, height: y1 - y0, rx: w / 2, fill: WATER, 'fill-opacity': .55 }, g);
+  const drops = Array.from({ length: n }, () => mk('ellipse', { rx: w * .18, ry: w * .42, fill: '#e8f7ff' }, g));
+  drops.forEach(e => put(e, { x, y: y0, o: 0 }));
+  return Object.assign(g, {
+    set(t) {
+      t = rt(t);
+      drops.forEach((e, i) => { const u = cFrac(t * speed + i / n), dx = (i % 3 - 1) * w * .2; mPose(e, x + dx, y0 + (y1 - y0) * u, Math.min(1, u * 8, (1 - u) * 8)); });
+      return g;
+    },
+  });
+}
+
+/* ---------- the folded membrane panel (lesson-local) ---------- */
+// The folded line: five fingers 160 deep across 560 px; its length is 560 + 10 × 160 = 2160, about 4 × the flat line.
+const FOLD = (() => { const pts = [[900, 470]]; for (let i = 0; i < 5; i++) { const x0 = 900 + 40 + i * 104; pts.push([x0, 470], [x0, 630], [x0 + 40, 630], [x0 + 40, 470]); } pts.push([1460, 470]); return pts; })();
+function alongPts(pts, n) {   // n points evenly spaced along a polyline (the middle of each of n equal pieces)
+  const L = [0]; for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const tot = L[L.length - 1];
+  return Array.from({ length: n }, (_, k) => {
+    const d = (k + .5) * tot / n; let i = 1; while (i < L.length - 1 && L[i] < d) i++;
+    const f = (d - L[i - 1]) / (L[i] - L[i - 1]), a = pts[i - 1], b = pts[i];
+    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, Math.abs(b[0] - a[0]) < 1];
+  });
+}
+function foldPanel(p, t0) {
+  const g = G(p, { o: 0 });
+  panelBox(g, 830, 190, 720, 600);
+  const chip = (x, y, vert) => mk('rect', vert ? { x: x - 9, y: y - 14, width: 18, height: 28, rx: 5, fill: MC.complex, stroke: MC.complexEdge, 'stroke-width': 2 } : { x: x - 14, y: y - 9, width: 28, height: 18, rx: 5, fill: MC.complex, stroke: MC.complexEdge, 'stroke-width': 2 }, g);
+  wLabel(g, 'flat membrane: length 1×', { x: 1180, y: 262, size: 26, weight: 700, o: 1 });
+  path(g, 'M900 330H1460', { stroke: MC.cristae, 'stroke-width': 8 });
+  alongPts([[900, 330], [1460, 330]], 4).forEach(([x, y]) => chip(x, y, false));
+  path(g, 'M' + FOLD.map(q => q.join(' ')).join('L'), { stroke: MC.cristae, 'stroke-width': 8, 'stroke-linejoin': 'round' });
+  alongPts(FOLD, 15).forEach(([x, y, v]) => chip(x, y, v));
+  wLabel(g, 'folded into cristae: about 4× the membrane', { x: 1180, y: 690, size: 26, weight: 700, fill: MC.cristae, o: 1 });
+  wLabel(g, 'same width, room for many more chains', { x: 1180, y: 726, size: 22, weight: 500, fill: COL.dim, o: 1 });
+  wLabel(g, 'added, not on the slides', { x: 1180, y: 766, size: 18, weight: 600, fill: COL.dim, o: 1 });
+  show(g, t0, .5);
+  return g;
+}
+
+/* ---------- the backed-up chain (lesson-local): no O₂, electrons pile up ---------- */
+function backedUp(p, { x = 0, y = 0, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  path(g, 'M-60 30H420', { stroke: MC.cristae, 'stroke-width': 6 });
+  const piles = [];
+  ['I', 'II', 'III', 'IV'].forEach((nm, i) => {
+    const bx = i * 120;
+    path(g, `M${bx - 36} 6Q${bx - 36} -22 ${bx - 8} -22H${bx + 8}Q${bx + 36} -22 ${bx + 36} 6V30Q${bx + 36} 52 ${bx + 8} 52H${bx - 8}Q${bx - 36} 52 ${bx - 36} 30Z`, { fill: MC.complex, stroke: MC.complexEdge, 'stroke-width': 3 });
+    wLabel(g, nm, { x: bx, y: 24, size: 24, weight: 800, fill: '#fff', o: 1 });
+    piles.push([0, 1, 2].map(j => electron(g, { n: 2, r: 7, x: bx, y: -36 - j * 19, o: 0 })));
+  });
+  o2Molecule(g, { x: 520, y: 14, r: 17 });
+  redX(g, 520, 14, 30);
+  return Object.assign(g, {
+    // k 0 empty … 1 three pairs on every complex, filling from the end (IV first) backwards
+    set(k) {
+      k = rk(k);
+      piles.forEach((col, i) => col.forEach((e, j) => { const idx = j * 4 + (3 - i); mO(e, mRamp(k * 12 - idx, 0, 1)); }));
+      return g;
+    },
+  }).set(0);
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Falling water and the map', (m, D) => {
+  const p = panel(0), tM = m('mill'), tMap = m('map'), tL = m('lit');
+  const tCl = tM + 2.64, tB = tM + 6.3, tSt = tM + 7.62, tO = tL + 5.47;   // cliff line, "smashed", staircase line, "Now we light…"
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  mk('rect', { x: -400, y: 700, width: 2400, height: 500, fill: '#1d3a2a' }, W);
+  mk('rect', { x: -400, y: 696, width: 2400, height: 10, fill: '#2e5a40' }, W);
+  // one wheel under a short fall
+  const s1 = G(W, { o: 0 });
+  path(s1, 'M520 372H770V400H520Z', { fill: WOOD_D });
+  mk('rect', { x: 520, y: 366, width: 250, height: 10, fill: WATER }, s1);
+  const f1 = waterFall(s1, 782, 380, 690, { w: 26 });
+  const w1 = waterWheel(s1, { x: 870, y: 590, R: 90, leg: 105 });
+  mk('ellipse', { cx: 820, cy: 704, rx: 120, ry: 12, fill: WATER, 'fill-opacity': .6 }, s1);
+  wLabel(s1, 'falling water turns the wheel', { x: 800, y: 800, size: 30, weight: 700, o: 1 });
+  show(s1, tM, .5); hide(s1, tCl - .35, .3);
+  // one big drop from a cliff: the wheel is smashed
+  const s2 = G(W, { o: 0 });
+  path(s2, 'M140 220H404V700H140Z', { fill: '#5a4636', stroke: '#3d2f24', 'stroke-width': 4 });
+  mk('rect', { x: 140, y: 212, width: 270, height: 10, fill: WATER }, s2);
+  const f2 = waterFall(s2, 416, 220, 690, { w: 28, n: 8, speed: 1.3 });
+  const w2 = waterWheel(s2, { x: 494, y: 596, R: 66, leg: 72 });
+  const boom = explosion(s2, { x: 494, y: 596, r: 90 });
+  wLabel(s2, 'one big drop:', { x: 380, y: 780, size: 28, weight: 700, fill: '#ff8a76', o: 1 });
+  wLabel(s2, 'the wheel is smashed', { x: 380, y: 816, size: 28, weight: 700, fill: '#ff8a76', o: 1 });
+  show(s2, tCl, .5);
+  // a staircase of small drops: every wheel turns
+  const s3 = G(W, { o: 0 }), small = [];
+  for (let i = 0; i < 4; i++) {
+    const top = 300 + 100 * i, x0 = 880 + 150 * i;
+    path(s3, `M${x0} ${top}H${x0 + 150}V700H${x0}Z`, { fill: '#5a4636', stroke: '#3d2f24', 'stroke-width': 4 });
+    mk('rect', { x: x0, y: top - 8, width: 150, height: 9, fill: WATER }, s3);
+  }
+  for (let i = 0; i < 4; i++) {
+    const top = 300 + 100 * i, lx = 1030 + 150 * i;
+    small.push({ f: waterFall(s3, lx + 6, top - 4, i < 3 ? top + 96 : 694, { w: 16, n: 4, speed: 1.1 }), w: waterWheel(s3, { x: lx + 40, y: top + 48, R: 28, leg: 50 }) });
+  }
+  wLabel(s3, 'small drops:', { x: 1210, y: 780, size: 28, weight: 700, fill: '#9fe0a0', o: 1 });
+  wLabel(s3, 'every wheel turns', { x: 1210, y: 816, size: 28, weight: 700, fill: '#9fe0a0', o: 1 });
+  show(s3, tSt, .5);
+  // the title
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 9 · LESSON 6', { x: 1150, y: 230, size: 26, fill: COL.dim, o: 1 });
+  ['The electron', 'transport chain'].forEach((s, i) => wLabel(ttl, s, { x: 1150, y: 320 + i * 70, size: 58, o: 1 }));
+  wLabel(ttl, 'Cellular respiration', { x: 1150, y: 480, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tM - .4, .4);
+  // push in on the staircase, then the respiration map
+  cam.to({ x: 1210, y: 520, z: 2.2 }, tMap - 2.3, 2, soft);
+  hide(cam.el, tMap - .45, .4);
+  const map = respMap(p, { x: 800, y: 400, s: .9, o: 0 });
+  show(map, tMap - .1, .6);
+  const ring = G(p, { o: 0 }), op = map.pt('oxphos');
+  mk('rect', { x: op[0] - 150, y: op[1] - 94, width: 300, height: 188, rx: 26, fill: 'none', stroke: MC.oxph, 'stroke-width': 6 }, ring);
+  show(ring, tO + .4, .4); pulse(ring, tO + .6, 1.05);
+  const lb = G(p, { o: 0 }); show(lb, tO + 1.6, .5);
+  wLabel(lb, 'today: the electron transport chain', { x: 800, y: 762, size: 34, weight: 700, fill: MC.oxph, o: 1 });
+  wLabel(lb, 'the first part of oxidative phosphorylation', { x: 800, y: 804, size: 26, weight: 500, fill: COL.dim, o: 1 });
+  clockRun(t => {
+    f1.set(t); w1.set(90 * t);
+    f2.set(t); w2.set(320 * Math.min(t, tB), io(mRamp(t, tB, tB + .7))); boom.set(mRamp(t, tB - .1, tB + 1.4));
+    small.forEach((s, i) => { s.f.set(t + i * .3); s.w.set(70 * t + i * 20); });
+    map.tick(['glycolysis', 'pyruvateOx', 'cycle'], mRamp(t, tL + .6, tL + 1.4));
+    map.focus(['oxphos', 'electrons'], io(mRamp(t, tO, tO + 1)));
+    map.flow(t, mRamp(t, tO + .6, tO + 1.6));
+  }, D);
+}],
+
+/* ---------- carriers ---------- */
+['carriers', 'NADH and FADH₂ carry the energy', (m, D) => {
+  const p = panel(0), tW = m('where'), tF = m('folds'), tP = m('parts'), tDon = m('carriers') + 10.98;
+  // A: the loaded carriers, and where their electrons go
+  const A = G(p);
+  banner(A, 'most of the energy from the glucose', 'is now carried by two molecules', 800, 72, .3, { size: 36 });
+  const nW = G(A, { x: 430, y: 370, o: 0 }), fW = G(A, { x: 430, y: 610, o: 0 });
+  const nadh = nadShuttle(nW, { s: 1.7 }).set(1), fadh = nadShuttle(fW, { kind: 'FAD', s: 1.7 }).set(1);
+  show(nW, .7, .5); show(fW, 1.4, .5);
+  const s0 = nadh.seat(0);
+  tag(A, 'loaded with electrons: stored energy', [470, 226], [430 + s0[0], 370 + s0[1] - 18], 3, { size: 26, fill: MC.elec, line: MC.elec });
+  const ci = chainIcon(A, { x: 1190, y: 460, s: 1.5, o: 0 }); show(ci, tDon - .4, .5);
+  const ar = G(A, { o: 0 }); show(ar, tDon, .4);
+  const A1 = [[580, 370], [990, 405]], A2 = [[540, 610], [990, 470]];
+  mArrow(ar, ...A1, { color: MC.elec, w: 5, head: 18 }); mArrow(ar, ...A2, { color: MC.elec, w: 5, head: 18 });
+  wLabel(ar, 'they donate them to the chain', { x: 780, y: 340, size: 26, weight: 700, fill: MC.elec, o: 1 });
+  const rides = [A1, A1, A2, A2].map(() => electron(A, { n: 2, r: 8, o: 0 }));
+  hide(A, tW - .45, .4);
+  // B: the mitochondrion, its inner membrane folded into cristae
+  const mw = G(p, { x: 800, y: 490, o: 0 });
+  const mc = mitoCutaway(mw, { x: 0, y: 0, s: .8, porter: false });
+  show(mw, tW, .5);
+  const bB = banner(p, 'the chain sits in the inner membrane', 'the membrane folded into cristae', 800, 70, tW + .2, { size: 36, color: MC.cristae });
+  tw(mw, { x: 440, s: .62 }, tF, .9, io);
+  const fp = foldPanel(p, tF + .7);
+  hide(mw, tP - .45, .4); hide(fp, tP - .45, .4); hide(bB, tP - .45, .4);
+  // C: a stretch of that membrane: the chain's four complexes
+  const ec = etcChain(p, { x: 800, y: 480, o: 0 }); ec.build(0);
+  show(ec, tP - .1, .3);
+  mitoInset(p, tP + .4);
+  banner(p, 'most of the chain: proteins', 'grouped in multiprotein complexes I to IV', 800, 70, tP + .3, { size: 36, color: MC.complex });
+  const nums = [['I', 120, tP + 6.5], ['II', 74, tP + 7], ['III', 112, tP + 7.5], ['IV', 110, tP + 8.1]];
+  nums.forEach(([nm, r, t0]) => { const q = ec.pt(nm), g = G(p, { o: 0 }); mk('circle', { cx: q[0], cy: q[1] + (nm === 'II' ? 0 : 0), r, fill: 'none', stroke: COL.chalk, 'stroke-width': 4, 'stroke-dasharray': '10 8' }, g); show(g, t0, .2); });
+  clockRun(t => {
+    nadh.glow(mRamp(t, 3, 3.8)); fadh.glow(mRamp(t, 3.4, 4.2));
+    rides.forEach((e, i) => {
+      const [a, b] = i < 2 ? A1 : A2, u = t > tDon + .3 ? cFrac((t - tDon - .3) * .45 + (i % 2) / 2) : 0;
+      e.pose(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u - 18); mO(e, t > tDon + .3 ? Math.min(1, u * 6, (1 - u) * 6) : 0);
+    });
+    mc.labels(mRamp(t, tW + .6, tW + 1.2) * (1 - mRamp(t, tF, tF + .4)));
+    mc.focus(['inner', 'labels'], mRamp(t, tW + 1.6, tW + 2.4));
+    ec.build(mRamp(t, tP + .1, tP + 3.4)).labels(mRamp(t, tP + 3.2, tP + 3.8));
+  }, D);
+}],
+
+/* ---------- chain ---------- */
+['chain', 'Down the chain', (m, D) => {
+  const p = panel(0), tN = m('nadh'), tFa = m('fadh'), tQ = m('q'), tCy = m('cytc'), tR = m('redox');
+  const ec = etcChain(p, { x: 800, y: 480 }); ec.labels(1);
+  mitoInset(p, null);
+  const stN = ec.stations('NADH');
+  capLine(p, [
+    [tN + .2, tFa, 'NADH hands its two electrons to complex I', MC.nad],
+    [tFa, tQ, 'FADH_2 hands its electrons to complex II, lower down', MC.fad],
+    [tQ, tCy, 'Q (ubiquinone) carries them on to complex III', MC.q],
+    [tCy, tR, 'cytochrome c carries them to complex IV', MC.cytc],
+    [tR, null, 'each carrier: reduced, then oxidized', COL.chalk],
+  ]);
+  // the NAD⁺ left behind
+  const nadP = [800 - 637, 480 + 240];
+  tag(p, 'NAD^+: empty, goes back to be loaded', [370, 862], [nadP[0] + 62, nadP[1]], tN + 8.6, { size: 22, fill: MC.nad, line: MC.nad });
+  // FADH₂'s own pair, waiting at II until Q takes both pairs
+  const fpair = electron(p, { n: 2, r: 9, o: 0 });
+  const pII = ec.pt('II'), pQ = [800 - 150 - 26, 480 + 4];
+  // Q and the cytochromes
+  const qHome = ec.pt('Q');
+  tag(p, 'Q (ubiquinone)', [560, 612], [qHome[0], qHome[1] + 20], tQ + .8, { size: 26, fill: MC.q, line: MC.q, sub: 'small, mobile, not a protein complex' });
+  const cIr = ec.pt('IV');
+  tag(p, 'cytochromes: proteins with an iron atom', [1150, 292], [cIr[0] - 14, cIr[1] - 20], tCy + 5, { size: 24, fill: MC.iron, line: MC.iron });
+  // the legend for the redox flashes
+  const lg = G(p, { o: 0 }); show(lg, tR + .4, .4);
+  mk('circle', { cx: 470, cy: 158, r: 16, fill: 'none', stroke: MC.redu, 'stroke-width': 6 }, lg);
+  wChem(lg, 'reduced: has just taken e^−', { x: 498, y: 167, size: 24, weight: 700, fill: MC.redu, anchor: 'start', o: 1 });
+  mk('circle', { cx: 880, cy: 158, r: 16, fill: 'none', stroke: MC.oxid, 'stroke-width': 6 }, lg);
+  wChem(lg, 'oxidized: has passed them on', { x: 908, y: 167, size: 24, weight: 700, fill: MC.oxid, anchor: 'start', o: 1 });
+  clockRun(t => {
+    ec.dock('NADH', mRamp(t, tN + .3, tN + 9.5)).dock('FADH2', mRamp(t, tFa + .3, tFa + 6.8));
+    // the NADH pair: into I, on to Q, III, cyt c, IV; then the whole run again with the redox flashes
+    let u = -1;
+    if (t >= tR + .3) u = mLerp(0, stN.IV, io(mRamp(t, tR + .5, tR + 10.5)));
+    else if (t >= tN + 5.9) {
+      u = stN.I;
+      u = mLerp(u, stN.Q, io(mRamp(t, tQ + .4, tQ + 2.6)));
+      u = mLerp(u, stN.III, io(mRamp(t, tQ + 7.4, tQ + 10.6)));
+      u = mLerp(u, stN.c0, io(mRamp(t, tCy + .4, tCy + 1.4)));
+      u = mLerp(u, stN.c1, io(mRamp(t, tCy + 1.4, tCy + 3.4)));
+      u = mLerp(u, stN.IV, io(mRamp(t, tCy + 3.4, tCy + 4.4)));
+    }
+    ec.electron(u, 'NADH', true).iron(mRamp(t, tCy + 4.7, tCy + 5.4));
+    // FADH₂'s pair: in II from the hand-in until Q collects it
+    const k = io(mRamp(t, tQ + .4, tQ + 2.6)), q = [pII[0] + (pQ[0] - pII[0]) * k, pII[1] + (pQ[1] - pII[1]) * k];
+    fpair.pose(q[0], q[1]);
+    mO(fpair, t < tFa + 4.4 ? 0 : t < tFa + 4.6 ? mRamp(t, tFa + 4.4, tFa + 4.6) : 1 - mRamp(t, tQ + 2.2, tQ + 2.7));
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const ec = etcChain(p, { x: 330, y: 450, s: .5 }); ec.dock('NADH', .3);
+  wChem(p, 'NADH arrives: where does it unload?', { x: 330, y: 230, size: 26, weight: 700, fill: MC.nad, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-entry', prompt: ['Where does NADH hand over its electrons?'],
+  build: choice([['complex IV'], ['complex I, the first complex of the chain'], ['ATP synthase'], ['in the matrix, outside the chain']], 1,
+    'Right. NADH meets complex I first; its two electrons drop into the complex and the empty NAD⁺ goes back to be loaded again.',
+    ['Complex IV is the end of the chain, where oxygen receives the electrons. NADH unloads at the start.', null,
+      'ATP synthase is not part of the chain; it comes in lesson seven. NADH unloads into the chain’s first complex.',
+      'The chain sits in the inner membrane, and NADH hands its electrons to one of its complexes: the first one.']),
+}], done) }],
+
+/* ---------- stairs ---------- */
+['stairs', 'The free-energy staircase', (m, D) => {
+  const p = panel(0), tD = m('down'), tF = m('fadh2'), tE = m('end');
+  banner(p, 'free energy down the chain', 'slide 35 redrawn: height is free energy', 800, 64, .3, { size: 36 });
+  const es = energyStair(p, { x: 260, y: 800 }); es.build(0);
+  const P = nm => es.pt(nm);
+  const nP = P('NADH'), fP = P('FADH_2'), ivP = P('IV');
+  tag(p, 'NADH’s electrons: about 50', [560, 176], [nP[0] + 48, nP[1] - 20], 6.6, { size: 26, fill: MC.nad, line: MC.nad });
+  tag(p, 'FADH_2 enters at about 43', [1010, 300], [fP[0] + 52, fP[1]], tF + .6, { size: 26, fill: MC.fad, line: MC.fad, sub: 'less distance to fall: it yields less' });
+  tag(p, 'last pair: about 10', [1260, 600], [ivP[0] + 44, ivP[1] - 10], tE + .5, { size: 26, fill: MC.elec, line: MC.elec, sub: 'one last step to O_2' });
+  say(p, 'each carrier a little lower: a step down', 700, 700, tD + 1, { size: 26, weight: 700, fill: MC.oxid });
+  clockRun(t => {
+    es.build(mRamp(t, .4, 6));
+    es.focus(t < tF ? 'nadPath' : 'fadPath', t < tF ? mRamp(t, 1, 2) : 1);
+    let u = -1, src = 'NADH';
+    if (t >= tF + .4) { src = 'FADH2'; u = 5 / 6 * io(mRamp(t, tF + 6, tF + 11)); u = mLerp(u, 1, io(mRamp(t, tE + 2.4, tE + 4.4))); }
+    else if (t >= 6.4) u = 5 / 6 * io(mRamp(t, tD + .4, tD + 6.2));
+    es.pair(u, src);
+  }, D);
+}],
+
+/* ---------- oxygen ---------- */
+['oxygen', 'Oxygen, the final acceptor', (m, D) => {
+  const p = panel(0), tWa = m('water'), tPu = m('pull'), tBk = tPu + 6.7, tBr = tPu + 12.76;
+  const cam = camera(p, D, { x: 1120, y: 450, z: 1.9 }), W = cam.world;
+  const ec = etcChain(W, { x: 800, y: 400, s: .8 }); ec.labels(1);
+  const stN = ec.stations('NADH');
+  const h2o = ec.pt('o2');
+  const wt = G(W, { o: 0 }); show(wt, tWa + 7, .4); hide(wt, tPu, .3);
+  wLabel(wt, 'the water that respiration', { x: 1330, y: 572, size: 15, weight: 700, fill: '#cfeefa', o: 1 });
+  wLabel(wt, 'gives off', { x: 1330, y: 591, size: 15, weight: 700, fill: '#cfeefa', o: 1 });
+  path(wt, `M1280 562L${h2o[0] + 22} ${h2o[1] + 6}`, { stroke: COL.dim, 'stroke-width': 1.5 });
+  cam.to({ x: 800, y: 450, z: 1 }, tPu + .1, 1.5, soft);
+  capLine(p, [
+    [.2, tPu, 'the final electron acceptor: oxygen', MC.oxy],
+    [tPu + .2, null, 'oxygen pulls electrons down the whole chain', MC.elec],
+  ], { y: 70 });
+  // the pull: a gold arrow over the chain
+  const pl = G(W, { o: 0 }); show(pl, tPu + 2, .5);
+  mArrow(pl, [330, 190], [1150, 190], { color: MC.elec, w: 7, head: 22 });
+  wLabel(pl, 'O₂ is very electronegative', { x: 740, y: 168, size: 26, weight: 700, fill: MC.elec, o: 1 });
+  // without O₂: the chain backs up
+  const ins = G(p, { o: 0 }); show(ins, tBk, .5);
+  panelBox(ins, 230, 668, 1180, 214);
+  const bu = backedUp(ins, { x: 330, y: 770 });
+  wChem(ins, 'no O_2: the electrons have nowhere to go', { x: 1135, y: 742, size: 24, weight: 700, fill: MC.inhib, o: 1 });
+  wLabel(ins, 'the chain backs up and stops', { x: 1130, y: 782, size: 26, weight: 700, o: 1 });
+  say(ins, 'that is why we breathe', 1130, 836, tBr, { size: 28, weight: 800, fill: MC.elec });
+  clockRun(t => {
+    let u = -1;
+    const wk = mRamp(t, tWa + 1.4, tWa + 6.4);
+    if (t >= .6 && wk < .6) u = mLerp(stN.IV, 1, io(mRamp(t, tWa + .1, tWa + 1.6)));
+    ec.electron(u, 'NADH', true).water(wk).eqn(mRamp(t, tWa + 4.5, tWa + 5.3));
+    ec.flow(t, mRamp(t, tPu + 2, tPu + 3));
+    bu.set(mRamp(t, tBk + .6, tBk + 4.6));
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  energyStair(p, { x: 110, y: 700, s: .5 }).wiggles(1);
+  const b = atpBurst(p, { x: 330, y: 250, r: 42 }); redX(p, 330, 250, 46);
+  wLabel(p, 'ATP from the chain itself?', { x: 330, y: 170, size: 28, weight: 700, fill: MC.elec, o: 1 });
+  clockRun(t => b.shine(t), D);
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-atp', prompt: ['Does the electron transport chain itself make ATP?'],
+  build: choice([['yes, one ATP at each complex'], ['yes, but only at complex IV'], ['no: it releases energy in small steps; the ATP comes later, from a proton gradient'], ['only when O₂ is missing']], 2,
+    'Right. The chain makes no ATP itself. Its job is to release energy in small, manageable steps; lesson seven shows how that energy builds a proton gradient that drives ATP synthase.',
+    ['No ATP is made at the complexes. They pass electrons down and release energy step by step.',
+      'At complex IV oxygen receives the electrons and forms water; no ATP is made there either.', null,
+      'Without O₂ the electrons have nowhere to go: the chain backs up and stops.']),
+}], done) }],
+
+/* ---------- steps ---------- */
+['steps', 'One big drop, cut into steps', (m, D) => {
+  const p = panel(0), tBr = m('break'), tS = m('small'), tLa = m('later');
+  banner(p, 'the chain makes no ATP itself', null, 800, 64, .3, { size: 38 });
+  say(p, 'its job: break one big drop into small steps', 800, 104, tBr + .2, { size: 26, weight: 500, fill: COL.dim });
+  const es = energyStair(p, { x: 200, y: 820, w: 950 });
+  const ab = atpBurst(p, { x: 1450, y: 330, r: 42 }); const xx = redX(p, 1450, 330, 48, 0);
+  show(xx, 2.2, .3); pulse(xx, 2.3, 1.12);
+  // one big drop beside the staircase
+  const big = G(p, { o: 0 }); show(big, tBr + .4, .5);
+  mArrow(big, [1250, 262], [1250, 818], { color: MC.inhib, w: 12, head: 30 });
+  wLabel(big, 'one big drop: all at once', { x: 1250, y: 236, size: 26, weight: 700, fill: MC.inhib, o: 1 });
+  const bl = explosion(p, { x: 1250, y: 790, r: 80 });
+  const sm = G(p, { o: 0 }); show(sm, tS + .4, .5);
+  wLabel(sm, 'small steps: energy released', { x: 620, y: 680, size: 28, weight: 700, fill: MC.oxid, o: 1 });
+  wLabel(sm, 'in manageable amounts', { x: 620, y: 716, size: 28, weight: 700, fill: MC.oxid, o: 1 });
+  // later: lesson seven
+  const lt = G(p, { o: 0 }); show(lt, tLa + .4, .5);
+  mk('rect', { x: 1310, y: 452, width: 260, height: 124, rx: 18, fill: '#0b1626', stroke: COL.dim, 'stroke-width': 2.5, 'stroke-dasharray': '8 6' }, lt);
+  wLabel(lt, 'lesson seven:', { x: 1440, y: 490, size: 22, weight: 700, fill: COL.dim, o: 1 });
+  wChem(lt, 'an H^+ gradient', { x: 1440, y: 522, size: 22, weight: 700, fill: MC.proton, o: 1 });
+  wLabel(lt, 'drives ATP synthase', { x: 1440, y: 554, size: 22, weight: 700, fill: MC.synth, o: 1 });
+  path(lt, 'M1450 448L1450 404', { stroke: COL.dim, 'stroke-width': 3, 'stroke-dasharray': '7 6' });
+  path(lt, 'M1440 414L1450 398L1460 414Z', { fill: COL.dim });
+  clockRun(t => {
+    es.wiggles(mRamp(t, tS + .2, tS + 1.2));
+    es.pair(t >= tS ? cFrac((t - tS) / 6) : -1);
+    ab.shine(t);
+    bl.set(mRamp(t, tS + 2.6, tS + 4.6));
+  }, D);
+}],
+
+/* ---------- example ---------- */
+['example', 'Numbers on the staircase', (m, D) => {
+  const p = panel(0), tSu = m('sum'), tSp = m('split'), tFd = m('fad'), tNo = m('note');
+  banner(p, 'numbers on the staircase', null, 800, 62, .3, { size: 36 });
+  say(p, 'an example, read from the slide’s graph', 800, 102, .6, { size: 22, weight: 500, fill: COL.dim });
+  const es = energyStair(p, { x: 200, y: 820, w: 950 });
+  const Y = g => 820 - g / 50 * 560;
+  // sum: about 50 from NADH to O₂
+  const s1 = G(p, { o: 0 }); show(s1, tSu + .3, .4);
+  dashH(s1, 350, 1262, Y(50));
+  vBracket(s1, 1250, Y(50), Y(0) - 2, COL.chalk);
+  wLabel(s1, 'about 50 kcal/mol', { x: 1250, y: Y(50) - 26, size: 28, weight: 800, o: 1 });
+  // split: the drop cut into the six steps of the NADH path
+  const s2 = G(p, { o: 0 }); show(s2, tSp + .3, .4);
+  [45, 36, 30, 23, 12].forEach(v => path(s2, `M1238 ${Y(v)}H1262`, { stroke: MC.oxid, 'stroke-width': 5 }));
+  wLabel(s2, 'six steps,', { x: 1226, y: 548, size: 26, weight: 700, fill: MC.oxid, anchor: 'end', o: 1 });
+  wLabel(s2, 'each a fraction', { x: 1226, y: 582, size: 26, weight: 700, fill: MC.oxid, anchor: 'end', o: 1 });
+  // fad: FADH₂ starts near 43, about 7 less
+  const s3 = G(p, { o: 0 }); show(s3, tFd + .3, .4);
+  dashH(s3, 566, 1412, Y(43), MC.fad);
+  vBracket(s3, 1400, Y(43), Y(0) - 2, MC.fad);
+  wChem(s3, 'about 43', { x: 1418, y: 610, size: 28, weight: 800, fill: MC.fad, anchor: 'start', o: 1 });
+  wLabel(s3, 'from FADH₂', { x: 1418, y: 644, size: 22, weight: 600, fill: COL.dim, anchor: 'start', o: 1 });
+  const s4 = G(p, { o: 0 }); show(s4, tFd + 4, .4);
+  dashH(s4, 1262, 1412, Y(50));
+  path(s4, `M1400 ${Y(50) + 4}V${Y(43) - 4}`, { stroke: COL.chalk, 'stroke-width': 3.5, 'stroke-dasharray': '6 5' });
+  wLabel(s4, 'about 7 less', { x: 1418, y: (Y(50) + Y(43)) / 2 + 9, size: 26, weight: 800, anchor: 'start', o: 1 });
+  // note
+  const nt = G(p, { o: 0 }); show(nt, tNo + .3, .4);
+  wLabel(nt, 'read off the slide’s graph: approximate', { x: 600, y: 760, size: 24, weight: 600, fill: COL.dim, o: 1 });
+  const nt2 = say(p, 'textbooks: about 52 for NADH', 600, 796, tNo + 4.8, { size: 24, weight: 700, fill: MC.nad });
+  clockRun(t => {
+    es.pair(t >= tSu + .3 ? io(mRamp(t, tSu + .6, tSu + 7)) : -1);
+    es.wiggles(t >= tSp ? mRamp(t, tSp + .2, tSp + 1) : null);
+    es.focus(t >= tFd ? 'fadPath' : [], mRamp(t, tFd, tFd + .8) * (1 - mRamp(t, tNo, tNo + .8)));
+  }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tE = m('end');
+  wLabel(p, 'Summary: the electron transport chain', { x: 800, y: 70, size: 36, weight: 700, o: 1 });
+  const ROWS = [
+    ['s1', 'NADH and FADH_2 carry the electrons to the chain', 'in the inner membrane, folded into cristae', MC.nad],
+    ['s2', 'Complexes I–IV, Q and cytochromes pass them down', 'falling in free energy until O_2 takes them and forms H_2O', MC.complex],
+    ['s3', 'The chain makes no ATP itself', 'it cuts one big drop into small steps (ATP: lesson seven)', MC.oxid],
+  ];
+  ROWS.forEach(([mk_, a, b, col], i) => {
+    const y = 200 + i * 205, g = G(p, { o: 0 });
+    panelBox(g, 150, y - 85, 1300, 175);
+    wChem(g, a, { x: 450, y: y - 6, size: 34, weight: 700, fill: col, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 450, y: y + 40, size: 26, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i === 0) { nadShuttle(g, { x: 300, y: y - 32, s: .8, label: false }).set(1); nadShuttle(g, { x: 300, y: y + 38, s: .8, kind: 'FAD', label: false }).set(1); }
+    if (i === 1) chainIcon(g, { x: 300, y: y + 5, s: .85, label: false });
+    if (i === 2) {
+      path(g, `M210 ${y - 50}H245V${y - 20}H280V${y + 10}H315V${y + 40}H350V${y + 64}`, { stroke: MC.oxid, 'stroke-width': 6, 'stroke-linejoin': 'round' });
+      atpBurst(g, { x: 378, y: y - 40, r: 24, size: 12 }); redX(g, 378, y - 40, 26);
+    }
+    show(g, m(mk_) + .1, .5);
+  });
+  say(p, 'Now try the chapter practice.', 800, 840, tE, { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('mito', g => {
+    panelBox(g, 980, 90, 580, 720);
+    mitoCutaway(g, { x: 1270, y: 440, s: .4, porter: false, labels: false }).focus(['inner'], 1);
+    wLabel(g, 'which part holds the chain?', { x: 1270, y: 720, size: 26, weight: 700, o: 1 });
+  });
+  at('fad', g => {
+    panelBox(g, 980, 90, 580, 720);
+    energyStair(g, { x: 1040, y: 640, s: .5 }).focus(['NADH', 'FADH_2', 'I', 'II'], 1);
+    wLabel(g, 'two ways into the chain', { x: 1270, y: 200, size: 26, weight: 700, o: 1 });
+    wChem(g, 'NADH vs FADH_2', { x: 1270, y: 236, size: 22, weight: 600, fill: COL.dim, o: 1 });
+  });
+  at('o2', g => {
+    panelBox(g, 980, 90, 580, 720);
+    const ec = etcChain(g, { x: 1270, y: 420, s: .46 }); ec.electron(.985).focus(['IV', 'final'], 1);
+    wLabel(g, '?', { x: ec.pt('o2')[0] - 80, y: ec.pt('o2')[1] + 60, size: 54, weight: 800, fill: MC.elec, o: 1 });
+    wLabel(g, 'the end of the chain', { x: 1270, y: 660, size: 26, weight: 700, o: 1 });
+  });
+  at('states', g => {
+    panelBox(g, 980, 90, 580, 720);
+    const ec = etcChain(g, { x: 1270, y: 420, s: .46 }); ec.electron(ec.stations('NADH').I + .01);
+    wLabel(g, 'carriers take electrons,', { x: 1270, y: 640, size: 26, weight: 700, o: 1 });
+    wLabel(g, 'then pass them on', { x: 1270, y: 676, size: 26, weight: 700, o: 1 });
+  });
+  at('steps', g => {
+    panelBox(g, 980, 90, 580, 720);
+    energyStair(g, { x: 1050, y: 640, s: .42 }).wiggles(1);
+    mArrow(g, [1505, 404], [1505, 640], { color: MC.inhib, w: 8, head: 22 });
+    wLabel(g, 'one big drop', { x: 1440, y: 380, size: 24, weight: 700, fill: MC.inhib, o: 1 });
+    wLabel(g, 'or small steps?', { x: 1270, y: 720, size: 26, weight: 700, fill: MC.oxid, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('mito');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-where', prompt: ['Where in the mitochondrion is the electron transport chain?'],
+    build: withPic('mito', choice([['in the matrix'], ['in the inner membrane, folded into cristae'], ['in the outer membrane'], ['in the cytosol']], 1,
+      'Right. The chain sits in the inner membrane, whose folds, the cristae, give room for a great many chains.',
+      ['The matrix is where the citric acid cycle runs. The chain sits in a membrane: the folded inner one.', null,
+        'The outer membrane is the smooth outside wrapper. The chain sits in the folded inner membrane.',
+        'The cytosol is where glycolysis happens, outside the mitochondrion. The chain is inside, in the inner membrane.'])) },
+  { id: 'p-fad', prompt: ['FADH₂ gives the cell less energy than NADH. Why?'],
+    build: withPic('fad', choice([['it hands its electrons in lower down the chain, at complex II, so they fall a shorter way'], ['it carries fewer electrons than NADH'], ['it enters at complex I, just like NADH'], ['it is broken down before it reaches the chain']], 0,
+      'Right. FADH₂ enters at complex II, at about 43 kcal/mol instead of about 50, so its electrons have less distance left to fall.',
+      [null, 'Both carry two electrons. The difference is where they enter: FADH₂ joins lower down.',
+        'FADH₂ enters at complex II, below NADH’s entry: that is exactly why it yields less.',
+        'FADH₂ does reach the chain and donates its electrons; it just joins lower down, at complex II.'])) },
+  { id: 'p-o2', prompt: ['What is the final electron acceptor of the chain, and what does it form?'],
+    build: withPic('o2', choice([['CO₂, forming glucose'], ['NAD⁺, forming NADH'], ['O₂, forming H₂O'], ['cytochrome c, forming Q']], 2,
+      'Right. At the end of the chain oxygen takes the two electrons and two H⁺ and forms water.',
+      ['Making glucose from CO₂ is photosynthesis. At the end of this chain the acceptor is oxygen.',
+        'NAD⁺ picks up electrons earlier, from the fuel. The chain ends at oxygen.', null,
+        'Cytochrome c and Q are carriers in the middle of the chain. The last acceptor is oxygen.'])) },
+  { id: 'p-states', prompt: ['Is each one reduced or oxidized?'],
+    build: withPic('states', grid([
+      { parts: ['a carrier that has just accepted electrons'], ans: ['r'], why: 'Reduced: it has gained electrons.' },
+      { parts: ['a carrier that has just passed its electrons on'], ans: ['o'], why: 'Oxidized: it has lost them again.' },
+      { parts: ['NADH, loaded with electrons'], ans: ['r'], why: 'Reduced: NADH is the loaded form.' },
+      { parts: ['NAD⁺, empty'], ans: ['o'], why: 'Oxidized: NAD⁺ is the empty form.' },
+    ], [['r', 'reduced', null, 'R'], ['o', 'oxidized', null, 'O']], { multi: false, text: true })) },
+  { id: 'p-steps', prompt: ['Why is the large energy drop from food to O₂ broken into many small steps?'],
+    build: withPic('steps', choice([['so that the chain can make an ATP at every step'], ['so that electrons can move up in free energy'], ['so that energy is released in manageable amounts, not all at once'], ['so that no O₂ is needed']], 2,
+      'Right. Like water turning a row of wheels, each small step releases a manageable amount of energy instead of one blast.',
+      ['The chain makes no ATP itself; the ATP comes later, from the proton gradient (lesson seven).',
+        'Electrons fall in free energy along the chain, step by step down to oxygen.', null,
+        'O₂ is still needed: it is the final acceptor at the bottom of the steps.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

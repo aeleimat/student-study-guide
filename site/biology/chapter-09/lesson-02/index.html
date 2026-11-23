@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 9, Lesson 2: NAD⁺, NADH and the Stepwise Harvest — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid .row { row-gap: 4px; } .screen .grid.text .why { line-height: 1.25; }</style><!-- a wrong row's why line fits under it without scrolling -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="../../lib/resp.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 9 (Cellular Respiration), lesson 2: a hydrogen balloon bursts by a flame, the same drop taken down
+// a staircase, and the shared respiration map with its electron arrows lit; the overall equation (glucose oxidized,
+// O₂ reduced, electrons travel with hydrogen and fall in energy); a dehydrogenase hands 2 e⁻ + 1 H⁺ to NAD⁺; the
+// nicotinamide ring and NAD⁺ + 2[H] → NADH + H⁺; NADH as a shuttle bus of stored energy; one explosive drop vs the
+// chain's staircase down to O₂; the same drop divided two ways; a summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-09/lesson-02.md.
+const CHAPTER = { number: 902, label: '9, lesson 2', title: 'NAD⁺, NADH and the Stepwise Harvest', minutes: 7, language: 'en', lead: false, next: '../lesson-03/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const sayC = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+// a piecewise-linear key from [[t, k], …] (held before the first and after the last)
+const keyed = KT => t => {
+  if (t <= KT[0][0]) return KT[0][1];
+  for (let i = 1; i < KT.length; i++) if (t < KT[i][0]) return KT[i - 1][1] + (KT[i][1] - KT[i - 1][1]) * (t - KT[i - 1][0]) / (KT[i][0] - KT[i - 1][0]);
+  return KT[KT.length - 1][1];
+};
+// A label (centred text) with a leader to the thing it names; fades in at t0 (null: shown at once).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600 } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wChem(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + size * .3; }
+  else { sx = tx; sy = ty - size * 1.05; }
+  path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 });
+  mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g);
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+function banner(p, a, b, x, y, t0, { color = COL.chalk, size = 40 } = {}) {
+  const g = G(p, { o: 0 });
+  wChem(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wChem(g, b, { x, y: y + size * .95, size: size * .62, fill: COL.dim, weight: 500, o: 1 });
+  show(g, t0, .5);
+  return g;
+}
+const panelBox = (g, x, y, w, h, stroke = COL.faint) => mk('rect', { x, y, width: w, height: h, rx: 22, fill: '#0b1828', stroke, 'stroke-width': 3 }, g);
+const dashH = (p, x1, x2, y, color = COL.dim, w = 2.5) => path(p, `M${x1} ${y}H${x2}`, { stroke: color, 'stroke-width': w, 'stroke-dasharray': '9 8' });
+// a vertical free-energy axis from its foot (x, y) up h, with the rotated name beside it
+function gAxis(p, x, y, h, { size = 24, o = 1 } = {}) {
+  const g = G(p, { o });
+  mArrow(g, [x, y], [x, y - h], { color: COL.chalk, w: 4, head: 16 });
+  const yl = G(g, { x: x - 22, y: y - h / 2, r: -90 }); wLabel(yl, 'free energy, G', { size, fill: COL.chalk, weight: 600, o: 1 });
+  return g;
+}
+// a row of chemical terms centred on x; returns each term's centre x
+function eqRow(p, terms, { x = 800, y = 0, size = 36, gap = 18, fill = COL.chalk } = {}) {
+  const plain = s => s.replace(/[_^]\{([^}]*)\}/g, '$1').replace(/[_^](.)/g, '$1');
+  const ws = terms.map(t => uiW(plain(t), size) * 1.04);
+  let cx = x - (ws.reduce((a, b) => a + b, 0) + gap * (ws.length - 1)) / 2;
+  return terms.map((t, i) => { const c = cx + ws[i] / 2; cx += ws[i] + gap; wChem(p, t, { x: c, y, size, weight: 700, fill, o: 1 }); return c; });
+}
+
+/* ---------- backdrops: a hydrogen balloon by a candle, a staircase ---------- */
+function balloon(p, { x = 0, y = 0, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  path(g, 'M0 128C-14 180 16 230 -6 290C-18 330 8 350 0 372', { stroke: '#cfd8e2', 'stroke-width': 3 });
+  path(g, 'M-12 136L0 122L12 136Z', { fill: '#a9cbe0', stroke: '#7ea6c0', 'stroke-width': 2 });
+  mk('ellipse', { rx: 106, ry: 124, fill: '#cfe8f5', stroke: '#7ea6c0', 'stroke-width': 4 }, g);
+  mk('ellipse', { cx: -44, cy: -58, rx: 26, ry: 40, fill: '#fff', 'fill-opacity': .55, transform: 'rotate(-24 -44 -58)' }, g);
+  wChem(g, 'H_2', { y: 22, size: 64, fill: '#2c4f6d', weight: 800, o: 1 });
+  return g;
+}
+// a live candle flame (pure in t): three layered tongues that sway
+function candle(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -22, y: -100, width: 44, height: 100, rx: 6, fill: '#efe6d2', stroke: '#b9ab8c', 'stroke-width': 3 }, g);
+  path(g, 'M0 -100V-114', { stroke: '#3a2a1a', 'stroke-width': 3 });
+  const L = [[MC.oxid, 1], ['#f3c95c', .66], ['#fff1c2', .36]].map(([c, k]) => Object.assign(path(g, '', { fill: c }), { k }));
+  return Object.assign(g, {
+    set(t) {
+      t = Math.round(t * 30) / 30;
+      L.forEach((f, i) => {
+        const k = f.k, sw = 6 * Math.sin(t * 5 + i * 1.7) + 3 * Math.sin(t * 8.3 + i), hh = 78 * k * (1 + .08 * Math.sin(t * 6.1 + i * 2)), bw = 24 * k, b0 = -108;
+        mD(f, `M${cF(-bw)} ${b0}Q${cF(-bw * 1.05)} ${cF(b0 - hh * .55)} ${cF(sw * k)} ${cF(b0 - hh)}Q${cF(bw * 1.05)} ${cF(b0 - hh * .55)} ${cF(bw)} ${b0}Q0 ${cF(b0 + 8 * k)} ${cF(-bw)} ${b0}Z`);
+      });
+      return g;
+    },
+  }).set(0);
+}
+// five steps down from (x0, y0), each sw wide and sh tall; .tread(i) the top centre of tread i (5 = the floor)
+function staircase(p, { x0 = 930, y0 = 300, sw = 105, sh = 85, o = 1 } = {}) {
+  const g = G(p, { o });
+  let d = `M${x0} ${y0}`;
+  for (let i = 0; i < 5; i++) d += `H${x0 + sw * (i + 1)}V${y0 + sh * (i + 1)}`;
+  d += `H${x0 + sw * 6}`;
+  path(g, d + `V${y0 + sh * 5 + 30}H${x0}Z`, { fill: '#1c3150', stroke: 'none' });
+  path(g, d, { stroke: COL.chalk, 'stroke-width': 5, 'stroke-linejoin': 'round' });
+  return Object.assign(g, { tread: i => [x0 + sw * i + sw / 2, y0 + sh * i] });
+}
+
+// The NAD⁺ shuttle loop, drawn here rather than with the kit's nadLoop so the buses keep clear of the stations:
+// a rounded track; the fuel above its top-left corner, the chain above its top-right; buses load at A on the top leg,
+// ride right to B under the chain, unload, and return clockwise round the bottom. .set(u) as nadLoop's (u wraps;
+// loads 0–.12, rides .12–.42, unloads .42–.55, returns .55–1); n buses share the loop.
+function busLoop(p, { x0 = 330, y0 = 330, x1 = 1270, y1 = 640, r = 110, ax = 470, bx = 1130, n = 4 } = {}) {
+  const g = G(p);
+  mk('rect', { x: x0, y: y0, width: x1 - x0, height: y1 - y0, rx: r, fill: 'none', stroke: MC.nad, 'stroke-width': 5, 'stroke-dasharray': '14 10', 'stroke-opacity': .7 }, g);
+  const st = G(g, { x: ax, y: 205 });
+  mk('rect', { x: -75, y: -55, width: 150, height: 110, rx: 16, fill: '#3b4a22', stroke: MC.enzymeEdge, 'stroke-width': 3 }, st);
+  glucoseRing(st, { R: 26, r: 7 });
+  wLabel(g, 'fuel', { x: ax - 95, y: 214, size: 26, weight: 700, fill: MC.glucose, anchor: 'end', o: 1 });
+  const ch = chainIcon(g, { x: bx, y: 200, s: .9, label: false });
+  wLabel(g, 'electron transport chain', { x: bx + 120, y: 214, size: 22, weight: 700, fill: MC.complex, anchor: 'start', o: 1 });
+  // the track as a polyline, clockwise from A, sampled once; at(d) walks it by length
+  const P = [], seg = (a, b, k) => { for (let i = 0; i < k; i++) P.push([a[0] + (b[0] - a[0]) * i / k, a[1] + (b[1] - a[1]) * i / k]); };
+  const arc = (cx, cy, a0) => { for (let i = 0; i < 16; i++) { const a = (a0 + 90 * i / 16) * Math.PI / 180; P.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); } };
+  seg([ax, y0], [x1 - r, y0], 24); arc(x1 - r, y0 + r, -90); seg([x1, y0 + r], [x1, y1 - r], 4); arc(x1 - r, y1 - r, 0);
+  seg([x1 - r, y1], [x0 + r, y1], 24); arc(x0 + r, y1 - r, 90); seg([x0, y1 - r], [x0, y0 + r], 4); arc(x0 + r, y0 + r, 180); seg([x0 + r, y0], [ax, y0], 4); P.push([ax, y0]);
+  const C = [0]; for (let i = 1; i < P.length; i++) C.push(C[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+  const len = C[C.length - 1], dB = bx - ax;
+  const at = d => { let i = 1; while (i < C.length - 1 && C[i] < d) i++; const f = (d - C[i - 1]) / (C[i] - C[i - 1] || 1); return [mLerp(P[i - 1][0], P[i][0], f), mLerp(P[i - 1][1], P[i][1], f)]; };
+  const buses = Array.from({ length: n }, () => nadShuttle(g, { size: 22 }));
+  const es = Array.from({ length: n }, () => electron(g, { n: 2, r: 7, o: 0 }));
+  const [ix, iy] = ch.pt('in');
+  return Object.assign(g, {
+    buses,
+    // many: the opacity of buses 2…n (and of their electrons)
+    set(u, many = 1) {
+      u = Math.round(u * 1e4) / 1e4;
+      buses.forEach((b, i) => {
+        const v = cFrac(u + i / n);
+        const d = v < .12 ? 0 : v < .42 ? dB * mRamp(v, .12, .42) : v < .55 ? dB : mLerp(dB, len, mRamp(v, .55, 1));
+        const [px, py] = at(d);
+        b.pose(cF(px), cF(py)); b.set(v < .12 ? mRamp(v, 0, .1) : v < .42 ? 1 : 1 - mRamp(v, .44, .55));
+        const ek = mRamp(v, .44, .54), [sx, sy] = b.seat(0);
+        es[i].pose(cF(mLerp(sx, ix, ek)), cF(mLerp(sy, iy, ek))); mO(es[i], v > .44 && v < .54 ? (i ? many : 1) : 0); if (i) mO(b, many);
+      });
+      return g;
+    },
+  }).set(0);
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'One bang or many steps', (m, D) => {
+  const p = panel(0), tB = m('balloon'), tS = m('stairs'), tM = m('map'), tL = m('lit');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W);
+  mk('rect', { x: -400, y: 700, width: 2400, height: 600, fill: '#3b2e25' }, back);
+  mk('rect', { x: -400, y: 692, width: 2400, height: 12, fill: '#5d4636' }, back);
+  const bal = G(back, { x: 430, y: 330 }); balloon(bal);
+  const cd = candle(back, { x: 650, y: 700 });
+  const bl = G(back, { o: 0 }); show(bl, .8, .5); hide(bl, tB + .2, .3);
+  wChem(bl, 'a balloon of H_2 near a flame', { x: 430, y: 760, size: 28, weight: 700, o: 1 });
+  // balloon: it bursts; the energy leaves in one bang, as heat and light
+  hide(bal, tB + .35, .06);
+  const boom = explosion(back, { x: 430, y: 330, r: 160 });
+  const heat = G(back, { o: 0 }); show(heat, tB + 1.1, .4);
+  [[-1, -.3], [1, -.4], [-.9, .6], [.2, -1]].forEach(([dx, dy]) => { const L = Math.hypot(dx, dy); heatArrow(heat, [430 + dx / L * 150, 330 + dy / L * 150], [430 + dx / L * 270, 330 + dy / L * 270], { waves: 2, amp: 8, w: 6 }).in(0, .01); });
+  const bang = G(back, { o: 0 }); show(bang, tB + 1.4, .4);
+  wLabel(bang, 'one bang: heat and light', { x: 430, y: 760, size: 30, weight: 700, fill: MC.boom, o: 1 });
+  // title card
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 9 · LESSON 2', { x: 1230, y: 240, size: 26, fill: COL.dim, o: 1 });
+  [['NAD^+, NADH and', MC.nad], ['the stepwise', COL.chalk], ['harvest', COL.chalk]].forEach(([s, c], i) => wChem(ttl, s, { x: 1230, y: 325 + i * 66, size: 52, weight: 700, fill: c, o: 1 }));
+  wLabel(ttl, 'Cellular respiration', { x: 1230, y: 545, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tS - .7, .5);
+  // stairs: the same drop, one step at a time; a spark at each landing
+  const stc = staircase(back, { o: 0 }); show(stc, tS, .5);
+  const sl = G(back, { o: 0 }); show(sl, tS + .4, .4);
+  wLabel(sl, 'the same drop, one step at a time', { x: 1195, y: 220, size: 30, weight: 700, o: 1 });
+  wLabel(sl, 'each step can do work', { x: 1195, y: 760, size: 26, weight: 600, fill: MC.elec, o: 1 });
+  const ball = electron(back, { n: 2, r: 13, o: 0 }); show(ball, tS + .3, .3);
+  const H0 = tS + 1.1, HOP = .9;
+  const sparks = [1, 2, 3, 4, 5].map(i => { const [tx, ty] = stc.tread(i); return atpBurst(back, { x: tx - 64, y: ty + 30, r: 17, label: '' }); });
+  hide(back, tM - .45, .4);
+  // map: the shared respiration map; lit: the electron arrows, the rest dimmed; then the camera pushes in
+  const map = respMap(W, { x: 800, y: 470, s: .9, o: 0 }); show(map, tM - .1, .6);
+  const lb = G(p, { o: 0 }); show(lb, tL + 1.6, .5);
+  wLabel(lb, 'today: the electron carriers, and why electrons take the stairs', { x: 800, y: 860, size: 28, weight: 700, fill: MC.elec, o: 1 });
+  clockRun(t => {
+    cd.set(t);
+    mPose(bal, 430, 330 + 5 * Math.sin(Math.min(t, tB + .4) * 1.4), st(bal).o);
+    boom.set(mRamp(t, tB + .3, tB + 2.8));
+    const u = mClamp((t - H0) / HOP / 5) * 5, i = Math.min(4, Math.floor(u)), f = u >= 5 ? 1 : u - i;
+    const a = stc.tread(i), b = stc.tread(i + 1), hf = io(mRamp(f, .35, 1));
+    const bx = mLerp(a[0], b[0], hf), by = mLerp(a[1], b[1], hf) - 15 - 40 * Math.sin(Math.PI * hf);
+    ball.pose(bx, by);
+    sparks.forEach((sp, j) => sp.set(mRamp(t, H0 + HOP * j + HOP * .95, H0 + HOP * j + HOP * 1.35)));
+    map.focus('electrons', io(mRamp(t, tL + .2, tL + 1.2)));
+    map.flow(t, mRamp(t, tL + .4, tL + 1.4));
+    map.shine(t);
+  }, D);
+  cam.to({ x: 800, y: 400, z: 1.1 },tL + 2.2, Math.max(2, D - tL - 3));
+}],
+
+/* ---------- redox ---------- */
+['redox', 'Glucose oxidized, oxygen reduced', (m, D) => {
+  const p = panel(0), tO = m('ox'), tR = m('red'), tMv = m('move'), tDr = m('drop');
+  const eq = redoxEq(p, { x: 800, y: 190, size: 46 });
+  // the fuel high, oxygen low, a path between them
+  const GX = 420, GY = 500, OX = 1150, OY = 790;
+  const gl = G(p, { o: 0 }); show(gl, tO - .4, .5);
+  glucoseRing(gl, { x: GX, y: GY, R: 46 });
+  wLabel(gl, 'glucose (fuel)', { x: GX, y: GY + 96, size: 26, weight: 700, fill: MC.glucose, o: 1 });
+  const ox = G(p, { o: 0 }); show(ox, tR - .4, .5);
+  o2Molecule(ox, { x: OX, y: OY, r: 22 });
+  wChem(ox, 'O_2', { x: OX, y: OY + 62, size: 28, weight: 700, fill: MC.oxy, o: 1 });
+  const ra = redoxArrow(p, 'ox', { x: GX, y: GY - 62, dir: -90, len: 52, label: 'oxidized', sub: 'loses e^−', size: 26 });
+  const rb = redoxArrow(p, 'red', { x: OX + 40, y: OY, dir: 0, len: 62, label: 'reduced', sub: 'gains e^−', size: 26 });
+  const way = G(p, { o: 0 }); show(way, tMv + .1, .4);
+  path(way, `M${GX + 62} ${GY + 20}L${OX - 46} ${OY - 14}`, { stroke: MC.elec, 'stroke-width': 4, 'stroke-dasharray': '12 10', 'stroke-opacity': .7 });
+  wLabel(way, 'electrons travel with hydrogen', { x: 880, y: 585, size: 28, weight: 700, fill: MC.elec, anchor: 'start', o: 1 });
+  const hs = [0, 1, 2].map(() => hAtom(p, { r: 16, o: 0 }));
+  // drop: an energy axis; high and low levels
+  const ax = gAxis(p, 220, 860, 430, { o: 0 }); show(ax, tDr, .4);
+  const lv = G(p, { o: 0 }); show(lv, tDr + .3, .4);
+  dashH(lv, 232, GX - 64, GY); dashH(lv, 232, OX - 40, OY);
+  wLabel(lv, 'falls in energy', { x: 690, y: 748, size: 30, weight: 700, fill: MC.oxid, anchor: 'end', o: 1 });
+  clockRun(t => {
+    eq.reveal(mRamp(t, .2, 2.6)); eq.ox(mRamp(t, tO + .2, tO + 1.8)); eq.red(mRamp(t, tR + .2, tR + 1.8));
+    ra.draw(mRamp(t, tO + 1, tO + 2.6)); rb.draw(mRamp(t, tR + 1, tR + 2.6));
+    hs.forEach((h, i) => {
+      const u = cFrac((t - tMv) / 4.5 + i / 3), on = mRamp(t, tMv + .3, tMv + .9);
+      h.pose(mLerp(GX + 70, OX - 50, u), mLerp(GY + 22, OY - 16, u)); mO(h, on * mBump(u, 0, 1) ** .4);
+    });
+  }, D);
+}],
+
+/* ---------- dehydro ---------- */
+['dehydro', 'A dehydrogenase loads NAD⁺', (m, D) => {
+  const p = panel(0), tTk = m('take'), tN = m('nad'), tF = m('free'), tF2 = m('fuel2');
+  banner(p, 'a dehydrogenase takes two H from the fuel', 'glucose is taken apart in a series of steps', 800, 70, .2, { size: 38 });
+  const W = G(p, { x: 760, y: 545, s: 1.3 });
+  const dh = dehydrogenase(W, { x: 0, y: 0 });
+  const two = G(W, { o: 0 }); show(two, tTk + 4, .4); hide(two, tN + .1, .3);
+  wChem(two, '2 H = 2 H^+ + 2 e^−', { x: -230, y: -190, size: 24, weight: 700, fill: MC.elec, anchor: 'end', o: 1 });
+  // fuel2: oxidized, reduced, the oxidizing agent
+  const ra = redoxArrow(W, 'ox', { x: -330, y: 0, dir: 180, len: 56, label: 'oxidized', size: 24 });
+  const rb = redoxArrow(W, 'red', { x: 312, y: 60, dir: 0, len: 56, label: 'reduced', size: 24 });
+  const ag = agentTag(W, 'oxidizing', { x: 240, y: 178, size: 20, o: 0 }); show(ag, tF2 + 7, .4);
+  say(p, 'the slide’s fuel is generic, not glucose: glucose meets several such steps (lessons 4 and 5)', 800, 875, tF2 + 10.8, { size: 22, fill: COL.dim, weight: 500 });
+  const K = keyed([[tTk, 0], [tTk + 1.2, .15], [tTk + 3.4, .35], [tTk + 4.6, .45], [tN + .2, .45], [tN + 4.5, .74], [tF + .2, .74], [tF + 2.6, 1]]);
+  clockRun(t => {
+    dh.set(K(t));
+    ra.draw(mRamp(t, tF2 + .2, tF2 + 1.8)); rb.draw(mRamp(t, tF2 + 3.4, tF2 + 5));
+  }, D);
+}],
+
+/* ---------- pair ---------- */
+['pair', 'NAD⁺ and NADH', (m, D) => {
+  const p = panel(0), tP = m('plus'), tG = m('gain'), tN = m('nadh'), tE = m('eqn'), tBk = m('back');
+  // ring: a coenzyme that carries electrons; its working part is the nicotinamide ring
+  const sh = nadShuttle(p, { x: 800, y: 400, s: 2.2, o: 0 }); show(sh, .2, .5);
+  const c1 = G(p, { o: 0 }); show(c1, .9, .4); hide(c1, 5.2, .3);
+  wLabel(c1, 'a coenzyme: a helper that carries electrons', { x: 800, y: 620, size: 30, weight: 700, o: 1 });
+  tw(sh, { x: 160, y: 130, s: .8 }, 5.3, 1, io);
+  const nr = nicotinamide(p, { x: 560, y: 455, s: 1.25, o: 0 }); show(nr, 5.8, .5);
+  // plus: the positive charge on the ring nitrogen
+  const [px, py] = nr.pt('plus');
+  pulse(nr.plus, tP + .3, 1.5);
+  const pc = tag(p, 'positive charge', [790, py + 70], [px + 14, py + 8], tP + .4, { size: 26, weight: 700, fill: MC.redu, line: MC.redu });
+  hide(pc, tG + 3.1, .4);   // the + goes as the ring is reduced
+  // gain: 2 e⁻ + 2 H⁺ come in, one H⁺ goes on to the solution
+  const [cx, cy] = nr.pt('C');
+  const inc = G(p, { o: 0 }); show(inc, tG, .4); hide(inc, tN - .4, .4);
+  const IN = [[120, 470], [200, 300], [420, cy - 120], [cx - 24, cy - 30]];
+  path(inc, `M${IN[0]}C${IN[1]} ${IN[2]} ${IN[3]}`, { stroke: MC.elec, 'stroke-width': 4, 'stroke-dasharray': '10 8' });
+  wChem(inc, '2 e^− + 2 H^+', { x: 150, y: 520, size: 28, weight: 700, fill: MC.elec, o: 1 });
+  const OUT = [[cx + 30, cy - 40], [700, 190], [880, 170], [1000, 230]];
+  const outG = G(p, { o: 0 }); show(outG, tG + 3, .4); hide(outG, tE - .6, .4);
+  path(outG, `M${OUT[0]}C${OUT[1]} ${OUT[2]} ${OUT[3]}`, { stroke: MC.proton, 'stroke-width': 3, 'stroke-dasharray': '8 8' });
+  wChem(outG, 'H^+ to the solution', { x: 1010, y: 280, size: 24, weight: 700, fill: MC.proton, o: 1 });
+  const bez = (P, u) => { const v = 1 - u; return [0, 1].map(j => v * v * v * P[0][j] + 3 * v * v * u * P[1][j] + 3 * v * u * u * P[2][j] + u * u * u * P[3][j]); };
+  const pairE = electron(p, { n: 2, r: 9, o: 0 }), h1 = proton(p, { r: 13, o: 0 }), h2 = proton(p, { r: 13, o: 0 });
+  // nadh: reduced
+  const rd = redoxArrow(p, 'red', { x: 455, y: 455, dir: 180, len: 64, label: 'reduced', size: 26 });
+  // eqn: NAD⁺ + 2[H] → NADH + H⁺, and what 2[H] means
+  const eqG = G(p, { o: 0 }); show(eqG, tE + .2, .5);
+  const xs = eqRow(eqG, ['NAD^+', '+', '2[H]', '→', 'NADH', '+', 'H^+'], { x: 1250, y: 340, size: 38 });
+  const br = G(p, { o: 0 }); show(br, tE + 8.4, .5);
+  path(br, `M${xs[2] - 34} 362V376H${xs[2] + 34}V362`, { stroke: MC.elec, 'stroke-width': 3 });
+  wChem(br, '2[H] = 2 H^+ + 2 e^−', { x: xs[2], y: 416, size: 26, weight: 700, fill: MC.elec, o: 1 });
+  wLabel(br, 'two hydrogen atoms', { x: xs[2], y: 450, size: 22, weight: 500, fill: COL.dim, o: 1 });
+  // back: the change runs both ways
+  const bk = G(p, { o: 0 }); show(bk, tBk + .2, .5);
+  mArrow(bk, [1060, 560], [1440, 560], { color: MC.redu, w: 6, head: 18 });
+  mArrow(bk, [1440, 640], [1060, 640], { color: MC.oxid, w: 6, head: 18 });
+  wChem(bk, 'reduction of NAD^+', { x: 1250, y: 540, size: 26, weight: 700, fill: MC.redu, o: 1 });
+  wChem(bk, 'oxidation of NADH', { x: 1250, y: 686, size: 26, weight: 700, fill: MC.oxid, o: 1 });
+  const lv = [cx + 130, cy + 230];
+  clockRun(t => {
+    const gin = mRamp(t, tG + .5, tG + 3.4), gout = mRamp(t, tG + 3.4, tG + 6.2), back_ = mRamp(t, tBk + 2.4, tBk + 4.6);
+    const red = io(mRamp(t, tG + 3, tG + 5.4)) * (1 - io(back_));
+    nr.set(red); sh.set(red);
+    const pe = bez(IN, io(gin)); pairE.pose(pe[0], pe[1]); mO(pairE, t > tG + .5 && t < tG + 3.5 ? 1 : 0);
+    const q1 = bez(IN, io(mRamp(t, tG + .7, tG + 3.4))); h1.pose(q1[0] - 14, q1[1] + 26); mO(h1, t > tG + .7 && t < tG + 3.5 ? 1 : 0);
+    const q2 = gout > 0 ? bez(OUT, io(gout)) : bez(IN, io(mRamp(t, tG + .9, tG + 3.4)));
+    h2.pose(q2[0] + 16, q2[1] + (gout > 0 ? 0 : 30)); mO(h2, t > tG + .9 ? 1 - mRamp(t, tG + 6.2, tG + 6.8) : 0);
+    // back: the pair leaves the ring again
+    if (back_ > 0 && back_ < 1) { pairE.pose(mLerp(cx, lv[0], io(back_)), mLerp(cy + 40, lv[1], io(back_))); mO(pairE, mBump(back_, 0, 1.05)); }
+    rd.draw(mRamp(t, tN + .2, tN + 1.8) * (1 - mRamp(t, tBk + 2.4, tBk + 3)));
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  dehydrogenase(p, { x: 360, y: 480, s: .9 }).set(.4);
+  wLabel(p, 'what does the enzyme take?', { x: 330, y: 170, size: 30, weight: 700, fill: MC.enzyme, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-dehydro', prompt: ['What does a dehydrogenase do to its fuel?'],
+  build: choice([['it adds oxygen to the fuel'], ['it removes two hydrogens (two protons and two electrons) and passes the electrons to NAD⁺'], ['it makes ATP directly'], ['it joins two molecules together']], 1,
+    'Right. "De-hydrogen-ase": it takes two H off the fuel, hands the two electrons and one proton to NAD⁺, and releases the other proton.',
+    ['Oxygen only comes in at the very end of the chain. A dehydrogenase takes something off: look at its name.', null,
+      'No ATP here: the electrons are first carried on, as NADH, to the electron transport chain.',
+      'Nothing is joined: the enzyme takes hydrogen off the fuel, "de-hydrogen".']),
+}], done) }],
+
+/* ---------- store ---------- */
+['store', 'NADH, a shuttle of stored energy', (m, D) => {
+  const p = panel(0), tF = m('full'), tR = m('ride'), tRt = m('return'), tFw = m('few');
+  banner(p, 'NAD⁺ and NADH: an electron shuttle', null, 800, 70, .2, { size: 38, color: MC.nad });
+  const lp = busLoop(p);
+  // full: stored energy, tapped to make ATP (inside the loop, under the loaded bus)
+  const fu = G(p, { o: 0 }); show(fu, tF + .3, .4); hide(fu, tR, .4);
+  wLabel(fu, 'stored energy', { x: 470, y: 452, size: 30, weight: 700, fill: MC.elec, o: 1 });
+  path(fu, 'M584 444L642 444', { stroke: MC.elec, 'stroke-width': 3, 'stroke-dasharray': '8 7' });
+  atpBurst(fu, { x: 680, y: 444, r: 30 });
+  wLabel(fu, 'tapped to make ATP', { x: 724, y: 453, size: 26, weight: 600, fill: COL.chalk, anchor: 'start', o: 1 });
+  const un = G(p, { o: 0 }); show(un, tR + 3.6, .4); hide(un, tFw, .4);
+  wLabel(un, 'unloads its electrons', { x: 1000, y: 230, size: 28, weight: 700, fill: MC.elec, anchor: 'end', o: 1 });   // beside the chain, clear of the buses
+  const rt = G(p, { o: 0 }); show(rt, tRt + .6, .4); hide(rt, tFw, .4);
+  wChem(rt, 'back as NAD^+, for more', { x: 800, y: 560, size: 28, weight: 700, fill: MC.nad, o: 1 });
+  const fw = G(p, { o: 0 }); show(fw, tFw + 1, .5);
+  wLabel(fw, 'a small supply, reused over and over', { x: 800, y: 760, size: 30, weight: 700, fill: MC.nad, o: 1 });
+  wLabel(fw, 'no buses back: the fuel can’t be oxidized', { x: 800, y: 804, size: 24, weight: 500, fill: COL.dim, o: 1 });
+  const U = keyed([[.2, 0], [5.5, .12], [tR + .2, .12], [tR + 4.6, .55], [tRt + .2, .55], [tRt + 3.4, 1]]);
+  clockRun(t => {
+    const u = t < tFw ? U(t) : 1 + (t - tFw) / 7;
+    lp.set(u, mRamp(t, tFw + .3, tFw + 1.1));
+    lp.buses[0].glow(mRamp(t, tF + .2, tF + .8) * (1 - mRamp(t, tR + 3.4, tR + 4)));
+  }, D);
+}],
+
+/* ---------- steps ---------- */
+['steps', 'One explosion or a staircase', (m, D) => {
+  const p = panel(0), tBm = m('boom'), tMn = m('many'), tCh = m('chain'), tSt = m('stair'), tA = m('atp'), tO2 = m('o2');
+  wLabel(p, '(a) hydrogen burning', { x: 410, y: 120, size: 30, weight: 700, fill: MC.boom, o: 1 });
+  const hb = G(p, { o: 0 }); show(hb, tMn, .4);
+  wLabel(hb, '(b) cellular respiration', { x: 1170, y: 120, size: 30, weight: 700, fill: MC.elec, o: 1 });
+  const A = redoxDrop(p, { kind: 'explode', x: 150, y: 830, w: 520, h: 600 });
+  const Bp = redoxDrop(p, { kind: 'stairs', x: 860, y: 830, w: 620, h: 600, o: 0 }); show(Bp, tMn, .4);
+  const fa = say(p, 'O₂: the final acceptor', 1170, 878, tO2 + 5.4, { size: 26, weight: 700, fill: MC.oxy });
+  say(p, '3 ATP bursts, 4 complexes: drawings only (the count: lesson 7)', 1170, 168, 47.7, { size: 22, weight: 500, fill: COL.dim });
+  const KA = keyed([[.3, 0], [1.4, .16], [tBm, .16], [tBm + 3, 1]]);
+  const KB = keyed([[tMn + .1, 0], [tMn + 3.2, .25], [tCh + .1, .25], [tCh + 2, .4], [tSt + .2, .4], [tSt + 5.5, .5], [tA + .1, .5], [tA + 6, .82], [tO2 + .2, .82], [tO2 + 4, 1]]);
+  // the kit's falling 'H₂ + ½ O₂' chip starts on the top chip at k .2: the top chip is fully out by then and comes
+  // back once the falling one has left it (no two copies of the formula on one spot)
+  clockRun(t => {
+    const ka = KA(t);
+    A.set(ka); mO(A.parts.top, mClamp(ka / .12) * (1 - mRamp(ka, .17, .2) + mRamp(ka, .3, .36)));
+    Bp.set(KB(t));
+  }, D);
+  void fa;
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const rd = redoxDrop(p, { kind: 'stairs', x: 70, y: 780, w: 500, h: 520, size: 22 }).set(.82);
+  // the kit's caption sits high above the chain: hide it and put one beside the steps
+  [...rd.querySelectorAll('text')].filter(e => e.textContent === 'controlled release of energy').forEach(e => put(e, { o: 0 }));
+  wLabel(p, 'controlled release', { x: 455, y: 522, size: 20, weight: 700, fill: MC.oxid, anchor: 'start', o: 1 });
+  wLabel(p, 'of energy', { x: 455, y: 548, size: 20, weight: 700, fill: MC.oxid, anchor: 'start', o: 1 });
+  wLabel(p, 'what waits at the bottom?', { x: 330, y: 170, size: 30, weight: 700, fill: MC.elec, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-end', prompt: ['What happens to the electrons at the end of the chain?'],
+  build: choice([['they go back to glucose'], ['they are used up as heat'], ['oxygen takes them, with protons, and water forms'], ['carbon dioxide takes them']], 2,
+    'Right. O₂ is the final acceptor: it takes the two electrons and two protons and becomes water. Its pull keeps electrons coming down.',
+    ['Electrons only move down the chain, never back up to the fuel.',
+      'Energy is released along the way, but the electrons themselves are passed on, to oxygen.', null,
+      'CO₂ is a product made earlier, from the fuel’s carbon; it is not an electron acceptor.']),
+}], done) }],
+
+/* ---------- example ---------- */
+['example', 'The same drop, divided two ways', (m, D) => {
+  const p = panel(0), tB = m('b'), tC = m('c'), tD = m('d');
+  banner(p, 'two ways to release the same energy', null, 800, 70, .2, { size: 38 });
+  const Y0 = 230, Y1 = 760;
+  gAxis(p, 200, 820, 640);
+  dashH(p, 214, 1500, Y0); dashH(p, 214, 1500, Y1);
+  wChem(p, 'start: 2 H + ½ O_2', { x: 230, y: Y0 - 14, size: 24, weight: 700, anchor: 'start', o: 1 });
+  wChem(p, 'finish: H_2O', { x: 230, y: Y1 + 36, size: 24, weight: 700, anchor: 'start', o: 1 });
+  // b: one step, one big drop
+  const bar = mk('rect', { x: 470, y: Y0, width: 120, height: 0, rx: 6, fill: MC.oxid }, p);
+  const bx = explosion(p, { x: 530, y: 470, r: 90 });
+  const bl = G(p, { o: 0 }); show(bl, tB + 2.2, .4);
+  wLabel(bl, 'one step:', { x: 530, y: 850, size: 26, weight: 700, fill: MC.boom, o: 1 });
+  wLabel(bl, 'all heat and light', { x: 530, y: 884, size: 24, weight: 600, fill: MC.boom, o: 1 });
+  // c: many small drops, energy caught at each
+  const N = 6, SX = 860, SW = 95, SH = (Y1 - Y0) / N;
+  const steps = Array.from({ length: N }, (_, i) => {
+    const g = G(p, { o: 0 });
+    mk('rect', { x: SX + i * SW, y: Y0 + i * SH, width: SW - 14, height: SH, rx: 5, fill: MC.oxid }, g);
+    const sp = atpBurst(g, { x: SX + i * SW + SW / 2 - 7, y: Y0 + i * SH - 2, r: 15, label: '' });
+    return { g, sp };
+  });
+  const cl = G(p, { o: 0 }); show(cl, tC + 4.5, .4);
+  wLabel(cl, 'many steps: some energy caught each time', { x: 1140, y: 850, size: 26, weight: 700, fill: MC.elec, o: 1 });
+  // d: same start, same finish
+  const dd = G(p, { o: 0 }); show(dd, tD + .3, .5);
+  [380, 1520].forEach(x => { path(dd, `M${x - 12} ${Y0}H${x + 12}M${x} ${Y0}V${Y1}M${x - 12} ${Y1}H${x + 12}`, { stroke: COL.chalk, 'stroke-width': 4 }); });
+  wLabel(dd, 'same total', { x: 366, y: 500, size: 22, weight: 700, anchor: 'end', o: 1 });
+  wLabel(dd, 'same total', { x: 1504, y: 500, size: 22, weight: 700, anchor: 'end', o: 1 });
+  const fin = say(p, 'same start, same finish: only the division differs', 800, 140, tD + 3.5, { size: 28, weight: 700, fill: COL.chalk });
+  void fin;
+  clockRun(t => {
+    const k = io(mRamp(t, tB + .3, tB + 1.6));
+    cAttr(bar, 'height', cF((Y1 - Y0) * k));
+    bx.set(mRamp(t, tB + 1.2, tB + 4.5) * .55, true);
+    steps.forEach((s, i) => { const t0 = tC + .3 + i * .7; mO(s.g, mRamp(t, t0, t0 + .3)); s.sp.set(mRamp(t, t0 + .3, t0 + .7)); s.sp.shine(t); });
+  }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tE = m('end');
+  wLabel(p, 'Summary: carriers and the stepwise harvest', { x: 800, y: 70, size: 36, weight: 700, o: 1 });
+  const ROWS = [
+    ['s1', 'Glucose is oxidized, O_2 is reduced', 'electrons travel with hydrogen and fall in energy', MC.oxid],
+    ['s2', 'Dehydrogenase: 2 e^− + H^+ to NAD^+ → NADH', 'NADH carries stored energy; the other H⁺ is released', MC.nad],
+    ['s3', 'NADH → the chain → O_2, in small steps', 'oxygen, the final acceptor, forms water', MC.elec],
+  ];
+  ROWS.forEach(([mk_, a, b, col], i) => {
+    const y = 200 + i * 205, g = G(p, { o: 0 });
+    panelBox(g, 150, y - 85, 1300, 175);
+    wChem(g, a, { x: 450, y: y - 6, size: 34, weight: 700, fill: col, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 450, y: y + 40, size: 26, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i === 0) {
+      glucoseRing(g, { x: 230, y: y - 10, R: 30, r: 8 });
+      mArrow(g, [272, y - 2], [328, y + 30], { color: MC.elec, w: 4, head: 14 });
+      o2Molecule(g, { x: 360, y: y + 44, r: 16 });
+    }
+    if (i === 1) nadShuttle(g, { x: 300, y: y - 6, s: 1, label: false }).set(1).glow(1);
+    if (i === 2) chainIcon(g, { x: 300, y: y, s: .75, label: false });
+    show(g, m(mk_) + .1, .5);
+  });
+  say(p, 'Now try the chapter practice.', 800, 840, tE, { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); panelBox(g, 980, 90, 580, 720); f(g); pics[k] = g; };
+  at('redox', g => {
+    redoxEq(g, { x: 1270, y: 300, size: 24, gap: 12 }).ox(1).red(1);
+    wLabel(g, 'and the carrier', { x: 1270, y: 470, size: 24, weight: 600, fill: COL.dim, o: 1 });
+    nadShuttle(g, { x: 1160, y: 560, s: .9 }).set(0);
+    mArrow(g, [1225, 560], [1315, 560], { color: COL.chalk, w: 4, head: 14 });
+    nadShuttle(g, { x: 1385, y: 560, s: .9 }).set(1);
+    wLabel(g, 'NADH → the chain', { x: 1270, y: 720, size: 24, weight: 600, fill: COL.dim, o: 1 });
+  });
+  at('nad', g => {
+    nicotinamide(g, { x: 1230, y: 430, s: .95 }).set(1);
+    wLabel(g, 'what was added?', { x: 1270, y: 140, size: 28, weight: 700, fill: MC.elec, o: 1 });
+  });
+  at('agent', g => {
+    dehydrogenase(g, { x: 1300, y: 470, s: .8 }).set(1);
+    agentTag(g, 'oxidizing', { x: 1450, y: 612, s: .75, size: 20 });
+    wLabel(g, 'the fuel’s electrons go to NAD⁺', { x: 1270, y: 720, size: 24, weight: 700, fill: MC.nad, o: 1 });
+  });
+  at('store', g => {
+    nadShuttle(g, { x: 1270, y: 380, s: 2 }).set(1).glow(1);
+    chainIcon(g, { x: 1270, y: 620, s: .9 });
+  });
+  at('explode', g => {
+    redoxDrop(G(g, { x: 1060, y: 425, s: .5 }), { kind: 'explode', w: 520, h: 600 });
+    redoxDrop(G(g, { x: 1060, y: 790, s: .5 }), { kind: 'stairs', w: 620, h: 600 });
+  });
+  at('return', g => {
+    nadLoop(g, { x: 1270, y: 450, s: .52, w: 700, h: 380, n: 2 }).set(.3);
+    wLabel(g, 'loaded at the fuel, unloaded at the chain', { x: 1270, y: 720, size: 22, weight: 600, fill: COL.dim, o: 1 });
+  });
+  // the pictures not shown are display: none, so the practice screen's first frame lays out and paints only one
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => { put(g, { o: k === key ? 1 : 0 }); g.style.display = k === key ? '' : 'none'; });
+  S.pics('redox');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-redox', prompt: ['In respiration, each of these is…'],
+    build: withPic('redox', grid([
+      { parts: ['glucose'], ans: ['o'], why: 'Glucose loses electrons (with H) and ends as CO₂.' },
+      { parts: ['oxygen'], ans: ['r'], why: 'O₂ gains electrons (with H) and ends as water.' },
+      { parts: ['NAD⁺ → NADH'], ans: ['r'], why: 'NAD⁺ gains two electrons (and an H⁺): reduced.' },
+      { parts: ['NADH → NAD⁺'], ans: ['o'], why: 'NADH gives its electrons to the chain: oxidized.' },
+    ], [['o', 'oxidized', null, 'O'], ['r', 'reduced', null, 'R']], { multi: false, text: true })) },
+  { id: 'p-nad', prompt: ['When NAD⁺ becomes NADH, what does it gain?'],
+    build: withPic('nad', choice([['two protons only'], ['two electrons and one proton'], ['one electron and two protons'], ['a phosphate group']], 1,
+      'Right. Two electrons and one H⁺ join NAD⁺; the second proton of the pair goes to the solution: NAD⁺ + 2[H] → NADH + H⁺.',
+      ['The electrons are the point: they carry the energy. NAD⁺ takes two electrons and one proton.', null,
+        'Two electrons go on, and only one proton; the second proton is released.',
+        'That is how ADP becomes ATP. NAD⁺ gains electrons, not a phosphate.'])) },
+  { id: 'p-agent', prompt: ['Why is NAD⁺ called an oxidizing agent in respiration?'],
+    build: withPic('agent', choice([['it gives electrons to the fuel'], ['it accepts electrons, so it oxidizes the fuel'], ['it burns the fuel with oxygen'], ['it is used up in the reaction']], 1,
+      'Right. An oxidizing agent is the electron acceptor: NAD⁺ takes the fuel’s electrons, so the fuel is oxidized and NAD⁺ is reduced.',
+      ['Giving electrons would make it a reducing agent. NAD⁺ takes them.', null,
+        'Oxygen only comes in at the end of the chain. NAD⁺ takes electrons straight from the fuel.',
+        'It is reduced to NADH, then returns to NAD⁺ at the chain: it is reused, not used up.'])) },
+  { id: 'p-store', prompt: ['Why is NADH described as stored energy?'],
+    build: withPic('store', choice([['it contains a lot of ATP'], ['it is a fuel that burns in oxygen'], ['it carries electrons high in energy; as they fall down the chain, the energy is tapped to make ATP'], ['it releases energy when it is made']], 2,
+      'Right. NADH holds two high-energy electrons. Their fall down the chain to oxygen releases energy, and part of it makes ATP.',
+      ['NADH holds no ATP: ATP is made later, from the energy of its electrons’ fall.',
+        'NADH is not burned: it hands its electrons on to the chain.', null,
+        'It is made by taking up electrons; the energy is released later, when they are passed down the chain.'])) },
+  { id: 'p-explode', prompt: ['Burning hydrogen or respiration?'],
+    build: withPic('explode', grid([
+      { parts: ['one big drop'], ans: ['b'], why: 'Burning: the whole drop at once.' },
+      { parts: ['many small steps'], ans: ['r'], why: 'Respiration: the chain breaks the drop into steps.' },
+      { parts: ['all heat and light'], ans: ['b'], why: 'Burning: an explosion, nothing captured.' },
+      { parts: ['some kept as ATP'], ans: ['r'], why: 'Respiration: some energy at each step makes ATP.' },
+    ], [['b', 'burning', null, 'B'], ['r', 'respiration', null, 'R']], { multi: false, text: true })) },
+  { id: 'p-return', prompt: ['Why must NADH hand its electrons on at the chain?'],
+    build: withPic('return', choice([['because NADH is poisonous'], ['because the chain makes NADH from them'], ['so it turns back into NAD⁺ and can pick up more electrons from the fuel'], ['so that oxygen is not used']], 2,
+      'Right. The cell has only a small supply of NAD⁺. Unloading at the chain makes it NAD⁺ again, ready to oxidize more fuel.',
+      ['It is not poisonous: the point is getting NAD⁺ back to carry more electrons.',
+        'It is the other way round: NADH delivers electrons to the chain.', null,
+        'Oxygen is used: it is the final acceptor at the end of the chain.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

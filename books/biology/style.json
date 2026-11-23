@@ -78,6 +78,23 @@
           "chapter-08/lesson-07",
           "chapter-08/lesson-08"
         ]
+      },
+      {
+        "unit": 9,
+        "title": "Chapter 9: Cellular Respiration",
+        "source": "books/biology/source/chapter-09-cellular-respiration.pdf",
+        "sections": "books/biology/source/chapter-09-sections.json",
+        "lessons": [
+          "chapter-09/lesson-01",
+          "chapter-09/lesson-02",
+          "chapter-09/lesson-03",
+          "chapter-09/lesson-04",
+          "chapter-09/lesson-05",
+          "chapter-09/lesson-06",
+          "chapter-09/lesson-07",
+          "chapter-09/lesson-08",
+          "chapter-09/lesson-09"
+        ]
       }
     ],
     "pilot": "chapter-03/lesson-02",
@@ -153,7 +170,14 @@
       "competitive inhibitor": "#e5533d",
       "noncompetitive inhibitor": "#9a6cd0",
       "allosteric activator": "#5bbf5b (allosteric inhibitor #e5533d)",
-      "cofactor": "metal ion #4fa3a5, coenzyme #e8a87c"
+      "cofactor": "metal ion #4fa3a5, coenzyme #e8a87c",
+      "H+ / proton": "#ff7aa8 disc with + (acid colour); H atom white ball carrying a gold electron",
+      "NAD+ / NADH": "#e8a87c peach shuttle (empty with + / carrying 2 e- and H); FAD / FADH2 smaller tan #c9b27a shuttle",
+      "oxidation / reduction": "outgoing orange #f39a2b arrow (loses e-) / incoming blue #6c8cff arrow (gains e-)",
+      "carbon": "#9aa3ad grey beads; CO2 grey C with two red O; pyruvate coral #f07a6a 3-bead chain; CoA teal #4fa3a5 tag",
+      "respiration stages": "glycolysis #5fb8c9, pyruvate oxidation #d9826a, citric acid cycle #d0533d, oxidative phosphorylation #8a7ad1",
+      "electron transport chain": "complexes I-IV #6c8cff, iron dots #c46a3c; ATP synthase #5b6ee1 with a lighter rotor",
+      "fermentation products": "ethanol #a8e0ea, lactate #f2a0a0"
     },
     "fonts": {
       "text": "system UI",
@@ -342,6 +366,11 @@
       "name": "metab.js (chapter 8 kit)",
       "file": "site/biology/lib/metab.js",
       "what": "pathway strip, energy diagrams (E_A, ΔG), ATP/ADP/Pi and the ATP cycle, enzyme with active site and induced fit, catalytic cycle, inhibitors, cofactors, rate curves, allosteric enzyme, feedback pathway; API in its header"
+    },
+    {
+      "name": "resp.js (chapter 9 kit)",
+      "file": "site/biology/lib/resp.js",
+      "what": "respiration map (respMap .focus/.build), electrons, H+, NAD+/FAD shuttles, redox arrows and agents, carbon chains and glucose ring, glycolysis strip, citric acid cycle wheel, mitochondrion cut-away, ETC with energy staircase, ATP synthase, proton gradient, ATP ledger and bar, fermentation, pyruvate fork, fuel funnel, PFK valve; API in its header"
     }
   ],
   "images": {

@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 9, Lesson 7: Chemiosmosis, ATP Synthase and the ATP Count — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid .row { row-gap: 4px; } .screen .grid.text .why { line-height: 1.25; }</style><!-- all rows wrong: each why line fits under its row, above Check -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="../../lib/resp.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 9 (Cellular Respiration), lesson 7: a dam whose gate opens on a turbine, then the shared respiration
+// map with oxidative phosphorylation lit and a push into the inner membrane; complexes I, III and IV pump H⁺ into the
+// intermembrane space until it is crowded (an H⁺ gradient), the membrane a wall with one door; ATP synthase's four
+// parts and slide 37's five steps with one proton followed through; chemiosmosis, the proton-motive force, coupling,
+// oxidative phosphorylation = chain + chemiosmosis, and the energy flow glucose → NADH → chain → proton-motive force →
+// ATP; slide 41's count, 2 + 2 + 26 or 28 = about 30 or 32; why only an estimate (the shuttles, other work, ratios);
+// a summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-09/lesson-07.md.
+const CHAPTER = { number: 907, label: '9, lesson 7', title: 'Chemiosmosis, ATP Synthase and the ATP Count', minutes: 7, language: 'en', lead: false, next: '../lesson-08/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const eR = (t, a, b) => io(mRamp(t, a, b));
+const lerp2 = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+const SHUTTLE = '#c9a0dc';
+// A label (centred text, chemistry markup) with a leader to the thing it names; fades in at t0 (null: shown at once).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 700, sub = '', anchor = 'middle' } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str.replace(/[_^]/g, ''), size);
+  wChem(g, str, { x: tx, y: ty, size, fill, weight, anchor, o: 1 });
+  if (sub) wChem(g, sub, { x: tx, y: ty + size * 1.1, size: size * .76, fill: COL.dim, weight: 500, anchor, o: 1 });
+  const left = anchor === 'start' ? tx : anchor === 'end' ? tx - w : tx - w / 2, right = left + w;
+  let sx = ax < left ? left - 10 : right + 10;
+  path(g, `M${sx.toFixed(1)} ${(ty - size * .35).toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 });
+  mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g);
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A title and a dim second line, centred; fades in at t0 and (with t1) out at t1.
+function banner(p, a, b, x, y, t0, t1, { color = COL.chalk, size = 38 } = {}) {
+  const g = G(p, { o: 0 });
+  wChem(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wChem(g, b, { x, y: y + size * 1.05, size: size * .64, fill: COL.dim, weight: 500, o: 1 });
+  show(g, t0, .45); if (t1 != null) hide(g, t1, .35);
+  return g;
+}
+const panelBox = (g, x, y, w, h, stroke = COL.faint) => mk('rect', { x, y, width: w, height: h, rx: 22, fill: '#0b1828', stroke, 'stroke-width': 3 }, g);
+// A dark pill with chemistry text, origin at its centre.
+function pill(p, str, { x = 0, y = 0, size = 24, fill = COL.chalk, edge = fill, o = 1, weight = 700 } = {}) {
+  const g = G(p, { x, y, o }), w = Math.round(uiW(str.replace(/[_^]/g, ''), size) * 1.08 + 26), h = size + 14;
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill: '#0b1626', stroke: edge, 'stroke-width': 2.5 }, g);
+  wChem(g, str, { y: size * .36, size, fill, weight, o: 1 });
+  return Object.assign(g, { w, h });
+}
+// A bracket under a span (x1..x2) at y, ticks up; its label (and a dim line) under it.
+function bracket(p, x1, x2, y, a, b, color, { size = 28 } = {}) {
+  const g = G(p, { o: 0 });
+  path(g, `M${x1} ${y - 16}V${y}H${x2}V${y - 16}`, { stroke: color, 'stroke-width': 4 });
+  wChem(g, a, { x: (x1 + x2) / 2, y: y + size * 1.25, size, weight: 700, fill: color, o: 1 });
+  if (b) wChem(g, b, { x: (x1 + x2) / 2, y: y + size * 2.3, size: size * .78, weight: 500, fill: COL.dim, o: 1 });
+  return g;
+}
+// A small turbine wheel (six blades) for the dam and the "tiny turbine"; .set(deg) turns it.
+function turbineIcon(p, { x = 0, y = 0, r = 40, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r: r + 6, fill: '#22303f', stroke: '#8fa3b8', 'stroke-width': 3 }, g);
+  const wh = G(p, { x, y, r: .1, o }), d = [];
+  for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; d.push(`M0 0L${cF(r * Math.cos(a))} ${cF(r * Math.sin(a))}L${cF(r * .82 * Math.cos(a + .45))} ${cF(r * .82 * Math.sin(a + .45))}Z`); }
+  path(wh, d.join(''), { fill: '#cfd8e3', stroke: '#6f8296', 'stroke-width': 2 });
+  mk('circle', { r: r * .2, fill: '#6f8296' }, wh);
+  return Object.assign(g, { wh, set(deg) { cSet(wh, { r: .1 + ((deg % 360) + 360) % 360 }); return g; } });
+}
+// A numbered callout (slide 37's blue circles).
+function badge(p, n, x, y, { r = 17, o = 0 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: '#4a8fe7', stroke: '#dbe8ff', 'stroke-width': 2.5 }, g);
+  wLabel(g, String(n), { y: r * .38, size: r * 1.1, fill: '#fff', weight: 800, o: 1 });
+  return g;
+}
+// A small dam glyph (wall, water behind) for "like the water behind the dam".
+function damGlyph(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-50 -18H0V30H-50Z', { fill: '#3f7fb5' });
+  path(g, 'M0 -30H12L30 30H0Z', { fill: '#9aa3ad', stroke: '#5f6873', 'stroke-width': 2 });
+  path(g, 'M30 22H60V30H30Z', { fill: '#3f7fb5' });
+  return g;
+}
+const SUM = (a, b) => a + b;
+// Re-home a kit protonCloud (built with seed, w, h, r): its H⁺ keep `gap` apart, stay inside `region` and out of the
+// `avoid` boxes ([x0, y0, x1, y1]), all in the cloud's own coordinates, so they never sit on each other, on a label or in
+// a lane where other H⁺ travel. Each keeps the kit's home when it is free, or takes the nearest free spot (none: hidden).
+// Fixed at build; .at(t) poses them with the kit's own jiggle; call it after the kit's setters, every frame.
+function tidyCloud(cloud, { seed, w, h, r, gap, region, avoid = [] }) {
+  const homes = [];
+  const free = ([x, y]) => x >= region[0] && x <= region[2] && y >= region[1] && y <= region[3]
+    && avoid.every(([a, b, c, d]) => x < a || x > c || y < b || y > d) && homes.every(q => !q || Math.hypot(x - q[0], y - q[1]) >= gap);
+  for (let i = 0; i < cloud.n; i++) {
+    const k = [(wHash(i, seed) - .5) * (w - 2 * r), (wHash(i, seed + 7) - .5) * (h - 2 * r)];
+    let best = free(k) ? k : null, bd = 1e9;
+    if (!best) for (let x = region[0]; x <= region[2]; x += 4) for (let y = region[1]; y <= region[3]; y += 4) {
+      const d = Math.hypot(x - k[0], y - k[1]); if (d < bd && free([x, y])) { bd = d; best = [x, y]; }
+    }
+    homes.push(best);
+  }
+  return { homes, at(t) {
+    const T = Math.round(t * 120) / 120;
+    cloud.hs.forEach((hp, i) => { const q = homes[i]; if (!q) { mO(hp, 0); return; } hp.pose(q[0] + 7 * zWob(i, T * 1.6, seed), q[1] + 6 * zWob(i + 50, T * 1.6, seed)); });
+  } };
+}
+// A box in page coordinates, padded by m, moved into a cloud's coordinates (cloud origin ox, oy on the page, scale s).
+const boxIn = ([x0, y0, x1, y1], m, ox, oy, s = 1) => [(x0 - m - ox) / s, (y0 - m - oy) / s, (x1 + m - ox) / s, (y1 + m - oy) / s];
+// A point along a polyline, k 0..1 by length.
+function alongPts(pts, k) {
+  const L = pts.slice(1).map((q, i) => Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1])), tot = L.reduce(SUM, 0);
+  let d = Math.max(0, Math.min(1, k)) * tot;
+  for (let i = 0; i < L.length; i++) { if (d <= L[i] || i === L.length - 1) return lerp2(pts[i], pts[i + 1], L[i] ? Math.min(1, d / L[i]) : 1); d -= L[i]; }
+  return pts[pts.length - 1];
+}
+
+/* ---------- the count map (slide 41): the map at CM with carriers and the ATP bar ---------- */
+const CM = { x: 800, y: 340, s: .82 };
+const cmPt = ([lx, ly], c = CM) => [c.x + c.s * lx, c.y + c.s * ly];
+// The ATP bar of slide 41: glycolysis 2, cycle 2, oxidative phosphorylation 26 (or 28); a dashed mark at 30.
+function countBar(p, { x = 300, y = 700, w = 1000, ox = 26, labels = ['2', '2', ''], size = 22 } = {}) {
+  const b = atpBar(p, { x, y, w, size, segs: [{ n: 2, color: MC.gly, label: labels[0] }, { n: 2, color: MC.cac, label: labels[1] }, { n: ox, color: MC.oxph, label: labels[2] }] });
+  const m30 = G(p, { o: 0 }), x30 = x + 30 * w / 32;
+  path(m30, `M${x30} ${y - 30}V${y + 30}`, { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '6 5' });
+  wLabel(m30, '30', { x: x30, y: y - 38, size: size * .9, weight: 700, fill: COL.chalk, o: 1 });
+  return Object.assign(b, { m30 });
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A dam and a turbine', (m, D) => {
+  const p = panel(0), tDa = m('dam'), tGa = m('gate'), tMa = m('map'), tLi = m('lit'), tPu = m('push');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W, { o: 0 }); show(back, .1, .6);
+  // water behind the dam, the left bank, the ground
+  const lake = path(back, '', { fill: '#2f6fa6' });
+  const shine = path(back, '', { stroke: '#a8e0ea', 'stroke-width': 5 }); put(shine, { o: .35 });
+  path(back, 'M-400 360L40 392L170 700H-400Z', { fill: '#3b5a3c' });
+  mk('rect', { x: -400, y: 700, width: 2400, height: 500, fill: '#4a382b' }, back);
+  mk('rect', { x: -400, y: 694, width: 2400, height: 10, fill: '#6d5340' }, back);
+  // downstream river
+  mk('rect', { x: 740, y: 664, width: 520, height: 36, fill: '#2f6fa6' }, back);
+  const river = path(back, 'M870 680H1250', { stroke: '#a8e0ea', 'stroke-width': 4, 'stroke-dasharray': '22 18' });
+  // the pipe through the dam, its gate, the turbine house
+  path(back, 'M540 560L700 640H770', { stroke: '#26313d', 'stroke-width': 34, 'stroke-linejoin': 'round' });
+  const pipeW = path(back, 'M540 560L700 640H770', { stroke: '#5fd3e8', 'stroke-width': 14, 'stroke-dasharray': '18 14', 'stroke-linejoin': 'round' });
+  put(pipeW, { o: 0 });
+  path(back, 'M560 330H622L742 700H560Z', { fill: '#9aa3ad', stroke: '#5f6873', 'stroke-width': 4, 'stroke-linejoin': 'round' });
+  mk('rect', { x: 552, y: 318, width: 78, height: 14, rx: 4, fill: '#c3cad2' }, back);
+  const gate = G(back, { x: 548, y: 560 }); mk('rect', { x: -9, y: -26, width: 18, height: 52, rx: 3, fill: '#3a2a20', stroke: '#c9b27a', 'stroke-width': 2.5 }, gate);
+  mk('rect', { x: 742, y: 586, width: 128, height: 112, rx: 8, fill: '#55606d', stroke: '#3a434d', 'stroke-width': 3 }, back);
+  const tb = turbineIcon(back, { x: 806, y: 640, r: 36 });
+  const l1 = G(back, { o: 0 });
+  wLabel(l1, 'stored energy', { x: 300, y: 300, size: 34, weight: 700, fill: '#a8e0ea', o: 1 });
+  wLabel(l1, 'water piled up behind the wall', { x: 300, y: 340, size: 24, weight: 500, fill: COL.dim, o: 1 });
+  show(l1, tDa + .3, .4);
+  const l2 = G(back, { o: 0 });
+  wLabel(l2, 'water rushes through: the turbine turns', { x: 760, y: 780, size: 30, weight: 700, fill: COL.chalk, o: 1 });
+  show(l2, tGa + 1.2, .4);
+  // title
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 9 · LESSON 7', { x: 1230, y: 200, size: 26, fill: COL.dim, o: 1 });
+  ['Chemiosmosis,', 'ATP synthase and', 'the ATP count'].forEach((s, i) => wLabel(ttl, s, { x: 1230, y: 285 + i * 66, size: 52, o: 1 }));
+  wLabel(ttl, 'Cellular respiration', { x: 1230, y: 505, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tGa - .3, .5);
+  hide(back, tMa - .1, .5);
+  // the shared map, oxidative phosphorylation lit
+  const rm = respMap(W, { x: 800, y: 460, s: .95, o: 0 }); show(rm, tMa + .2, .6);
+  const ox = rm.pt('oxphos');
+  const ring = G(W, { x: ox[0], y: ox[1], o: 0 });
+  mk('rect', { x: -160, y: -100, width: 320, height: 200, rx: 26, fill: 'none', stroke: MC.elec, 'stroke-width': 5 }, ring);
+  show(ring, tLi + 1, .4); hide(ring, tPu - .2, .3);
+  const lt = G(p, { o: 0 }); show(lt, tLi + 1.2, .5); hide(lt, tPu, .3);
+  wLabel(lt, 'today: oxidative phosphorylation', { x: 800, y: 820, size: 36, weight: 700, fill: '#b6a9f0', o: 1 });
+  wLabel(lt, 'electron transport and chemiosmosis, inside the mitochondrion', { x: 800, y: 862, size: 24, fill: COL.dim, weight: 500, o: 1 });
+  clockRun(t => {
+    const ys = 404 + 5 * Math.sin(t * 1.7);
+    let d = `M0 ${cF(ys)}`; for (let xx = 0; xx <= 560; xx += 40) d += `L${xx} ${cF(ys + 4 * Math.sin(xx / 45 + t * 2.2))}`;
+    mD(shine, d); mD(lake, d + 'L560 700L0 700Z');
+    mO(shine, .35 + .55 * mBump(t, tDa, tDa + 3));
+    const open = eR(t, tGa + .3, tGa + 1.3), run = Math.max(0, t - tGa - .6);
+    cSet(gate, { x: 548, y: 560 - 50 * open });
+    mO(pipeW, open);
+    cAttr(pipeW, 'stroke-dashoffset', cF(-((run * 90) % 32)));
+    cAttr(river, 'stroke-dashoffset', cF(-((t * 25 + run * 60) % 40)));
+    tb.set(260 * (run < 1 ? run * run / 2 : run - .5));
+    rm.focus(['oxphos'], eR(t, tLi + .2, tLi + 1.2)).flow(t, 1).shine(t);
+  }, D);
+  cam.to({ x: ox[0], y: ox[1] - 20, z: 3.2 }, tPu, Math.max(1, D - tPu - .3));
+  hide(cam.el, D - .55, .5);
+}],
+
+/* ---------- pump ---------- */
+['pump', 'Pumping H⁺', (m, D) => {
+  const p = panel(0), tC = m('chain'), tP = m('pump'), tG = m('grad'), tW = m('wall');
+  const ec = etcChain(p, { x: 800, y: 470, w: 1400, synthase: true, o: 0 });
+  show(ec, .05, .5);
+  banner(p, 'electrons fall down the chain', 'NADH → I → Q → III → cyt c → IV → O_2', 800, 80, .3, tP - .45, { color: MC.elec });
+  banner(p, 'complexes I, III and IV pump H^+', 'out of the matrix, into the intermembrane space', 800, 80, tP + .1, tG - .45, { color: MC.proton });
+  const b3 = banner(p, 'an H^+ gradient: stored energy', 'like the water behind the dam', 800, 80, tG + .1, tW - .45, { color: MC.proton });
+  damGlyph(b3, { x: 1250, y: 70 });
+  banner(p, 'the membrane is a wall to H^+', 'the only open door: ATP synthase', 800, 80, tW + .1, null, { color: MC.elec });
+  // pump arrows beside I, III and IV
+  const pa = G(p, { o: 0 }); show(pa, tP + 2.3, .5);
+  ['I', 'III', 'IV'].forEach(nm => { const [cx] = ec.pt(nm); mArrow(pa, [cx + 82, 590], [cx + 82, 360], { color: MC.proton, w: 6, head: 18 }); });
+  const many = pill(p, 'many H^+', { x: 560, y: 300, size: 24, fill: MC.proton, o: 0 }), few = pill(p, 'few H^+', { x: 560, y: 690, size: 24, fill: MC.proton, o: 0 });
+  show(many, tG + .6, .4); show(few, tG + 1.2, .4);
+  // the wall: the membrane outlined, H⁺ that bounce off it; the door: ATP synthase ringed
+  const [sx, sy] = ec.pt('synthase');
+  const wall = path(p, `M100 413H${sx - 95}M100 527H${sx - 95}`, { stroke: MC.elec, 'stroke-width': 6 }); put(wall, { o: 0 });
+  const BX = [420, 670, 1000];   // the bouncers' lanes, clear of the labels and the pump lanes
+  const bounce = BX.map(x => ({ x, h: proton(p, { x, y: 300, r: 14, o: 0 }) }));
+  // the door ring: round the synthase, clear of ½ O₂ and the labels
+  const door = G(p, { x: 1380, y: 530, o: 0 });
+  mk('ellipse', { rx: 145, ry: 260, fill: 'none', stroke: MC.elec, 'stroke-width': 5, 'stroke-dasharray': '14 10' }, door);
+  // the kit's H⁺ crowd, re-homed: apart from each other, off the labels, out of the pump, arrow and bounce lanes
+  const lanes = ['I', 'III', 'IV'].flatMap(nm => { const [cx] = ec.pt(nm); return [[cx - 48, 0, cx + 48, 900], [cx + 52, 340, cx + 112, 620]]; });
+  const keepOut = [...lanes, ...BX.map(x => [x - 41, 0, x + 41, 430]),
+    ...[[120, 251, 377, 279], [494, 281, 626, 319], [815, 329, 865, 405], [505, 671, 615, 709], [665, 729, 936, 757], [1160, 600, 1216, 673]].map(b => [b[0] - 20, b[1] - 20, b[2] + 20, b[3] + 20]),
+    [1270, 415, 1480, 760]];
+  const inCloud = oy => keepOut.map(b => boxIn(b, 0, 800, oy));
+  const tidyT = tidyCloud(ec.cloudTop, { seed: 5, w: 1340, h: 105, r: 12, gap: 38, region: boxIn([125, 258, 1475, 392], 0, 800, 341.5), avoid: inCloud(341.5) });
+  const tidyB = tidyCloud(ec.cloudBottom, { seed: 9, w: 1340, h: 165, r: 12, gap: 38, region: boxIn([125, 546, 1475, 752], 0, 800, 647.5), avoid: inCloud(647.5) });
+  const dl = G(p, { o: 0 }); show(dl, tW + 4, .4);
+  wChem(dl, 'ATP synthase', { x: sx, y: 216, size: 28, weight: 700, fill: MC.elec, o: 1 });
+  clockRun(t => {
+    ec.labels(mRamp(t, .4, 1.2));
+    ec.flow(t, 1 - .6 * mRamp(t, tP, tP + 1.5));
+    ec.pump(t, mRamp(t, tP + 1.6, tP + 2.6));
+    ec.gradient(mRamp(t, tP + 3, tG + 4), t);
+    tidyT.at(t); tidyB.at(t);
+    const wk = mRamp(t, tW + .3, tW + 1);
+    mO(wall, wk * (.55 + .45 * Math.sin(t * 4) ** 2));
+    bounce.forEach((b, i) => {
+      const u = Math.max(0, t - tW - .8 - i * .35), yy = 398 - 120 * Math.abs(Math.sin(Math.PI * u / 1.5 + .3));
+      b.h.pose(b.x + 10 * Math.sin(u * .9 + i), yy); mO(b.h, mRamp(t, tW + .8 + i * .35, tW + 1.2 + i * .35));
+    });
+    mO(door, mRamp(t, tW + 3.8, tW + 4.3) * (.6 + .4 * Math.sin(t * 3.5) ** 2));
+  }, D);
+}],
+
+/* ---------- synthase ---------- */
+['synthase', 'ATP synthase, step by step', (m, D) => {
+  const p = panel(0), tPa = m('parts'), tOn = m('one'), tTw = m('two'), tTh = m('three'), tFo = m('four'), tFi = m('five'), tTu = m('turbine');
+  const SX = 560, SY = 330, SS = 1.5, L = ([lx, ly]) => [SX + SS * lx, SY + SS * ly];
+  const sc = G(p, { o: 0 }); show(sc, .05, .5);
+  // the compartments and a long stretch of membrane
+  mk('rect', { x: 40, y: 50, width: 960, height: 198, fill: MC.ims, 'fill-opacity': .5 }, sc);
+  mk('rect', { x: 40, y: 412, width: 960, height: 470, fill: MC.matrix, 'fill-opacity': .75 }, sc);
+  mk('rect', { x: 40, y: 248, width: 960, height: 164, fill: '#5a3a16' }, sc);
+  path(sc, 'M40 248H1000M40 412H1000', { stroke: MC.cristae, 'stroke-width': 8 });
+  wLabel(sc, 'INTERMEMBRANE SPACE', { x: 60, y: 82, size: 20, fill: COL.dim, weight: 700, anchor: 'start', o: 1 });
+  wLabel(sc, 'MITOCHONDRIAL MATRIX', { x: 60, y: 866, size: 20, fill: COL.dim, weight: 700, anchor: 'start', o: 1 });
+  const cloud = protonCloud(sc, { x: 660, y: 165, w: 470, h: 120, n: 16, r: 13, seed: 4 });
+  const syn = atpSynthase(sc, { x: SX, y: SY, s: SS, membrane: false });
+  const p1 = proton(syn, { r: 13, o: 0 });
+  // the crowd re-homed: apart, out of the channel's lane (our proton and the synthase's own) and clear of callouts 1 and 2
+  const [b1x, b1y] = L([130, -130]), [b2x, b2y] = L([-15, -78]);
+  const tidy = tidyCloud(cloud, { seed: 4, w: 470, h: 120, r: 13, gap: 40, region: boxIn([330, 100, 975, 222], 0, 660, 165),
+    avoid: [[670, 0, 732, 900], [b1x - 37, b1y - 37, b1x + 37, b1y + 37], [b2x - 37, b2y - 37, b2x + 37, b2y + 37]].map(b => boxIn(b, 0, 660, 165)) });
+  // labels, one by one
+  const lc = { s: '#b6c0ff', r: '#c9cffb' };
+  tag(p, 'stator', [765, 520], L([110, 125]), tPa + 2.5, { fill: lc.s, sub: 'anchored, stays still', anchor: 'start', size: 30 });
+  tag(p, 'rotor', [330, 300], L([-70, -10]), tPa + 6, { fill: lc.r, sub: 'a ring that spins', anchor: 'end', size: 30 });
+  tag(p, 'internal rod', [330, 495], L([-28, 110]), tPa + 10.3, { fill: lc.r, sub: 'turns with the rotor', anchor: 'end', size: 30 });
+  tag(p, 'catalytic knob', [330, 655], L([-80, 215]), tPa + 13.4, { fill: lc.r, sub: 'matrix side, held still', anchor: 'end', size: 30 });
+  // the five steps (slide 37), a list on the right and callouts on the picture
+  const STEPS = [
+    ['H^+ enter a stator channel', 'flowing down their gradient', tOn, [130, -130]],
+    ['H^+ bind the rotor', 'each subunit changes shape: it spins', tTw, [-15, -78]],
+    ['one full turn, then out', 'a second channel, into the matrix', tTh, [44, 150]],
+    ['the rotor turns the rod', 'the stator holds the knob still', tFo, [30, 95]],
+    ['the knob makes ATP', 'from ADP + P_i, at its catalytic sites', tFi, [62, 268]],
+  ];
+  wLabel(p, 'five steps', { x: 1060, y: 150, size: 24, fill: COL.dim, weight: 700, anchor: 'start', o: 1 });
+  const rows = STEPS.map(([a, b, t0, at], i) => {
+    const g = G(p, { o: 0 }), y = 220 + i * 98;
+    badge(g, i + 1, 1078, y - 9, { o: 1 });
+    wChem(g, a, { x: 1110, y, size: 28, weight: 700, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 1110, y: y + 32, size: 21, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    const [bx, by] = L(at);
+    return { g, t0, cb: badge(p, i + 1, bx, by) };
+  });
+  // step four: the rod's turning arrow; step five: the reaction
+  const [rx, ry] = L([-15, 100]);
+  const arc = G(p, { o: 0 });
+  path(arc, `M${rx - 44} ${ry}A44 14 0 0 0 ${rx + 44} ${ry}`, { stroke: MC.elec, 'stroke-width': 4 });
+  path(arc, `M${rx + 36} ${ry - 12}L${rx + 46} ${ry + 4}L${rx + 30} ${ry + 6}Z`, { fill: MC.elec });
+  const rxn = G(p, { o: 0 }); show(rxn, tFi + 2, .4);
+  wChem(rxn, 'ADP + P_i → ATP', { x: 700, y: 856, size: 30, weight: 700, fill: MC.elec, anchor: 'start', o: 1 });
+  // the turbine beside it
+  const tbg = G(p, { o: 0 }); show(tbg, tTu + .2, .5);
+  const tb = turbineIcon(tbg, { x: 1110, y: 790, r: 40 });
+  wLabel(tbg, 'a tiny turbine', { x: 1175, y: 790, size: 30, weight: 700, fill: MC.elec, anchor: 'start', o: 1 });
+  wLabel(tbg, 'moving H⁺ turn it; the turning makes ATP', { x: 1175, y: 826, size: 21, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+  // the rotor's clock: still, one slow turn with our proton (steps 2–3), then a steady spin from step 4
+  const ttOf = t => {
+    if (t < tFo + .3) return 2 * eR(t, tTw + 1.2, tTh + 3.5);
+    const x = t - tFo - .3; return 2 + (x < 1 ? x * x / 2 : x - .5);
+  };
+  clockRun(t => {
+    cloud.set(1, t); tidy.at(t);
+    const tt = ttOf(t), TH = Math.PI * tt;
+    syn.run(tt, { speed: .5, flow: mRamp(t, tFo + 1.5, tFo + 2.5), make: mRamp(t, tFi + .4, tFi + 1) });
+    // one proton followed through steps 1–3 (in the synthase's own coordinates)
+    let px = 94, py = -150, po = 0;
+    if (t >= tOn + .6 && t < tTw) { const k = eR(t, tOn + .6, tOn + 3.4); py = -150 + 126 * k; po = mRamp(t, tOn + .6, tOn + 1); }
+    else if (t >= tTw && t < tTw + 1.2) { const k = eR(t, tTw, tTw + 1.2); px = 94 - 57 * k; py = -24; po = 1; }
+    else if (t >= tTw + 1.2 && t < tTh + 3.5) { const th = TH + Math.PI / 2; px = -15 + 52 * Math.sin(th); py = -24 + 19 * tt; po = Math.cos(th) >= -.05 ? 1 : .55; }
+    else if (t >= tTh + 3.5) {
+      const k1 = eR(t, tTh + 3.5, tTh + 4.3), k2 = eR(t, tTh + 4.3, tTh + 6.3);
+      px = 37 + 39 * k1; py = 14 + 136 * k2 + 12 * mRamp(t, tTh + 6.3, tFo + 1.2); po = 1 - mRamp(t, tFo + .4, tFo + 1.2);
+    }
+    p1.pose(px, py); mO(p1, po);
+    // the list and the callouts: the current step bright, earlier ones dimmer
+    rows.forEach((r, i) => {
+      const next = i < 4 ? rows[i + 1].t0 : 1e9, on = mRamp(t, r.t0, r.t0 + .4), past = mRamp(t, next, next + .4);
+      mO(r.g, on * (1 - .45 * past)); mO(r.cb, on * (1 - .7 * past));
+    });
+    mO(arc, mRamp(t, tFo + .5, tFo + 1) * (1 - .5 * mRamp(t, tFi, tFi + .4)));
+    tb.set(TH * 180 / Math.PI);
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  mk('rect', { x: 130, y: 120, width: 420, height: 122, fill: MC.ims, 'fill-opacity': .45 }, p);
+  const qs = atpSynthase(p, { x: 345, y: 300, s: 1.05, labels: true, size: 24 }).angle(24).labels(1);
+  // the kit's "rotor" label would sit half on the intermembrane band: a tag inside the band instead
+  put(qs.labelsG.rotor, { o: 0 });
+  tag(p, 'rotor', [215, 190], [287, 268], null, { size: 25, weight: 600 });
+  const ring = G(p, { x: 329, y: 300 });
+  mk('ellipse', { rx: 86, ry: 56, fill: 'none', stroke: MC.elec, 'stroke-width': 4, 'stroke-dasharray': '10 8' }, ring);
+  wLabel(p, 'which parts spin?', { x: 330, y: 700, size: 30, weight: 700, fill: MC.elec, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-spin', prompt: ['Which part of ATP synthase spins, and which stays still?'],
+  build: choice([['the rotor and the rod spin; the stator and the knob stay still'], ['the stator spins; the rotor stays still'], ['the knob spins along with the rod'], ['nothing spins: the H⁺ just pass through']], 0,
+    'Right. H⁺ turn the rotor and its internal rod, while the anchored stator holds the catalytic knob still, so the turning rod works inside it.',
+    [null, 'The stator is anchored in the membrane: it holds still, and it holds the knob still too.',
+      'The knob is held still by the stator; only the rod turns inside it.',
+      'The H⁺ flowing through are what turn the rotor: it is a tiny turbine.']),
+}], done) }],
+
+/* ---------- force ---------- */
+['force', 'Chemiosmosis and the proton-motive force', (m, D) => {
+  const p = panel(0), tCh = m('chemi'), tPm = m('pmf'), tCo = m('couple'), tWh = m('whole'), tFl = m('flow');
+  const ec = etcChain(p, { x: 800, y: 330, s: .8, w: 1400, synthase: true, labels: true, size: 28, o: 0 });
+  show(ec, .05, .5);
+  banner(p, 'chemiosmosis: an H^+ gradient drives cellular work', null, 800, 72, .3, null, { color: MC.elec, size: 36 });
+  // H⁺ pumped out at I, III and IV come back through the synthase (slide 39's dashed arrows)
+  const [sx] = ec.pt('synthase');
+  const back = G(p, { o: 0 }); show(back, tCh + 1.5, .5);
+  ['I', 'III', 'IV'].forEach(nm => {
+    const [cx] = ec.pt(nm), x1 = cx + 40, x2 = sx + 60;
+    path(back, `M${x1} 228C${x1} 150 ${x2} 150 ${x2} 222`, { stroke: MC.proton, 'stroke-width': 4, 'stroke-dasharray': '12 9' });
+  });
+  mArrow(back, [sx + 60, 214], [sx + 60, 236], { color: MC.proton, w: 4, head: 14 });
+  // the kit's H⁺ crowd re-homed (the chain is at s .8): apart, out of the pump and channel lanes, off the labels
+  const keepOut = [...['I', 'III', 'IV'].map(nm => { const [cx] = ec.pt(nm); return [cx - 39, 0, cx + 39, 900]; }), [1292, 0, 1339, 900],
+    ...[[371, 224, 709, 268], [813, 218, 850, 278], [1290, 200, 1326, 250], [1085, 430, 1137, 492], [602, 558, 999, 593]].map(b => [b[0] - 16, b[1] - 16, b[2] + 16, b[3] + 16]),
+    [1120, 286, 1370, 570]];
+  const tidyT = tidyCloud(ec.cloudTop, { seed: 5, w: 1340, h: 105, r: 12, gap: 38, region: boxIn([255, 161, 1345, 268], 0, 800, 227.2, .8), avoid: keepOut.map(b => boxIn(b, 0, 800, 227.2, .8)) });
+  const tidyB = tidyCloud(ec.cloudBottom, { seed: 9, w: 1340, h: 165, r: 12, gap: 38, region: boxIn([255, 392, 1345, 556], 0, 800, 472, .8), avoid: keepOut.map(b => boxIn(b, 0, 800, 472, .8)) });
+  const pmf = pill(p, 'proton-motive force', { x: 540, y: 246, size: 30, fill: MC.proton, o: 0 });
+  show(pmf, tPm + .3, .4);
+  const sub = G(p, { o: 0 }); show(sub, tPm + 1.2, .4); hide(sub, tCo - .2, .3);
+  wLabel(sub, 'the gradient has the capacity to do work', { x: 800, y: 640, size: 30, weight: 700, fill: MC.proton, o: 1 });
+  // couple: two boxes joined by the gradient
+  const cp = G(p); hide(cp, tWh - .1, .4);
+  const box = (x, w, a, col, t0) => { const g = G(cp, { o: 0 }); mk('rect', { x: x - w / 2, y: 618, width: w, height: 92, rx: 20, fill: '#0b1626', stroke: col, 'stroke-width': 3 }, g); wChem(g, a, { x, y: 674, size: 28, weight: 700, fill: col, o: 1 }); show(g, t0, .4); return g; };
+  box(500, 480, 'redox reactions of the chain', MC.complex, tCo + 2.3);
+  box(1260, 300, 'ATP synthesis', '#b6c0ff', tCo + 5.5);
+  const lk = G(cp, { o: 0 }); show(lk, tCo + 8.3, .4);
+  mArrow(lk, [770, 664], [1100, 664], { color: MC.proton, w: 6, head: 18 });
+  mArrow(lk, [1080, 664], [750, 664], { color: MC.proton, w: 6, head: 18 });
+  wChem(lk, 'H^+ gradient couples them', { x: 925, y: 640, size: 24, weight: 700, fill: MC.proton, o: 1 });
+  // whole: bracket 1 (the chain) and 2 (chemiosmosis) under one bracket
+  const [xI] = ec.pt('I'), [xIV] = ec.pt('IV');
+  const br = G(p); hide(br, tFl - .2, .4);
+  const big = bracket(br, 250, 1390, 735, 'oxidative phosphorylation', null, MC.oxph, { size: 34 }); show(big, tWh + .4, .5);
+  const b1 = bracket(br, xI - 70, xIV + 50, 600, '1  electron transport chain', 'makes the H^+ gradient', MC.complex); show(b1, tWh + 4.1, .5);
+  const b2 = bracket(br, sx - 120, sx + 125, 600, '2  chemiosmosis', 'uses it to make ATP', '#b6c0ff'); show(b2, tWh + 8.2, .5);
+  say(br, 'neither half makes ATP alone', 820, 840, tWh + 13.2, { size: 28, fill: COL.chalk, weight: 600 });
+  // flow: glucose → NADH → electron transport chain → proton-motive force → ATP, FADH₂ joining at complex II
+  const Y = 700, CH = [['glucose', MC.glucose, 'chip', 2.1], ['NADH', MC.nad, 'chip', 2.1], ['electron transport chain', MC.complex, 'chip', 11.3], ['proton-motive force', MC.proton, 'chip', 14.8], ['ATP', MC.elec, 'atp', 17.4]];
+  const ws = CH.map(([s, , kind]) => kind === 'atp' ? 92 : Math.round(uiW(s, 26) * 1.08 + 26)), gap = 62, tot = ws.reduce(SUM, 0) + gap * 4;
+  let x0 = 800 - tot / 2; const at = [];
+  CH.forEach(([s, col, kind, dt], i) => {
+    const cx = x0 + ws[i] / 2, g = G(p, { o: 0 });
+    if (kind === 'atp') atpBurst(g, { x: cx, y: Y, r: 40 }); else pill(g, s, { x: cx, y: Y, size: 26, fill: col });
+    if (i) mArrow(g, [x0 - gap + 8, Y], [x0 - 8, Y], { color: COL.chalk, w: 5, head: 16 });
+    show(g, tFl + dt, .4); at.push(cx); x0 += ws[i] + gap;
+  });
+  const fad = G(p, { o: 0 }); show(fad, tFl + 6.2, .4);
+  pill(fad, 'FADH_2', { x: at[1], y: 810, size: 26, fill: MC.fad });
+  mArrow(fad, [at[1] + 60, 796], [at[2] - 90, Y + 26], { color: MC.fad, w: 5, head: 16 });
+  wLabel(fad, 'joins at complex II', { x: at[1] + 80, y: 852, size: 22, fill: MC.fad, weight: 600, anchor: 'start', o: 1 });
+  const gl = G(p, { x: 800, y: 586, o: 0 }); show(gl, tFl + 17.6, .4);
+  wLabel(gl, 'most of the energy flows this way', { size: 26, weight: 600, fill: COL.dim, o: 1 });
+  clockRun(t => {
+    ec.flow(t, .7).pump(t, 1).gradient(1, t);
+    ec.synthase.run(t, { speed: .5, flow: 1, make: 1 });
+    tidyT.at(t); tidyB.at(t);
+  }, D);
+}],
+
+/* ---------- count ---------- */
+['count', 'Counting the ATP', (m, D) => {
+  const p = panel(0), tTa = m('tally'), tGl = m('gly'), tCy = m('cyc'), tCa = m('carriers'), tOx = m('ox'), tSu = m('sum'), tMo = m('most');
+  const atC = clip => tCa + (clip - 15.781), atS = clip => tSu + (clip - 35.716);
+  const rm = respMap(p, { ...CM, o: 0 }); show(rm, .05, .5);
+  const bar = countBar(p, { x: 300, y: 700, w: 1000 });
+  wLabel(p, 'ATP per glucose', { x: 300, y: 655, size: 26, weight: 700, anchor: 'start', o: 1 });
+  const tG = atC(17.357), tB = atC(20.4), tC = atC(23.2), tD = atC(25.1), tAll = atC(27.227);
+  const s1 = atS(36.641), s2 = atS(39.753), s3 = atS(42.982);
+  // stage labels on the bar
+  const gL = G(p, { o: 0 }); show(gL, tGl + .8, .4); wLabel(gL, 'glycolysis', { x: 331, y: 756, size: 22, weight: 700, fill: MC.gly, o: 1 });
+  const cL = G(p, { o: 0 }); show(cL, tCy + .8, .4); wLabel(cL, 'citric acid cycle', { x: 394, y: 790, size: 22, weight: 700, fill: '#ee7b66', o: 1 });
+  const oL = G(p, { o: 0 }); show(oL, tOx + 1, .4); wLabel(oL, 'oxidative phosphorylation: about 26 or 28', { x: 831, y: 655, size: 24, weight: 700, fill: '#b6a9f0', o: 1 });
+  // "+ 2" beside the first two bursts
+  const plus = (lp, t0) => { const [x, y] = cmPt(lp); const g = G(p, { o: 0 }); wLabel(g, '+ 2 ATP', { x, y, size: 26, weight: 800, fill: MC.elec, anchor: 'start', o: 1 }); show(g, t0, .4); return g; };
+  plus([-400, 175], tGl + .9); plus([205, 140], tCy + .9);
+  // the carriers: tags beside their sources, then they ride to oxidative phosphorylation
+  const TG = [['2 NADH', [-380, -150], tG], ['2 NADH', [-185, -95], tB], ['6 NADH', [258, -118], tC], ['2 FADH_2', [258, -60], tD]].map(([s, lp, t0], i) => ({ g: pill(p, s, { size: 20, fill: i < 3 ? MC.nad : MC.fad, o: 0 }), from: cmPt(lp), t0, i }));
+  // they ride one at a time, nearest first, through the free lane under the electron arrows to one gate at the left edge
+  // of oxidative phosphorylation, each fading out there before the next arrives (no two tags, and no map label, overlap)
+  const gate = [1040, 356], lane = [1000, 282];
+  TG.forEach(c => { c.slot = 3 - c.i; c.pts = [c.from, ...(c.i === 0 ? [[650, 265]] : []), ...(c.i < 2 ? [lane] : []), gate]; });
+  const oxRing = G(p, { x: cmPt([470, 20])[0], y: cmPt([470, 20])[1], o: 0 });
+  mk('rect', { x: -132, y: -82, width: 264, height: 164, rx: 22, fill: 'none', stroke: MC.elec, 'stroke-width': 5 }, oxRing);
+  // the sums, the total and the burst
+  const eq1 = G(p, { o: 0 }), eq2 = G(p, { o: 0 });
+  wLabel(eq1, '2 + 2 + 26 = 30', { x: 790, y: 790, size: 32, weight: 800, fill: MC.elec, o: 1 });
+  wLabel(eq2, '2 + 2 + 28 = 32', { x: 790, y: 838, size: 32, weight: 800, fill: MC.elec, o: 1 });
+  show(eq1, s1 + .2, .4); show(eq2, s2 + .2, .4); hide(eq1, tMo - .3, .3); hide(eq2, tMo - .3, .3);
+  const fin = G(p, { o: 0 }); show(fin, s3 + .3, .5);
+  atpBurst(fin, { x: 1200, y: 810, r: 44 });
+  wLabel(fin, 'about 30 or 32 ATP', { x: 1262, y: 806, size: 30, weight: 800, fill: MC.elec, anchor: 'start', o: 1 });
+  wLabel(fin, 'per glucose, at most', { x: 1262, y: 840, size: 22, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+  const hiOx = G(p, { o: 0 });
+  mk('rect', { x: 300 + 4 * 1000 / 32 - 4, y: 670, width: 28 * 1000 / 32 + 8, height: 60, rx: 10, fill: 'none', stroke: MC.elec, 'stroke-width': 5 }, hiOx);
+  const most = G(p, { o: 0 }); show(most, tMo + .4, .4);
+  wLabel(most, 'about 9 in 10 from oxidative phosphorylation', { x: 790, y: 812, size: 28, weight: 700, fill: '#b6a9f0', o: 1 });
+  const SEG = [[tTa, tGl, []], [tGl, tCy, ['glycolysis', 'atp1']], [tCy, tCa, ['cycle', 'atp2']], [tCa, tOx, ['electrons', 'glycolysis', 'pyruvateOx', 'cycle']], [tOx, D + 5, ['oxphos', 'atp3', 'electrons']]];
+  clockRun(t => {
+    // focus: one set of parts per stretch, easing in and back out at its ends
+    const sg = SEG.find(([a, b]) => t < b) || SEG[SEG.length - 1];
+    rm.focus(sg[2], mRamp(t, sg[0] + .1, sg[0] + .6) * (1 - mRamp(t, sg[1] - .4, sg[1])));
+    rm.slots(1).shine(t).flow(t, mRamp(t, tCa, tCa + 1) * (1 - mRamp(t, tOx + 1, tOx + 2)));
+    rm.bursts[0].set(eR(t, tGl + .3, tGl + 1)); rm.bursts[1].set(eR(t, tCy + .3, tCy + 1)); rm.bursts[2].set(eR(t, tOx + .3, tOx + 1));
+    bar.set((eR(t, tGl + .4, tGl + 1.4) + eR(t, tCy + .4, tCy + 1.4) + eR(t, tOx + .5, tOx + 2)) / 3);
+    bar.values([2, 2, 26 + 2 * eR(t, s2 + .1, s2 + .9)]);
+    const tk = mRamp(t, s1, s1 + .4) * (t < s2 ? 1 - mRamp(t, s2 - .3, s2) : t < s3 ? mRamp(t, s2, s2 + .3) * (1 - mRamp(t, s3 - .3, s3)) : mRamp(t, s3, s3 + .3));
+    bar.total(t < s2 ? '= 30' : t < s3 ? '= 32' : 'about 30 or 32', tk);
+    mO(bar.m30, mRamp(t, s3, s3 + .4));
+    TG.forEach(c => {
+      const t0 = tAll + .2 + .55 * c.slot, [x, y] = alongPts(c.pts, eR(t, t0, t0 + .9));
+      mPose(c.g, x, y, mRamp(t, c.t0, c.t0 + .4) * (1 - mRamp(t, t0 + .65, t0 + .9)));
+    });
+    mO(oxRing, mBump(t, tAll + 1.4, tAll + 3.4));
+    mO(hiOx, mRamp(t, tMo + .2, tMo + .6) * (.55 + .45 * Math.sin(t * 3) ** 2));
+  }, D);
+}],
+
+/* ---------- estimate ---------- */
+['estimate', 'Why only an estimate', (m, D) => {
+  const p = panel(0), tWy = m('why'), tSh = m('shuttle'), tLo = m('loose'), tEs = m('est');
+  const at = clip => tSh + (clip - 3.346), atL = clip => tLo + (clip - 28.997);
+  banner(p, '26 or 28? And why only “about”?', null, 800, 72, .2, null, { size: 38 });
+  // the count, small, on the left
+  const SM = { x: 420, y: 330, s: .5 };
+  const rm = respMap(p, { ...SM, o: 0 }); show(rm, .05, .5);
+  const bar = countBar(p, { x: 80, y: 540, w: 560, ox: 28, size: 18 });
+  bar.total('about 30 or 32'); put(bar.m30, { o: 1 });
+  wLabel(p, 'ATP per glucose', { x: 80, y: 500, size: 22, weight: 700, anchor: 'start', o: 1 });
+  // the shuttle scene: cytosol | membrane | mitochondrion
+  const sh = G(p, { o: 0 }); show(sh, tSh + .1, .5); hide(sh, tLo - .4, .4);
+  panelBox(sh, 880, 130, 690, 545);
+  mk('rect', { x: 1240, y: 132, width: 328, height: 541, fill: '#3a2410', 'fill-opacity': .7 }, sh);
+  path(sh, 'M1205 150V655M1240 150V655', { stroke: MC.mito, 'stroke-width': 6 });
+  wLabel(sh, 'cytosol', { x: 1040, y: 172, size: 24, fill: COL.dim, weight: 700, o: 1 });
+  wLabel(sh, 'mitochondrion', { x: 1405, y: 172, size: 24, fill: MC.mito, weight: 700, o: 1 });
+  const nIn = [nadShuttle(sh, { x: 1010, y: 280, size: 22 }).set(1), nadShuttle(sh, { x: 1010, y: 470, size: 22 }).set(1)];
+  const xm = G(sh, { o: 0 }); path(xm, 'M1160 250L1190 280M1190 250L1160 280', { stroke: MC.inhib, 'stroke-width': 7 });
+  wLabel(xm, 'can’t cross', { x: 1110, y: 232, size: 20, weight: 700, fill: MC.inhib, o: 1 });
+  const circ = [292, 482].map(y => { const g = G(sh, { x: 1222, y, o: 0 }); mk('circle', { r: 24, fill: SHUTTLE, stroke: '#8f68a6', 'stroke-width': 3 }, g); return g; });
+  const sl = pill(sh, 'electron shuttles span the membrane', { x: 1222, y: 600, size: 21, fill: SHUTTLE, o: 0 });
+  const nOut = [nadShuttle(sh, { x: 1400, y: 280, size: 22 }).set(0), nadShuttle(sh, { x: 1400, y: 470, kind: 'FAD', size: 22 }).set(0)];
+  nOut.forEach(n => put(n, { o: 0 }));
+  const ePr = [0, 1].map(() => electron(sh, { n: 2, r: 8, o: 0 }));
+  const res = [['total about 32', 378], ['total about 30', 568]].map(([s, y]) => { const g = G(sh, { o: 0 }); wLabel(g, s, { x: 1400, y, size: 22, weight: 800, fill: MC.elec, o: 1 }); return g; });
+  const fn = pill(sh, 'FADH_2 enters lower: fewer H^+ pumped', { x: 1222, y: 645, size: 21, fill: MC.fad, o: 0 });
+  // the reason cards
+  const cards = [
+    ['the shuttle', '2 NADH or 2 FADH_2 inside: 28 or 26 ATP', atL(29.0)],
+    ['the gradient also does other work', 'not every H^+ goes through ATP synthase', atL(30.039)],
+    ['H^+ per ATP is not a whole number', 'so the count cannot come out exact', atL(36.458)],
+  ].map(([a, b, t0], i) => {
+    const g = G(p, { o: 0 }), y = 140 + i * 170;
+    panelBox(g, 880, y, 690, 148);
+    wChem(g, a, { x: 1020, y: y + 64, size: 28, weight: 700, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 1020, y: y + 102, size: 22, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i === 0) [-14, 14].forEach(dy => mk('circle', { cx: 950, cy: y + 74 + dy * 1.6, r: 17, fill: SHUTTLE, stroke: '#8f68a6', 'stroke-width': 2.5 }, g));
+    if (i === 1) { proton(g, { x: 930, y: y + 74, r: 16 }); mArrow(g, [952, y + 70], [990, y + 44], { color: COL.chalk, w: 4, head: 12 }); mArrow(g, [952, y + 78], [990, y + 104], { color: COL.chalk, w: 4, head: 12 }); }
+    if (i === 2) { proton(g, { x: 932, y: y + 52, r: 15 }); wLabel(g, '÷', { x: 970, y: y + 64, size: 30, weight: 800, fill: COL.chalk, o: 1 }); atpBurst(g, { x: 950, y: y + 104, r: 18, size: 9 }); }
+    show(g, t0 + .2, .4); return g;
+  });
+  void cards;
+  const stp = G(p, { x: 1225, y: 770, r: -4, o: 0 }); show(stp, tEs + .3, .3); pulse(stp, tEs + .35, 1.08);
+  mk('rect', { x: -250, y: -52, width: 500, height: 104, rx: 16, fill: '#1a1408', stroke: MC.elec, 'stroke-width': 5 }, stp);
+  wLabel(stp, 'an estimate', { y: -6, size: 38, weight: 800, fill: MC.elec, o: 1 });
+  wLabel(stp, '“about”, never “exactly”', { y: 32, size: 24, weight: 600, fill: COL.chalk, o: 1 });
+  const tC0 = at(10.156), tU = at(14.648), tF = at(21.901);
+  clockRun(t => {
+    rm.focus(['oxphos', 'atp3'], 1 - .4 * mRamp(t, tSh, tSh + .6)).shine(t);
+    // NADH in the cytosol tries the membrane and bounces off
+    nIn.forEach((n, i) => { const u = mBump(t, tSh + .8 + i * .4, tSh + 2.6 + i * .4); n.pose(1010 + 90 * u, i ? 470 : 280); n.set(1 - eR(t, tC0 + 1.2 + i * .3, tC0 + 2.6 + i * .3)); });
+    mO(xm, mRamp(t, tSh + 1.5, tSh + 1.9) * (1 - mRamp(t, tC0 - .5, tC0)));
+    circ.forEach(c => mO(c, mRamp(t, tC0, tC0 + .5)));
+    mO(sl, mRamp(t, tC0 + .3, tC0 + .8));
+    // electron pairs: cytosolic NADH → shuttle (in the membrane) → NADH or FADH₂ inside
+    ePr.forEach((e, i) => {
+      const y = i ? 470 : 280, a = eR(t, tC0 + 1.2 + i * .3, tC0 + 2.6 + i * .3), b = eR(t, tU + .3 + i * 2.2, tU + 1.8 + i * 2.2);
+      const q = b > 0 ? lerp2([1222, y + 12], [1400, y - 6], b) : lerp2([1010, y - 6], [1222, y + 12], a);
+      e.pose(q[0], q[1]); mO(e, mRamp(a, 0, .08) * (1 - mRamp(b, .85, 1)));
+      mO(nOut[i], mRamp(t, tU + .1 + i * 2.2, tU + .4 + i * 2.2)); nOut[i].set(eR(t, tU + 1.4 + i * 2.2, tU + 2.6 + i * 2.2));
+      mO(res[i], mRamp(t, tU + 2.6 + i * 2.2, tU + 3 + i * 2.2));
+    });
+    mO(fn, mRamp(t, tF + .2, tF + .6));
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  respMap(p, { x: 330, y: 300, s: .4 }).focus(['oxphos', 'atp3'], 1);
+  const bar = countBar(p, { x: 60, y: 560, w: 520, ox: 28, size: 18 }); put(bar.m30, { o: 1 });
+  wLabel(p, 'ATP per glucose', { x: 60, y: 510, size: 22, weight: 700, anchor: 'start', o: 1 });
+  wLabel(p, 'about 30 or 32 in all', { x: 320, y: 640, size: 26, weight: 700, fill: MC.elec, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-most', prompt: ['Which stage makes most of the ATP from one glucose?'],
+  build: choice([['glycolysis'], ['pyruvate oxidation'], ['the citric acid cycle'], ['oxidative phosphorylation']], 3,
+    'Right. About 26 or 28 of the 30 or 32 ATP come from oxidative phosphorylation: about nine in ten.',
+    ['Glycolysis makes only 2 ATP, by substrate-level phosphorylation.', 'Pyruvate oxidation makes no ATP directly: its NADH pays out later, in the chain.',
+      'The citric acid cycle makes only 2 ATP per glucose, one per turn.', null]),
+}], done) }],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tE = m('end');
+  wLabel(p, 'Summary: chemiosmosis and the ATP count', { x: 800, y: 70, size: 36, weight: 700, o: 1 });
+  const ROWS = [
+    ['s1', 'The chain pumps H^+ into the intermembrane space', 'an H^+ gradient builds: a proton-motive force', MC.proton],
+    ['s2', 'H^+ flow back through ATP synthase', 'the rotor spins like a turbine, and the knob makes ATP: chemiosmosis', '#b6c0ff'],
+    ['s3', 'Chain + chemiosmosis = oxidative phosphorylation', 'one glucose: about 30 or 32 ATP (2 + 2 + 26 or 28)', '#b6a9f0'],
+  ];
+  let syn = null;
+  ROWS.forEach(([mk_, a, b, col], i) => {
+    const y = 200 + i * 205, g = G(p, { o: 0 });
+    panelBox(g, 150, y - 85, 1300, 175);
+    wChem(g, a, { x: 450, y: y - 6, size: 34, weight: 700, fill: col, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 450, y: y + 40, size: 26, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i === 0) { chainIcon(g, { x: 300, y: y + 10, s: .7, label: false }); [[245, -55], [300, -62], [355, -50]].forEach(([x, dy]) => proton(g, { x, y: y + dy, r: 12 })); }
+    if (i === 1) syn = atpSynthase(g, { x: 300, y: y - 30, s: .36 });
+    if (i === 2) atpBurst(g, { x: 300, y: y + 4, r: 46 });
+    show(g, m(mk_) + .1, .5);
+  });
+  say(p, 'Now try the chapter practice.', 800, 840, tE, { size: 32, fill: MC.elec, weight: 700 });
+  clockRun(t => syn.run(t, { speed: .5, flow: 1, make: 1 }), D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('dir', g => {
+    panelBox(g, 980, 90, 580, 720);
+    etcChain(g, { x: 1270, y: 440, s: .42, w: 1300, synthase: true, labels: false }).gradient(.5, 0);
+    wLabel(g, 'intermembrane space', { x: 1270, y: 318, size: 22, weight: 700, fill: COL.dim, o: 1 });
+    wLabel(g, 'matrix', { x: 1270, y: 600, size: 22, weight: 700, fill: COL.dim, o: 1 });
+    [[1130, MC.proton], [1480, MC.elec]].forEach(([x, c]) => {
+      mArrow(g, [x, 470], [x, 380], { color: c, w: 5, head: 14 }); mArrow(g, [x, 412], [x, 505], { color: c, w: 5, head: 14 });
+      wLabel(g, '?', { x: x + 26, y: 460, size: 34, weight: 800, fill: c, o: 1 });
+    });
+    wLabel(g, 'pumped at the chain · back through ATP synthase', { x: 1270, y: 720, size: 20, weight: 600, fill: COL.dim, o: 1 });
+    wLabel(g, 'which way do H⁺ go?', { x: 1270, y: 170, size: 28, weight: 700, fill: MC.proton, o: 1 });
+  });
+  at('parts', g => {
+    panelBox(g, 980, 90, 580, 720);
+    atpSynthase(g, { x: 1262, y: 330, s: 1.05, labels: true, size: 24 }).angle(30).labels(1);
+    wLabel(g, 'spins, or stays still?', { x: 1270, y: 750, size: 28, weight: 700, fill: MC.elec, o: 1 });
+  });
+  at('opx', g => {
+    panelBox(g, 980, 90, 580, 720);
+    chainIcon(g, { x: 1140, y: 330, s: .85, label: false });
+    atpSynthase(g, { x: 1440, y: 290, s: .5 });
+    [[1040, 1250, '1  ?', MC.complex], [1360, 1520, '2  ?', '#b6c0ff']].forEach(([a, b, s, c]) => put(bracket(g, a, b, 470, s, null, c), { o: 1 }));
+    put(bracket(g, 1030, 1530, 590, 'oxidative phosphorylation', null, MC.oxph, { size: 30 }), { o: 1 });
+    wLabel(g, 'two halves, one process', { x: 1270, y: 170, size: 28, weight: 700, fill: '#b6a9f0', o: 1 });
+  });
+  at('sum', g => {
+    panelBox(g, 980, 90, 580, 720);
+    atpBar(g, { x: 1010, y: 330, w: 480, size: 20, segs: [{ n: 2, color: MC.gly, label: '' }, { n: 2, color: MC.cac, label: '' }, { n: 28, color: MC.oxph, label: '28' }] }).total('?');
+    [['glycolysis: ?', MC.gly], ['citric acid cycle: ?', '#ee7b66'], ['oxidative phosphorylation: 28', '#b6a9f0'], ['total: ?', MC.elec]].forEach(([s, c], i) =>
+      wLabel(g, s, { x: 1030, y: 450 + i * 60, size: 26, weight: 700, fill: c, anchor: 'start', o: 1 }));
+    wLabel(g, 'ATP per glucose', { x: 1270, y: 200, size: 28, weight: 700, o: 1 });
+  });
+  at('est', g => {
+    panelBox(g, 980, 90, 580, 720);
+    mk('rect', { x: 1290, y: 92, width: 268, height: 716, fill: '#3a2410', 'fill-opacity': .7 }, g);
+    path(g, 'M1255 190V640M1290 190V640', { stroke: MC.mito, 'stroke-width': 6 });
+    [[300, 'NAD'], [520, 'FAD']].forEach(([y, kind]) => {
+      nadShuttle(g, { x: 1110, y, size: 22 }).set(1);
+      const c = G(g, { x: 1272, y: y + 12 }); mk('circle', { r: 24, fill: SHUTTLE, stroke: '#8f68a6', 'stroke-width': 3 }, c);
+      nadShuttle(g, { x: 1430, y, kind, size: 22 }).set(1);
+    });
+    wLabel(g, 'cytosol', { x: 1110, y: 170, size: 24, weight: 700, fill: COL.dim, o: 1 });
+    wLabel(g, 'mitochondrion', { x: 1425, y: 170, size: 24, weight: 700, fill: MC.mito, o: 1 });
+    wLabel(g, 'one NADH, two endings', { x: 1270, y: 730, size: 28, weight: 700, fill: SHUTTLE, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('dir');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-dir', prompt: ['In the electron transport chain, which way are H⁺ pumped, and which way do they flow back through ATP synthase?'],
+    build: withPic('dir', choice([['pumped from the matrix into the intermembrane space; they flow back into the matrix'], ['pumped into the matrix; they flow back out of it'], ['both toward the intermembrane space'], ['H⁺ do not move: only electrons do']], 0,
+      'Right. The complexes pump H⁺ out of the matrix into the narrow intermembrane space; they come back down their gradient through ATP synthase.',
+      [null, 'That is reversed: the H⁺ crowd builds in the intermembrane space, and the flow back runs into the matrix.',
+        'To do work they must come back across the membrane: through ATP synthase, into the matrix.',
+        'The H⁺ gradient is the whole point: electrons power the pumping, and H⁺ flowing back power ATP synthase.'])) },
+  { id: 'p-parts', prompt: ['In ATP synthase, each part…'],
+    build: withPic('parts', grid([
+      { parts: ['the rotor'], ans: ['s'], why: 'Spins: H⁺ turn the ring.' },
+      { parts: ['the internal rod'], ans: ['s'], why: 'Spins with the rotor.' },
+      { parts: ['the stator'], ans: ['t'], why: 'Still: anchored in the membrane.' },
+      { parts: ['the catalytic knob'], ans: ['t'], why: 'Still: the stator holds it.' },
+    ], [['s', 'spins', null, 'S'], ['t', 'stays still', null, 'T']], { multi: false, text: true })) },
+  { id: 'p-opx', prompt: ['Why is oxidative phosphorylation the chain and chemiosmosis together?'],
+    build: withPic('opx', choice([['the chain builds the H⁺ gradient and chemiosmosis uses it to make ATP'], ['the chain makes ATP and chemiosmosis makes heat'], ['they are two names for the same step'], ['chemiosmosis needs no gradient']], 0,
+      'Right. Part one, the chain, builds the H⁺ gradient; part two, chemiosmosis, spends it to make ATP. Neither makes ATP alone.',
+      [null, 'The chain makes no ATP itself: it only pumps H⁺.', 'They are two halves: one builds the gradient, the other spends it.',
+        'Chemiosmosis is driven by the gradient: no gradient, no ATP.'])) },
+  { id: 'p-sum', prompt: ['One glucose. Oxidative phosphorylation gives 28 ATP. Count the ATP:'],
+    build: withPic('sum', blanks([
+      { parts: ['glycolysis + citric acid cycle: ', { box: '4' }, ' ATP'], why: '2 + 2 = 4, both by substrate-level phosphorylation.', hint: 'Glycolysis gives 2; the cycle gives 2 per glucose.' },
+      { parts: ['total, with 28 more: ', { box: '32' }, ' ATP'], why: '4 + 28 = 32: about 32 ATP per glucose.', hint: 'Add 28 to your first answer.' },
+    ])) },
+  { id: 'p-est', prompt: ['Why is the total given as about 30 or 32 ATP, and not one exact number?'],
+    build: withPic('est', choice([['glycolysis makes 2 or 4 ATP'], ['the cycle makes ATP only some of the time'], ['the shuttle for cytosolic NADH changes the yield, and H⁺ per ATP is not a whole number'], ['the slides disagree with each other']], 2,
+      'Right. Electrons from cytosolic NADH arrive as NADH or as FADH₂ depending on the shuttle, and the H⁺-to-ATP ratio is not a whole number, so the count is an estimate.',
+      ['Glycolysis nets 2 ATP every time.', 'The cycle makes 2 ATP per glucose, one per turn, every time.', null,
+        'They agree: 2 + 2 + 26 = 30 and 2 + 2 + 28 = 32. The range comes from the shuttle.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

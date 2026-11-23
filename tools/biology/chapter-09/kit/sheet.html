@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>resp.js kit sheet</title>
+<link rel="stylesheet" href="../../../../site/biology/lib/engine.css">
+<style>
+  body { background: #0b1626; margin: 0; overflow: auto !important; height: auto !important; }
+  .panel { width: 1600px; height: 900px; position: relative; margin: 0 0 8px; }
+  .panel svg { width: 1600px; height: 900px; display: block; background: #0f1e33; }
+  .panel h2 { position: absolute; left: 10px; top: 4px; margin: 0; font: 600 18px sans-serif; color: #889; }
+</style>
+</head>
+<body>
+<script src="../../../../site/biology/lib/engine.js"></script>
+<script src="../../../../site/biology/lib/water.js"></script>
+<script src="../../../../site/biology/lib/macro.js"></script>
+<script src="../../../../site/biology/lib/cell.js"></script>
+<script src="../../../../site/biology/lib/cyto.js"></script>
+<script src="../../../../site/biology/lib/membrane.js"></script>
+<script src="../../../../site/biology/lib/metab.js"></script>
+<script src="../../../../site/biology/lib/resp.js"></script>
+<script>
+'use strict';
+const NSV = 'http://www.w3.org/2000/svg';
+function newPanel(title) {
+  const d = document.createElement('div'); d.className = 'panel'; d.id = 'p-' + title.replace(/\W+/g, '-');
+  const svg = document.createElementNS(NSV, 'svg'); svg.setAttribute('viewBox', '0 0 1600 900'); d.append(svg);
+  const h2 = document.createElement('h2'); h2.textContent = title; d.append(h2);
+  document.body.append(d); return G(svg);
+}
+// Each sheet entry: [title, draw(root)]. KIT_CASES (replay): [name, make(root), pose(piece, t)].
+const SHEET = [
+  ['map-built', r => { const m = respMap(r, { s: .95, y: 480 }); m.flow(1.3, 1).shine(.5); }],
+  ['map-focus-electrons-inputs-valve', r => { const m = respMap(r, { s: .8, y: 520 }); m.focus('electrons', 1).inputs(1).valve(1).flow(2, 1).tick('glycolysis', 1); }],
+  ['map-cross-ferment-build-half', r => { const a = respMap(r, { s: .5, x: 420, y: 300 }); a.cross(1).ferment(1).focus(['glycolysis', 'ferment', 'cross'], 1);
+    const b = respMap(r, { s: .5, x: 1180, y: 300 }); b.build(.55); const c = respMap(r, { s: .5, x: 420, y: 700 }); c.slots(1); c.bursts[0].set(1); c.bursts[1].set(.5); c.bursts[2].set(0);
+    const d = respMap(r, { s: .5, x: 1180, y: 700 }); d.focus(['pyruvateOx', 'cycle'], 1).tick('glycolysis', 1); }],
+  ['small-pieces', r => {
+    electron(r, { x: 100, y: 120, label: true }); electron(r, { x: 200, y: 120, n: 2, label: true, trail: 40 }).pose(200, 120, 0, 40);
+    proton(r, { x: 300, y: 120 }); proton(r, { x: 360, y: 120, label: 'name' });
+    hAtom(r, { x: 440, y: 120 }); hAtom(r, { x: 520, y: 120 }).split(1);
+    co2Molecule(r, { x: 640, y: 120, label: true }); o2Molecule(r, { x: 760, y: 120, label: true }); waterMolecule(r, { x: 860, y: 120, s: .6 });
+    atpBurst(r, { x: 980, y: 120 }); atpBurst(r, { x: 1100, y: 120, r: 50 }).shine(.3); const sl = atpBurst(r, { x: 1220, y: 120 }); sl.empty(1); sl.set(0);
+    explosion(r, { x: 1420, y: 140 }).set(.3, true);
+    const n1 = nadShuttle(r, { x: 120, y: 300 }); nadShuttle(r, { x: 300, y: 300 }).set(1).glow(1); nadShuttle(r, { x: 470, y: 300 }).set(.5);
+    nadShuttle(r, { x: 620, y: 300, kind: 'FAD' }); nadShuttle(r, { x: 760, y: 300, kind: 'FAD' }).set(1); void n1;
+    redoxArrow(r, 'ox', { x: 900, y: 300, dir: -90, sub: 'loses e⁻' }); redoxArrow(r, 'red', { x: 1100, y: 300, dir: 0, sub: 'gains e⁻' });
+    redoxArrow(r, 'ox', { x: 1250, y: 300, dir: 180 }).draw(.5);
+    agentTag(r, 'reducing', { x: 1420, y: 260 }); agentTag(r, 'oxidizing', { x: 1420, y: 360 });
+    carbonChain(r, { x: 130, y: 520, label: 'pyruvate' }); carbonChain(r, { x: 330, y: 520, label: 'acetyl CoA', color: MC.pyrOx }).lose(1).tag(1);
+    carbonChain(r, { x: 560, y: 520, label: 'losing CO₂' }).lose(.6); carbonChain(r, { x: 760, y: 520, n: 3, label: 'G3P' }).phos([0, 0, 1]);
+    carbonChain(r, { x: 930, y: 520, n: 2, color: MC.ethanol, label: 'ethanol' }); carbonChain(r, { x: 1090, y: 520, n: 3, color: MC.lactate, label: 'lactate' });
+    glucoseRing(r, { x: 1260, y: 520, label: 'glucose' }).count(1); glucoseRing(r, { x: 1460, y: 520 }).split(1).count(1);
+    glucoseRing(r, { x: 130, y: 760 }).morph(1).phos([1, 0, 0, 0, 0, 1]); glucoseRing(r, { x: 330, y: 760 }).split(.45).count(1);
+    nicotinamide(r, { x: 620, y: 740, s: .7 }); nicotinamide(r, { x: 920, y: 740, s: .7 }).set(1);
+    fuelIcon(r, 'carb', { x: 1100, y: 690 }); fuelIcon(r, 'protein', { x: 1280, y: 690 }); fuelIcon(r, 'fat', { x: 1460, y: 690 });
+    fuelIcon(r, 'aminoAcid', { x: 1100, y: 800 }); fuelIcon(r, 'glycerol', { x: 1220, y: 800 }); fuelIcon(r, 'fattyAcid', { x: 1350, y: 800 }); chainIcon(r, { x: 1500, y: 790, s: .5 });
+  }],
+  ['glycolysis-strip', r => { glycolysisStrip(r, { y: 250 }).phases(1).star(1).focus(3, 1); glycolysisStrip(r, { y: 600, w: 1300 }).build(.65).phases(1); }],
+  ['citric-cycle', r => { const c = citricCycle(r, { x: 560, y: 500, R: 220 }); c.badges(1).entryOn(1).join(.3).run(.3);
+    const d = citricCycle(r, { x: 1300, y: 500, R: 150, size: 18 }); d.focus(['citrate', 'α-ketoglutarate'], 1).draw(.6); }],
+  ['mito-cutaway', r => { mitoCutaway(r, { y: 470 }).labels(1).porter(1); }],
+  ['etc-chain', r => { const e = etcChain(r, { y: 430 }); e.labels(1).iron(1).electron(.48, 'NADH').dock('NADH', .5).gradient(.6, 1).pump(1.2, 1).water(.6).eqn(1); }],
+  ['etc-chain-synthase-fadh', r => { const e = etcChain(r, { y: 430, synthase: true }); e.electron(.2, 'FADH2').dock('FADH2', .3).gradient(1, 0); e.synthase.run(1.1); }],
+  ['etc-sulfate-focus', r => { const e = etcChain(r, { y: 430, w: 1000, final: 'sulfate' }); e.focus(['I', 'Q'], 1).flow(1, 1); }],
+  ['energy-stair', r => { const es = energyStair(r, { x: 250, y: 780 }); es.pair(.55).water(1); }],
+  ['redox-drop', r => { redoxDrop(r, { kind: 'explode', x: 140, y: 800 }); redoxDrop(r, { kind: 'stairs', x: 900, y: 800 }).set(.7); }],
+  ['atp-synthase', r => { atpSynthase(r, { x: 500, y: 360, labels: true }).run(.9).labels(1); atpSynthase(r, { x: 1200, y: 360, s: .8 }).angle(40); protonCloud(r, { x: 1200, y: 760, w: 600, n: 20 }).set(.7, 1); }],
+  ['ledger-bar', r => { atpLedger(r, { x: 80, y: 80, rows: [{ label: 'ATP formed', kind: 'ATP', n: 4, value: '4' }, { label: 'ATP used', kind: 'ATP', n: 2, value: '− 2' }, { label: 'NADH', kind: 'NADH', n: 2, value: '2', color: MC.nad }, { label: 'pyruvate', kind: 'pyruvate', n: 2, value: '2', color: MC.pyruvate }, { label: 'CO₂', kind: 'CO2', n: 2, value: '2' }, { label: 'FADH₂', kind: 'FADH2', n: 2, value: '2', color: MC.fad }] }).set(1).strike(1, 1).hi(0, 1);
+    atpBar(r, { x: 820, y: 200, w: 640, segs: [{ n: 2, color: MC.gly, label: '2' }, { n: 2, color: MC.cac, label: '2' }, { n: 26, color: MC.oxph, label: '26' }] }).total('30');
+    atpBar(r, { x: 820, y: 320, w: 640, segs: [{ n: 2, color: MC.gly, label: '2' }, { n: 2, color: MC.cac, label: '2' }, { n: 26, color: MC.oxph, label: '26' }] }).values([2, 2, 28]).total('32').set(.8);
+    substrateLevel(r, { x: 1100, y: 640 }).set(.45); }],
+  ['fermentation-alcohol', r => { fermentation(r, { y: 420 }).flow(1, 1); }],
+  ['fermentation-lactic-mid', r => { fermentation(r, { kind: 'lactic', y: 420 }).set(.55); }],
+  ['fork-funnel', r => { pyruvateFork(r, { x: 420, y: 470, s: .55 }).focus('left', 1); fuelFunnel(r, { x: 1180, y: 480, s: .6 }).deaminate(.6).beta(.5); }],
+  ['funnel-full', r => { fuelFunnel(r, { y: 480 }); }],
+  ['pfk-dehydro', r => { pfkValve(r, { y: 230, s: .9 }).set({ atp: 1, amp: .4, t: 1.5 }); dehydrogenase(r, { x: 520, y: 650 }).set(.5); nadLoop(r, { x: 1220, y: 650, s: .6 }).set(.3); }],
+  ['redox-eq', r => { redoxEq(r, { y: 160 }).ox(1).red(1); redoxEq(r, { kind: 'methane', y: 420 }).ox(1).red(.5); redoxEq(r, { kind: 'salt', y: 660, oxLabel: 'oxidized (loses an electron)', redLabel: 'reduced (gains an electron)' }).ox(1).red(1).focus([0, 4], 1); }],
+];
+window.KIT_CASES = [
+  ['respMap', r => respMap(r), (m, t) => m.build(Math.min(1, t / 3)).focus(t > 2 ? 'electrons' : [], (t - 2) / 2).flow(t, 1).shine(t).inputs(t / 4).cross(t / 5).ferment(t / 5).valve(t / 6).tick('glycolysis', t / 3).slots(t / 4)],
+  ['glycolysisStrip', r => glycolysisStrip(r), (m, t) => m.build(t / 3).focus(Math.floor(t * 2) % 10 + 1, t / 2).phases(t / 3).star(t / 4)],
+  ['citricCycle', r => citricCycle(r), (m, t) => m.build(t / 2).draw(t / 3).badges(t / 4).entryOn(t).join(t / 5).run(t / 4).focus(['citrate'], t / 5)],
+  ['mitoCutaway', r => mitoCutaway(r), (m, t) => m.build(t / 2).labels(t / 3).porter(t / 4).focus(['matrix'], t / 5)],
+  ['etcChain', r => etcChain(r, { synthase: true }), (m, t) => { m.build(t / 2).electron(t / 5, t > 2.5 ? 'FADH2' : 'NADH').dock('NADH', t / 4).dock('FADH2', t / 5).water(t / 5).pump(t, 1).gradient(t / 4, t).flow(t, 1).iron(t / 3).labels(t / 3).eqn(t / 5).focus(t > 3 ? ['I'] : [], t - 3); m.synthase.run(t); }],
+  ['energyStair', r => energyStair(r), (m, t) => m.build(t / 2).pair(t / 5, t > 2.6 ? 'FADH2' : 'NADH').water(t / 5).focus(['NADH'], t / 6)],
+  ['redoxDrop-explode', r => redoxDrop(r), (m, t) => m.set(t / 5)],
+  ['redoxDrop-stairs', r => redoxDrop(r, { kind: 'stairs' }), (m, t) => m.set(t / 5)],
+  ['atpSynthase', r => atpSynthase(r, { labels: true }), (m, t) => m.run(t, { flow: 1, make: 1 }).labels(t / 3)],
+  ['nadShuttle', r => nadShuttle(r), (m, t) => m.set(t / 3).glow(t / 4)],
+  ['nicotinamide', r => nicotinamide(r), (m, t) => m.set(t / 4)],
+  ['carbonChain', r => carbonChain(r), (m, t) => m.lose(t / 3).tag(t / 4).phos([t / 5, 0, t / 4]).color(t > 2 ? MC.acetald : MC.pyruvate)],
+  ['glucoseRing', r => glucoseRing(r), (m, t) => m.morph(t / 4).split(t / 5).phos([t / 4, 0, 0, 0, 0, t / 3]).count(t / 2)],
+  ['hAtom', r => hAtom(r), (m, t) => m.split(t / 3).pose(t * 10, 0)],
+  ['electron', r => electron(r, { n: 2, trail: 30 }), (m, t) => m.pose(t * 30, -t * 10, t * 40, 30).tag(t / 3)],
+  ['atpBurst', r => atpBurst(r), (m, t) => m.set(t / 2).shine(t).empty(t / 4)],
+  ['explosion', r => explosion(r), (m, t) => m.set(t / 3, t > 2)],
+  ['redoxArrow', r => redoxArrow(r, 'red'), (m, t) => m.draw(t / 3)],
+  ['protonCloud', r => protonCloud(r), (m, t) => m.set(t / 4, t)],
+  ['atpLedger', r => atpLedger(r, { rows: [{ label: 'a', kind: 'ATP', n: 3, value: '3' }, { label: 'b', kind: 'NADH', n: 2, value: '2' }] }), (m, t) => m.set(t / 3).strike(0, t / 4).hi(1, t / 5)],
+  ['atpBar', r => atpBar(r, { segs: [{ n: 2, label: '2' }, { n: 26, label: '26' }] }), (m, t) => m.set(t / 3).values([2, t > 2 ? 28 : 26]).total(t > 2 ? '32' : '30', t / 4)],
+  ['fermentation-alcohol', r => fermentation(r), (m, t) => m.set(t / 5).flow(t, 1)],
+  ['fermentation-lactic', r => fermentation(r, { kind: 'lactic' }), (m, t) => m.set(t / 5).flow(t, 1)],
+  ['pyruvateFork', r => pyruvateFork(r), (m, t) => m.build(t / 3).focus('right', t / 4)],
+  ['fuelFunnel', r => fuelFunnel(r), (m, t) => m.build(t / 3).deaminate(t / 4).beta(t / 5).focus(['protein'], t / 5)],
+  ['pfkValve', r => pfkValve(r), (m, t) => m.set({ atp: t / 3, cit: t / 4, amp: t / 5, t })],
+  ['dehydrogenase', r => dehydrogenase(r), (m, t) => m.set(t / 5)],
+  ['nadLoop', r => nadLoop(r, { n: 2 }), (m, t) => m.set(t / 3)],
+  ['substrateLevel', r => substrateLevel(r), (m, t) => m.set(t / 5)],
+  ['redoxEq', r => redoxEq(r), (m, t) => m.reveal(t / 2).ox(t / 3).red(t / 4).focus(t > 3 ? [0] : [], t - 3)],
+];
+// replay: pose at t1 then t2 / fresh at t2 / stepped 0 → t2 at 1/60 s; markup must match
+window.replayCheck = () => {
+  const box = document.createElementNS(NSV, 'svg'), out = [];
+  document.body.append(box);
+  for (const [name, make, pose] of KIT_CASES) {
+    for (const [t1, t2] of [[.7, 2.2], [3.1, 1.4], [4.6, 4.9], [0, 5.5], [2.37, 2.37]]) {
+      const a = G(box), pa = make(a); pose(pa, t1); pose(pa, t2);
+      const b = G(box), pb = make(b); pose(pb, t2);
+      const c = G(box), pc = make(c); for (let u = 0; u < t2; u += 1 / 60) pose(pc, u); pose(pc, t2);
+      const A = a.innerHTML, B = b.innerHTML, C = c.innerHTML;
+      if (A !== B || C !== B) {
+        let i = 0; const X2 = A !== B ? A : C; while (i < B.length && X2[i] === B[i]) i++;
+        out.push(`${name} ${t1}→${t2} (${A !== B ? 't1,t2 vs t2' : 'stepped vs t2'}): …${B.slice(Math.max(0, i - 160), i + 80)} ≠ …${X2.slice(Math.max(0, i - 160), i + 80)}`);
+      }
+      a.remove(); b.remove(); c.remove();
+    }
+  }
+  box.remove();
+  return out;
+};
+const ONLY = new URLSearchParams(location.search).get('only');
+for (const [title, f] of SHEET) if (!ONLY || title === ONLY) { try { f(newPanel(title)); } catch (e) { console.error(title, e); document.title = 'ERR ' + title + ': ' + e.message; } }
+</script>
+</body>
+</html>

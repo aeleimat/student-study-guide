@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 9, Lesson 1: Energy Flow, Catabolism and Redox — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="../../lib/resp.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 9 (Cellular Respiration), lesson 1: sunlight on a leaf, heat leaving the leaf and a grazing animal,
+// the camera into the animal's cell and one mitochondrion (cell.js, then resp.js's cut-away); slide 3's cycle of matter
+// against the one-way flow of energy; catabolic pathways and the three ways to run them; the glucose equation with its
+// six carbons carried into six CO₂; redox with sodium and chlorine; methane burning as a shift in electron sharing; the
+// respiration map built stage by stage (the thread every later lesson opens on); a summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-09/lesson-01.md.
+const CHAPTER = { number: 901, label: '9, lesson 1', title: 'Energy Flow, Catabolism and Redox', minutes: 7, language: 'en', lead: false, next: '../lesson-02/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const sayC = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const rk = k => Math.round(mClamp(k) * 2000) / 2000;
+const LEAF = '#4caf5a', LEAF_EDGE = '#2f7a3c', LIGHT = '#ffd96a', HEAT = '#f39a2b', GRAZER = '#c9a27a';
+// piecewise-linear value through [[t, v] …] (holds the ends)
+function pw(KT, t) {
+  if (t <= KT[0][0]) return KT[0][1];
+  for (let i = 1; i < KT.length; i++) if (t < KT[i][0]) return KT[i - 1][1] + (KT[i][1] - KT[i - 1][1]) * (t - KT[i - 1][0]) / (KT[i][0] - KT[i - 1][0]);
+  return KT[KT.length - 1][1];
+}
+// A label (centred text) with a leader to the thing it names; fades in at t0 (null: shown at once).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 28, fill = COL.chalk, line = COL.dim, weight = 600 } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str, size);
+  wChem(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + size * .3; }
+  else { sx = tx; sy = ty - size * 1.05; }
+  path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 });
+  mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g);
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A title and a dim second line, centred; fades in at t0.
+function banner(p, a, b, x, y, t0, { color = COL.chalk, size = 40 } = {}) {
+  const g = G(p, { o: 0 });
+  wChem(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wChem(g, b, { x, y: y + size * .95, size: size * .62, fill: COL.dim, weight: 500, o: 1 });
+  show(g, t0, .5);
+  return g;
+}
+const panelBox = (g, x, y, w, h, edge = COL.faint) => mk('rect', { x, y, width: w, height: h, rx: 22, fill: '#0b1828', stroke: edge, 'stroke-width': 3 }, g);
+// A dark pill with one line of text, origin = its centre.
+function pill(p, str, { x = 0, y = 0, size = 30, fill = COL.chalk, edge = COL.faint, o = 1 } = {}) {
+  const g = G(p, { x, y, o }), w = uiW(str.replace(/[_^]/g, ''), size) * 1.08 + 48, h = size + 26;
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill: '#0b1626', stroke: edge, 'stroke-width': 2.5 }, g);
+  wChem(g, str, { y: size * .36, size, fill, weight: 700, o: 1 });
+  return Object.assign(g, { w, h });
+}
+// A straight arrow that draws on: .in(t0, dur) draws the shaft, the head shows at the end.
+function lineArrow(p, [x1, y1], [x2, y2], { color = COL.chalk, w = 6, head = 18, dash } = {}) {
+  const g = G(p), L = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / L, uy = (y2 - y1) / L;
+  const ln = path(g, `M${x1.toFixed(1)} ${y1.toFixed(1)}L${(x2 - ux * head * .8).toFixed(1)} ${(y2 - uy * head * .8).toFixed(1)}`, { stroke: color, 'stroke-width': w, ...(dash ? { 'stroke-dasharray': dash } : {}) }, { d: 0 });
+  const hd = path(g, `M${(x2 - ux * head - uy * head * .7).toFixed(1)} ${(y2 - uy * head + ux * head * .7).toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}L${(x2 - ux * head + uy * head * .7).toFixed(1)} ${(y2 - uy * head - ux * head * .7).toFixed(1)}Z`, { fill: color, stroke: color, 'stroke-width': 2 }, { o: 0 });
+  return Object.assign(g, { ln, hd, in(t0, dur = .8) { draw(ln, t0, dur); show(hd, t0 + dur * .85, .15); return g; }, now() { put(ln, { d: 1 }); put(hd, { o: 1 }); return g; } });
+}
+// A quadratic arrow P0 → P1 bent through C, drawn on like lineArrow.
+function curveArrow(p, P0, C, P1, { color = COL.chalk, w = 6, head = 18 } = {}) {
+  const g = G(p), dx = P1[0] - C[0], dy = P1[1] - C[1], L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
+  const E = [P1[0] - ux * head * .8, P1[1] - uy * head * .8];
+  const ln = path(g, `M${cP(P0)}Q${cP(C)} ${cP(E)}`, { stroke: color, 'stroke-width': w }, { d: 0 });
+  const [x2, y2] = P1;
+  const hd = path(g, `M${cF(x2 - ux * head - uy * head * .7)} ${cF(y2 - uy * head + ux * head * .7)}L${cF(x2)} ${cF(y2)}L${cF(x2 - ux * head + uy * head * .7)} ${cF(y2 - uy * head - ux * head * .7)}Z`, { fill: color, stroke: color, 'stroke-width': 2 }, { o: 0 });
+  const mid = [.25 * P0[0] + .5 * C[0] + .25 * P1[0], .25 * P0[1] + .5 * C[1] + .25 * P1[1]];
+  return Object.assign(g, { ln, hd, mid, in(t0, dur = .8) { draw(ln, t0, dur); show(hd, t0 + dur * .85, .15); return g; }, now() { put(ln, { d: 1 }); put(hd, { o: 1 }); return g; } });
+}
+
+/* ---------- backdrop pieces: sun, leaf, grazing animal ---------- */
+// The sun: a disc with rays; .set(t) turns and breathes the rays (pure in t).
+function sunShape(p, { x = 0, y = 0, r = 60, o = 1 } = {}) {
+  const g = G(p, { x, y, o }), rays = G(g, { s: .999 });
+  let d = ''; for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; d += `M${cF(Math.cos(a) * r * 1.22)} ${cF(Math.sin(a) * r * 1.22)}L${cF(Math.cos(a) * r * 1.62)} ${cF(Math.sin(a) * r * 1.62)}`; }
+  path(rays, d, { stroke: LIGHT, 'stroke-width': Math.max(4, r * .11), 'stroke-linecap': 'round' });
+  mk('circle', { r, fill: '#ffd96a', stroke: '#e8b23c', 'stroke-width': 4 }, g);
+  mk('circle', { r: r * .72, fill: '#ffe9a8' }, g);
+  return Object.assign(g, { set(t) { t = Math.round(t * 60) / 60; cSet(rays, { r: (t * 8) % 30, s: 1 + .06 * Math.sin(t * 2.4) }); return g; } }).set(0);
+}
+// A leaf from its stem base (origin) to its tip at (160, 0); .glow (o 0) is a pale overlay.
+function leafShape(p, { x = 0, y = 0, s = 1, r = 0, o = 1, fill = LEAF } = {}) {
+  const g = G(p, { x, y, s, r, o });
+  path(g, 'M0 0C30 -46 116 -50 160 0C116 50 30 46 0 0Z', { fill, stroke: LEAF_EDGE, 'stroke-width': 3 });
+  const glow = path(g, 'M0 0C30 -46 116 -50 160 0C116 50 30 46 0 0Z', { fill: '#d9ff9a' }, { o: 0 });
+  path(g, 'M-14 0L150 0M50 0L78 -22M50 0L78 22M92 0L116 -18M92 0L116 18', { stroke: LEAF_EDGE, 'stroke-width': 2.5 });
+  return Object.assign(g, { glow });
+}
+// A grazing animal as one flat shape, facing left, head down to the grass; origin = the body's centre. .head pivots.
+function grazer(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o }), st_ = { fill: GRAZER, stroke: '#8a6a48', 'stroke-width': 3, 'stroke-linejoin': 'round' };
+  [[-80, 0], [-50, 6], [60, 4], [90, -2]].forEach(([lx, k]) => path(g, `M${lx - 9} 20L${lx - 7 + k} 104L${lx + 7 + k} 104L${lx + 9} 20Z`, st_));
+  path(g, 'M118 -30C150 -24 156 10 146 34', { stroke: '#8a6a48', 'stroke-width': 7, 'stroke-linecap': 'round' });
+  path(g, 'M-120 -10C-118 -62 -40 -70 30 -66C100 -64 140 -50 136 -6C132 40 80 50 0 48C-80 48 -122 36 -120 -10Z', st_);
+  const head = G(g, { x: -104, y: -30, s: .999 });
+  path(head, 'M0 -8C-30 0 -56 30 -66 64L-50 72C-36 44 -14 22 12 14Z', st_);
+  path(head, 'M-50 50C-76 52 -96 70 -94 88C-92 100 -70 102 -56 92C-46 84 -40 70 -44 58Z', st_);
+  path(head, 'M-52 54L-40 30L-34 52Z', st_);
+  mk('circle', { cx: -66, cy: 70, r: 4, fill: '#3a2a1a' }, head);
+  return Object.assign(g, { head });
+}
+
+/* ---------- slide 3: the cycle of matter ---------- */
+// photosynthesis (top), organic molecules + O₂ (right), cellular respiration (bottom), CO₂ + H₂O (left) and four arcs
+// between them (top→right, right→bottom, bottom→left, left→top) with "generates" / "used in". Every part starts at o 0
+// (arcs undrawn); .all() shows everything at once. Returns { top, right, bottom, left, arcs, words }.
+function cycleLoop(p, { cx = 620, cy = 440, rx = 340, ry = 260, size = 28, icons = true } = {}) {
+  const g = G(p);
+  const node = (lines, x, y, kind, icon) => {
+    const n = G(g, { x, y, o: 0 }), cream = kind === 'cream';
+    const iw = icon ? size * 2.6 : 0, tw_ = Math.max(...lines.map(l => uiW(l.replace(/[_^]/g, ''), size))) * 1.06;
+    const w = Math.round(tw_ + iw + 36), h = Math.round(lines.length * size * 1.22 + 26);
+    mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: 16, fill: cream ? '#f2efe6' : '#0b1626', stroke: cream ? '#bdb6a2' : kind, 'stroke-width': 3 }, n);
+    lines.forEach((l, i) => wChem(n, l, { x: iw / 2, y: (i - (lines.length - 1) / 2) * size * 1.22 + size * .36, size, weight: 700, fill: cream ? '#14233a' : kind, o: 1 }));
+    if (icon === 'leaf') leafShape(n, { x: -w / 2 + 14, y: 0, s: size / 70, r: -20 });
+    if (icon === 'mito') mitochondrion(n, { x: -w / 2 + 16 + iw / 2, y: 0, s: size / 140 });
+    return Object.assign(n, { w, h });
+  };
+  const top = node(['photosynthesis'], cx, cy - ry, '#7fd48a', icons ? 'leaf' : null);
+  const right = node(['organic molecules', '+ O_2'], cx + rx, cy, 'cream');
+  const bottom = node(['cellular respiration', 'in mitochondria'], cx, cy + ry, MC.mito, icons ? 'mito' : null);
+  const left = node(['CO_2 + H_2O'], cx - rx, cy, 'cream');
+  const pad = 12;
+  const arcs = [
+    curveArrow(g, [cx + top.w / 2 + pad, cy - ry], [cx + rx, cy - ry], [cx + rx, cy - right.h / 2 - pad]),
+    curveArrow(g, [cx + rx, cy + right.h / 2 + pad], [cx + rx, cy + ry], [cx + bottom.w / 2 + pad, cy + ry]),
+    curveArrow(g, [cx - bottom.w / 2 - pad, cy + ry], [cx - rx, cy + ry], [cx - rx, cy + left.h / 2 + pad]),
+    curveArrow(g, [cx - rx, cy - left.h / 2 - pad], [cx - rx, cy - ry], [cx - top.w / 2 - pad, cy - ry]),
+  ];
+  const words = arcs.map((a, i) => {
+    const [mx, my] = a.mid, dx = mx - cx, dy = my - cy, L = Math.hypot(dx, dy);
+    return wLabel(g, ['generates', 'used in', 'generates', 'used in'][i], { x: mx + dx / L * 26, y: my + dy / L * 26 + size * .3, size: size * .78, fill: COL.dim, weight: 600, anchor: dx > 0 ? 'start' : 'end', o: 0 });
+  });
+  return { g, top, right, bottom, left, arcs, words, all() { [top, right, bottom, left, ...words].forEach(e => put(e, { o: 1 })); arcs.forEach(a => a.now()); return this; } };
+}
+
+/* ---------- electron-dot structures (slide 11) ---------- */
+// kind 'CH4' | 'O2' | 'CO2' | 'H2O': balls (water.js wAtom) joined by grey bonds, each shared pair two gold dots on its
+// bond. .shift(k) slides the pairs from even sharing (k 0) to their real place (k 1: in CO₂ and water, close to O).
+const LEW = {
+  CH4: { a: [['C', 0, 0], ['H', -100, 0], ['H', 100, 0], ['H', 0, -100], ['H', 0, 100]], b: [[0, 1, 1], [0, 2, 1], [0, 3, 1], [0, 4, 1]], f: [.45, .45] },
+  O2: { a: [['O', -54, 0], ['O', 54, 0]], b: [[0, 1, 2]], f: [.5, .5] },
+  CO2: { a: [['O', -106, 0], ['C', 0, 0], ['O', 106, 0]], b: [[1, 0, 2], [1, 2, 2]], f: [.5, .68] },
+  H2O: { a: [['O', 0, -22], ['H', -76, 38], ['H', 76, 38]], b: [[0, 1, 1], [0, 2, 1]], f: [.5, .34] },
+};
+const LEW_R = { C: 30, O: 30, H: 22 };
+function lewis(p, kind, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o }), L = LEW[kind];
+  let bd = ''; L.b.forEach(([i, j]) => { bd += `M${L.a[i][1]} ${L.a[i][2]}L${L.a[j][1]} ${L.a[j][2]}`; });
+  path(g, bd, { stroke: '#6d7686', 'stroke-width': 5 });
+  const atoms = L.a.map(([k, ax, ay]) => wAtom(g, k, { x: ax, y: ay, r: LEW_R[k], size: LEW_R[k] * .9 }));
+  const pairs = [];
+  L.b.forEach(([i, j, n]) => { for (let q = 0; q < n; q++) { const pg = G(g, { s: .999 }); [-1, 1].forEach(sd => mk('circle', { cx: sd * 6.5, r: 5.5, fill: MC.elec, stroke: MC.elecEdge, 'stroke-width': 1.5 }, pg)); pairs.push({ pg, i, j, off: n > 1 ? (q ? 11 : -11) : 0 }); } });
+  const lw = Object.assign(g, {
+    atoms, pairs,
+    shift(k) {
+      k = rk(k); const f = L.f[0] + (L.f[1] - L.f[0]) * io(k);
+      pairs.forEach(({ pg, i, j, off }) => {
+        const [, x1, y1] = L.a[i], [, x2, y2] = L.a[j], d = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / d, uy = (y2 - y1) / d;
+        cSet(pg, { x: x1 + ux * d * f - uy * off, y: y1 + uy * d * f + ux * off, r: Math.atan2(uy, ux) * 180 / Math.PI });
+      });
+      return lw;
+    },
+    at(i) { return cOut(g, [L.a[i][1], L.a[i][2]]); },
+  });
+  return lw.shift(0);
+}
+
+/* ---------- sodium and chlorine ---------- */
+// Na (left) and Cl (right) with their outer orbits and one electron; .set(k) the electron travels Na → Cl (k 0 → 1),
+// .ions(kNa, kCl) the charge badges show. origin = midway between them.
+function saltPair(p, { x = 0, y = 0, s = 1, o = 1, gap = 320 } = {}) {
+  const g = G(p, { x, y, s, o }), na = [-gap, 0], cl = [gap, 0];
+  mk('circle', { cx: na[0], cy: 0, r: 105, fill: 'none', stroke: COL.faint, 'stroke-width': 2.5, 'stroke-dasharray': '6 8' }, g);
+  mk('circle', { cx: cl[0], cy: 0, r: 125, fill: 'none', stroke: COL.faint, 'stroke-width': 2.5, 'stroke-dasharray': '6 8' }, g);
+  const aNa = wAtom(g, 'Na', { x: na[0], y: 0, r: 70, size: 52 }), aCl = wAtom(g, 'Cl', { x: cl[0], y: 0, r: 85, size: 56 });
+  const badge = (cx, cy, sign, col) => { const b = G(g, { x: cx, y: cy, s: .999, o: 0 }); mk('circle', { r: 24, fill: '#0f1e33', stroke: col, 'stroke-width': 3.5 }, b); wLabel(b, sign, { y: 12, size: 36, weight: 800, fill: col, o: 1 }); return b; };
+  const bNa = badge(na[0] + 56, -56, '+', MC.oxid), bCl = badge(cl[0] + 66, -66, '−', MC.redu);
+  const e = electron(g, { r: 13, trail: 70 });
+  const A = [na[0] + 105, 0], C = [0, -190], B = [cl[0] - 125, 0];
+  const sp = Object.assign(g, {
+    aNa, aCl, e, na, cl,
+    set(k) {
+      k = rk(k); const u = io(k), q = (a, c, b) => (1 - u) * (1 - u) * a + 2 * (1 - u) * u * c + u * u * b;
+      const px = q(A[0], C[0], B[0]), py = q(A[1], C[1], B[1]);
+      const tx = 2 * (1 - u) * (C[0] - A[0]) + 2 * u * (B[0] - C[0]), ty = 2 * (1 - u) * (C[1] - A[1]) + 2 * u * (B[1] - C[1]);
+      e.pose(px, py, k > 0 && k < 1 ? Math.atan2(ty, tx) * 180 / Math.PI : null, 70 * mBump(k, 0, 1));
+      return sp;
+    },
+    ions(kn, kc) { cSet(bNa, { o: rk(kn), s: .6 + .4 * back(rk(kn)) }); cSet(bCl, { o: rk(kc), s: .6 + .4 * back(rk(kc)) }); return sp; },
+  });
+  return sp.set(0).ions(0, 0);
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Light in, heat out', (m, D) => {
+  const p = panel(0), tSu = m('sun'), tL = m('leaf'), tH = m('heat'), tC = m('cell'), tM = m('mito');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W);
+  mk('rect', { x: -600, y: 700, width: 2800, height: 600, fill: '#22402b' }, back);
+  mk('rect', { x: -600, y: 694, width: 2800, height: 12, fill: '#3f7148' }, back);
+  let gd = ''; for (let i = 0; i < 44; i++) { const gx = -260 + i * 55 + 20 * wHash(i, 3); gd += `M${gx.toFixed(1)} 704l6 -16l6 16M${(gx + 9).toFixed(1)} 704l4 -11`; }
+  path(back, gd, { stroke: '#5a9a60', 'stroke-width': 3 });
+  const sun = sunShape(back, { x: 200, y: 160, r: 62 });
+  // the tree and its leaves; the hero leaf on the right branch
+  path(back, 'M604 704C610 640 596 560 612 470', { stroke: '#6d5340', 'stroke-width': 24, 'stroke-linecap': 'round' });
+  path(back, 'M608 548C646 508 684 476 724 456', { stroke: '#6d5340', 'stroke-width': 11, 'stroke-linecap': 'round' });
+  path(back, 'M610 500C584 462 548 440 508 430', { stroke: '#6d5340', 'stroke-width': 10, 'stroke-linecap': 'round' });
+  [[508, 430, .62, 200], [520, 436, .55, 150], [612, 470, .7, -100], [612, 472, .62, -60], [640, 520, .55, 30]].forEach(([lx, ly, ls, lr]) => leafShape(back, { x: lx, y: ly, s: ls, r: lr, fill: '#3d9a4c' }));
+  const leaf = leafShape(back, { x: 722, y: 456, s: 1.15, r: -18 });
+  const lc = cOut(leaf, [80, 0]);
+  const animal = grazer(back, { x: 1060, y: 594, s: 1.05 });
+  // sun: the rays breathe, gold light runs to the leaf
+  const sx = 200, sy = 160, ux = lc[0] - sx, uy = lc[1] - sy, uL = Math.hypot(ux, uy), u1 = ux / uL, u2 = uy / uL;
+  [-42, 0, 42].forEach((off, i) => {
+    const a = [sx + u1 * 100 - u2 * off, sy + u2 * 100 + u1 * off], b = [lc[0] - u1 * 70 - u2 * off * .5, lc[1] - u2 * 70 + u1 * off * .5];
+    lineArrow(back, a, b, { color: LIGHT, w: 6, head: 18, dash: '18 10' }).in(tSu + .3 + .25 * i, 1.3);
+  });
+  say(back, 'light in', 560, 228, tSu + 1.4, { size: 36, weight: 700, fill: LIGHT });
+  // leaf: it glows, and sugar appears on it
+  prog(k => mO(leaf.glow, .55 * k), tL + .2, .8, io);
+  const sug = G(back, { x: lc[0] + 4, y: lc[1] + 2, o: 0 });
+  path(sug, zNgon(6, 19), { fill: MC.glucose, stroke: MC.glucoseEdge, 'stroke-width': 3 });
+  show(sug, tL + 3.3, .4); pulse(sug, tL + 3.5, 1.25);
+  say(back, 'sugar', 800, 508, tL + 3.6, { size: 30, weight: 700, fill: MC.glucose });
+  say(back, 'chemical energy', 800, 536, tL + 3.9, { size: 22, weight: 600, fill: COL.dim });
+  // heat: wavy arrows rise off the leaf and the animal and leave
+  heatArrow(back, [826, 384], [884, 200], { waves: 3, amp: 9, w: 7 }).in(tH + .4, 1.1);
+  heatArrow(back, [1040, 520], [1080, 320], { waves: 3, amp: 9, w: 7 }).in(tH + 1.8, 1.1);
+  heatArrow(back, [1150, 522], [1210, 330], { waves: 3, amp: 9, w: 7 }).in(tH + 2.2, 1.1);
+  say(back, 'heat out', 1236, 310, tH + 2.8, { size: 36, weight: 700, fill: HEAT, anchor: 'start' });
+  say(back, 'it never comes back', 1236, 350, tH + 4.4, { size: 24, weight: 600, fill: COL.dim, anchor: 'start' });
+  const fl = pill(p, 'energy flows through: in as light, out as heat', { x: 800, y: 800, size: 30, o: 0 });
+  show(fl, tH + 6.2, .5); hide(fl, tC, .4);
+  // title, top right, before the sun's line
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 9 · LESSON 1', { x: 1230, y: 170, size: 26, fill: COL.dim, o: 1 });
+  ['Energy flow,', 'catabolism', 'and redox'].forEach((s, i) => wLabel(ttl, s, { x: 1230, y: 250 + i * 64, size: 52, o: 1 }));
+  wLabel(ttl, 'Cellular respiration', { x: 1230, y: 460, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tSu - .1, .5);
+  // cell: the camera pushes into the animal; inside, an animal cell
+  cam.to({ x: 1040, y: 584, z: 2.6 }, tC + .2, 1.6);
+  hide(back, tC + 1.2, .5);
+  cam.cut({ x: 800, y: 450, z: 1 }, tC + 1.75);
+  const cm = cellMap(W, { kind: 'animal', x: 800, y: 450, s: .62, o: 0 });
+  show(cm, tC + 1.75, .5);
+  // food sugars come into the cell: the energy it must turn into something it can spend
+  const sugs = [[600, 560], [690, 330], [930, 590], [560, 420], [1010, 470]].map(([x, y], i) => { const g = G(W, { x, y, o: 0 }); path(g, zNgon(6, 11), { fill: MC.glucose, stroke: MC.glucoseEdge, 'stroke-width': 2.5 }); return { g, x, y, i }; });
+  const lcell = say(p, 'an animal cell', 800, 86, tC + 2.4, { size: 36, weight: 700 });
+  hide(lcell, tM, .4);
+  // mito: the mitochondria light up, the camera pushes into one, and its cut-away takes over
+  prog(k => cm.focus('mitochondria', k), tM + .1, .8, io);
+  const [mx, my] = cm.pt('mitochondria', 1);
+  const lm = tag(p, 'mitochondria', [mx + 30, my - 120], [mx, my - 24], tM + .6, { size: 30, weight: 700, fill: MC.mito, line: MC.mito });
+  hide(lm, tM + 1.6, .3);
+  cam.to({ x: mx, y: my, z: 5, r: -25 }, tM + .9, 2.2);
+  const mcw = G(p, { x: 800, y: 450, s: .42, o: 0 });
+  const mc = mitoCutaway(mcw, { x: 0, y: 0, w: 1000, h: 400 });
+  show(mcw, tM + 2.9, .4); hide(cam.el, tM + 3.2, .4);
+  tw(mcw, { s: 1, y: 480 }, tM + 3.1, 1.3, io);
+  const ti = G(p, { o: 0 }); show(ti, tM + 3.9, .5);
+  wLabel(ti, 'the mitochondrion', { x: 800, y: 96, size: 44, weight: 700, fill: MC.mito, o: 1 });
+  wLabel(ti, 'where most of the work happens', { x: 800, y: 140, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  // ATP leaves the mitochondrion's right end
+  const outs = [0, 1, 2, 3].map(() => atpBurst(p, { r: 22, o: 0 }));
+  const tOut = tM + 6.2;
+  clockRun(t => {
+    sugs.forEach(({ g, x, y, i }) => mPose(g, x + 14 * Math.sin(t * .9 + i * 1.7), y + 10 * Math.cos(t * .7 + i * 2.3), mRamp(t, tC + 3 + .3 * i, tC + 3.6 + .3 * i) * (1 - mRamp(t, tM + .2, tM + .8))));
+    sun.set(t);
+    cSet(animal.head, { r: 5 * Math.sin(t * 1.4) });
+    mc.labels(mRamp(t, tM + 4.5, tM + 5.3));
+    outs.forEach((b, i) => {
+      const u = t > tOut ? cFrac((t - tOut) / 2.6 + i / 4) : 0;
+      mPose(b, 1305 + 210 * u, 480 + (i - 1.5) * 46 - 26 * u, (t > tOut ? mRamp(t, tOut, tOut + .6) : 0) * mBump(u, 0, 1));
+      b.shine(t);
+    });
+  }, D);
+}],
+
+/* ---------- cycle ---------- */
+['cycle', 'Matter cycles, energy flows', (m, D) => {
+  const p = panel(0), tP = m('photo'), tR = m('resp'), tB = m('back'), tA = m('atp'), tH = m('heat2');
+  const L = cycleLoop(p, { cx: 620, cy: 450, rx: 350, ry: 265, size: 28 });
+  // photo: light energy into photosynthesis; it makes organic molecules + O₂ out of CO₂ + H₂O
+  const sun = sunShape(p, { x: 120, y: 120, r: 42 });
+  show(L.top, tP + .3, .5);
+  lineArrow(p, [178, 146], [L.top.w ? 620 - L.top.w / 2 - 14 : 450, 182], { color: LIGHT, w: 6, head: 18, dash: '18 10' }).in(tP + 1.3, .9);
+  say(p, 'light energy', 330, 122, tP + 1.6, { size: 26, weight: 700, fill: LIGHT });
+  show(L.right, tP + 3.2, .4); L.arcs[0].in(tP + 3, .8); show(L.words[0], tP + 3.5, .3);
+  show(L.left, tP + 5.4, .4); L.arcs[3].in(tP + 5.6, .8); show(L.words[3], tP + 6.1, .3);
+  // resp: respiration in mitochondria uses them
+  L.arcs[1].in(tR + .3, .8); show(L.words[1], tR + .8, .3);
+  show(L.bottom, tR + .9, .5);
+  // back: CO₂ + H₂O go back to photosynthesis; matter goes round
+  L.arcs[2].in(tB + .6, .8); show(L.words[2], tB + 1.1, .3);
+  pulse(L.left, tB + 3.8, 1.1);
+  const mc = G(p, { o: 0 }); show(mc, tB + 5.9, .5);
+  wLabel(mc, 'matter', { x: 620, y: 438, size: 40, weight: 800, fill: '#cfe7d2', o: 1 });
+  wLabel(mc, 'cycles', { x: 620, y: 484, size: 40, weight: 800, fill: '#cfe7d2', o: 1 });
+  path(mc, 'M520 380A120 100 0 1 1 512 520', { stroke: '#cfe7d2', 'stroke-width': 4, 'stroke-dasharray': '10 8' });
+  path(mc, 'M500 508L512 532L530 512Z', { fill: '#cfe7d2' });
+  // atp: the breakdown makes ATP, which powers most cellular work
+  const yB = 450 + 265;
+  lineArrow(p, [620 + L.bottom.w / 2 + 14, yB + 30], [1110, yB + 30], { color: COL.chalk, w: 5, head: 16 }).in(tA + .3, .6);
+  const ab = atpBurst(p, { x: 1180, y: yB + 30, r: 44, o: 0 }); show(ab, tA + .8, .2);
+  say(p, 'powers most cellular work', 1180, yB + 130, tA + 1.6, { size: 26, weight: 700 });
+  // heat2: part of the energy leaves cellular respiration as heat, out across the loop; energy flows one way
+  const yT = yB - L.bottom.h / 2, xR = 620 + L.bottom.w / 2;
+  heatArrow(p, [xR - 40, yT - 6], [1050, 548], { waves: 3, amp: 9, w: 7 }).in(tH + .3, 1);
+  heatArrow(p, [xR - 6, yT - 6], [1140, 612], { waves: 3, amp: 9, w: 7 }).in(tH + .7, 1);
+  say(p, 'heat', 1072, 552, tH + 1.2, { size: 34, weight: 700, fill: HEAT, anchor: 'start' });
+  const ef = G(p, { o: 0 }); show(ef, tH + 2.6, .5);
+  wLabel(ef, 'energy flows one way:', { x: 1300, y: 150, size: 32, weight: 700, fill: LIGHT, o: 1 });
+  wLabel(ef, 'light in, heat out', { x: 1300, y: 194, size: 32, weight: 700, fill: HEAT, o: 1 });
+  clockRun(t => { sun.set(t); ab.set(mRamp(t, tA + .8, tA + 1.4)).shine(t); }, D);
+}],
+
+/* ---------- kinds ---------- */
+['kinds', 'Catabolic pathways', (m, D) => {
+  const p = panel(0), tCa = m('cat'), tO = m('ox'), tTh = m('three'), tAe = m('aero'), tAn = m('anaer'), tT = m('term');
+  banner(p, 'catabolic pathway: breaks molecules down', null, 800, 70, tCa + .1, { size: 38 });
+  say(p, 'exergonic: it releases free energy', 800, 112, tCa + 3.6, { size: 26, fill: MC.exo, weight: 700 });
+  // left: a big fuel high on the free-energy scale, small pieces low, an orange drop between
+  const lg = G(p, { o: 0 }); show(lg, tCa + .6, .5);
+  mArrow(lg, [110, 690], [110, 220], { color: COL.dim, w: 4, head: 14 });
+  const fe = G(lg, { x: 86, y: 455, r: -90 }); wLabel(fe, 'free energy', { size: 24, fill: COL.dim, weight: 600, o: 1 });
+  const glu = glucoseRing(lg, { x: 300, y: 330, label: 'glucose' });
+  const bits = G(p, { o: 0 }); show(bits, tCa + 2.6, .5);
+  [[440, 610], [520, 640], [600, 610]].forEach(([x, y]) => co2Molecule(bits, { x, y, r: 15 }));
+  [[460, 670], [580, 676]].forEach(([x, y]) => waterMolecule(bits, { x, y, s: .34, face: false }));
+  wLabel(bits, 'small molecules', { x: 520, y: 740, size: 24, fill: COL.dim, weight: 600, o: 1 });
+  const dr = lineArrow(p, [350, 420], [450, 570], { color: MC.exo, w: 8, head: 22 }); dr.in(tCa + 2.4, .8);
+  // "releases free energy": a bright stroke runs down the drop arrow, twice (pure in t, in clockRun)
+  const DRL = Math.hypot(100, 150) - 18;
+  const run = path(p, 'M350 420L436 549', { stroke: LIGHT, 'stroke-width': 8, 'stroke-dasharray': `36 ${Math.round(DRL + 40)}` }, { o: 0 });
+  const drl = G(p, { o: 0 }); show(drl, tCa + 3.4, .4);
+  const drw = G(drl, { x: 420, y: 470 });
+  wLabel(drw, 'free energy', { size: 24, fill: MC.exo, weight: 700, anchor: 'start', o: 1 });
+  wLabel(drw, 'released', { y: 30, size: 24, fill: MC.exo, weight: 700, anchor: 'start', o: 1 });
+  pulse(drw, tCa + 5.6, 1.1);
+  // ox: it does so by oxidizing the fuel (the word is explained in the redox beat)
+  const ra = redoxArrow(p, 'ox', { x: 300, y: 262, dir: -90, len: 56, sub: 'the fuel loses electrons', size: 26, e: true });
+  const tox = tO + .3;
+  // "what that word means": the word "oxidized" is underlined
+  draw(path(p, 'M246 168H354', { stroke: MC.oxid, 'stroke-width': 3.5, 'stroke-linecap': 'round' }, { d: 0 }), tO + 4.7, .6);
+  // three: the three cards
+  const CARDS = [
+    ['Fermentation', 'partial breakdown of sugar, no O_2', MC.ethanol, tTh + 1.7],
+    ['Aerobic respiration', 'organic molecules + O_2 → ATP', MC.oxy, tAe + .1],
+    ['Anaerobic respiration', 'another compound instead of O_2', '#c9c3b2', tAn + .1],
+  ];
+  const icons = {};
+  const cards = CARDS.map(([a, b, col, t0], i) => {
+    const y0 = 160 + i * 172, g = G(p, { o: 0 });
+    panelBox(g, 700, y0, 610, 146, col);
+    wLabel(g, a, { x: 850, y: y0 + 60, size: 32, weight: 700, fill: col, anchor: 'start', o: 1 });
+    const sub = G(g, { x: 850, y: y0 + 102 });
+    wChem(sub, b, { size: 24, weight: 600, fill: COL.dim, anchor: 'start', o: 1 });
+    const ic = G(g, { x: 775, y: y0 + 73 });
+    if (i === 0) icons.ferm = glucoseRing(ic, { R: 24, r: 7, apart: 20, sp: 15 });
+    if (i === 1) { icons.o2 = o2Molecule(ic, { x: -16, y: -14, r: 14 }); icons.atp = atpBurst(ic, { x: 18, y: 18, r: 20, size: 9 }); }
+    if (i === 2) { mk('circle', { r: 24, fill: '#5f6873', stroke: '#9aa3ad', 'stroke-width': 3 }, ic); wLabel(ic, '?', { y: 12, size: 34, weight: 800, o: 1 }); }
+    show(g, t0, .5);
+    return { g, sub, ic };
+  });
+  // the voice names each card's parts: fermentation's sugar breaks partway ("partial breakdown") and "without oxygen"
+  // lifts its line; aerobic's O₂ pulses on "oxygen" and its ATP fills on "yields ATP"; anaerobic's "?" pulses on
+  // "some compound" and its line on "other than oxygen"
+  pulse(cards[0].sub, tTh + 5.3, 1.08);
+  pulse(cards[1].sub, tAe + 1.6, 1.08); pulse(icons.o2, tAe + 3.2, 1.5);
+  pulse(cards[2].ic, tAn + 3.1, 1.3); pulse(cards[2].sub, tAn + 4.2, 1.08);
+  // term: "cellular respiration" covers cards 2 and 3; it usually means card 2
+  const br = G(p, { o: 0 }); show(br, tT + .3, .4);
+  path(br, 'M1322 338H1342V650H1322', { stroke: COL.chalk, 'stroke-width': 4 });
+  wLabel(br, 'cellular', { x: 1360, y: 486, size: 30, weight: 700, anchor: 'start', o: 1 });
+  wLabel(br, 'respiration', { x: 1360, y: 522, size: 30, weight: 700, anchor: 'start', o: 1 });
+  const star = G(p, { x: 1272, y: 372, o: 0 }); path(star, zStar(18, 8, 5), { fill: LIGHT, stroke: '#c79a2e', 'stroke-width': 2 });
+  show(star, tT + 4.4, .3); pulse(star, tT + 4.5, 1.4);
+  sayC(p, '★ usually it means aerobic respiration: the one we follow', 1005, 720, tT + 4.7, { size: 26, weight: 700, fill: LIGHT });
+  const tRun = tCa + 5.5;
+  clockRun(t => {
+    ra.draw(mRamp(t, tox, tox + 2.4));
+    mO(ra, t < tox ? 0 : 1);
+    const u = cFrac(Math.max(0, t - tRun) / .9);
+    run.setAttribute('stroke-dashoffset', (36 - (DRL + 36) * u).toFixed(1));
+    mO(run, t > tRun && t < tRun + 1.8 ? mBump(u, 0, 1) : 0);
+    icons.ferm.split(mRamp(t, tTh + 2.7, tTh + 3.9));
+    icons.atp.empty(1).set(mRamp(t, tAe + 4.4, tAe + 5)).shine(t);
+  }, D);
+}],
+
+/* ---------- equation ---------- */
+['equation', 'Glucose, the traced fuel', (m, D) => {
+  const p = panel(0), tF = m('fuel'), tE = m('eq'), tC = m('count'), tEn = m('energy');
+  const Y = 430, LY = 548;
+  // fuel: carbohydrates, fats and proteins; glucose is the one we trace
+  const fu = G(p);
+  [['carb', 'carbohydrates', 560, MC.glucose, .5], ['fat', 'fats', 800, MC.fatTail, 1.4], ['protein', 'proteins', 1040, MC.amino, 2.2]].forEach(([k, s, x, col, d]) => {
+    const g = G(fu, { o: 0 }); fuelIcon(g, k, { x, y: 170 }); wLabel(g, s, { x, y: 236, size: 24, weight: 700, fill: col, o: 1 }); show(g, tF + d, .4);
+  });
+  const glu = glucoseRing(p, { x: 190, y: Y, R: 52, r: 13, o: 0 });
+  const ring = mk('circle', { cx: 190, cy: Y, r: 84, fill: 'none', stroke: LIGHT, 'stroke-width': 4, 'stroke-dasharray': '10 8' }, p); put(ring, { o: 0 });
+  show(ring, tF + 5.2, .4);
+  lineArrow(p, [480, 196], [262, 360], { color: COL.dim, w: 4, head: 14, dash: '10 8' }).in(tF + 4.8, .7);
+  const ftr = say(p, 'the fuel we trace', 190, 316, tF + 5.6, { size: 24, weight: 700, fill: LIGHT });
+  hide(ftr, tC, .3);
+  prog(k => mO(fu, 1 - .65 * k), tE, .6);
+  // eq: the row of molecules, left to right as the equation is said
+  const grid2 = (x0, f) => { const out_ = []; for (let i = 0; i < 6; i++) out_.push(f(x0 + (i % 2) * 70, Y - 66 + Math.floor(i / 2) * 66)); return out_; };
+  const parts = [];
+  const add = (g, t0) => { put(g, { o: 0 }); show(g, t0, .4); parts.push(g); return g; };
+  const lg = add(G(p), tF + 4.6); wChem(lg, 'C_6H_{12}O_6', { x: 190, y: LY, size: 30, weight: 700, fill: MC.glucose, o: 1 }); wLabel(lg, 'glucose', { x: 190, y: LY + 34, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  add(wLabel(p, '+', { x: 322, y: Y + 14, size: 46, weight: 700 }), tE + .6);
+  const oG = add(G(p), tE + 1); grid2(400, (x, y) => o2Molecule(oG, { x, y, r: 15 }));
+  wChem(oG, '6 O_2', { x: 435, y: LY, size: 30, weight: 700, fill: '#ff8a76', o: 1 }); wLabel(oG, 'oxygen', { x: 435, y: LY + 34, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  const arG = add(G(p), tE + 1.8); mArrow(arG, [520, Y], [600, Y], { color: COL.chalk, w: 6, head: 18 });
+  const cG = add(G(p), tE + 2.2); const co2s = grid2(660, (x, y) => co2Molecule(cG, { x, y, r: 15 }));
+  wChem(cG, '6 CO_2', { x: 695, y: LY, size: 30, weight: 700, fill: '#cfd3d8', o: 1 }); wLabel(cG, 'carbon dioxide', { x: 695, y: LY + 34, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  add(wLabel(p, '+', { x: 812, y: Y + 14, size: 46, weight: 700 }), tE + 3.2);
+  const wG = add(G(p), tE + 3.4); grid2(880, (x, y) => waterMolecule(wG, { x, y, s: .3, face: false }));
+  wChem(wG, '6 H_2O', { x: 915, y: LY, size: 30, weight: 700, fill: '#cfeefa', o: 1 }); wLabel(wG, 'water', { x: 915, y: LY + 34, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  add(wLabel(p, '+', { x: 1018, y: Y + 14, size: 46, weight: 700 }), tE + 4.4);
+  const eb = atpBurst(p, { x: 1130, y: Y, r: 46 });
+  const eL = add(G(p), tE + 4.6); wLabel(eL, 'energy', { x: 1150, y: LY, size: 30, weight: 700, fill: LIGHT, o: 1 });
+  say(p, '(ATP + heat)', 1150, LY + 34, tEn + .6, { size: 22, fill: COL.dim, weight: 600 });
+  const h1 = heatArrow(p, [1190, Y - 20], [1290, Y - 200], { waves: 3, amp: 8, w: 6 }), h2 = heatArrow(p, [1230, Y + 10], [1370, Y - 140], { waves: 3, amp: 8, w: 6 });
+  h1.in(tEn + 1.2, .9); h2.in(tEn + 1.6, .9);
+  say(p, 'heat', 1345, Y - 186, tEn + 2, { size: 30, weight: 700, fill: HEAT, anchor: 'start' });
+  // count: the six carbons leave glucose, one into each CO₂
+  const bG = G(p);
+  const beads = [0, 1, 2, 3, 4, 5].map(() => { const b = G(bG, { o: 0, s: .999 }); mk('circle', { r: 13, fill: MC.carbon, stroke: MC.carbonEdge, 'stroke-width': 2.5 }, b); mk('circle', { cx: -4, cy: -5, r: 3.6, fill: '#fff', 'fill-opacity': .45 }, b); return b; });
+  const from = [0, 1, 2, 3, 4, 5].map(i => glu.bead(i)), to = co2s.map(c => [st(c).x, st(c).y]);
+  const flashes = to.map(([x, y]) => { const f = mk('circle', { cx: x, cy: y, r: 22, fill: 'none', stroke: LIGHT, 'stroke-width': 4 }, p); put(f, { o: 0 }); return f; });
+  const c1 = say(p, '6 C in', 190, 330, tC + .6, { size: 30, weight: 800, fill: '#cfd3d8' });
+  const c2 = say(p, '6 C out', 695, 330, tC + 4.5, { size: 30, weight: 800, fill: '#cfd3d8' });
+  const cIn = pill(p, '6 carbons in, 6 carbons out: only rearranged', { x: 800, y: 680, size: 28, edge: '#9aa3ad', o: 0 });
+  show(cIn, tC + 5, .4); hide(cIn, tEn - .2, .3);
+  hide(ring, tC, .3);
+  // energy: never in one jump: many small steps (later lessons)
+  const nj = G(p, { o: 0 }); show(nj, tEn + 3.4, .4);
+  wLabel(nj, 'cells never do it in one jump:', { x: 800, y: 690, size: 28, weight: 700, o: 1 });
+  const stp = G(p, { o: 0 }); show(stp, tEn + 5.5, .5);
+  path(stp, 'M600 730H660V760H720V790H780V820H840', { stroke: MC.exo, 'stroke-width': 7, 'stroke-linejoin': 'round' });
+  wLabel(stp, 'many small steps, in later lessons', { x: 870, y: 790, size: 26, weight: 700, fill: MC.exo, anchor: 'start', o: 1 });
+  clockRun(t => {
+    eb.empty(t < tEn ? mRamp(t, tE + 4.6, tE + 5) : 1); eb.set(mRamp(t, tEn + .2, tEn + .9)); eb.shine(t);
+    beads.forEach((b, i) => {
+      const t0 = tC + .9 + .45 * i, u = io(mRamp(t, t0, t0 + 1.3));
+      const [ax, ay] = from[i], [bx, by] = to[i], hx = (ax + bx) / 2, hy = Math.min(ay, by) - 150;
+      const x = (1 - u) * (1 - u) * ax + 2 * (1 - u) * u * hx + u * u * bx, y = (1 - u) * (1 - u) * ay + 2 * (1 - u) * u * hy + u * u * by;
+      mPose(b, x, y, t < t0 ? 0 : u < 1 ? 1 : 1 - mRamp(t, t0 + 1.3, t0 + 1.5));
+      mO(glu.beads[i], 1 - mRamp(t, t0, t0 + .15));
+      mO(flashes[i], mBump(t, t0 + 1.2, t0 + 1.9));
+    });
+    mO(glu, t < tF + 4.6 ? 0 : t < tC ? mRamp(t, tF + 4.6, tF + 5.1) : 1 - .35 * mRamp(t, tC + 3.5, tC + 4.5));
+  }, D);
+  void c1; void c2;
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const glu = glucoseRing(p, { x: 320, y: 330, R: 70, r: 17 });
+  glu.beads.forEach(b => { const h = mk('circle', { r: 24, fill: 'none', stroke: LIGHT, 'stroke-width': 3 }, b); void h; });
+  wLabel(p, 'glucose: six carbons', { x: 320, y: 470, size: 30, weight: 700, fill: MC.glucose, o: 1 });
+  wChem(p, 'C_6H_{12}O_6 + 6 O_2 →', { x: 320, y: 560, size: 30, weight: 700, o: 1 });
+  wChem(p, '6 CO_2 + 6 H_2O + energy', { x: 320, y: 604, size: 30, weight: 700, o: 1 });
+  wLabel(p, 'where do the six C go?', { x: 320, y: 170, size: 30, weight: 700, fill: LIGHT, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-carbon', prompt: ['Where do the six carbons of glucose end up?'],
+  build: choice([['in six water molecules'], ['in six carbon dioxide molecules'], ['in ATP'], ['in the oxygen']], 1,
+    'Right. One glucose has six carbons, and each of the six CO₂ molecules carries one of them away: nothing is lost, only rearranged.',
+    ['Water has no carbon, only hydrogen and oxygen. Count the carbons on the right side of the equation.', null,
+      'ATP is made with the energy the breakdown releases; the carbons themselves leave as carbon dioxide.',
+      'Oxygen is a reactant, and O₂ has no carbon at all. Look for the C on the right side.']),
+}], done) }],
+
+/* ---------- redox ---------- */
+['redox', 'Redox: electrons move', (m, D) => {
+  const p = panel(0), tR = m('redox'), tN = m('na'), tX = m('xfer'), tO = m('oxid'), tRe = m('red'), tA = m('agents'), tP = m('pair');
+  const bn = banner(p, 'redox = oxidation + reduction', 'reactions that move electrons from one substance to another', 800, 330, tR + .2, { size: 48 });
+  pulse(bn, tR + 3.4, 1.05);
+  hide(bn, tN - .4, .4);
+  // while the banner holds: an electron crosses from one substance to another ("move electrons ... to another")
+  const mv = G(p, { o: 0 }); show(mv, tR + 7.2, .5); hide(mv, tN - .4, .4);
+  wLabel(mv, 'one substance', { x: 480, y: 598, size: 28, weight: 700, fill: COL.dim, o: 1 });
+  wLabel(mv, 'another', { x: 1120, y: 598, size: 28, weight: 700, fill: COL.dim, o: 1 });
+  mk('circle', { cx: 480, cy: 500, r: 46, fill: 'none', stroke: COL.dim, 'stroke-width': 4 }, mv);
+  mk('circle', { cx: 1120, cy: 500, r: 46, fill: 'none', stroke: COL.dim, 'stroke-width': 4 }, mv);
+  const ed = mk('circle', { cx: 480, cy: 500, r: 12, fill: MC.elec }, mv);
+  const eq = redoxEq(p, { kind: 'salt', x: 800, y: 175, size: 44, oxLabel: 'becomes oxidized (loses an electron)', redLabel: 'becomes reduced (gains an electron)' });
+  const sp = saltPair(p, { x: 800, y: 500, o: 0 }); show(sp, tN + .1, .5);
+  // labels under the atoms; atom → ion swaps fade out, swap and fade in
+  const nl = say(p, 'sodium atom, Na', 480, 668, tN + .5, { size: 30, weight: 700, fill: '#c9adf0' });
+  const cl = say(p, 'chlorine atom, Cl', 1120, 668, tN + 1.2, { size: 30, weight: 700, fill: '#9fe0ac' });
+  hide(nl, tO + 2.6, .3); hide(cl, tRe + 2.6, .3);
+  sayC(p, 'sodium ion, Na^+', 480, 668, tO + 3, { size: 30, weight: 700, fill: '#c9adf0' });
+  sayC(p, 'chloride ion, Cl^−', 1120, 668, tRe + 3, { size: 30, weight: 700, fill: '#9fe0ac' });
+  const oxA = redoxArrow(p, 'ox', { x: 404, y: 500, dir: 180, len: 70, sub: 'loses e⁻', e: false });
+  const reA = redoxArrow(p, 'red', { x: 1211, y: 500, dir: 0, len: 70, sub: 'gains e⁻', e: false });
+  say(p, 'charge drops: 0 → −1', 1300, 590, tRe + 6.2, { size: 24, weight: 600, fill: COL.dim, anchor: 'start' });
+  // agents: donor and acceptor
+  const aR = agentTag(p, 'reducing', { x: 480, y: 755, o: 0 }), aO = agentTag(p, 'oxidizing', { x: 1120, y: 755, o: 0 });
+  show(aR, tA + .3, .4); show(aO, tA + 6.2, .4);
+  pulse(aR, tA + 9.8, 1.08); pulse(aO, tA + 11.4, 1.08);
+  // pair: the two always happen together
+  const pg = G(p, { o: 0 }); show(pg, tP + .3, .5);
+  path(pg, 'M480 796V820H1120V796', { stroke: COL.chalk, 'stroke-width': 4 });
+  wLabel(pg, 'always together: one substance’s loss is the other’s gain', { x: 800, y: 862, size: 28, weight: 700, o: 1 });
+  clockRun(t => {
+    ed.setAttribute('cx', (480 + 640 * io(mRamp(t, tR + 7.8, tR + 10.8))).toFixed(1));
+    eq.reveal(t < tX + .8 ? mRamp(t, tN + .1, tN + .9) * 3 / 7 : 3 / 7 + 4 / 7 * mRamp(t, tX + .8, tX + 2));
+    eq.ox(mRamp(t, tO + .3, tO + 1.6)); eq.red(mRamp(t, tRe + .3, tRe + 1.6));
+    sp.set(mRamp(t, tX + .3, tX + 1.8));
+    sp.ions(mRamp(t, tO + 2.4, tO + 3), mRamp(t, tRe + 2.4, tRe + 3));
+    oxA.draw(mRamp(t, tO + .6, tO + 2.2)); mO(oxA, t < tO + .6 ? 0 : 1);
+    reA.draw(mRamp(t, tRe + .6, tRe + 2.2)); mO(reA, t < tRe + .6 ? 0 : 1);
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  const sp = saltPair(p, { x: 320, y: 390, s: .68, gap: 310 });
+  sp.set(.5);
+  wLabel(p, 'sodium', { x: 109, y: 518, size: 28, weight: 700, fill: '#c9adf0', o: 1 });
+  wLabel(p, 'chlorine', { x: 531, y: 518, size: 28, weight: 700, fill: '#9fe0ac', o: 1 });
+  wLabel(p, 'an electron moves Na → Cl', { x: 320, y: 220, size: 28, weight: 700, fill: MC.elec, o: 1 });
+  wLabel(p, 'which one is oxidized?', { x: 320, y: 600, size: 28, weight: 700, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-oxidized', prompt: ['Sodium gives an electron to chlorine. Which atom is oxidized?'],
+  build: choice([['chlorine'], ['sodium'], ['both'], ['neither']], 1,
+    'Right. Oxidation is loss of electrons: sodium loses one and becomes Na⁺. Chlorine, which gains it, is reduced.',
+    ['Chlorine gains the electron, so it is reduced. Oxidation is loss.', null,
+      'Only one atom loses an electron here; the other gains it. One is oxidized, the other reduced.',
+      'An electron moved from one atom to the other, so a redox reaction did happen. Which atom lost it?']),
+}], done) }],
+
+/* ---------- methane ---------- */
+['methane', 'Methane: sharing shifts', (m, D) => {
+  const p = panel(0), tCh = m('ch4'), tS = m('shift'), tOx = m('ox2'), tRd = m('red2'), tAg = m('ag2'), tLk = m('link');
+  const eq = redoxEq(p, { kind: 'methane', x: 800, y: 165, size: 40 });
+  const sub = say(p, 'not every redox hands electrons over: some shift how they are shared', 800, 72, tCh + 1.2, { size: 28, weight: 700 });
+  hide(sub, tCh + 7.6, .4);
+  const Y = 450;
+  const mol = [['CH4', 260, 'methane, CH_4', tCh + 9], ['O2', 580, 'oxygen, 2 O_2', tCh + 10.4], ['CO2', 980, 'carbon dioxide, CO_2', tCh + 11.6], ['H2O', 1320, 'water, 2 H_2O', tCh + 12.6]].map(([k, x, lab, t0]) => {
+    const g = G(p, { o: 0 }); show(g, t0, .5);
+    const lw = lewis(g, k, { x, y: Y });
+    wChem(g, lab, { x, y: Y + 150, size: 26, weight: 700, o: 1 });
+    return lw;
+  });
+  say(p, '+', 420, Y + 14, tCh + 10.4, { size: 44, weight: 700 });
+  const ar = G(p, { o: 0 }); show(ar, tCh + 11.4, .4); mArrow(ar, [700, Y], [820, Y], { color: COL.chalk, w: 6, head: 18 });
+  say(p, '+', 1155, Y + 14, tCh + 12.6, { size: 44, weight: 700 });
+  // shift: methane shares fairly evenly; in CO₂ and water the pairs sit near O
+  const n1 = say(p, 'shared about evenly', 260, 300, tS + .6, { size: 24, weight: 700, fill: MC.elec });
+  const n2 = say(p, 'pairs pulled toward O', 1150, 300, tS + 5.4, { size: 24, weight: 700, fill: MC.elec });
+  const n3 = say(p, 'oxygen is very electronegative', 1150, 330, tS + 8.4, { size: 22, weight: 600, fill: COL.dim });
+  hide(n3, tOx - .2, .3);
+  pulse(mol[0], tS + 1, 1.06);
+  hide(n2, tOx - .2, .3); void n1;
+  // ox2 / red2: tags on CO₂'s carbon and water's oxygen
+  say(p, 'carbon: oxidized', 980, 330, tOx + .4, { size: 28, weight: 700, fill: MC.oxid });
+  say(p, 'lost its share of electrons', 980, 362, tOx + 1, { size: 22, weight: 600, fill: COL.dim });
+  say(p, 'oxygen: reduced', 1320, 330, tRd + .3, { size: 28, weight: 700, fill: MC.redu });
+  say(p, 'gained a share', 1320, 362, tRd + .9, { size: 22, weight: 600, fill: COL.dim });
+  // ag2: methane donates, oxygen accepts
+  const g1 = agentTag(p, 'reducing', { x: 260, y: 680, o: 0 }), g2 = agentTag(p, 'oxidizing', { x: 580, y: 680, o: 0 });
+  show(g1, tAg + .2, .4); show(g2, tAg + 2.2, .4);
+  // link: glucose burns the same way
+  const lk = G(p, { o: 0 }); show(lk, tLk + .2, .5);
+  panelBox(lk, 760, 640, 790, 170, LIGHT);
+  glucoseRing(lk, { x: 850, y: 725, R: 40, r: 10 });
+  wLabel(lk, 'glucose burns the same way:', { x: 920, y: 706, size: 28, weight: 700, fill: LIGHT, anchor: 'start', o: 1 });
+  const l2 = G(lk, { o: 0 }); show(l2, tLk + 2.6, .4);
+  wChem(l2, 'its C are oxidized to CO_2, O_2 is reduced to H_2O', { x: 920, y: 744, size: 22, weight: 600, fill: COL.dim, anchor: 'start', o: 1 });
+  const l3 = G(lk, { o: 0 }); show(l3, tLk + 6.4, .4);
+  wLabel(l3, 'that shift releases the energy', { x: 920, y: 782, size: 24, weight: 700, fill: MC.exo, anchor: 'start', o: 1 });
+  clockRun(t => {
+    const k = io(mRamp(t, tS + 5.4, tS + 7.6));
+    mol[2].shift(k); mol[3].shift(k); mol[0].shift(0); mol[1].shift(0);
+    eq.ox(mRamp(t, tOx + .3, tOx + 1.6)); eq.red(mRamp(t, tRd + .2, tRd + 1.5));
+  }, D);
+}],
+
+/* ---------- map ---------- */
+['map', 'The respiration map', (m, D) => {
+  const p = panel(0), t0 = m('map0'), tG = m('gly'), tM = m('mito2'), tE = m('elec'), tA = m('atpm'), tN = m('next');
+  const cam = camera(p, D, { x: 800, y: 470, z: 1 }), W = cam.world;
+  const hold = G(W, { x: 800, y: 500 });
+  const rm = respMap(hold, { x: 0, y: 0, s: .98 });
+  const N = rm.order.length, K = n => rm.kOf(n);
+  const KT = [[t0 + .2, 0], [t0 + 1.9, K('mito')], [tG + .2, K('mito')], [tG + 1.4, K('glycolysis')],
+    [tM + 2.2, K('glycolysis')], [tM + 3.2, K('pyruvateOx')], [tM + 4.2, K('pyruvateOx')], [tM + 5.1, K('cycle')], [tM + 6, K('cycle')], [tM + 7.1, K('oxphos')],
+    [tE + .3, K('oxphos')], [tE + 2.3, K('e1')], [tE + 3.8, K('e2')], [tE + 4.9, K('e3')],
+    [tA + 1.2, K('e3')], [tA + 1.8, K('atp1')], [tA + 2.4, K('atp1')], [tA + 3, K('atp2')], [tA + 3.6, K('atp2')], [tA + 4.3, 1]];
+  void N;
+  // the camera follows the build: glycolysis close, then across to the mitochondrion, then the whole map
+  cam.to({ x: 560, y: 500, z: 1.4 }, tG + .1, 1.4);
+  cam.to({ x: 1010, y: 500, z: 1.35 }, tM + .6, 2.4);
+  cam.to({ x: 800, y: 470, z: 1 }, tE + .1, 1.6);
+  const ti = G(p, { o: 0 }); show(ti, tN + .2, .6);
+  wLabel(ti, 'the respiration map', { x: 800, y: 82, size: 48, weight: 800, fill: LIGHT, o: 1 });
+  wLabel(ti, 'every lesson in this chapter opens here, with one part lit', { x: 800, y: 124, size: 26, weight: 600, fill: COL.dim, o: 1 });
+  pulse(hold, tN + .3, 1.03);
+  const sk = say(p, 'a sketch: each stage gets its own lessons', 800, 130, t0 + .4, { size: 26, weight: 600, fill: COL.dim });
+  hide(sk, tG, .3);
+  // after "one part lit": a preview, one stage at a time
+  const tL = tN + 2.2, LIT = [['glycolysis'], ['pyruvateOx', 'cycle'], ['oxphos']];
+  clockRun(t => {
+    rm.build(pw(KT, t));
+    rm.flow(t, mRamp(t, tE + 4.2, tE + 5.2));
+    rm.shine(t);
+    let names = [], k = 0;
+    if (t >= tL) { const i = Math.min(2, Math.floor((t - tL) / 1.1)), u = (t - tL) - 1.1 * i; names = LIT[i]; k = t < tL + 3.3 ? Math.min(mRamp(u, 0, .3), i === 2 ? 1 - mRamp(t, tL + 3, tL + 3.3) : 1) : 0; }
+    rm.focus(names, k);
+  }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tE = m('end');
+  wLabel(p, 'Summary: energy flow, catabolism and redox', { x: 800, y: 70, size: 36, weight: 700, o: 1 });
+  const ROWS = [
+    ['s1', 'Energy flows in as light and out as heat', 'matter cycles between photosynthesis and respiration', LIGHT],
+    ['s2', 'Catabolic pathways release energy by oxidizing fuels', 'glucose, the traced fuel: C_6H_{12}O_6 + 6 O_2 → 6 CO_2 + 6 H_2O + energy', MC.exo],
+    ['s3', 'Oxidation is loss of electrons, reduction is gain', 'in methane the loss is only a shift in how electrons are shared', MC.elec],
+  ];
+  ROWS.forEach(([mk_, a, b, col], i) => {
+    const y = 200 + i * 205, g = G(p, { o: 0 });
+    panelBox(g, 150, y - 85, 1300, 175);
+    wChem(g, a, { x: 450, y: y - 6, size: 34, weight: 700, fill: col, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 450, y: y + 40, size: 24, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i === 0) {
+      sunShape(g, { x: 240, y: y - 20, r: 30 });
+      heatArrow(g, [320, y + 60], [370, y - 50], { waves: 2, amp: 6, w: 5, o: 1 });
+    }
+    if (i === 1) { glucoseRing(g, { x: 270, y: y + 12, R: 38, r: 10 }); redoxArrow(g, 'ox', { x: 312, y: y - 20, dir: -30, len: 50, label: '' }); }
+    if (i === 2) {
+      wAtom(g, 'Na', { x: 220, y: y + 10, r: 30, size: 24 }); wAtom(g, 'Cl', { x: 370, y: y + 10, r: 36, size: 26 });
+      path(g, `M250 ${y - 22}Q295 ${y - 70} 334 ${y - 22}`, { stroke: MC.elec, 'stroke-width': 3, 'stroke-dasharray': '6 6' });
+      electron(g, { x: 300, y: y - 46, r: 9 });
+    }
+    show(g, m(mk_) + .1, .5);
+  });
+  say(p, 'Now try the chapter practice.', 800, 840, tE, { size: 32, fill: WC.bond });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('flow', g => {
+    panelBox(g, 980, 90, 580, 720);
+    sunShape(g, { x: 1090, y: 210, r: 50 });
+    leafShape(g, { x: 1250, y: 500, s: 1.2, r: -15 });
+    lineArrow(g, [1150, 250], [1300, 440], { color: LIGHT, w: 6, head: 18, dash: '18 10' }).now();
+    heatArrow(g, [1400, 450], [1470, 220], { waves: 3, amp: 9, w: 7, o: 1 });
+    wLabel(g, 'in: ?', { x: 1150, y: 380, size: 34, weight: 800, fill: LIGHT, anchor: 'end', o: 1 });
+    wLabel(g, 'out: ?', { x: 1470, y: 190, size: 34, weight: 800, fill: HEAT, o: 1 });
+    wLabel(g, 'energy through an ecosystem', { x: 1270, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('cycle', g => {
+    panelBox(g, 980, 90, 580, 720);
+    const L = cycleLoop(g, { cx: 1270, cy: 440, rx: 170, ry: 230, size: 20, icons: false }).all();
+    void L;
+    wLabel(g, 'what goes round?', { x: 1270, y: 140, size: 26, weight: 700, fill: '#cfe7d2', o: 1 });
+    wLabel(g, 'what passes through?', { x: 1270, y: 770, size: 26, weight: 700, fill: LIGHT, o: 1 });
+  });
+  at('kinds', g => {
+    panelBox(g, 980, 90, 580, 720);
+    [['partial breakdown of sugar', 'no O_2', MC.ethanol], ['organic molecules + O_2', 'yields ATP', MC.oxy], ['another compound', 'instead of O_2', '#c9c3b2']].forEach(([a, b, col], i) => {
+      const y0 = 150 + i * 200;
+      panelBox(g, 1020, y0, 500, 160, col);
+      wLabel(g, '?', { x: 1270, y: y0 + 50, size: 34, weight: 800, fill: col, o: 1 });
+      wChem(g, a, { x: 1270, y: y0 + 96, size: 24, weight: 700, o: 1 });
+      wChem(g, b, { x: 1270, y: y0 + 130, size: 22, weight: 600, fill: COL.dim, o: 1 });
+    });
+  });
+  at('redox', g => {
+    panelBox(g, 980, 90, 580, 720);
+    const sp = saltPair(g, { x: 1270, y: 280, s: .45, gap: 380 }); sp.set(1).ions(1, 1);
+    wLabel(g, 'Na → Na⁺', { x: 1099, y: 400, size: 24, weight: 700, fill: '#c9adf0', o: 1 });
+    wLabel(g, 'Cl → Cl⁻', { x: 1441, y: 410, size: 24, weight: 700, fill: '#9fe0ac', o: 1 });
+    lewis(g, 'CH4', { x: 1110, y: 600, s: .62 });
+    mArrow(g, [1210, 600], [1290, 600], { color: COL.chalk, w: 5, head: 16 });
+    lewis(g, 'CO2', { x: 1420, y: 600, s: .62 }).shift(1);
+    wLabel(g, 'methane burning', { x: 1270, y: 740, size: 24, weight: 700, o: 1 });
+  });
+  at('agent', g => {
+    panelBox(g, 980, 90, 580, 720);
+    wChem(g, 'CH_4 + 2 O_2 → CO_2 + 2 H_2O', { x: 1270, y: 170, size: 30, weight: 700, o: 1 });
+    lewis(g, 'CH4', { x: 1140, y: 420, s: .9 });
+    lewis(g, 'O2', { x: 1430, y: 420, s: .9 });
+    wLabel(g, 'methane:', { x: 1140, y: 590, size: 26, weight: 700, o: 1 });
+    wLabel(g, '? agent', { x: 1140, y: 626, size: 26, weight: 700, fill: MC.oxid, o: 1 });
+    wLabel(g, 'oxygen:', { x: 1430, y: 590, size: 26, weight: 700, o: 1 });
+    wLabel(g, '? agent', { x: 1430, y: 626, size: 26, weight: 700, fill: MC.redu, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('flow');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-flow', prompt: ['Energy enters an ecosystem as ___ and leaves as ___.'],
+    build: withPic('flow', choice([['light; heat'], ['heat; light'], ['glucose; carbon dioxide'], ['ATP; oxygen']], 0,
+      'Right. Light comes in and is stored as the chemical energy of sugar; in the end every living thing lets it go as heat, which does not come back.',
+      [null, 'Backwards: energy comes in as light and leaves as heat, never the other way.',
+        'Glucose and carbon dioxide are matter, and matter cycles: it is passed round, not let through.',
+        'ATP is spent inside cells, and oxygen is matter. Think of the sun and the wavy arrows.'])) },
+  { id: 'p-cycle', prompt: ['Does it cycle through the ecosystem, or flow through it one way?'],
+    build: withPic('cycle', grid([
+      { parts: ['carbon'], ans: ['c'], why: 'Cycles: into sugar, back out as CO₂.' },
+      { parts: ['oxygen'], ans: ['c'], why: 'Cycles: made by plants, used by respiration.' },
+      { parts: ['energy'], ans: ['f'], why: 'Flows: in as light, out as heat.' },
+    ], [['c', 'cycles', null, 'C'], ['f', 'flows through', null, 'F']], { multi: false, text: true })) },
+  { id: 'p-kinds', prompt: ['Which process partially breaks down sugar without oxygen?'],
+    build: withPic('kinds', choice([['aerobic respiration'], ['anaerobic respiration'], ['fermentation'], ['photosynthesis']], 2,
+      'Right. Fermentation is a partial breakdown of sugar that happens without O₂.',
+      ['Aerobic respiration needs oxygen: it consumes organic molecules and O₂.',
+        'Anaerobic respiration uses another compound in place of oxygen; the slides do not call it a partial breakdown. Look for the word partial.', null,
+        'Photosynthesis builds sugar; it does not break it down.'])) },
+  { id: 'p-redox', prompt: ['Sodium gives chlorine an electron. Which is oxidized and which is reduced?'],
+    build: withPic('redox', grid([
+      { parts: ['sodium, Na → Na⁺'], ans: ['o'], why: 'Oxidized: it loses an electron.' },
+      { parts: ['chlorine, Cl → Cl⁻'], ans: ['r'], why: 'Reduced: it gains the electron.' },
+    ], [['o', 'oxidized', null, 'O'], ['r', 'reduced', null, 'R']], { multi: false, text: true })) },
+  { id: 'p-share', prompt: ['When methane burns, which is oxidized and which is reduced?'],
+    build: withPic('redox', grid([
+      { parts: ['carbon'], ans: ['o'], why: 'Oxidized: it loses its share to O.' },
+      { parts: ['oxygen'], ans: ['r'], why: 'Reduced: it gains a share.' },
+    ], [['o', 'oxidized', null, 'O'], ['r', 'reduced', null, 'R']], { multi: false, text: true })) },
+  { id: 'p-agent', prompt: ['In methane burning, methane is the…'],
+    build: withPic('agent', choice([['oxidizing agent'], ['reducing agent'], ['catalyst'], ['product']], 1,
+      'Right. Methane donates its share of electrons to oxygen, so it is the reducing agent, and is itself oxidized.',
+      ['That is oxygen: the electron acceptor, which is itself reduced.', null,
+        'No catalyst here: methane is used up in the reaction.',
+        'Methane is a reactant, on the left of the arrow; CO₂ and water are the products.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

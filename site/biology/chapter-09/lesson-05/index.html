@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 9, Lesson 5: Pyruvate Oxidation and the Citric Acid Cycle — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid.text .opts { gap: 4px; } .screen .grid.text .opt { padding: 2px 9px; font-size: 17px; min-height: 36px; } .screen .grid.text .opt kbd { display: none; }
+.screen .grid.text .row { padding: 4px 0 4px 12px; row-gap: 0; } .screen .grid.text .why { font-size: 18px; line-height: 1.25; }</style><!-- all rows wrong: four rows and their why lines fit above Check -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="../../lib/resp.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 9 (Cellular Respiration), lesson 5: a roundabout that lets cars in, round and out and stays itself;
+// the respiration map with pyruvate oxidation and the citric acid cycle lit; pyruvate through the transport protein
+// into the mitochondrion, and pyruvate dehydrogenase's three steps (CO₂ out, NAD⁺ → NADH, coenzyme A on) giving
+// acetyl CoA; the cycle in the matrix: acetyl (2 C) + oxaloacetate (4 C) → citrate (6 C), a walk round steps 2–8 with
+// the carbons on screen (6, 5, 4), the tally of one turn and the carriers relaying electrons on; the carbon audit per
+// glucose (6 C in, 6 CO₂ out); the totals per glucose; a summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-09/lesson-05.md.
+const CHAPTER = { number: 905, label: '9, lesson 5', title: 'Pyruvate Oxidation and the Citric Acid Cycle', minutes: 8, language: 'en', lead: false, next: '../lesson-06/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, weight: 700, ...o, o: 0 }); show(e, t0, .4); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const dg = a => a * Math.PI / 180;
+const box5 = (g, x, y, w, h, { fill = '#0b1626', stroke = COL.faint, sw = 3, rx = 22, fo = 1 } = {}) => mk('rect', { x, y, width: w, height: h, rx, fill, 'fill-opacity': fo, stroke, 'stroke-width': sw }, g);
+// keyframes [[t, a, b, …], …]: eased (soft) between keys, held before the first and after the last
+function keyAt(t, K) {
+  if (t <= K[0][0]) return K[0].slice(1);
+  for (let i = 1; i < K.length; i++) if (t < K[i][0]) { const a = K[i - 1], b = K[i], f = soft((t - a[0]) / (b[0] - a[0])); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * f); }
+  return K[K.length - 1].slice(1);
+}
+// one text whose words change at given times [[t, str], …]: it fades out before each change and back in after, so two
+// words never share one spot; before the first time it is hidden
+function stepText(p, steps, { x = 0, y = 0, size = 28, fill = COL.chalk, anchor = 'middle', weight = 700 } = {}) {
+  const e = wChem(p, steps[0][1], { x, y, size, fill, anchor, weight, o: 0 });
+  return Object.assign(e, {
+    set(t) {
+      let i = -1; for (let j = 0; j < steps.length; j++) if (t >= steps[j][0]) i = j;
+      wChemSet(e, steps[Math.max(0, i)][1]);
+      const nx = steps[i + 1] ? steps[i + 1][0] : null;
+      mO(e, i < 0 ? 0 : mRamp(t, steps[i][0], steps[i][0] + .3) * (nx == null ? 1 : 1 - mRamp(t, nx - .3, nx)));
+      return e;
+    },
+  });
+}
+// carbon beads in rows (as on the kit's cycle nodes); .set(n, x, y, o) shows n of them (n up to 6), centred on (x, y).
+// Every bead is written on every change, so a played and a seeked frame carry the same markup.
+function beadCluster(p, { r = 7, sp = 17, s = 1 } = {}) {
+  const g = G(p, { x: 1, y: 1, s, o: 0 });
+  const beads = Array.from({ length: 6 }, () => {
+    const b = G(g, { s: .999 });
+    mk('circle', { r, fill: MC.carbon, stroke: MC.carbonEdge, 'stroke-width': 2 }, b);
+    mk('circle', { cx: -r * .3, cy: -r * .35, r: r * .3, fill: '#fff', 'fill-opacity': .45 }, b);
+    return b;
+  });
+  const lay = n => { const rows = n >= 5 ? [3, n - 3] : n === 4 ? [2, 2] : [n], out = []; rows.forEach((m, ri) => { for (let b = 0; b < m; b++) out.push([(b - (m - 1) / 2) * sp, (ri - (rows.length - 1) / 2) * sp]); }); return out; };
+  const L6 = lay(6);
+  let N = -1;
+  return Object.assign(g, {
+    set(n, x, y, o = 1) {
+      if (n !== N) { const L = lay(n); beads.forEach((b, i) => cSet(b, i < n ? { x: L[i][0], y: L[i][1], o: 1 } : { x: L6[i][0], y: L6[i][1], o: 0 })); N = n; }
+      mPose(g, x, y, o);
+      return g;
+    },
+  });
+}
+// a lavender phosphate ball with its P
+function phosBall(p, { r = 14 } = {}) {
+  const g = G(p, { x: 1, y: 1, o: 0 });
+  mk('circle', { r, fill: MC.P, stroke: MC.Pedge, 'stroke-width': 2.5 }, g);
+  wLabel(g, 'P', { y: r * .45, size: r * 1.2, fill: '#24160a', weight: 800, o: 1 });
+  return g;
+}
+// a dark pill with text, origin at its centre
+function pill(p, str, { x = 0, y = 0, size = 24, fill = COL.chalk, edge = COL.chalk, o = 1, w } = {}) {
+  const g = G(p, { x, y, o }), ww = w ?? Math.round(uiW(str.replace(/[_^]/g, ''), size) * 1.1 + 30), hh = size + 18;
+  mk('rect', { x: -ww / 2, y: -hh / 2, width: ww, height: hh, rx: hh / 2, fill: '#0b1626', stroke: edge, 'stroke-width': 2.5 }, g);
+  const t = wChem(g, str, { y: size * .36, size, fill, weight: 700, o: 1 });
+  return Object.assign(g, { t, w: ww });
+}
+// the numbered step badge of slide 27 (blue disc)
+function stepBadge(p, n, x, y) {
+  const g = G(p, { x, y, o: 0 });
+  mk('circle', { r: 20, fill: '#2f5fc4', stroke: '#cfe0ff', 'stroke-width': 2.5 }, g);
+  wLabel(g, String(n), { y: 8, size: 24, fill: '#fff', weight: 800, o: 1 });
+  return g;
+}
+// coenzyme A as a teal tag (the kit's look), origin = its centre
+function coaTag(p, { w = 70, h = 34, size = 22 } = {}) {
+  const g = G(p, { x: 1, y: 1, o: 0 });
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: 10, fill: MC.coa, stroke: MC.coaEdge, 'stroke-width': 3 }, g);
+  wLabel(g, 'CoA', { y: size * .36, size, fill: '#0b2224', weight: 800, o: 1 });
+  return g;
+}
+// a polyline with its length table: .at(k), .dir(k)
+function lineOf(pts) {
+  const L = [0]; for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const tot = L[L.length - 1];
+  const seg = k => { const want = mClamp(k) * tot; let i = 1; while (i < L.length - 1 && L[i] < want) i++; return [i, (want - L[i - 1]) / ((L[i] - L[i - 1]) || 1)]; };
+  return {
+    at(k) { const [i, f] = seg(k), a = pts[i - 1], b = pts[i]; return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]; },
+    dir(k) { const [i] = seg(k), a = pts[i - 1], b = pts[i]; return Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI; },
+  };
+}
+
+/* ---------- the wheel used by the cycle beats ---------- */
+const WX = 600, WY = 440, WR = 200;
+const nodeAng = idx => dg(-112.5 + 45 * idx);
+const onWheel = (idx, cx = WX, cy = WY, R = WR) => [cx + R * Math.cos(nodeAng(idx)), cy + R * Math.sin(nodeAng(idx))];
+const stepAt = (i, d = 0, cx = WX, cy = WY, R = WR) => { const a = dg(-90 + 45 * (i - 1)); return [cx + (R + d) * Math.cos(a), cy + (R + d) * Math.sin(a)]; };
+// a small cycle glyph: a red ring with an arrowhead, origin = centre
+function miniWheel(p, x, y, r = 60, w = 12) {
+  const g = G(p, { x, y });
+  const a1 = dg(250);
+  path(g, `M0 ${-r}A${r} ${r} 0 1 1 ${cF(r * Math.cos(a1))} ${cF(r * Math.sin(a1))}`, { stroke: MC.cac, 'stroke-width': w, fill: 'none' });
+  const hx = r * Math.cos(a1), hy = r * Math.sin(a1);
+  path(g, `M${cF(hx - 16)} ${cF(hy + 14)}L${cF(hx + 4)} ${cF(hy - 6)}L${cF(hx + 20)} ${cF(hy + 18)}Z`, { fill: MC.cac, stroke: MC.cac, 'stroke-width': 3 });
+  return g;
+}
+// the matrix as a backdrop: a dark warm field inside the inner membrane
+function matrixBack(p) {
+  const g = G(p);
+  box5(g, 24, 24, 1552, 852, { fill: MC.matrix, fo: .5, stroke: MC.cristae, sw: 6, rx: 70 });
+  wLabel(g, 'mitochondrial matrix', { x: 70, y: 74, size: 26, fill: MC.cristae, weight: 700, anchor: 'start', o: 1 });
+  return g;
+}
+// a shuttle that docks beside a step, takes an electron pair from (sx, sy), is reduced and drives to a tray slot.
+// o: { kind, dock: [x, y], src: [x, y], tA (arrives), tE (electrons leave the molecule), tGo (drives off), slot: [x, y], s,
+// via: corners of its road to the slot (kept clear of the wheel's names and the tray's row labels), go: seconds on it }
+function carrier(p, { kind = 'NAD', dock, src, tA, tE, tGo, slot, s = .75, text = true, via = [], go = 1.4 }) {
+  const fad = kind === 'FAD', sh = nadShuttle(p, { kind, label: false, s, o: 0 });
+  const pair = electron(p, { n: 2, r: 6, o: 0 });
+  const lab = text ? wChem(p, fad ? 'FAD → FADH_2' : 'NAD^+ → NADH', { x: dock[0], y: dock[1] - 44, size: 22, fill: fad ? MC.fad : MC.nad, weight: 700, o: 0 }) : null;
+  const seat = [dock[0] - sh.w * .19 * s, dock[1] - 22];
+  const tR = tE + 1.25, road = lineOf([dock, ...via, slot]);
+  return {
+    sh,
+    set(t) {
+      const [x, y, o] = t < tGo ? keyAt(t, [[tA - .7, dock[0] + 50, dock[1] + 40, 0], [tA, dock[0], dock[1], 1]]) : [...road.at(io(mRamp(t, tGo, tGo + go))), 1];
+      sh.pose(x, y); mO(sh, o); sh.set(mRamp(t, tR - .3, tR + 1));
+      const k = io(mRamp(t, tE, tR));
+      pair.pose(mLerp(src[0], seat[0], k), mLerp(src[1], seat[1], k)); mO(pair, mRamp(t, tE - .1, tE + .15) * (1 - mRamp(t, tR - .05, tR + .25)));
+      if (lab) mO(lab, mRamp(t, tA, tA + .4) * (1 - mRamp(t, tGo - .2, tGo + .2)));
+      return sh;
+    },
+  };
+}
+// a CO₂ that leaves a molecule at t0 from src, drifts to mid, then flies to a tray slot at tT (no tray: it fades)
+function co2Out(p, { t0, src, mid, slot = null, tT = 0, r = 12 }) {
+  const c = co2Molecule(p, { r, o: 0 });
+  return {
+    c,
+    set(t) {
+      const K = [[t0, src[0], src[1], 0], [t0 + .2, src[0], src[1], 1], [t0 + 1.4, mid[0], mid[1], 1]];
+      if (slot) K.push([tT, mid[0], mid[1], 1], [tT + 1.3, slot[0], slot[1], 1]); else K.push([t0 + 2.4, mid[0], mid[1], 0]);
+      const [x, y, o] = keyAt(t, K); c.pose(x, y); mO(c, o); return c;
+    },
+  };
+}
+// the tray of one turn's products (steps beat): rows CO₂, NADH, FADH₂, ATP with their slots
+const TRAY = { x: 1110, y: 150, w: 460, h: 620, rows: { CO2: 290, NADH: 420, FADH2: 550, ATP: 680 }, slots: { CO2: [1330, 1440], NADH: [1290, 1395, 1500], FADH2: [1300], ATP: [1300] } };
+function trayPanel(p) {
+  const g = G(p, { o: 0 });
+  box5(g, TRAY.x, TRAY.y, TRAY.w, TRAY.h);
+  wLabel(g, 'made in one turn', { x: TRAY.x + TRAY.w / 2, y: TRAY.y + 52, size: 28, weight: 700, o: 1 });
+  const hi = {};
+  [['CO2', 'CO_2', COL.chalk], ['NADH', 'NADH', MC.nad], ['FADH2', 'FADH_2', MC.fad], ['ATP', 'ATP', MC.elec]].forEach(([k, str, c]) => {
+    const y = TRAY.rows[k];
+    hi[k] = mk('rect', { x: TRAY.x + 10, y: y - 46, width: TRAY.w - 20, height: 92, rx: 14, fill: MC.elec, 'fill-opacity': .14, stroke: MC.elec, 'stroke-width': 2 }, g); put(hi[k], { o: 0 });
+    wChem(g, str, { x: TRAY.x + 26, y: y + 9, size: 26, fill: c, weight: 700, anchor: 'start', o: 1 });
+  });
+  return Object.assign(g, { hi });
+}
+const SLOT = (k, i) => [TRAY.slots[k][i], TRAY.rows[k]];
+
+/* ---------- intro backdrop: a roundabout from above ---------- */
+const RB = { x: 500, y: 470, R: 170 };
+function roundabout(p) {
+  const g = G(p);
+  box5(g, 50, 70, 900, 790, { fill: '#24463a', stroke: '#3c6b52', sw: 4, rx: 40 });
+  const road = { stroke: '#3a3f47', 'stroke-width': 86, fill: 'none' };
+  path(g, `M54 ${RB.y}H${RB.x}M${RB.x} 74V${RB.y}M${RB.x} 856V${RB.y}M946 ${RB.y}H${RB.x}`, road);
+  mk('circle', { cx: RB.x, cy: RB.y, r: RB.R, fill: 'none', ...road }, g);
+  path(g, `M54 ${RB.y}H${RB.x - RB.R - 43}M${RB.x + RB.R + 43} ${RB.y}H946M${RB.x} 74V${RB.y - RB.R - 43}M${RB.x} ${RB.y + RB.R + 43}V856`, { stroke: '#e8e2d0', 'stroke-width': 3, 'stroke-dasharray': '16 14', fill: 'none' });
+  mk('circle', { cx: RB.x, cy: RB.y, r: RB.R - 52, fill: '#3f7a4a', stroke: '#e8e2d0', 'stroke-width': 4 }, g);
+  [[-40, -20, 30], [30, 10, 36], [-10, 45, 24]].forEach(([dx, dy, r]) => mk('circle', { cx: RB.x + dx, cy: RB.y + dy, r, fill: '#2f6a3c', stroke: '#245530', 'stroke-width': 3 }, g));
+  const glow = G(g, { x: RB.x, y: RB.y, o: 0 });
+  mk('circle', { r: RB.R, fill: 'none', stroke: MC.elec, 'stroke-width': 8, 'stroke-opacity': .8 }, glow);
+  return Object.assign(g, { glow });
+}
+// a car seen from above, origin = its centre, facing +x
+function car(p, color) {
+  const g = G(p, { x: 1, y: 1, o: 0 });
+  mk('rect', { x: -30, y: -16, width: 60, height: 32, rx: 9, fill: color, stroke: mix(color, '#000000', .4), 'stroke-width': 2.5 }, g);
+  mk('rect', { x: 2, y: -12, width: 15, height: 24, rx: 4, fill: '#1b2a3e' }, g);
+  mk('rect', { x: -22, y: -11, width: 10, height: 22, rx: 3, fill: '#1b2a3e' }, g);
+  return g;
+}
+// routes (anticlockwise round the ring, as cars drive on the right): in from one road, round, out along another
+function route(inA, outA) {
+  const lane = 22, R = RB.R, pts = [];
+  const far = a => { const c = Math.cos(dg(a)), s = Math.sin(dg(a)); return [RB.x + c * 470 - s * lane, RB.y + s * 390 + c * lane]; };
+  const edge = (a, sg) => { const c = Math.cos(dg(a)), s = Math.sin(dg(a)); return [RB.x + c * (R + 30) - sg * s * lane, RB.y + s * (R + 30) + sg * c * lane]; };
+  // incoming lanes keep to the right of their road; the car heads inwards, so its right is the road's +lane side
+  const inFar = (a => { const c = Math.cos(dg(a)), s = Math.sin(dg(a)); return [RB.x + c * 470 + s * lane, RB.y + s * 390 - c * lane]; })(inA);
+  pts.push(inFar, edge(inA, -1));
+  let a = inA; const end = outA > inA ? outA - 360 : outA;
+  for (; a > end; a -= 10) pts.push([RB.x + R * Math.cos(dg(a)), RB.y + R * Math.sin(dg(a))]);
+  pts.push([RB.x + R * Math.cos(dg(end)), RB.y + R * Math.sin(dg(end))], edge(outA, 1), far(outA));
+  return lineOf(pts);
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A roundabout and the map', (m, D) => {
+  const p = panel(0), tR = m('round'), tM = m('map'), tL = m('lit');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W, { o: 0 }); show(back, .2, .6);
+  const rb = roundabout(back);
+  const cars = [[180, 270, '#e5533d', 0], [90, 180, '#6c8cff', .36], [0, 90, '#f3c95c', .7]].map(([a, b, c, off]) => ({ line: route(a, b), off, e: car(back, c) }));
+  const lc = G(back, { o: 0 }); show(lc, tR + 4.8, .4);
+  wLabel(lc, 'cars come and go · the roundabout stays', { x: RB.x, y: 830, size: 28, weight: 700, o: 1 });
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 9 · LESSON 5', { x: 1260, y: 250, size: 24, fill: COL.dim, o: 1 });
+  ['Pyruvate oxidation', 'and the citric', 'acid cycle'].forEach((s, i) => wLabel(ttl, s, { x: 1260, y: 335 + i * 64, size: 50, o: 1 }));
+  wLabel(ttl, 'Cellular respiration', { x: 1260, y: 540, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tM - .5, .5);
+  hide(back, tM - .3, .5);
+  // map: the shared respiration map; glycolysis done, pyruvate waiting; lit: this lesson's two stages
+  const mapG = G(W, { o: 0 }); show(mapG, tM, .6);
+  const map = respMap(mapG, { x: 800, y: 430, s: .95 });
+  const MP = ([lx, ly]) => [800 + .95 * lx, 430 + .95 * ly];
+  const [px, py] = MP([-262, -30]);
+  const pyr = carbonChain(mapG, { x: px, y: py, s: .7, o: 0 }); show(pyr, tM + 3.4, .4);
+  say(mapG, 'pyruvate', px, py - 26, tM + 3.4, { size: 20, fill: MC.pyruvate });
+  const today = G(p, { o: 0 }); show(today, tL + 1.5, .5);
+  wLabel(today, 'today, inside the mitochondrion:', { x: 800, y: 790, size: 26, fill: COL.dim, weight: 600, o: 1 });
+  wLabel(today, 'pyruvate oxidation', { x: 778, y: 836, size: 32, fill: MC.pyrOx, weight: 800, anchor: 'end', o: 1 });
+  wLabel(today, '+', { x: 800, y: 836, size: 32, weight: 800, o: 1 });
+  wLabel(today, 'citric acid cycle', { x: 822, y: 836, size: 32, fill: MC.cac, weight: 800, anchor: 'start', o: 1 });
+  hide(today, D - 2.6, .4);
+  const LIT = ['pyruvateOx', 'cycle', 'atp2', 'e2', 'e3'];
+  clockRun(t => {
+    cars.forEach(({ line, off, e }) => {
+      const u = cFrac(t / 6.4 + off), [x, y] = line.at(u);
+      cSet(e, { x, y, r: line.dir(u), o: mRamp(u, 0, .05) * (1 - mRamp(u, .95, 1)) });
+    });
+    mO(rb.glow, mBump(t, tR + 4.6, tR + 7.6) * .9);
+    map.tick('glycolysis', mRamp(t, tM + 2.6, tM + 3.2));
+    if (t < tL) map.focus(['glycolysis', 'flow1'], io(mRamp(t, tM + 2.4, tM + 3.2)) * (1 - mRamp(t, tL - .6, tL)));
+    else map.focus(LIT, io(mRamp(t, tL, tL + .9)));
+    map.shine(t);
+  }, D);
+  // the push into the mitochondrion as the narration ends
+  cam.to({ x: 790, y: 450, z: 2 }, D - 2.4, 2.2);
+}],
+
+/* ---------- enter ---------- */
+['enter', 'Into the mitochondrion: pyruvate oxidation', (m, D) => {
+  const p = panel(0), tMi = m('mito'), tP = m('pyr'), tC = m('co2'), tN = m('nadh'), tA = m('coa'), tAc = m('acetyl'), tK = m('count');
+  // shot A: the whole mitochondrion; pyruvate crosses through the transport protein
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const A = G(W, { o: 0 }); show(A, .1, .6);
+  const mc = mitoCutaway(A, { x: 900, y: 470, s: .9 });
+  const cyA = wLabel(A, 'cytosol', { x: 150, y: 300, size: 28, fill: COL.dim, weight: 700, o: 1 }); hide(cyA, tP - .7, .4);   // gone before shot B's own
+  const o2 = o2Molecule(A, { x: 150, y: 690, r: 20 }); say(A, 'O_2 present', 150, 745, 1.2, { size: 24, fill: MC.oxy });
+  void o2;
+  const tp = cLabel(A, [332, 500], [250, 600], 'transport protein', { size: 24 }); show(tp, tMi + 4, .4);
+  const pA = carbonChain(A, { x: 150, y: 470 });
+  wLabel(pA, 'pyruvate', { y: -68, size: 24, fill: MC.pyruvate, weight: 700, o: 1 });   // above the chain: below, it crossed the glowing transport protein
+  clockRun(t => {
+    mc.labels(mRamp(t, .8, 1.6)).porter(mRamp(t, tMi + 3.6, tMi + 4.2) * (1 - mRamp(t, tP - .4, tP)));
+    pA.pose(mLerp(150, 430, io(mRamp(t, tMi + 4.4, tMi + 6.6))), 470);
+  }, D);
+  cam.to({ x: 646, y: 457, z: 1.53 }, tP - .3, 1.4);
+  hide(cam.el, tP + .5, .7);
+
+  // shot B, close up (slide 27): cytosol, the double membrane, the matrix; the enzyme's three steps
+  const B = G(p, { o: 0 }); show(B, tP + .3, .8);
+  mk('circle', { cx: 1500, cy: 470, r: 1180, fill: MC.ims, stroke: MC.mito, 'stroke-width': 12 }, B);
+  mk('circle', { cx: 1500, cy: 470, r: 1142, fill: MC.matrix, stroke: MC.cristae, 'stroke-width': 8 }, B);
+  wLabel(B, 'cytosol', { x: 150, y: 200, size: 28, fill: COL.dim, weight: 700, o: 1 });
+  wLabel(B, 'mitochondrial matrix', { x: 1300, y: 110, size: 28, fill: MC.cristae, weight: 700, o: 1 });
+  cLabel(B, [425, 40], [520, 60], 'outer membrane', { size: 22, o: 1 });
+  cLabel(B, [455, 130], [560, 150], 'inner membrane', { size: 22, o: 1 });
+  const port = G(B, { x: 340, y: 470 });
+  const pglow = mk('ellipse', { rx: 60, ry: 62, fill: '#7fd1b9', 'fill-opacity': .35 }, port); put(pglow, { o: 0 });
+  for (const sy of [-1, 1]) mk('rect', { x: -50, y: sy * 22 - 14, width: 100, height: 28, rx: 11, fill: '#7fd1b9', stroke: '#3f8f78', 'stroke-width': 3 }, port);
+  cLabel(B, [330, 500], [250, 620], 'transport protein', { size: 22, o: 1 });
+  // pyruvate dehydrogenase: a big complex of many subunits
+  const enz = G(B, { o: 0 }); show(enz, tP + 10.6, .5);
+  [640, 720, 800, 880, 960].forEach((x, i) => mk('circle', { cx: x, cy: 615 + (i % 2 ? -8 : 8), r: 58, fill: MC.enzyme, stroke: MC.enzymeEdge, 'stroke-width': 3.5 }, enz));
+  wLabel(enz, 'pyruvate dehydrogenase', { x: 800, y: 632, size: 28, fill: '#1d2a10', weight: 800, o: 1 });
+  say(B, 'one big complex of many subunits, about 10 nm across', 800, 712, tP + 12.4, { size: 22, fill: COL.dim, weight: 600 });
+  const bd = [stepBadge(B, 1, 930, 300), stepBadge(B, 2, 462, 400), stepBadge(B, 3, 1160, 420)];
+  bd.forEach(b => tw(b, { o: .4 }, tP + 16.4, .5));
+  [tC, tN, tA].forEach((t0, i) => { tw(bd[i], { o: 1 }, t0, .3); pulse(bd[i], t0 + .1, 1.25); });
+  // pyruvate: three carbons on a coral backing
+  const ch = carbonChain(B, { x: 470, y: 470, s: 1.5 });
+  const pl = say(B, 'pyruvate · 3 C', 800, 425, tP + 3.6, { size: 28, fill: MC.pyruvate }); hide(pl, tC - .2, .3);
+  // step 1: the carboxyl carbon leaves as CO₂
+  const cx = G(B, { o: 0 }); show(cx, tC + .9, .3); hide(cx, tC + 3.2, .3);
+  mk('circle', { cx: 851, cy: 500, r: 30, fill: 'none', stroke: MC.oxid, 'stroke-width': 4 }, cx);
+  wLabel(cx, 'carboxyl carbon', { x: 851, y: 438, size: 24, fill: MC.oxid, weight: 700, o: 1 });
+  say(B, 'CO_2', 1104, 310, tC + 4.2, { size: 30, anchor: 'start' });
+  // step 2: the two carbons are oxidized; NAD⁺ takes the electrons
+  const sh = nadShuttle(B, { s: 1.2, o: 0 });
+  const pair = electron(B, { n: 2, r: 8, o: 0 });
+  const oxA = redoxArrow(B, 'ox', { x: 760, y: 462, dir: -105, len: 62, size: 24, e: false, o: 0 }), redA = redoxArrow(B, 'red', { x: 590, y: 358, dir: -90, len: 58, size: 24, e: false, o: 0 });
+  show(oxA, tN + 1, .2); show(redA, tN + 4.4, .2); hide(oxA, tA - .4, .4); hide(redA, tA - .4, .4);
+  const hp = proton(B, { r: 16, label: 'name', o: 0 });
+  // step 3: coenzyme A comes in and attaches where the carbon left
+  const coa = coaTag(B, { w: 105, h: 51, size: 33 });
+  const coaL = wLabel(B, 'coenzyme A, a carrier', { x: 1350, y: 575, size: 24, fill: MC.coa, weight: 700, o: 0 });
+  const acL = G(B, { o: 0 }); show(acL, tAc + .3, .4);
+  wLabel(acL, 'acetyl CoA', { x: 815, y: 425, size: 36, fill: MC.pyrOx, weight: 800, o: 1 });
+  wLabel(acL, 'acetyl group (2 C) on coenzyme A', { x: 815, y: 388, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  // the carbon counter under the picture
+  const cnt = G(B, { o: 0 }); show(cnt, tP + 3, .4);
+  box5(cnt, 590, 780, 760, 76, { stroke: COL.dim, sw: 2.5, rx: 18 });
+  const ctx = stepText(cnt, [[tP + 3.2, 'carbons: 3 in pyruvate'], [tC + 4.6, '1 C left as CO_2 · 2 C still on the chain'], [tK + 1.3, '3 C in = 1 CO_2 out + 2 C in acetyl CoA']], { x: 970, y: 828, size: 28 });
+  const lk = say(B, 'also called the link reaction', 1240, 700, tK + 5.9, { size: 24, fill: COL.dim, weight: 600 }); lk.setAttribute('font-style', 'italic');
+  const hiK = G(B, { o: 0 }); show(hiK, tK + 1.4, .4);
+  mk('rect', { x: 594, y: 784, width: 752, height: 68, rx: 16, fill: 'none', stroke: MC.elec, 'stroke-width': 3 }, hiK);
+  clockRun(t => {
+    mO(pglow, mBump(t, tP + .3, tP + 3.4));
+    const [x, y] = keyAt(t, [[tP + .3, 470, 470], [tP + 1.6, 470, 470], [tP + 3.6, 800, 500]]);
+    // while the voice says what must happen to it, pyruvate waits on the enzyme's doorstep, bobbing gently; at the end
+    // while the voice names the link reaction, its name and acetyl CoA's sway gently (the chain keeps still: its
+    // released CO₂ must not ride along)
+    const bob = 5 * Math.sin(2 * Math.PI * (t - tP) / 2.4) * mRamp(t, tP + 4, tP + 4.8) * (1 - mRamp(t, tC, tC + .6));
+    const bob2 = 4 * Math.sin(2 * Math.PI * (t - tK) / 2.4) * mRamp(t, tK + 5.6, tK + 6.4);
+    ch.pose(x, y + bob); cSet(acL, { y: bob2 }); cSet(lk, { y: 700 - bob2 });
+    ch.lose(mRamp(t, tC + 1.2, tC + 4.2), { to: [139, -133], fade: false });
+    ch.color(t < tAc + .3 ? MC.pyruvate : MC.pyrOx);
+    // NAD⁺ comes in from above and docks, the pair rides over, NADH (and an H⁺ set free); it parks at the lower left
+    const [sx, sy, so] = keyAt(t, [[tN + .2, 700, 230, 0], [tN + .5, 680, 262, 1], [tN + 1.6, 590, 400, 1], [tA - .9, 590, 400, 1], [tA + .6, 500, 740, 1]]);
+    sh.pose(sx, sy); mO(sh, so); sh.set(mRamp(t, tN + 4.4, tN + 5.6));
+    const ek = io(mRamp(t, tN + 3, tN + 4.6));
+    pair.pose(mLerp(775, 590 - 124 * .19 * 1.2, ek), mLerp(490, 400 - 34, ek)); mO(pair, mRamp(t, tN + 2.9, tN + 3.1) * (1 - mRamp(t, tN + 4.6, tN + 4.9)));
+    oxA.draw(mRamp(t, tN + 1, tN + 3)); redA.draw(mRamp(t, tN + 4.4, tN + 5.6));
+    const [hx, hy] = keyAt(t, [[tN + 5.6, 640, 400], [tN + 7, 690, 300]]);
+    hp.pose(hx, hy); mO(hp, mRamp(t, tN + 5.6, tN + 5.9) * (1 - mRamp(t, tA, tA + .5)));
+    // coenzyme A: in from the right, onto the end where the carbon left (the chain's right end is x 0 there)
+    const [qx, qy, qo] = keyAt(t, [[tA + .2, 1460, 500, 0], [tA + .7, 1350, 500, 1], [tA + 3.6, 881, 500, 1]]);
+    mPose(coa, qx, qy, qo); mPose(coaL, qx, 548, qo * (1 - mRamp(t, tA + 3.4, tA + 3.9)));
+    ctx.set(t);
+  }, D);
+}, {}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'pyruvate oxidation', { x: 315, y: 190, size: 34, weight: 800, fill: MC.pyrOx, o: 1 });
+  carbonChain(p, { x: 120, y: 420, s: 1.1, label: 'pyruvate' });
+  mArrow(p, [200, 420], [250, 420], { color: COL.chalk, w: 5, head: 16 });
+  box5(p, 262, 372, 196, 96, { fill: MC.enzyme, stroke: MC.enzymeEdge, sw: 3, rx: 40 });
+  wLabel(p, 'pyruvate', { x: 360, y: 412, size: 18, fill: '#1d2a10', weight: 800, o: 1 });
+  wLabel(p, 'dehydrogenase', { x: 360, y: 436, size: 18, fill: '#1d2a10', weight: 800, o: 1 });
+  mArrow(p, [470, 420], [520, 420], { color: COL.chalk, w: 5, head: 16 });
+  wLabel(p, '?', { x: 570, y: 440, size: 64, weight: 800, fill: MC.elec, o: 1 });
+  wLabel(p, '3 C go in', { x: 120, y: 530, size: 26, weight: 700, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-po', prompt: ['What happens to pyruvate in pyruvate oxidation?'],
+  build: choice([['it is split into two 3-carbon sugars'], ['it loses a carbon as CO₂, is oxidized (NAD⁺ → NADH) and gains coenzyme A: acetyl CoA'], ['it is turned back into glucose'], ['it makes most of the cell’s ATP directly']], 1,
+    'Right. One carbon leaves as CO₂, the two that remain are oxidized as NAD⁺ becomes NADH, and coenzyme A is attached: acetyl CoA.',
+    ['Splitting a sugar into two 3-carbon pieces is glycolysis, and pyruvate is already 3 carbons. Count them here: 3 in, 1 out as CO₂, 2 carry on.', null,
+      'The pathway runs the other way: pyruvate is broken down further, not built back up into glucose.',
+      'Pyruvate oxidation makes no ATP at all. It makes NADH, which carries electrons on for later.']),
+}], done) }],
+
+/* ---------- cycle ---------- */
+['cycle', 'The citric acid cycle', (m, D) => {
+  const p = panel(0), tW = m('wheel'), tJ = m('join'), tL = m('loop');
+  const wrap = G(p, { x: 800, y: 450, s: .88, o: 0 }), I = G(wrap, { x: -800, y: -450 });
+  tw(wrap, { s: 1, o: 1 }, .1, 1.3, out);
+  matrixBack(I);
+  const cc = citricCycle(I, { x: WX, y: WY, R: WR, beads: false });
+  const cl = beadCluster(I);
+  // the loop: steps 2–8 carry the molecule round; CO₂ leaves at steps 3 and 4
+  const L0 = tL + .8, L1 = tL + 8.5, idxAt = t => 1 + 7 * mRamp(t, L0, L1), tAtIdx = i => L0 + (L1 - L0) * (i - 1) / 7;
+  const c1 = co2Out(I, { t0: tAtIdx(2.5), src: stepAt(3), mid: stepAt(3, 120) }), c2 = co2Out(I, { t0: tAtIdx(3.5), src: stepAt(4), mid: stepAt(4, 120) });
+  const rd = stepText(I, [[tJ + 3.2, '4 C'], [tJ + 9.6, '6 C'], [tAtIdx(2.5) + .3, '5 C'], [tAtIdx(3.5) + .3, '4 C']], { x: WX, y: WY + 86, size: 30 });
+  // the right-hand notes
+  const NX = 1350;
+  const n1 = G(I, { o: 0 }); show(n1, tW + .6, .5);
+  wLabel(n1, 'citric acid cycle', { x: NX, y: 180, size: 36, fill: MC.cac, weight: 800, o: 1 });
+  wLabel(n1, '(the Krebs cycle)', { x: NX, y: 218, size: 24, fill: COL.dim, weight: 600, o: 1 });
+  say(I, 'in the mitochondrial matrix', NX, 268, tW + 3.8, { size: 26, fill: MC.cristae });
+  say(I, '8 steps, each with its own enzyme', NX, 310, tW + 9.5, { size: 24, fill: COL.dim, weight: 600 });
+  const sum = (str, y, t0, fill, size = 30) => say(I, str, NX, y, t0, { size, fill });
+  sum('acetyl group · 2 C', 420, tJ + 1.2, MC.pyrOx);
+  sum('+ oxaloacetate · 4 C', 470, tJ + 3.4, COL.chalk);
+  sum('= citrate · 6 C', 530, tJ + 6.6, MC.cac, 34);
+  say(I, 'coenzyme A released', NX, 590, tJ + 13.6, { size: 24, fill: MC.coa });
+  say(I, 'steps 2 to 8: rearrange and oxidize', NX, 680, tL + .6, { size: 24, fill: COL.chalk });
+  say(I, 'back to oxaloacetate · 4 C', NX, 724, tL + 8.6, { size: 26, fill: COL.chalk });
+  const ready = G(I, { o: 0 }); show(ready, tL + 9.4, .5);
+  wLabel(ready, 'ready for the next acetyl group', { x: 690, y: 110, size: 24, fill: MC.pyrOx, weight: 700, anchor: 'start', o: 1 });
+  const rdA = G(ready); mArrow(rdA, [680, 112], [606, 196], { color: MC.pyrOx, w: 4, head: 14 });
+  const ox = G(I, { x: onWheel(0)[0], y: onWheel(0)[1], o: 0 }); mk('circle', { r: 50, fill: 'none', stroke: COL.chalk, 'stroke-width': 4 }, ox);
+  show(ox, tJ + 3, .3); pulse(ox, tJ + 3.1, 1.15); hide(ox, tJ + 6, .4);
+  // join: acetyl CoA comes down, merges with oxaloacetate into citrate; CoA peels off
+  const jk = t => keyAt(t, [[tJ + 6.3, 0], [tJ + 8.4, .5], [tJ + 9.5, .72], [tJ + 13.3, .72], [tJ + 15, 1]])[0];
+  clockRun(t => {
+    cc.build(mRamp(t, .4, 3.2)).badges(mRamp(t, tW + 9.2, tW + 10.2)).entryOn(mRamp(t, tJ + .3, tJ + .9)).join(jk(t));
+    const idx = t < tL ? keyAt(t, [[tJ + 8.5, 0], [tJ + 9.5, 1]])[0] : idxAt(t);
+    cc.draw(idx / 8);
+    const n = t < tJ + 9.5 ? 4 : idx < 2.5 ? 6 : idx < 3.5 ? 5 : 4;
+    const [x, y] = onWheel(idx);
+    // "ready for the next acetyl group": the arrow taps at oxaloacetate, which bobs in reply
+    const rdy = mRamp(t, tL + 9.9, tL + 10.5), nud = 14 * (1 - Math.cos(2 * Math.PI * (t - tL) / 1.5)) / 2 * rdy;
+    cl.set(n, x, y - 5 * rdy * Math.max(0, Math.sin(2 * Math.PI * ((t - tL) / 1.5 - .25))), mRamp(t, tJ + 3, tJ + 3.4));
+    c1.set(t); c2.set(t);
+    rd.set(t);
+    mPose(rdA, -.66 * nud, .75 * nud, 1);
+  }, D);
+}],
+
+/* ---------- steps ---------- */
+['steps', 'Around the cycle, step by step', (m, D) => {
+  const p = panel(0), s2 = m('s2'), s3 = m('s3'), s4 = m('s4'), s5 = m('s5'), s6 = m('s6'), s7 = m('s7'), s8 = m('s8');
+  matrixBack(p);
+  const cc = citricCycle(p, { x: WX, y: WY, R: WR, beads: false }).badges(1);
+  const tray = trayPanel(p); show(tray, .3, .5);
+  const cl = beadCluster(p);
+  // where the molecule sits (node index; 8 is oxaloacetate again) and how many carbons it has
+  const IDX = [[0, 0], [.2, 0], [1.6, 1], [s2 + 1.9, 1], [s2 + 3.3, 2], [s3 + 8.4, 2], [s3 + 9.6, 3], [s4 + 7, 3], [s4 + 8.4, 4], [s5 + 2, 4], [s5 + 3.2, 5], [s6 + 5, 5], [s6 + 6.2, 6], [s7 + 2.6, 6], [s7 + 3.6, 7], [s8 + 5.4, 7], [s8 + 7, 8]];
+  const idxAt = t => keyAt(t, IDX)[0];
+  const tCO1 = s3 + 7.1, tCO2 = s4 + .5;
+  const nAt = t => t < 1.2 ? 4 : t < tCO1 ? 6 : t < tCO2 ? 5 : 4;
+  const rd = stepText(p, [[0, '4 C'], [1.4, '6 C'], [tCO1 + .3, '5 C'], [tCO2 + .3, '4 C']], { x: WX, y: WY + 86, size: 30 });
+  // the products
+  // the carriers' roads run between the tray's rows, never across a label
+  const nad3 = carrier(p, { dock: [930, 440], src: onWheel(2), tA: s3 + 1, tE: s3 + 2.2, tGo: s3 + 5.2, slot: SLOT('NADH', 0), via: [[1060, 355], [1290, 355]], go: 1.5 });
+  const co3 = co2Out(p, { t0: tCO1, src: onWheel(2), mid: [890, 300], slot: SLOT('CO2', 0), tT: s3 + 9.6 });
+  const co4 = co2Out(p, { t0: tCO2, src: onWheel(3), mid: [960, 600], slot: SLOT('CO2', 1), tT: s4 + 2.2 });
+  const nad4 = carrier(p, { dock: [960, 795], src: onWheel(3), tA: s4 + 1.2, tE: s4 + 2.4, tGo: s4 + 5.4, slot: SLOT('NADH', 1), via: [[1060, 795], [1060, 355], [1395, 355]], go: 2.2 });
+  const fad6 = carrier(p, { kind: 'FAD', dock: [660, 780], src: onWheel(5), tA: s6 + .6, tE: s6 + 1.8, tGo: s6 + 5.2, slot: SLOT('FADH2', 0), s: .85, via: [[1060, 780], [1060, 485], [1300, 485]], go: 2.2 });
+  const nad8 = carrier(p, { dock: [290, 245], src: onWheel(7), tA: s8 + .8, tE: s8 + 2.2, tGo: s8 + 5.6, slot: SLOT('NADH', 2), via: [[290, 130], [1060, 130], [1060, 355], [1500, 355]], go: 2.8 });
+  // step 2: isomer
+  const iso = G(p, { o: 0 }); show(iso, s2 + 2, .4); hide(iso, s3 - .3, .4);
+  wLabel(iso, 'isomer:', { x: 830, y: 238, size: 24, fill: COL.chalk, weight: 800, anchor: 'start', o: 1 });
+  wLabel(iso, 'same atoms, rearranged', { x: 830, y: 268, size: 22, fill: COL.dim, weight: 600, anchor: 'start', o: 1 });
+  // step 4: succinyl CoA's high-energy bond
+  const hb = G(p, { o: 0 }); show(hb, s4 + 8.6, .4); hide(hb, s5 + 3.6, .4);
+  const [n4x, n4y] = onWheel(4);
+  mk('circle', { cx: n4x + 30, cy: n4y + 30, r: 26, fill: 'none', stroke: MC.elec, 'stroke-width': 3.5 }, hb);
+  wLabel(hb, 'high-energy bond', { x: WX, y: WY + 140, size: 20, fill: MC.elec, weight: 700, o: 1 });
+  // step 5: a phosphate to GDP (GTP), then on to ADP (ATP)
+  const ph = phosBall(p);
+  const gdp = G(p, { o: 0 }); show(gdp, s5 + 2.4, .4);
+  box5(gdp, 418, 780, 104, 44, { stroke: COL.chalk, sw: 2.5, rx: 22 });
+  const gt = stepText(gdp, [[s5 + 2.4, 'GDP'], [s5 + 5.6, 'GTP']], { x: 470, y: 810, size: 24 });
+  const ga = G(p, { o: 0 }); show(ga, s5 + 6.6, .3);
+  mArrow(ga, [530, 802], [650, 802], { color: COL.chalk, w: 4, head: 14 });
+  wLabel(ga, 'to ADP', { x: 590, y: 790, size: 18, fill: COL.dim, weight: 600, o: 1 });
+  const atp = atpBurst(p, { r: 26, size: 13, o: 0 });
+  const slv = say(p, 'substrate-level phosphorylation', 560, 862, s5 + 8.4, { size: 22, fill: COL.dim, weight: 600 });
+  hide(gdp, s6 + .2, .4); hide(ga, s6 + .2, .4); hide(slv, s6 + .2, .4);
+  // step 7: water joins
+  const wm = waterMolecule(p, { s: .55, o: 0, face: false });
+  const wl = say(p, '+ H_2O', 230, 380, s7 + .5, { size: 26, fill: '#cfeefa' }); hide(wl, s7 + 3, .4);
+  // the pattern
+  const pat = [['CO2', s8 + 11.6], ['NADH', s8 + 14.2], ['FADH2', s8 + 14.6], ['ATP', s8 + 17]];
+  clockRun(t => {
+    const idx = idxAt(t), [x, y] = onWheel(idx);
+    cl.set(nAt(t), x, y, 1);
+    cc.draw(idx / 8);
+    cc.entryOn(mRamp(t, 0, .2) * (1 - mRamp(t, 1.6, 1.8))).join(mRamp(t, .2, 1.8));
+    rd.set(t);
+    [nad3, nad4, fad6, nad8].forEach(c => c.set(t)); co3.set(t); co4.set(t);
+    // the phosphate rides from succinyl CoA to GDP; the ATP forms, then goes to the tray
+    const [qx, qy] = keyAt(t, [[s5 + 3.6, n4x - 20, n4y - 10], [s5 + 5.2, 470, 760]]);
+    mPose(ph, qx, qy, mRamp(t, s5 + 3.3, s5 + 3.6) * (1 - mRamp(t, s5 + 5.2, s5 + 5.6)));
+    const [ax, ay] = keyAt(t, [[s5 + 9.6, 700, 802], [s5 + 10.9, ...SLOT('ATP', 0)]]);
+    mPose(atp, ax, ay);
+    mO(atp, mRamp(t, s5 + 6.9, s5 + 7.1)); atp.set(mRamp(t, s5 + 7, s5 + 8.2)).shine(t);
+    const [wx, wy, wo] = keyAt(t, [[s7 + .4, 200, 440, 0], [s7 + .7, 220, 440, 1], [s7 + 2.1, onWheel(6)[0] - 28, onWheel(6)[1] - 10, 1], [s7 + 2.6, onWheel(6)[0] - 10, onWheel(6)[1], 0]]);
+    mPose(wm, wx, wy, wo);
+    gt.set(t);
+    pat.forEach(([k, t0]) => mO(tray.hi[k], mBump(t, t0, t0 + 3.4)));
+  }, D);
+}],
+
+/* ---------- turn ---------- */
+['turn', 'One turn of the cycle', (m, D) => {
+  const p = panel(0), tT = m('tally'), tC = m('carriers');
+  matrixBack(p);
+  const cx = 330, cy = 480, R = 150;
+  const cc = citricCycle(p, { x: cx, y: cy, R, beads: false, size: 18 }).badges(1);
+  beadCluster(p).set(4, ...onWheel(0, cx, cy, R), 1);
+  const PX = 690, PW = 450;
+  box5(p, PX, 190, PW, 520);
+  wLabel(p, 'one turn makes', { x: PX + PW / 2, y: 240, size: 30, weight: 700, o: 1 });
+  const ROW = [['ATP', 'ATP (via GTP)', MC.elec, 300, 'ATP', [5], 0], ['NADH', 'NADH', MC.nad, 410, 'NADH', [3, 4, 8], 1.8], ['FADH2', 'FADH_2', MC.fad, 520, 'FADH2', [6], 4.4], ['CO2', 'CO_2', COL.chalk, 630, 'CO2', [3, 4], 8.1]];
+  const items = [], rows = {};
+  ROW.forEach(([k, str, col, y, kind, steps, dt]) => {
+    const g = G(p, { o: 0 });
+    const hi = mk('rect', { x: PX + 10, y: y - 44, width: PW - 20, height: 88, rx: 14, fill: MC.elec, 'fill-opacity': .16, stroke: MC.elec, 'stroke-width': 2 }, g); put(hi, { o: 0 });
+    wChem(g, str, { x: PX + 24, y: y + 9, size: k === 'ATP' ? 22 : 28, fill: col, weight: 700, anchor: 'start', o: 1 });
+    const val = say(p, '× ' + steps.length, PX + PW - 22, y + 12, tT + dt + .5 + .45 * steps.length, { size: 36, fill: col, anchor: 'end', weight: 800 });
+    rows[k] = { g, hi, val, dt };
+    steps.forEach((st, j) => {
+      const ic = respIcon(p, kind, { o: 0 }), t0 = tT + dt + .3 + .45 * j;
+      items.push({ ic, t0, from: stepAt(st, 64, cx, cy, R), to: [PX + 212 + j * 62, y] });
+    });
+  });
+  // carriers: the chain they deliver to (oxidative phosphorylation)
+  const ch = G(p, { o: 0 }); show(ch, tC + .3, .5);
+  box5(ch, 1220, 190, 330, 290, { fill: mix(MC.oxph, '#0f1e33', .6), stroke: MC.oxph, sw: 3 });
+  wLabel(ch, 'oxidative phosphorylation', { x: 1385, y: 232, size: 22, fill: MC.oxph, weight: 800, o: 1 });
+  chainIcon(ch, { x: 1385, y: 330, s: .9 });
+  say(p, 'where most of the energy', 1385, 540, tC + 6, { size: 24, fill: COL.chalk });
+  say(p, 'will be harvested', 1385, 572, tC + 6, { size: 24, fill: COL.chalk });
+  say(p, 'lessons six and seven', 1385, 616, tC + 7.5, { size: 22, fill: COL.dim, weight: 600 });
+  const lines = [lineOf([[PX + PW - 10, 410], [1180, 410], [1180, 330], [1240, 330]]), lineOf([[PX + PW - 10, 520], [1195, 520], [1195, 380], [1240, 380]])];
+  const ar = G(p, { o: 0 }); show(ar, tC + 1, .4);
+  path(ar, `M${PX + PW + 4} 410H1180V330H1232M${PX + PW + 4} 520H1195V380H1232`, { stroke: MC.elec, 'stroke-width': 4, fill: 'none', 'stroke-dasharray': '10 8' });
+  const pairs = [0, 1, 2, 3].map(() => electron(p, { n: 2, r: 6, o: 0 }));
+  clockRun(t => {
+    items.forEach(({ ic, t0, from, to }) => { const [x, y] = keyAt(t, [[t0, ...from], [t0 + 1, ...to]]); mPose(ic, x, y, mRamp(t, t0 - .05, t0 + .2)); });   // fades in clear of the step badge
+    pairs.forEach((e, i) => { const ln = lines[i % 2], u = cFrac(t * .35 + i * .25), [x, y] = ln.at(u); e.pose(x, y); mO(e, mRamp(t, tC + 1.5, tC + 2) * mBump(u, 0, 1)); });
+    for (const k in rows) mO(rows[k].g, mRamp(t, tT + rows[k].dt, tT + rows[k].dt + .4) * (k === 'ATP' || k === 'CO2' ? 1 - .6 * mRamp(t, tC, tC + .6) : 1));
+    ['NADH', 'FADH2'].forEach(k => mO(rows[k].hi, mRamp(t, tC + .2, tC + .8)));
+    cc.draw(1);
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'one turn of the cycle', { x: 320, y: 160, size: 32, weight: 800, fill: MC.cac, o: 1 });
+  citricCycle(p, { x: 320, y: 450, R: 150, beads: false, labels: false }).badges(1).draw(1);
+  nadShuttle(p, { x: 260, y: 730 });
+  wLabel(p, '→ NADH × ?', { x: 340, y: 742, size: 30, fill: MC.nad, weight: 800, anchor: 'start', o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-turn', prompt: ['How many NADH does one turn of the citric acid cycle make?'],
+  build: choice([['1'], ['2'], ['3'], ['6']], 2,
+    'Right. Three: one each at steps 3, 4 and 8, where the molecule is oxidized and NAD⁺ takes the electrons.',
+    ['One is the count for FADH₂ (step 6) and for ATP (step 5). NAD⁺ is reduced at more steps than that.',
+      'Two is the number of CO₂ released per turn. Count the steps that use NAD⁺: 3, 4 and 8.', null,
+      'Six is the total for two turns, per glucose. The question asks about one turn.']),
+}], done) }],
+
+/* ---------- carbons ---------- */
+['carbons', 'A carbon audit', (m, D) => {
+  const p = panel(0), tG = m('glc'), t2 = m('two'), tP = m('po'), tC = m('cyc'), tS = m('six');
+  wLabel(p, 'carbon audit, per glucose', { x: 800, y: 66, size: 36, weight: 700, o: 1 });
+  say(p, 'our own arithmetic, from the slides', 800, 104, .4, { size: 22, fill: COL.dim, weight: 600 });
+  const gr = glucoseRing(p, { x: 180, y: 450, s: 1.2, apart: 125, sp: 32, r: 12, o: 0 });
+  const gl = say(p, 'glucose · 6 C', 180, 560, tG + .3, { size: 28, fill: MC.glucose }); hide(gl, t2 + .2, .3);
+  const ch = [300, 600].map(y => carbonChain(p, { x: 180, y, s: 1.2, sp: 32, r: 12, o: 0 }));
+  const pl = [255, 555].map(y => { const e = say(p, 'pyruvate · 3 C', 180, y, t2 + 2.2, { size: 24, fill: MC.pyruvate }); hide(e, tP + .3, .3); return e; });
+  void pl;
+  const x2 = say(p, '× 2: everything happens twice', 470, 460, t2 + 4.2, { size: 26, fill: MC.elec });
+  hide(x2, tP + .2, .3);
+  [355, 655].forEach(y => say(p, 'pyruvate oxidation', 470, y, tP + .3, { size: 20, fill: MC.pyrOx }));
+  // the cycle as a small wheel with oxaloacetate (4 C) on it
+  const wg = G(p, { x: 930, y: 450, o: 0 }); show(wg, tP + 4, .5);
+  const ring = G(wg, { s: .999 });
+  path(ring, 'M0 -92A92 92 0 1 1 -79.7 -46', { stroke: MC.cac, 'stroke-width': 14, fill: 'none' });
+  path(ring, 'M-96 -30L-79.7 -46L-62 -26Z', { fill: MC.cac, stroke: MC.cac, 'stroke-width': 4 });
+  wLabel(wg, 'citric acid cycle', { y: 132, size: 22, fill: MC.cac, weight: 800, o: 1 });
+  const turnT = stepText(p, [[tC + .5, 'turn 1'], [tC + 3.9, 'turn 2']], { x: 930, y: 322, size: 24, fill: MC.cac });
+  const cl = beadCluster(p);
+  // the CO₂ column
+  const COLX = [1290, 1420], COLY = [290, 400, 510];
+  const slot = i => [COLX[i % 2], COLY[Math.floor(i / 2)]];
+  const cbox = G(p, { o: 0 }); show(cbox, tP + 1.5, .4);
+  box5(cbox, 1200, 200, 310, 380, { stroke: COL.dim, sw: 2.5 });
+  wChem(cbox, 'CO_2 out', { x: 1355, y: 240, size: 28, weight: 700, o: 1 });
+  const TPO = tP + 2.6, TC = [tC + 2.4, tC + 3.1, tC + 5.4, tC + 6.1];
+  const outs = [
+    co2Out(p, { t0: TPO, src: [470 + 76.8, 300], mid: [560, 230], slot: slot(0), tT: TPO + 1.6 }),
+    co2Out(p, { t0: TPO, src: [470 + 76.8, 600], mid: [560, 530], slot: slot(1), tT: TPO + 1.6 }),
+    ...TC.map((t0, i) => co2Out(p, { t0, src: [930, 450], mid: [930 + 120 * Math.cos(dg(-60 + 40 * i)), 450 + 120 * Math.sin(dg(-60 + 40 * i))], slot: slot(i + 2), tT: t0 + .9 })),
+  ];
+  const count = stepText(p, [[TPO + 3, 'carbons out: 2 of 6'], [TC[1] + 2.2, 'carbons out: 4 of 6'], [TC[3] + 2.2, 'carbons out: 6 of 6']], { x: 1355, y: 620, size: 26 });
+  const fin = G(p, { o: 0 }); show(fin, tS + .4, .5);
+  box5(fin, 380, 730, 840, 110, { stroke: MC.elec, sw: 3 });
+  wChem(fin, '6 C in glucose  →  6 CO_2 out', { x: 800, y: 798, size: 40, weight: 800, fill: MC.elec, o: 1 });
+  const br = G(p, { o: 0 }); show(br, tS + 3.4, .5);
+  wLabel(br, 'what you breathe out', { x: 1355, y: 672, size: 24, fill: COL.dim, weight: 600, o: 1 });
+  const waves = [0, 1, 2].map(i => { const wv = G(br); path(wv, `M${1290 + i * 6} ${700 + i * 14}c30 -14 60 14 90 0s60 -14 90 0`, { stroke: '#cfeefa', 'stroke-width': 3.5, fill: 'none', 'stroke-opacity': .8 - i * .2 }); return wv; });
+  const hiC = G(p, { o: 0 }); show(hiC, tS + .2, .4); pulse(hiC, tS + .4, 1.04);
+  mk('rect', { x: 1206, y: 206, width: 298, height: 368, rx: 20, fill: 'none', stroke: MC.elec, 'stroke-width': 4 }, hiC);
+  clockRun(t => {
+    gr.split(io(mRamp(t, t2 + .3, t2 + 2.2)));
+    const sw = t >= t2 + 2.2;
+    mO(gr, sw ? 0 : mRamp(t, tG + .1, tG + .5));
+    ch.forEach((c, i) => {
+      // to the pyruvate-oxidation spot, lose a carbon, become acetyl, wait; then into the wheel in turn
+      const tin = TC[0] + (i ? 2.3 : 0) - 1.5;
+      const [x, y, o] = keyAt(t, [[tP + .2, 180, i ? 600 : 300, 1], [tP + 1.6, 470, i ? 600 : 300, 1], [tP + 5.6, 470, i ? 600 : 300, 1], [tP + 6.8, 690, i ? 600 : 300, 1], [tin, 690, i ? 600 : 300, 1], [tin + 1.2, 930 - 18, 450, 1], [tin + 1.4, 930 - 18, 450, 0]]);
+      c.pose(x, y); mO(c, sw ? o : 0);
+      c.lose(mRamp(t, TPO - 1.2, TPO), { to: [32, 0], fade: true });
+      c.color(t < TPO + .4 ? MC.pyruvate : MC.pyrOx);
+    });
+    // "exactly what you breathe out": the six CO₂ rise and settle gently in turn, and the breath drifts out
+    const air = mRamp(t, tS + 3, tS + 3.8);
+    outs.forEach((o, i) => { o.set(t); if (air) { const [x, y] = slot(i); o.c.pose(x, y - 6 * air * (1 - Math.cos(2 * Math.PI * (t / 2.2 - i / 6))) / 2); } });
+    waves.forEach((wv, i) => mPose(wv, 14 * Math.sin(2 * Math.PI * (t / 2.6 - i * .2)), 0, 1));
+    const n = t < TC[0] - .1 ? 4 : t < TC[0] ? 6 : t < TC[1] ? 5 : t < TC[2] - .8 ? 4 : t < TC[2] ? 6 : t < TC[3] ? 5 : 4;
+    cl.set(n, 930, 450, mRamp(t, tP + 4.2, tP + 4.6));
+    cSet(ring, { r: 360 * Math.min(2, mRamp(t, TC[0] - .8, TC[3] + .4) * 2) });
+    turnT.set(t); count.set(t);
+  }, D);
+}],
+
+/* ---------- glucose ---------- */
+['glucose', 'Totals per glucose', (m, D) => {
+  const p = panel(0), tT = m('tot'), tS = m('so'), tC = m('carr'), tO = m('o2');
+  wLabel(p, 'totals per glucose', { x: 800, y: 66, size: 36, weight: 700, o: 1 });
+  // the beat's twenty icons are copies (<use>) of one drawn icon per kind, in a <defs>: building twenty kit shuttles
+  // made this beat's start the slowest frame of the lesson (perf)
+  const defs = mk('defs', {}, p), TPL = {};
+  const icon = (par, k, { x, y, s = 1, o = 1 }) => {
+    if (!TPL[k]) { TPL[k] = 'l0905-ic-' + k; respIcon(defs, k).id = TPL[k]; }
+    const g = G(par, { x, y, s, o }); mk('use', { href: '#' + TPL[k] }, g); return g;
+  };
+  say(p, 'our own sums, from the per-turn numbers', 800, 104, .4, { size: 22, fill: COL.dim, weight: 600 });
+  box5(p, 110, 130, 1180, 260, { stroke: COL.faint });
+  const CX = [720, 870, 1020, 1170];
+  [['NADH', 'NADH', MC.nad], ['FADH2', 'FADH_2', MC.fad], ['ATP', 'ATP', MC.elec], ['CO2', 'CO_2', COL.chalk]].forEach(([k, s, c], i) => {
+    const g = G(p, { o: 0 }); show(g, tT + .4 + .15 * i, .4);
+    icon(g, k, { x: CX[i], y: 166, s: 1.1 });
+    wChem(g, s, { x: CX[i], y: 214, size: 22, fill: c, weight: 700, o: 1 });
+  });
+  const RY = [280, 350];
+  say(p, 'pyruvate oxidation × 2', 140, RY[0] + 10, tT + 3.4, { size: 28, fill: MC.pyrOx, anchor: 'start' });
+  say(p, 'citric acid cycle × 2 turns', 140, RY[1] + 10, tT + 7.3, { size: 28, fill: MC.cac, anchor: 'start' });
+  const V = [[['2', tT + 4], ['0', tT + 5], ['0', tT + 5], ['2', tT + 5.4]], [['6', tT + 8.6], ['2', tT + 10.6], ['2', tT + 12.4], ['4', tT + 13.6]]];
+  const VC = [MC.nad, MC.fad, MC.elec, COL.chalk];
+  V.forEach((row, r) => row.forEach(([v, t0], i) => say(p, v, CX[i], RY[r] + 14, t0, { size: 40, weight: 800, fill: v === '0' ? COL.faint : VC[i] })));
+  // so: ATP made directly so far
+  const a = G(p, { o: 0 }); show(a, tS + .8, .5);
+  box5(a, 110, 430, 450, 220, { stroke: MC.elec, sw: 2.5 });
+  wLabel(a, 'ATP made directly', { x: 335, y: 476, size: 28, weight: 700, fill: MC.elec, o: 1 });
+  [0, 1, 2, 3].forEach(i => icon(a, 'ATP', { x: 230 + i * 62, y: 540 }));
+  wLabel(a, 'glycolysis 2 + cycle 2 = 4', { x: 335, y: 618, size: 26, weight: 700, o: 1 });
+  // carr: the carriers, full of electrons
+  const c = G(p, { o: 0 }); show(c, tC + .3, .5);
+  box5(c, 600, 430, 690, 300, { stroke: MC.nad, sw: 2.5 });
+  wChem(c, 'carriers full of electrons', { x: 945, y: 476, size: 28, weight: 700, fill: MC.nad, o: 1 });
+  const glow = mk('rect', { x: 616, y: 496, width: 658, height: 216, rx: 16, fill: MC.elec, 'fill-opacity': .14 }, c);
+  const icons = [];
+  for (let i = 0; i < 10; i++) { const ic = icon(c, 'NADH', { x: 680 + (i % 5) * 72, y: 532 + Math.floor(i / 5) * 62, o: 0 }); icons.push([ic, tC + .6 + .25 * i]); }
+  for (let i = 0; i < 2; i++) { const ic = icon(c, 'FADH2', { x: 680 + i * 72, y: 660, o: 0 }); icons.push([ic, tC + 3.4 + .3 * i]); }
+  wLabel(c, '8 from this stage', { x: 1050, y: 528, size: 22, fill: COL.chalk, weight: 700, anchor: 'start', o: 1 });
+  wLabel(c, '+ 2 from glycolysis', { x: 1050, y: 590, size: 22, fill: MC.gly, weight: 700, anchor: 'start', o: 1 });
+  wChem(c, '2 FADH_2', { x: 830, y: 668, size: 24, fill: MC.fad, weight: 700, anchor: 'start', o: 1 });
+  mk('rect', { x: 858, y: 564, width: 148, height: 58, rx: 12, fill: 'none', stroke: MC.gly, 'stroke-width': 3 }, c);
+  say(p, 'that is where the energy is waiting', 945, 776, tC + 12, { size: 26, fill: MC.elec });
+  say(p, 'next lessons: how it becomes ATP', 945, 814, tC + 14, { size: 22, fill: COL.dim, weight: 600 });
+  // o2: oxygen, not yet used
+  const og = G(p, { o: 0 }); show(og, tO + .3, .5);
+  chainIcon(og, { x: 1450, y: 450, s: .6, size: 26 });
+  mArrow(og, [1450, 530], [1450, 580], { color: COL.dim, w: 4, head: 14 });
+  o2Molecule(og, { x: 1450, y: 620, r: 26 });
+  wChem(og, 'O_2', { x: 1450, y: 680, size: 28, fill: MC.oxy, weight: 800, o: 1 });
+  wLabel(og, 'not used yet:', { x: 1450, y: 730, size: 22, fill: COL.chalk, weight: 700, o: 1 });
+  wLabel(og, 'it waits at the end', { x: 1450, y: 760, size: 22, fill: COL.chalk, weight: 700, o: 1 });
+  wLabel(og, 'of the chain', { x: 1450, y: 790, size: 22, fill: COL.chalk, weight: 700, o: 1 });
+  clockRun(t => {
+    icons.forEach(([ic, t0]) => mO(ic, mRamp(t, t0, t0 + .3)));
+    mO(glow, mRamp(t, tC + 4, tC + 5) * (.55 + .45 * Math.sin(t * 2.6) ** 2));
+  }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tE = m('end');
+  wLabel(p, 'Summary: pyruvate oxidation and the citric acid cycle', { x: 800, y: 62, size: 34, weight: 700, o: 1 });
+  const ROWS = [
+    ['s1', 'Pyruvate → acetyl CoA, in the mitochondrion', 'loses 1 CO_2, makes 1 NADH; coenzyme A attached', MC.pyrOx],
+    ['s2', 'Acetyl (2 C) + oxaloacetate (4 C) → citrate (6 C)', 'eight steps later, oxaloacetate is back', MC.cac],
+    ['s3', 'Each turn: 1 ATP, 3 NADH, 1 FADH_2, 2 CO_2', 'the carriers take the electrons on to the chain', MC.elec],
+    ['s4', 'Two turns per glucose', 'all 6 carbons of glucose leave as 6 CO_2', COL.chalk],
+  ];
+  // while each line is read, its picture acts it out gently: the CO₂ floats off the chain, acetyl nudges towards
+  // oxaloacetate, the products lift in turn, the six CO₂ rise; every motion a pure function of t
+  const live = [];   // [row, (t, k) => …]: k is 0 … 1, the row's line being read
+  const env = (t, i) => { const a = m(ROWS[i][0]) + .8, b = i < 3 ? m(ROWS[i + 1][0]) : D + 1; return mRamp(t, a, a + .6) * (1 - mRamp(t, b - .6, b)); };
+  const wave = (t, per, ph = 0) => (1 - Math.cos(2 * Math.PI * (t / per - ph))) / 2;
+  ROWS.forEach(([k, a, b, col], i) => {
+    const y = 180 + i * 172, g = G(p, { o: 0 });
+    box5(g, 110, y - 74, 1380, 152);
+    wChem(g, a, { x: 500, y: y - 6, size: 32, weight: 700, fill: col, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 500, y: y + 38, size: 25, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i === 0) {
+      carbonChain(g, { x: 180, y, s: .8 });
+      mArrow(g, [236, y], [286, y], { color: COL.chalk, w: 4, head: 14 });
+      carbonChain(g, { x: 340, y, s: .8, n: 2, color: MC.pyrOx });
+      const ct = coaTag(g, { w: 50, h: 26, size: 16 }); put(ct, { x: 398, y, o: 1 });
+      const co = co2Molecule(g, { x: 420, y: y - 46, r: 10 });
+      live.push([0, (t, k) => co.pose(420 + 6 * k * wave(t, 2.4), y - 46 - 16 * k * wave(t, 2.4))]);
+    }
+    if (i === 1) {
+      const ac = beadCluster(g).set(2, 160, y, 1); live.push([1, (t, k) => ac.set(2, 160 + 14 * k * wave(t, 2.2), y, 1)]);
+      wLabel(g, '+', { x: 205, y: y + 10, size: 30, weight: 800, o: 1 });
+      const oa = beadCluster(g).set(4, 250, y, 1); live.push([1, (t, k) => oa.set(4, 250 - 8 * k * wave(t, 2.2), y, 1)]);
+      wLabel(g, '→', { x: 300, y: y + 10, size: 30, weight: 800, o: 1 });
+      const d = G(g, { x: 380, y }); mk('circle', { r: 40, fill: '#1a1220', stroke: MC.cac, 'stroke-width': 4 }, d);
+      const cit = beadCluster(g).set(6, 380, y, 1); live.push([1, (t, k) => cit.set(6, 380, y - 6 * k * wave(t, 2.2, .5), 1)]);
+    }
+    if (i === 2) [['ATP', 150], ['NADH', 214], ['NADH', 266], ['NADH', 318], ['FADH2', 376], ['CO2', 428], ['CO2', 468]].forEach(([kd, x], j) => {
+      const ic = respIcon(g, kd, { x, y, s: .82 }); live.push([2, (t, k) => mPose(ic, x, y - 7 * k * Math.max(0, Math.sin(2 * Math.PI * (t / 2.4 - j / 7))), 1)]);
+    });
+    if (i === 3) for (let j = 0; j < 6; j++) {
+      const x = 160 + (j % 3) * 60, yy = y - 22 + Math.floor(j / 3) * 44, c = co2Molecule(g, { x, y: yy, r: 11 });
+      live.push([3, (t, k) => c.pose(x, yy - 6 * k * wave(t, 2.2, j / 6))]);
+    }
+    show(g, m(k) + .1, .5);
+  });
+  say(p, 'Now try the practice.', 800, 868, tE, { size: 30, fill: WC.bond });
+  clockRun(t => live.forEach(([i, f]) => f(t, env(t, i))), D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const frame = g => box5(g, 980, 90, 580, 720);
+  at('where', g => {
+    frame(g);
+    wLabel(g, 'cytosol', { x: 1270, y: 160, size: 24, fill: COL.dim, weight: 700, o: 1 });
+    const mc = mitoCutaway(g, { x: 1270, y: 420, w: 520, h: 300, labels: false, porter: false });
+    cLabel(g, mc.pt('matrix'), [1330, 640], 'matrix', { size: 22, o: 1 });
+    cLabel(g, mc.pt('ims'), [1300, 226], 'intermembrane space', { size: 22, o: 1 });
+    cLabel(g, mc.pt('cristae'), [1180, 680], 'inner membrane', { size: 22, o: 1 });
+    wLabel(g, 'where does the cycle run?', { x: 1270, y: 770, size: 26, weight: 700, fill: MC.cac, o: 1 });
+  });
+  at('join', g => {
+    frame(g);
+    const cc = citricCycle(g, { x: 1270, y: 480, R: 150, beads: false, labels: false });
+    cc.badges(1).entryOn(1).focus(['node0', 'node1', 'ring'], 1);
+    const [ax, ay] = cc.node(0), [bx, by] = cc.node(1);
+    wLabel(g, '?', { x: ax, y: ay + 14, size: 40, weight: 800, fill: MC.elec, o: 1 });
+    wLabel(g, '?', { x: bx, y: by + 14, size: 40, weight: 800, fill: MC.elec, o: 1 });
+    wLabel(g, 'step 1: acetyl (2 C) + ? → ?', { x: 1270, y: 770, size: 26, weight: 700, o: 1 });
+  });
+  at('steps', g => {
+    frame(g);
+    const cc = citricCycle(g, { x: 1270, y: 450, R: 150, beads: false, labels: false });
+    cc.badges(1).draw(1);
+    [3, 5, 6, 8].forEach(i => { const [x, y] = cc.stepPt(i, 34); mk('circle', { cx: x, cy: y, r: 22, fill: 'none', stroke: MC.elec, 'stroke-width': 4 }, g); });
+    wLabel(g, 'steps 3, 5, 6 and 8', { x: 1270, y: 760, size: 26, weight: 700, fill: MC.elec, o: 1 });
+  });
+  at('why2', g => {
+    frame(g);
+    glucoseRing(g, { x: 1090, y: 450, s: 1.2, apart: 110 }).split(1);
+    wLabel(g, 'glucose → 2 pyruvate', { x: 1150, y: 260, size: 22, fill: MC.glucose, weight: 700, o: 1 });
+    mArrow(g, [1170, 318], [1330, 410], { color: COL.chalk, w: 4, head: 14 });
+    mArrow(g, [1170, 582], [1330, 490], { color: COL.chalk, w: 4, head: 14 });
+    miniWheel(g, 1420, 450, 62);
+    wLabel(g, '× ?', { x: 1420, y: 466, size: 40, weight: 800, fill: MC.elec, o: 1 });
+    wLabel(g, 'turns per glucose?', { x: 1270, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('blanks', g => {
+    frame(g);
+    [300, 560].forEach(y => {
+      carbonChain(g, { x: 1060, y, s: .9 });
+      mArrow(g, [1125, y], [1170, y], { color: COL.chalk, w: 4, head: 14 });
+      carbonChain(g, { x: 1225, y, s: .9, n: 2, color: MC.pyrOx });
+      mArrow(g, [1270, y], [1315, y], { color: COL.chalk, w: 4, head: 14 });
+      miniWheel(g, 1370, y, 36, 9);
+      wChem(g, '? CO_2', { x: 1150, y: y - 50, size: 22, fill: COL.chalk, weight: 700, o: 1 });
+      wChem(g, '? CO_2', { x: 1480, y: y + 8, size: 22, fill: COL.chalk, weight: 700, o: 1 });
+    });
+    wLabel(g, 'count the carbons that leave', { x: 1270, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('gtp', g => {
+    frame(g);
+    const d = G(g, { x: 1130, y: 330 }); mk('circle', { r: 46, fill: '#1a1220', stroke: MC.cac, 'stroke-width': 4 }, d);
+    beadCluster(g).set(4, 1130, 330, 1);
+    wLabel(g, 'succinyl CoA', { x: 1130, y: 410, size: 22, weight: 700, o: 1 });
+    const pb = phosBall(g); put(pb, { x: 1260, y: 330, o: 1 });
+    mArrow(g, [1180, 330], [1238, 330], { color: COL.chalk, w: 4, head: 14 });
+    mArrow(g, [1282, 330], [1340, 330], { color: COL.chalk, w: 4, head: 14 });
+    pill(g, 'GDP', { x: 1400, y: 330, size: 24 });
+    mArrow(g, [1400, 362], [1400, 470], { color: COL.chalk, w: 4, head: 14 });
+    wLabel(g, '?', { x: 1400, y: 540, size: 64, weight: 800, fill: MC.elec, o: 1 });
+    wLabel(g, 'step 5: how is ATP made?', { x: 1270, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('where');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-where', prompt: ['Where does the citric acid cycle take place?'],
+    build: withPic('where', choice([['in the cytosol'], ['in the intermembrane space'], ['in the mitochondrial matrix'], ['in the folded inner membrane']], 2,
+      'Right. The cycle runs in the matrix, the innermost compartment of the mitochondrion.',
+      ['Glycolysis runs in the cytosol. Pyruvate has to cross into the mitochondrion before the cycle.',
+        'The intermembrane space is where the H⁺ gradient builds up (lessons six and seven), not where the cycle runs.', null,
+        'The electron transport chain sits in the inner membrane. The cycle’s enzymes are in the matrix it encloses.'])) },
+  { id: 'p-join', prompt: ['In step 1 of the cycle, what joins the acetyl group, and what forms?'],
+    build: withPic('join', choice([['pyruvate joins it, forming oxaloacetate'], ['oxaloacetate (4 C) joins it, forming citrate (6 C)'], ['citrate joins it, forming oxaloacetate'], ['NAD⁺ joins it, forming NADH']], 1,
+      'Right. 2 C + 4 C = 6 C: the acetyl group and oxaloacetate make citrate.',
+      ['Pyruvate is already used up: it became the acetyl group. The acceptor is the 4-carbon molecule the cycle returns to.', null,
+        'That runs backwards: citrate is the product of step 1, and oxaloacetate the acceptor.',
+        'NAD⁺ is an electron carrier, not the acceptor of the acetyl group. It is reduced at steps 3, 4 and 8.'])) },
+  { id: 'p-steps', prompt: ['What does each step make?'],
+    build: withPic('steps', grid([
+      { parts: ['step 3'], ans: ['n'], why: 'NADH: isocitrate is oxidized.' },
+      { parts: ['step 5'], ans: ['a'], why: 'ATP, via GTP.' },
+      { parts: ['step 6'], ans: ['f'], why: 'FADH₂: only step 6 uses FAD.' },
+      { parts: ['step 8'], ans: ['n'], why: 'NADH: malate is oxidized.' },
+    ], [['n', 'NADH', null, 'N'], ['f', 'FADH₂', null, 'F'], ['a', 'ATP', null, 'A']], { multi: false, text: true })) },
+  { id: 'p-why2', prompt: ['Why does one glucose give two turns of the cycle?'],
+    build: withPic('why2', choice([['the cycle always turns twice'], ['glycolysis makes two pyruvate, each gives one acetyl CoA, and each acetyl CoA is one turn'], ['each turn uses half the oxaloacetate'], ['glucose has two carbons']], 1,
+      'Right. One glucose → two pyruvate → two acetyl CoA → two turns.',
+      ['The cycle turns once per acetyl group that enters, not a fixed number of times.', null,
+        'Oxaloacetate is regenerated whole at the end of every turn.',
+        'Glucose has six carbons. It is split into two 3-carbon pyruvate.'])) },
+  { id: 'p-blanks', prompt: ['Count the carbon dioxide made from one glucose:'],
+    build: withPic('blanks', blanks([
+      { parts: ['pyruvate oxidation releases ', { box: '2' }, ' CO₂'], why: 'One CO₂ per pyruvate, and there are two pyruvate.', hint: 'One per pyruvate: how many pyruvate per glucose?' },
+      { parts: ['two turns of the cycle release ', { box: '4' }, ' CO₂'], why: 'Two CO₂ per turn, two turns.', hint: 'Two per turn.' },
+      { parts: ['so in all ', { box: '6' }, ' CO₂'], why: '2 + 4 = 6: all six carbons of glucose leave as CO₂.', hint: 'Add the two, and compare with the carbons in glucose.' },
+    ])) },
+  { id: 'p-gtp', prompt: ['In step 5 of the cycle, how is ATP made?'],
+    build: withPic('gtp', choice([['an electron carrier drives ATP synthase'], ['a phosphate moves from succinyl CoA to GDP, making GTP, which hands it on to ADP'], ['oxygen is reduced to water'], ['CO₂ is joined to ADP']], 1,
+      'Right. That is substrate-level phosphorylation: an enzyme moves a phosphate from a substrate, via GTP, to make ATP.',
+      ['That is oxidative phosphorylation, at the chain and ATP synthase (lessons six and seven). Step 5 needs no carrier.', null,
+        'Oxygen is used only at the very end of the electron transport chain, not in the cycle.',
+        'CO₂ only leaves the cycle; it is never joined to anything here.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

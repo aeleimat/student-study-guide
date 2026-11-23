@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 9, Lesson 8: Fermentation and Anaerobic Respiration — Biology</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid.text .opts { gap: 4px; } .screen .grid.text .opt { padding: 2px 9px; font-size: 17px; min-height: 36px; } .screen .grid.text .opt kbd { display: none; }
+.screen .grid.text .row { padding: 4px 0 4px 12px; row-gap: 0; } .screen .grid.text .why { font-size: 18px; line-height: 1.25; }</style><!-- all rows wrong: six rows and their why lines fit above Check -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="../../lib/resp.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biology, Chapter 9 (Cellular Respiration), lesson 8: dough rising in a bowl, a push into a yeast cell and the shared
+// respiration map with glycolysis lit and the mitochondrion crossed out; glycolysis needs NAD⁺ back (a supply that runs
+// dry, the chain and O₂ that return it); anaerobic respiration (a chain ending on sulfate) vs fermentation (no chain,
+// substrate-level ATP, glycolysis + NAD⁺ regeneration); alcohol fermentation (CO₂ off, acetaldehyde reduced to ethanol;
+// yeast, bread, beer); lactic acid fermentation (pyruvate reduced by NADH; cheese, yogurt, a muscle fibre short of O₂);
+// the two routes compared (final acceptor, 2 ATP vs about 30 to 32); the pyruvate fork, obligate and facultative
+// anaerobes; a summary; practice.
+// Plan, errata and beats: books/biology/chapters/chapter-09/lesson-08.md.
+const CHAPTER = { number: 908, label: '9, lesson 8', title: 'Fermentation and Anaerobic Respiration', minutes: 8, language: 'en', lead: false, next: '../lesson-09/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wLabel(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const sayC = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, ...o, o: 0 }); show(e, t0); return e; };
+const SIDE = { x: 880, y: 60, w: 680, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const rk = k => Math.round(mClamp(k) * 2000) / 2000;
+const rt = t => Math.round(t * 120) / 120;
+// A label (centred text, chemistry markup allowed) with a leader to the thing it names; fades in at t0 (null: at once).
+function tag(p, str, [tx, ty], [ax, ay], t0, { size = 26, fill = COL.chalk, line = COL.dim, weight = 700 } = {}) {
+  const g = G(p, { o: 0 }), w = uiW(str.replace(/[_^]/g, ''), size);
+  wChem(g, str, { x: tx, y: ty, size, fill, weight, o: 1 });
+  let sx, sy;
+  if (Math.abs(ay - ty) < size * 1.6 && Math.abs(ax - tx) > w / 2) { sx = tx + Math.sign(ax - tx) * (w / 2 + 10); sy = ty - size * .35; }
+  else if (ay > ty) { sx = tx; sy = ty + size * .3; }
+  else { sx = tx; sy = ty - size * 1.05; }
+  path(g, `M${sx.toFixed(1)} ${sy.toFixed(1)}L${ax.toFixed(1)} ${ay.toFixed(1)}`, { stroke: line, 'stroke-width': 2.5 });
+  mk('circle', { cx: ax, cy: ay, r: 4.5, fill: line }, g);
+  if (t0 !== null) show(g, t0, .4); else put(g, { o: 1 });
+  return g;
+}
+// A title and a dim second line, centred; fades in at t0.
+function banner(p, a, b, x, y, t0, { color = COL.chalk, size = 38 } = {}) {
+  const g = G(p, { o: 0 });
+  wChem(g, a, { x, y, size, weight: 700, fill: color, o: 1 });
+  if (b) wChem(g, b, { x, y: y + size * .95, size: size * .62, fill: COL.dim, weight: 500, o: 1 });
+  show(g, t0, .5);
+  return g;
+}
+const panelBox = (g, x, y, w, h, edge = COL.faint) => mk('rect', { x, y, width: w, height: h, rx: 22, fill: '#0b1828', stroke: edge, 'stroke-width': 3 }, g);
+// A pill with text (chemistry markup), centred on (x, y).
+function pill(p, str, x, y, { size = 24, fill = COL.chalk, edge = COL.dim, bg = '#0b1626', o = 1, pad = 22 } = {}) {
+  const g = G(p, { o }), w = uiW(str.replace(/[_^]/g, ''), size) + 2 * pad, h = size * 1.7;
+  mk('rect', { x: x - w / 2, y: y - h / 2, width: w, height: h, rx: h / 2, fill: bg, stroke: edge, 'stroke-width': 3 }, g);
+  wChem(g, str, { x, y: y + size * .36, size, fill, weight: 700, o: 1 });
+  return Object.assign(g, { w, h });
+}
+// A red X of half-size a over (x, y).
+const redX = (p, x, y, a, w = 10) => path(p, `M${x - a} ${y - a}L${x + a} ${y + a}M${x + a} ${y - a}L${x - a} ${y + a}`, { stroke: MC.inhib, 'stroke-width': w, 'stroke-linecap': 'round' });
+// Piecewise-linear progress through [[t, k] …] knots (held before the first and after the last).
+const knots = KT => t => { if (t <= KT[0][0]) return KT[0][1]; for (let i = 1; i < KT.length; i++) if (t < KT[i][0]) return KT[i - 1][1] + (KT[i][1] - KT[i - 1][1]) * (t - KT[i - 1][0]) / (KT[i][0] - KT[i - 1][0]); return KT[KT.length - 1][1]; };
+
+// A point at u (0..1, by length) along a polyline.
+const alongLine = pts => { const L = [0]; for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  return u => { const d = mClamp(u) * L[L.length - 1]; let i = 1; while (i < L.length - 1 && L[i] < d) i++; const f = (d - L[i - 1]) / ((L[i] - L[i - 1]) || 1); return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f]; }; };
+// Tokens running along a polyline: .set(t, w) n of them, one lap each `period` s, faded in and out at the ends and by w.
+function tokenRun(p, pts, make, { n = 3, period = 2.4 } = {}) {
+  const at = alongLine(pts), T = Array.from({ length: n }, () => { const w = G(p, { o: 0 }); make(w); return w; });
+  const b = { set(t, w) { t = rt(t); w = rk(w); T.forEach((e, i) => { const u = cFrac(t / period + i / n); const [x, y] = at(u); cSet(e, { x, y, o: w * mClamp(Math.min(u, 1 - u) * 7) }); }); return b; } };
+  return b;
+}
+
+/* ---------- local pieces ---------- */
+// A yeast cell: a cream oval with a bud, a nucleus and a vacuole. origin = the mother cell's centre.
+function yeastCell(p, { x = 0, y = 0, s = 1, o = 1, r = 26, bud = 1, ang = -40 } = {}) {
+  const g = G(p, { x, y, s, o });
+  if (bud) {
+    const a = ang * Math.PI / 180, bx = Math.cos(a) * r * 1.12, by = Math.sin(a) * r * .9;
+    mk('ellipse', { cx: bx, cy: by, rx: r * .45 * bud, ry: r * .38 * bud, fill: MC.yeast, stroke: '#a8946a', 'stroke-width': 2.5 }, g);
+  }
+  mk('ellipse', { rx: r, ry: r * .8, fill: MC.yeast, stroke: '#a8946a', 'stroke-width': 3 }, g);
+  mk('circle', { cx: r * .25, cy: r * .12, r: r * .3, fill: '#cdd9e8', 'fill-opacity': .8 }, g);
+  mk('circle', { cx: -r * .3, cy: -r * .1, r: r * .2, fill: '#c9a66a' }, g);
+  mk('ellipse', { cx: -r * .45, cy: -r * .42, rx: r * .22, ry: r * .1, fill: '#fff', 'fill-opacity': .5 }, g);
+  return g;
+}
+// The bowl of dough on the table: .set(k) the dough swells (k 0 a lump … 1 a loaf-sized dome) with its gas bubbles;
+// .cell() the target yeast cell's point (in parent) at full rise. origin = the bowl's foot.
+function doughBowl(p, { x = 0, y = 0 } = {}) {
+  const g = G(p, { x, y });
+  const dough = path(g, '', { fill: '#f1dfb8', stroke: '#c9b07e', 'stroke-width': 4 });
+  const BUB = Array.from({ length: 16 }, (_, i) => ({ fx: (wHash(i, 3) - .5) * 1.5, fy: .12 + .7 * wHash(i, 8), r: 5 + 7 * wHash(i, 5), e: mk('circle', { r: 1, fill: '#fbf3df', stroke: '#d9c393', 'stroke-width': 2 }, g) }));
+  const YC = [[-.55, .3], [.45, .25], [-.15, .62], [.62, .55], [-.7, .55], [.15, .45]].map(([fx, fy], i) => ({ fx, fy, e: yeastCell(g, { r: 6, ang: -30 + 50 * i }) }));
+  // bowl in front of the dough's foot
+  path(g, 'M-250 -150Q-238 2 -120 2H120Q238 2 250 -150Z', { fill: '#c96f4a', stroke: '#8a4528', 'stroke-width': 4 });
+  path(g, 'M-252 -150H252', { stroke: '#e08a62', 'stroke-width': 12, 'stroke-linecap': 'round' });
+  path(g, 'M-180 -96Q0 -70 180 -96', { stroke: '#e08a62', 'stroke-width': 5, 'stroke-opacity': .6 });
+  const H = k => 40 + 160 * k, at = (fx, fy, k) => [fx * 205 * (1 - fy * .45), -150 - fy * H(k) * .78];
+  const b = Object.assign(g, {
+    set(k) {
+      k = rk(k); const h = H(k);
+      mD(dough, `M-232 -146C-232 ${cF(-150 - h * 1.3)} 232 ${cF(-150 - h * 1.3)} 232 -146Z`);
+      BUB.forEach(q => { const [bx, by] = at(q.fx, q.fy, k); cSet(q.e, { x: bx, y: by, s: .5 + q.r * k, o: .2 + .8 * k }); });
+      YC.forEach(q => { const [bx, by] = at(q.fx, q.fy, k); cSet(q.e, { x: bx, y: by }); });
+      return b;
+    },
+    cell() { const [bx, by] = at(YC[5].fx, YC[5].fy, 1); return [x + bx, y + by]; },
+    bubble() { const q = BUB[2], [bx, by] = at(q.fx, q.fy, 1); return [x + bx, y + by]; },
+  });
+  return b.set(0);
+}
+// The NAD⁺ supply: eight pills; .set(level) level·8 of them full (NAD⁺), the rest empty (used: now NADH).
+function supplyBox(p, { x = 0, y = 0, o = 1, n = 8 } = {}) {
+  const g = G(p, { x, y, o });
+  const P = Array.from({ length: n }, (_, i) => {
+    const px = (i - (n - 1) / 2) * 74;
+    const empty = G(g, { o: 0 }); mk('rect', { x: px - 30, y: -17, width: 60, height: 34, rx: 17, fill: 'none', stroke: MC.nadEdge, 'stroke-width': 2.5, 'stroke-dasharray': '6 5' }, empty);
+    const full = G(g); mk('rect', { x: px - 30, y: -17, width: 60, height: 34, rx: 17, fill: MC.nad, stroke: MC.nadEdge, 'stroke-width': 2.5 }, full);
+    wChem(full, 'NAD^+', { x: px, y: 6, size: 15, fill: '#3a1d08', weight: 800, o: 1 });
+    return { empty, full };
+  });
+  const b = Object.assign(g, {
+    set(level) { const L = rk(level) * n; P.forEach((q, i) => { const f = mClamp(L - i); mO(q.full, f); mO(q.empty, 1 - f); }); return b; },
+  });
+  return b.set(1);
+}
+// A vertical O₂ gauge; origin = the tube's foot. .set(level) 0..1.
+function o2Gauge(p, { x = 0, y = 0, s = 1, o = 1, h = 150, w = 36, label = true } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -w / 2, y: -h, width: w, height: h, rx: w / 2, fill: '#0b1626', stroke: COL.dim, 'stroke-width': 3 }, g);
+  const fill = path(g, '', { fill: MC.oxy, 'fill-opacity': .85 });
+  if (label) wChem(g, 'O_2', { y: -h - 16, size: 26, fill: MC.oxy, weight: 800, o: 1 });
+  const b = Object.assign(g, {
+    set(level) { const L = rk(level), hh = Math.max(0, (h - 8) * L); mD(fill, hh < 1 ? 'M0 0' : `M${-w / 2 + 4} -4V${cF(-4 - hh)}H${w / 2 - 4}V-4Z`); return b; },
+  });
+  return b.set(1);
+}
+// A muscle fibre (a long striped cell) with lactate dots; .set(k) k·n dots shown. origin = centre.
+function muscleFibre(p, { x = 0, y = 0, s = 1, o = 1, w = 460, h = 96, n = 14 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill: '#7a3a3a', stroke: '#c06060', 'stroke-width': 4 }, g);
+  let d = ''; for (let sx = -w / 2 + 34; sx < w / 2 - 20; sx += 22) d += `M${sx} ${-h / 2 + 10}V${h / 2 - 10}`;
+  path(g, d, { stroke: '#a65555', 'stroke-width': 6 });
+  [-w * .3, w * .1, w * .36].forEach(nx => mk('ellipse', { cx: nx, cy: -h / 2 + 14, rx: 16, ry: 7, fill: '#c98b8b' }, g));
+  const dots = Array.from({ length: n }, (_, i) => mk('circle', { cx: (wHash(i, 21) - .5) * (w - 70), cy: (wHash(i, 23) - .5) * (h - 34), r: 8, fill: MC.lactate, stroke: '#a85a5a', 'stroke-width': 2 }, g));
+  dots.forEach(e => put(e, { o: 0 }));
+  const b = Object.assign(g, { set(k) { const L = rk(k) * n; dots.forEach((e, i) => mO(e, mClamp(L - i))); return b; } });
+  return b;
+}
+// A cut loaf (crust, crumb with gas holes). origin = the loaf's foot centre.
+function loafCut(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-160 0C-160 -150 160 -150 160 0Z', { fill: '#b5733a', stroke: '#7a4a22', 'stroke-width': 4 });
+  path(g, 'M-144 -6C-144 -128 144 -128 144 -6Z', { fill: '#f1dfb8' });
+  for (let i = 0; i < 16; i++) { const fx = (wHash(i, 31) - .5) * 220, fy = -14 - 78 * wHash(i, 33); if (Math.abs(fx) < 128 - (-fy) * .5) mk('ellipse', { cx: fx, cy: fy, rx: 5 + 7 * wHash(i, 35), ry: 4 + 5 * wHash(i, 37), fill: '#d9c393' }, g); }
+  return g;
+}
+// A glass with rising bubbles; .set(t). origin = the glass foot.
+function bubblyGlass(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-58 -10L-70 -190H70L58 -10Z', { fill: '#e8b84a', 'fill-opacity': .55 });
+  path(g, 'M-72 -190Q-40 -212 0 -196Q40 -214 72 -190Z', { fill: '#fbf3df' });
+  const B = Array.from({ length: 12 }, (_, i) => ({ fx: (wHash(i, 41) - .5) * 90, ph: wHash(i, 43), r: 3 + 4 * wHash(i, 45), e: mk('circle', { r: 4, fill: 'none', stroke: '#fff8e0', 'stroke-width': 2 }, g) }));
+  path(g, 'M-60 -6L-74 -200M60 -6L74 -200M-60 -6H60', { stroke: '#d8eef5', 'stroke-width': 5, 'stroke-linecap': 'round' });
+  const b = Object.assign(g, { set(t) { t = rt(t); B.forEach(q => { const u = cFrac(t * .45 + q.ph); cSet(q.e, { x: q.fx * (1 - u * .1), y: -16 - 170 * u, s: q.r / 4, o: Math.sin(Math.PI * u) }); }); return b; } });
+  return b.set(0);
+}
+// Cheese wedge and a yogurt pot. origin = between them, on the table.
+function dairy(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-190 0L-40 -40L-40 -110L-190 -70Z', { fill: '#e8c24a', stroke: '#a88422', 'stroke-width': 3 });
+  path(g, 'M-190 -70L-40 -110L-110 -130Z', { fill: '#f6d978', stroke: '#a88422', 'stroke-width': 3 });
+  [[-150, -40, 10], [-95, -62, 13], [-70, -30, 8], [-130, -80, 6]].forEach(([cx, cy, r]) => mk('ellipse', { cx, cy, rx: r, ry: r * .8, fill: '#c9a033' }, g));
+  path(g, 'M40 0L28 -110H152L140 0Z', { fill: '#f4f1ea', stroke: '#b9b5aa', 'stroke-width': 3 });
+  mk('rect', { x: 22, y: -122, width: 136, height: 16, rx: 6, fill: '#6c8cff' }, g);
+  wLabel(g, 'yogurt', { x: 90, y: -46, size: 20, fill: '#5a5850', weight: 700, o: 1 });
+  return g;
+}
+// A small NAD⁺ loop glyph: an orange loop with NADH on top and NAD⁺ underneath, dots running round it; .set(t).
+function loopGlyph(p, { x = 0, y = 0, s = 1, o = 1, rx = 70, ry = 34 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, `M${-rx} 0A${rx} ${ry} 0 0 1 ${rx} 0A${rx} ${ry} 0 0 1 ${-rx} 0`, { stroke: MC.nad, 'stroke-width': 5 });
+  path(g, `M14 ${-ry - 9}L28 ${-ry}L14 ${-ry + 9}Z`, { fill: MC.nad });
+  path(g, `M-14 ${ry - 9}L-28 ${ry}L-14 ${ry + 9}Z`, { fill: MC.nad });
+  wChem(g, 'NADH', { y: -ry - 12, size: 18, fill: MC.nad, weight: 800, o: 1 });
+  wChem(g, 'NAD^+', { y: ry + 28, size: 18, fill: MC.nad, weight: 800, o: 1 });
+  const dots = [0, 1].map(() => mk('circle', { r: 6, fill: MC.elec, stroke: MC.elecEdge, 'stroke-width': 1.5 }, g));
+  const b = Object.assign(g, { set(t) { t = rt(t); dots.forEach((d, j) => { const a = (t * .4 + j / 2) * 2 * Math.PI; cSet(d, { x: rx * Math.cos(Math.PI + a), y: ry * Math.sin(Math.PI + a) }); }); return b; } });
+  return b.set(0);
+}
+// A glucose count row: n glucose icons (the last `dash` of them dashed outlines), spacing sp; origin = the row's centre.
+function glucoseRow(p, n, { x = 0, y = 0, s = 1, o = 1, sp = 34, dash = 0, iconS = .55 } = {}) {
+  const g = G(p, { x, y, s, o });
+  for (let i = 0; i < n; i++) {
+    const gx = (i - (n - 1) / 2) * sp;
+    if (i >= n - dash) path(g, zNgon(6, 20 * iconS * 1.05, gx, 0, 0), { fill: 'none', stroke: MC.glucose, 'stroke-width': 2.5, 'stroke-dasharray': '4 4' });
+    else respIcon(g, 'glucose', { x: gx, s: iconS });
+  }
+  return g;
+}
+// The supply-and-stall picture for practice and the intro of `need`: a glycolysis arrow and the NAD⁺ supply.
+function glyArrow(p, x1, x2, y, { label = true } = {}) {
+  const g = G(p);
+  mArrow(g, [x1, y], [x2, y], { color: MC.gly, w: 8, head: 22 });
+  if (label) wLabel(g, 'glycolysis', { x: (x1 + x2) / 2, y: y + 40, size: 24, fill: MC.gly, weight: 700, o: 1 });
+  return g;
+}
+
+/* ---------- shared scene builders (a beat and its continuation draw the same picture) ---------- */
+const FERM = { x: 870, y: 330, s: .95 };
+// The fermentation panel at its place, with the beat's banner; returns the kit piece.
+function fermPanel(p, kind) {
+  wLabel(p, kind === 'alcohol' ? 'alcohol fermentation' : 'lactic acid fermentation', { x: 800, y: 62, size: 36, weight: 700, fill: kind === 'alcohol' ? MC.ethanol : MC.lactate, o: 1 });
+  return fermentation(p, { kind, ...FERM });
+}
+const fermPt = (fe, name) => fe.pt(name);
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Dough, yeast and the map', (m, D) => {
+  const p = panel(0), tL = m('loaf'), tM = m('map'), tG = m('gly'), tX = m('cross'), tQ = tX + 4.7;
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W);
+  mk('rect', { x: -400, y: 690, width: 2400, height: 600, fill: '#4a382b' }, back);
+  mk('rect', { x: -400, y: 682, width: 2400, height: 14, fill: '#6d5340' }, back);
+  const bowl = doughBowl(back, { x: 520, y: 690 });
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOLOGY · CHAPTER 9 · LESSON 8', { x: 1230, y: 220, size: 26, fill: COL.dim, o: 1 });
+  ['Fermentation', 'and anaerobic', 'respiration'].forEach((s, i) => wLabel(ttl, s, { x: 1230, y: 305 + i * 66, size: 54, o: 1 }));
+  wLabel(ttl, 'Cellular respiration', { x: 1230, y: 525, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tM - 3.2, .5);
+  const [ycx, ycy] = bowl.cell(), [bbx, bby] = bowl.bubble();
+  const lt = G(p, { o: 0 }); show(lt, tL + .6, .4); hide(lt, tM - 1.8, .3);
+  wLabel(lt, 'dough in a warm bowl', { x: 520, y: 760, size: 30, weight: 700, o: 1 });
+  wLabel(lt, 'it swells into a loaf', { x: 520, y: 800, size: 24, fill: '#e6d3b8', weight: 500, o: 1 });
+  const t1 = tag(p, 'yeast cells', [250, 330], [ycx - 8, ycy - 4], tL + 5.4, { fill: MC.yeast, line: MC.yeast });
+  const t2 = tag(p, 'gas bubbles: a clue', [880, 300], [bbx + 6, bby - 4], tL + 6.6, { fill: '#fbf3df' });
+  hide(t1, tM - 1.8, .3); hide(t2, tM - 1.8, .3);
+  cam.to({ x: ycx, y: ycy, z: 9 }, tM - 1.7, 1.45);
+  hide(cam.el, tM - .35, .3);
+  // map: the respiration map; gly: glycolysis lit; cross: the mitochondrion crossed out
+  const rm = respMap(p, { x: 800, y: 470, s: .94, o: 0 });
+  show(rm, tM - .2, .6);
+  const c1 = G(p, { o: 0 }); show(c1, tM + 2.8, .4); hide(c1, tG - .3, .3);
+  wChem(c1, 'most of the map needs O_2', { x: 800, y: 820, size: 30, weight: 700, fill: MC.mito, o: 1 });
+  const c2 = G(p, { o: 0 }); show(c2, tG + .4, .4); hide(c2, tQ - .3, .3);
+  wChem(c2, 'glycolysis, in the cytosol: no O_2 needed', { x: 800, y: 820, size: 30, weight: 700, fill: MC.gly, o: 1 });
+  const c3 = G(p, { o: 0 }); show(c3, tQ, .4);
+  wChem(c3, 'when the O_2 runs out, what can a cell do?', { x: 800, y: 820, size: 30, weight: 700, o: 1 });
+  clockRun(t => {
+    bowl.set(io(mRamp(t, tL + .3, tL + 9.5)));
+    rm.shine(t);
+    const kM = io(mRamp(t, tM + 2.6, tM + 3.3) * (1 - mRamp(t, tG - .6, tG - .1))), kG = io(mRamp(t, tG + .1, tG + .8));
+    if (kG > 0) rm.focus(['cell', 'glycolysis', 'atp1', 'cross', 'ferment'], kG);
+    else rm.focus(['cell', 'mito', 'pyruvateOx', 'cycle', 'oxphos', 'e2', 'e3', 'atp2', 'atp3'], kM);
+    rm.cross(io(mRamp(t, tX + .2, tX + 1)));
+    rm.ferment(io(mRamp(t, tQ + .6, tQ + 1.4)));
+  }, D);
+}],
+
+/* ---------- need ---------- */
+['need', 'Glycolysis needs NAD⁺ back', (m, D) => {
+  const p = panel(0), tG = m('gly'), tN = m('nad'), tSt = m('stall'), tO = m('o2'), tNo = m('no'), tTw = m('two');
+  banner(p, 'glycolysis: ATP with or without O_2', null, 800, 62, 0, { size: 34, color: MC.gly });
+  // the glycolysis row: glucose → two pyruvate, 2 ATP
+  const row = G(p);
+  const glc = glucoseRing(row, { x: 220, y: 260, R: 40, r: 10, label: 'glucose', size: 22 });
+  glyArrow(row, 290, 540, 260);
+  const atp = atpBurst(row, { x: 415, y: 170, r: 30, label: '2 ATP', size: 13 });
+  const py1 = carbonChain(row, { x: 660, y: 225, n: 3, r: 11, sp: 28, o: 0 }), py2 = carbonChain(row, { x: 660, y: 295, n: 3, r: 11, sp: 28, label: '2 pyruvate', size: 22, o: 0 });
+  show(py1, tG + 1.6, .4); show(py2, tG + 1.6, .4);
+  const toks = [0, 1, 2].map(() => respIcon(row, 'glucose', { s: .5, o: 0 }));
+  // nad: two NAD⁺ take up electrons and become NADH
+  const sh = [nadShuttle(p, { x: 380, y: 480, size: 22 }), nadShuttle(p, { x: 545, y: 480, size: 22 })];
+  sh.forEach(q => { put(q, { o: 0 }); show(q, tN + .2, .4); });
+  const pairs = [0, 1].map(() => electron(p, { n: 2, r: 8, trail: 16, o: 0 }));
+  sayC(p, '2 NAD^+ → 2 NADH', 170, 488, tN + 2.2, { size: 24, fill: MC.nad, weight: 700 });
+  // the supply
+  const sup = G(p, { o: 0 }); show(sup, tSt - .2, .5);
+  panelBox(sup, 880, 130, 660, 200);
+  wChem(sup, 'the cell’s NAD^+ supply', { x: 1210, y: 182, size: 28, weight: 700, fill: MC.nad, o: 1 });
+  const box = supplyBox(sup, { x: 1210, y: 250 });
+  wLabel(sup, 'an empty seat: that NAD⁺ is now NADH', { x: 1210, y: 308, size: 20, fill: COL.dim, weight: 500, o: 1 });
+  const stall = G(p, { o: 0 });
+  wLabel(stall, 'glycolysis stalls', { x: 430, y: 384, size: 30, weight: 800, fill: MC.inhib, o: 1 });
+  // o2: the chain hands the electrons to O₂ and NAD⁺ comes back; no: without O₂ the chain is stuck
+  const ins = G(p, { o: 0 }); show(ins, tO + .1, .5);
+  panelBox(ins, 880, 380, 660, 330);
+  wChem(ins, 'the chain and O_2', { x: 1210, y: 422, size: 26, weight: 700, o: 1 });
+  const ish = nadShuttle(ins, { x: 965, y: 530, s: .8, label: false });
+  wChem(ins, 'NADH → NAD^+', { x: 965, y: 590, size: 20, fill: MC.nad, weight: 700, o: 1 });
+  const ci = chainIcon(ins, { x: 1180, y: 520, s: .8, size: 20 });
+  const o2 = o2Molecule(ins, { x: 1410, y: 556, r: 18, label: true });
+  const ipair = electron(ins, { n: 2, r: 8, trail: 18, o: 0 });
+  const ok = G(p, { o: 0 }); show(ok, tO + 1.5, .4); hide(ok, tNo - .1, .3);
+  wChem(ok, 'with O_2: the chain returns NAD^+', { x: 1210, y: 672, size: 24, weight: 700, fill: MC.stim, o: 1 });
+  const nx = G(p, { o: 0 }); show(nx, tNo + .3, .4);
+  redX(nx, 1410, 556, 34); redX(nx, 1180, 520, 70, 8);
+  wChem(nx, 'no O_2: the chain is stuck', { x: 1210, y: 672, size: 24, weight: 700, fill: MC.inhib, o: 1 });
+  // two: two answers
+  const two = G(p, { o: 0 }); show(two, tTw + .2, .5);
+  wLabel(two, 'two answers:', { x: 300, y: 814, size: 30, weight: 700, o: 1 });
+  mArrow(two, [410, 804], [520, 804], { color: COL.dim, w: 4, head: 14 });
+  pill(two, 'anaerobic respiration', 700, 804, { size: 26, fill: MC.complex, edge: MC.complex });
+  wLabel(two, 'or', { x: 930, y: 813, size: 26, fill: COL.dim, o: 1 });
+  pill(two, 'fermentation', 1100, 804, { size: 26, fill: MC.ethanol, edge: MC.ethanol });
+  // the supply level, glycolysis's rate (it runs while NAD⁺ is left) and the distance its tokens have run
+  const SUP = t => mClamp(1 - .25 * mRamp(t, tN + 2, tN + 5.5) - .75 * mRamp(t, tSt + 1.5, tSt + 8.5) + mRamp(t, tO + 2, tO + 5.5) - mRamp(t, tNo + 1, tNo + 5));
+  const RATE = t => mClamp(SUP(t) / .12);
+  const RUN = t => { let a = 0; const n = Math.round(t * 30); for (let i = 0; i < n; i++) a += RATE(i / 30) / 30; return a; };
+  clockRun(t => {
+    t = rt(t);
+    const s = SUP(t), r = RATE(t), run = RUN(t);
+    box.set(s);
+    mO(row, .35 + .65 * r);
+    mO(stall, t > tSt ? 1 - mRamp(r, 0, .15) : 0);
+    atp.set(io(mRamp(t, tG + 1, tG + 2))); atp.shine(t * r);
+    toks.forEach((e, i) => { const u = cFrac(run * .4 + i / 3); mPose(e, 310 + 210 * u, 260, mRamp(t, tG + .5, tG + 1.2) * Math.min(1, u * 6, (1 - u) * 6)); });
+    // electrons from the glycolysis arrow into each shuttle, then the shuttle fills
+    sh.forEach((q, i) => {
+      const a = tN + 2.1 + i * .9, k = mRamp(t, a, a + .9), seat = q.seat(0), q0 = [415 + 20 * i, 278], qq = [q0[0] + (seat[0] + 12 - q0[0]) * io(k), q0[1] + (seat[1] - 30 - q0[1]) * io(k)];
+      pairs[i].pose(qq[0], qq[1], k > 0 && k < 1 ? Math.atan2(seat[1] - 30 - q0[1], seat[0] + 12 - q0[0]) * 180 / Math.PI : null);
+      mO(pairs[i], k > 0 && k < 1 ? 1 : 0);
+      q.set(mRamp(t, a + .7, a + 2));
+    });
+    // a pair runs NADH → chain → O₂ while O₂ is there
+    const amt = mRamp(t, tO + .8, tO + 1.2) * (1 - mRamp(t, tNo, tNo + .4)), u = cFrac((t - tO - 1) / 2.4);
+    const P0 = [965, 528], P1 = ci.pt('in'), P2 = ci.pt('out'), P3 = [1410, 540];
+    const seg = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+    const q = u < .3 ? seg(P0, P1, u / .3) : u < .6 ? seg(P1, P2, (u - .3) / .3) : seg(P2, P3, Math.min(1, (u - .6) / .3));
+    ipair.pose(q[0], q[1]); mO(ipair, amt > 0 && u < .9 ? amt : 0);
+    ish.set(amt > 0 ? 1 - mRamp(u, .02, .12) + mRamp(u, .9, .99) : 1);
+  }, D);
+}],
+
+/* ---------- anaero ---------- */
+['anaero', 'Anaerobic respiration and fermentation', (m, D) => {
+  const p = panel(0), tC = m('chain'), tSu = m('sulfate'), tF = m('ferm'), tSb = m('sub'), tR = m('regen'), tK = m('kinds');
+  const L = G(p);
+  banner(L, 'anaerobic respiration', 'a chain, but not O_2 at the end', 430, 140, 0, { size: 34, color: MC.complex });
+  const ec = etcChain(L, { x: 430, y: 410, s: .52, synthase: true, final: 'sulfate' });
+  ec.build(0);
+  // the sulfate chip sits where complex IV's pumped H⁺ start (their "+" lies on its text): move it down and right
+  // (the kit writes only its opacity), and point the leader at its new place
+  const FIN = [12, 46];
+  { let fg = [...ec.querySelectorAll('text')].find(e => e.textContent === 'sulfate'); while (fg.parentNode !== ec) fg = fg.parentNode; put(fg, { x: FIN[0], y: FIN[1] }); }
+  tag(L, 'final electron acceptor: sulfate', [430, 618], [ec.pt('final')[0] + FIN[0] * .52, ec.pt('final')[1] + 16 + FIN[1] * .52], tSu + .4, { size: 24, fill: '#ff9a88', line: '#ff9a88' });
+  const st = G(L, { o: 0 }); show(st, tSu + 3, .4);
+  wChem(st, 'H^+ pumped, ATP synthase turns: still respiration', { x: 430, y: 660, size: 22, weight: 700, fill: MC.oxph, o: 1 });
+  tw(L, { o: .35 }, tF - .1, .5);
+  // ferm: no chain; sub: substrate-level phosphorylation
+  const R = G(p, { o: 0 }); show(R, tF, .5);
+  wLabel(R, 'fermentation', { x: 1180, y: 140, size: 34, weight: 700, fill: MC.ethanol, o: 1 });
+  wLabel(R, 'no electron transport chain', { x: 1180, y: 172, size: 22, fill: COL.dim, weight: 500, o: 1 });
+  chainIcon(R, { x: 1180, y: 262, s: .8, label: false });
+  redX(R, 1180, 262, 70, 9);
+  const sl = substrateLevel(p, { x: 1180, y: 455, s: .6, o: 0 }); show(sl, tSb, .4);
+  const sb = G(p, { o: 0 }); show(sb, tSb + 1.2, .4);
+  wLabel(sb, 'substrate-level phosphorylation', { x: 1180, y: 604, size: 26, weight: 700, fill: MC.enzyme, o: 1 });
+  wLabel(sb, 'the only ATP: made in glycolysis', { x: 1180, y: 638, size: 22, fill: COL.dim, weight: 500, o: 1 });
+  // regen: fermentation = glycolysis + NAD⁺ regeneration
+  const rg = G(p, { o: 0 }); show(rg, tR + .2, .5);
+  mk('rect', { x: 150, y: 690, width: 1300, height: 96, rx: 26, fill: '#0b1626', stroke: MC.nad, 'stroke-width': 3 }, rg);
+  const lg = loopGlyph(rg, { x: 290, y: 734, s: .85 });
+  wChem(rg, 'fermentation = glycolysis + NAD^+ regeneration', { x: 860, y: 750, size: 32, weight: 700, fill: COL.chalk, o: 1 });
+  // kinds: two kinds
+  const kd = G(p, { o: 0 }); show(kd, tK + .3, .5);
+  pill(kd, 'alcohol fermentation', 560, 840, { size: 26, fill: MC.ethanol, edge: MC.ethanol });
+  pill(kd, 'lactic acid fermentation', 1040, 840, { size: 26, fill: MC.lactate, edge: MC.lactate });
+  clockRun(t => {
+    ec.build(io(mRamp(t, tC + .2, tC + 3.2)));
+    ec.focus(['membrane', 'chain', 'synthase'], 1 - mRamp(t, tSu, tSu + .6));
+    const on = mRamp(t, tSu + 1.5, tSu + 2.5);
+    ec.flow(t, mRamp(t, tC + 3.2, tC + 4)); ec.pump(t, on);
+    ec.synthase.run(Math.max(0, t - tSu - 1.5), { speed: .4, flow: on, make: on });
+    sl.set(mRamp(t, tSb + .6, tSb + 6.5));
+    lg.set(t);
+  }, D);
+}],
+
+/* ---------- alcohol ---------- */
+['alcohol', 'Alcohol fermentation', (m, D) => {
+  const p = panel(0), tG = m('gly2'), tC = m('co2'), tR = m('red'), tRg = m('regen2'), tN = m('count');
+  const fe = fermPanel(p, 'alcohol');
+  const kAt = knots([[tG + .3, 0], [tG + 3, .2], [tG + 6, .32], [tC + .2, .32], [tC + 5, .52], [tR + .2, .52], [tR + 5, .8], [tRg + .2, .8], [tRg + 3, 1]]);
+  tag(p, 'loses a carbon', [600, 120], [fermPt(fe, 'co2')[0] - 30, fermPt(fe, 'co2')[1] + 6], tC + 1.4, { size: 24, fill: COL.dim, line: COL.dim, weight: 600 });
+  // count: per glucose
+  const ct = G(p, { o: 0 }); show(ct, tN + .2, .5);
+  wLabel(ct, 'per glucose:', { x: 280, y: 712, size: 28, weight: 700, o: 1 });
+  respIcon(ct, 'pyruvate', { x: 470, y: 702 }); wLabel(ct, '2 pyruvate', { x: 515, y: 712, size: 28, weight: 700, fill: MC.pyruvate, anchor: 'start', o: 1 });
+  respIcon(ct, 'CO2', { x: 800, y: 702 }); wChem(ct, '2 CO_2', { x: 840, y: 712, size: 28, weight: 700, fill: '#c8ced6', anchor: 'start', o: 1 });
+  carbonChain(ct, { x: 1080, y: 702, n: 2, r: 7, sp: 17, color: MC.ethanol }); wLabel(ct, '2 ethanol', { x: 1115, y: 712, size: 28, weight: 700, fill: MC.ethanol, anchor: 'start', o: 1 });
+  clockRun(t => { fe.set(kAt(t)); fe.flow(t, mRamp(t, tRg + 2.4, tRg + 3.2)); fe.atp.shine(t); }, D);
+}],
+
+/* ---------- yeast (the same picture) ---------- */
+['yeast', 'Yeast at work', (m, D) => {
+  const p = panel(0), tY = m('yeast'), tB = tY + 1.9, tA = tY + 9.9;
+  const fe = fermPanel(p, 'alcohol');
+  // yeast: yeast cells, the bread, the glass
+  const yc = G(p, { o: 0 }); show(yc, tY + .1, .5);
+  const ys = [[230, 740, -30], [320, 790, 20], [400, 730, -70], [290, 690, 160], [380, 800, 100]].map(([x, y, a]) => yeastCell(yc, { x, y, r: 30, ang: a }));
+  const yb = Array.from({ length: 8 }, (_, i) => ({ x: 220 + 200 * wHash(i, 51), ph: wHash(i, 53), e: mk('circle', { r: 6, fill: 'none', stroke: '#e8f0f4', 'stroke-width': 2.5 }, yc) }));
+  wLabel(yc, 'yeast cells', { x: 315, y: 868, size: 26, weight: 700, fill: MC.yeast, o: 1 });
+  void ys;
+  const lf = G(p, { x: 800, y: 830, o: 0 }); show(lf, tB + .6, .5);
+  const loaf = G(lf); loafCut(loaf, { s: .9 });
+  wChem(lf, 'bread: CO_2 puffs up the dough', { y: 38, size: 24, weight: 700, fill: '#e6c79a', o: 1 });
+  const gl = G(p, { o: 0 }); show(gl, tB + 3, .5);
+  const glass = bubblyGlass(gl, { x: 1290, y: 820, s: .7 });
+  wLabel(gl, 'beer, sparkling wine', { x: 1290, y: 868, size: 24, weight: 700, fill: '#e8b84a', o: 1 });
+  tag(p, 'ethanol: the alcohol', [1290, 600], [fermPt(fe, 'product')[0] + 10, fermPt(fe, 'product')[1] + 40], tB + 5.8, { size: 24, fill: MC.ethanol, line: MC.ethanol });
+  // the final electron acceptor here is acetaldehyde
+  const ac = fermPt(fe, 'acetaldehyde');
+  tag(p, 'final electron acceptor: acetaldehyde', [1200, 140], [ac[0] + 6, ac[1] - 22], tA, { size: 24, fill: MC.redu, line: MC.redu });
+  clockRun(t => {
+    t = rt(t);
+    fe.flow(t, 1); fe.atp.shine(t); glass.set(t);
+    yb.forEach(b => { const u = cFrac(t * .35 + b.ph); cSet(b.e, { x: b.x + 6 * Math.sin(t * 2 + b.ph * 9), y: 760 - 110 * u, o: Math.sin(Math.PI * u) }); });
+    cSet(loaf, { s: .92 + .08 * io(mRamp(t, tB + .6, tB + 4)) });
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'alcohol fermentation', { x: 420, y: 200, size: 32, weight: 700, fill: MC.ethanol, o: 1 });
+  const fe = fermentation(p, { kind: 'alcohol', x: 482, y: 460, s: .78 });
+  mO(fe.co2, 0);
+  wChem(p, 'where does CO_2 come off?', { x: 420, y: 760, size: 28, weight: 700, fill: '#c8ced6', o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-co2', prompt: ['Which step of alcohol fermentation releases carbon dioxide?'],
+  build: choice([['glucose → pyruvate'], ['pyruvate → acetaldehyde'], ['acetaldehyde → ethanol'], ['NADH → NAD⁺']], 1,
+    'Right. Each pyruvate (3 C) loses a carbon as CO₂ and becomes acetaldehyde (2 C).',
+    ['Glycolysis releases no CO₂: all six carbons of glucose are still there in the two pyruvate.', null,
+      'That step only takes electrons from NADH: acetaldehyde and ethanol both have two carbons.',
+      'That is the electron hand-off: no carbon leaves there. Look for the molecule that loses a carbon bead.']),
+}], done) }],
+
+/* ---------- lactic ---------- */
+['lactic', 'Lactic acid fermentation', (m, D) => {
+  const p = panel(0), tG = m('gly3'), tD = m('direct'), tNc = m('nocarbon'), tRg = m('regen3');
+  const fe = fermPanel(p, 'lactic');
+  const kAt = knots([[tG + .3, 0], [tG + 2.5, .2], [tG + 4.5, .32], [tD + .2, .38], [tD + 7, .72], [tRg + .2, .72], [tRg + 3, 1]]);
+  const nc = G(p, { o: 0 }); show(nc, tNc + .2, .4);
+  pill(nc, 'no CO_2', 800, 130, { size: 26, fill: '#ff9a88', edge: MC.inhib });
+  wLabel(nc, 'no acetaldehyde step', { x: 800, y: 186, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  clockRun(t => { fe.set(kAt(t)); fe.flow(t, mRamp(t, tRg + 2.4, tRg + 3.2)); fe.atp.shine(t); }, D);
+}],
+
+/* ---------- uses (the same picture) ---------- */
+['uses', 'Cheese, yogurt and muscle', (m, D) => {
+  const p = panel(0), tCh = m('cheese'), tMu = m('muscle');
+  const fe = fermPanel(p, 'lactic');
+  const nc = G(p);
+  pill(nc, 'no CO_2', 800, 130, { size: 26, fill: '#ff9a88', edge: MC.inhib });
+  wLabel(nc, 'no acetaldehyde step', { x: 800, y: 186, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  // cheese: cheese and yogurt
+  const ch = G(p, { o: 0 }); show(ch, tCh + .1, .5);
+  dairy(ch, { x: 330, y: 820, s: 1 });
+  wLabel(ch, 'cheese, yogurt: fungi and bacteria', { x: 330, y: 862, size: 24, weight: 700, fill: '#f3d36b', o: 1 });
+  // muscle: a muscle fibre short of O₂ makes lactate
+  const mu = G(p, { o: 0 }); show(mu, tMu + .1, .5);
+  const mf = muscleFibre(mu, { x: 1000, y: 750, w: 480 });
+  wLabel(mu, 'a muscle fibre in a sprint', { x: 1000, y: 838, size: 24, weight: 700, fill: '#e0a0a0', o: 1 });
+  const lac = G(p, { o: 0 }); show(lac, tMu + 5, .4);
+  wLabel(lac, 'lactate', { x: 1000, y: 868, size: 22, fill: MC.lactate, weight: 700, o: 1 });
+  const gg = o2Gauge(mu, { x: 1380, y: 830, h: 150 });
+  wLabel(mu, 'O₂ scarce', { x: 1380, y: 862, size: 22, fill: MC.oxy, weight: 700, o: 1 });
+  clockRun(t => {
+    fe.flow(t, 1); fe.atp.shine(t);
+    const low = mRamp(t, tMu + 1.5, tMu + 4);
+    gg.set(1 - .88 * low);
+    mf.set(mRamp(t, tMu + 4, tMu + 11));
+  }, D);
+}],
+
+/* ---------- compare ---------- */
+['compare', 'Fermentation and respiration compared', (m, D) => {
+  const p = panel(0), tS = m('side'), tA = m('acc'), t2 = m('atp2'), t32 = m('atp32'), tW = m('why'), tT = m('ten');
+  path(p, 'M800 60V840', { stroke: COL.faint, 'stroke-width': 3 });
+  const L = 420, R = 1180;
+  const head = (x, a, col, b) => { const g = G(p, { o: 0 }); wLabel(g, a, { x, y: 82, size: 36, weight: 700, fill: col, o: 1 }); pill(g, 'glycolysis', x - 140, 150, { size: 22, fill: MC.gly, edge: MC.gly }); wChem(g, b, { x: x - 40, y: 158, size: 22, fill: COL.dim, weight: 600, anchor: 'start', o: 1 }); show(g, tS + .1, .5); return g; };
+  head(L, 'Fermentation', MC.ethanol, '+ NAD^+ regeneration');
+  head(R, 'Aerobic respiration', MC.oxph, '+ cycle + chain');
+  // acc: the final electron acceptors
+  const al = G(p, { o: 0 }); show(al, tA + .2, .4);
+  wLabel(al, 'final electron acceptor', { x: L, y: 232, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  carbonChain(al, { x: 320, y: 276, n: 3, r: 10, sp: 24, label: 'pyruvate', size: 20 });
+  carbonChain(al, { x: 520, y: 276, n: 2, r: 10, sp: 24, color: MC.acetald, label: 'acetaldehyde', size: 20 });
+  wLabel(al, 'an organic molecule', { x: L, y: 350, size: 24, weight: 700, o: 1 });
+  const ar = G(p, { o: 0 }); show(ar, tA + 7, .4);
+  wLabel(ar, 'final electron acceptor', { x: R, y: 232, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  o2Molecule(ar, { x: R, y: 278, r: 18 });
+  wChem(ar, 'O_2', { x: R, y: 350, size: 26, weight: 700, fill: MC.oxy, o: 1 });
+  // atp2 / atp32: ATP per glucose
+  const lb = [0, 1].map(i => respIcon(p, 'ATP', { x: L - 30 + 60 * i, y: 470, o: 0 }));
+  const rb = Array.from({ length: 32 }, (_, i) => respIcon(p, 'ATP', { x: R - 175 + 50 * (i % 8), y: 410 + 46 * Math.floor(i / 8), o: 0 }));
+  const n2 = G(p, { o: 0 }); show(n2, t2 + 1.2, .4);
+  wLabel(n2, '2 ATP per glucose', { x: L, y: 604, size: 30, weight: 800, fill: MC.elec, o: 1 });
+  const n32 = G(p, { o: 0 }); show(n32, t32 + 2.6, .4);
+  wLabel(n32, 'about 30 to 32 ATP', { x: R, y: 604, size: 30, weight: 800, fill: MC.elec, o: 1 });
+  // why: the energy left in lactate and ethanol
+  const wy = G(p, { o: 0 }); show(wy, tW + 1.6, .5);
+  const glow = G(wy); mk('rect', { x: 230, y: 632, width: 380, height: 60, rx: 30, fill: MC.elec, 'fill-opacity': .12, stroke: MC.elec, 'stroke-width': 3 }, glow);
+  carbonChain(wy, { x: 320, y: 662, n: 3, r: 9, sp: 22, color: MC.lactate });
+  carbonChain(wy, { x: 510, y: 662, n: 2, r: 9, sp: 22, color: MC.ethanol });
+  wLabel(wy, 'lactate', { x: 400, y: 669, size: 18, fill: MC.lactate, weight: 700, o: 1 });
+  wLabel(wy, 'ethanol', { x: 540, y: 669, size: 18, fill: MC.ethanol, weight: 700, o: 1, anchor: 'start' });
+  wLabel(wy, 'energy still locked in: not harvested', { x: L, y: 722, size: 22, fill: MC.elec, weight: 700, o: 1 });
+  // ten: about fifteen glucose to one
+  const tn = G(p, { o: 0 }); show(tn, tT + .3, .5);
+  glucoseRow(tn, 16, { x: L, y: 780, sp: 36, dash: 1 });
+  wLabel(tn, 'roughly 15 or 16 glucose', { x: L, y: 832, size: 24, weight: 700, fill: MC.glucose, o: 1 });
+  glucoseRow(tn, 1, { x: R, y: 780 });
+  wLabel(tn, '1 glucose', { x: R, y: 832, size: 24, weight: 700, fill: MC.glucose, o: 1 });
+  wLabel(tn, 'for the same ATP (30–32 ÷ 2): an estimate, not from the slides', { x: 800, y: 872, size: 20, fill: COL.dim, weight: 500, o: 1 });
+  // acc: electron pairs arrive at each final acceptor in turn (pyruvate from the left, acetaldehyde and O₂ from the right)
+  const pair = g => { [-7, 7].forEach(dx => mk('circle', { cx: dx, r: 6.5, fill: MC.elec, stroke: MC.elecEdge, 'stroke-width': 1.5 }, g)); return g; };
+  const ePy = tokenRun(p, [[150, 276], [278, 276]], pair, { n: 2, period: 2.2 });
+  const eAc = tokenRun(p, [[700, 276], [562, 276]], pair, { n: 2, period: 2.2 });
+  const eO2 = tokenRun(p, [[1400, 278], [1215, 278]], pair, { n: 2, period: 2.2 });
+  const accs = [...al.querySelectorAll(':scope > g')].slice(0, 2);   // the pyruvate and acetaldehyde chains
+  // why: glucose after glucose slides into the fermentation column for its 2 ATP
+  const gIn = tokenRun(p, [[110, 470], [352, 470]], g => respIcon(g, 'glucose', { s: .55 }), { n: 2, period: 1.6 });
+  const wE = knots([[tA + .8, 0], [tA + 1.3, 1], [t2 - .3, 1], [t2 + .2, 0]]), wO = knots([[tA + 7.1, 0], [tA + 7.6, 1], [t2 - .3, 1], [t2 + .2, 0]]);
+  const wG = knots([[tW + 9.2, 0], [tW + 9.7, 1], [tT - .2, 1], [tT + .3, 0]]);
+  clockRun(t => {
+    t = rt(t);
+    ePy.set(t, wE(t)); eAc.set(t - 1.1, wE(t)); eO2.set(t, wO(t));
+    const hit = (t0, w) => w * Math.max(0, 1 - Math.abs(cFrac(t0 / 1.1 + .5) - .5) * 8);   // a pair arriving
+    accs.forEach((e, i) => cSet(e, { s: 1 + .08 * hit(i ? t - 1.1 : t, wE(t)) }));
+    gIn.set(t, wG(t));
+    lb.forEach((e, i) => { mO(e, mRamp(t, t2 + .3 + .4 * i, t2 + .6 + .4 * i)); cSet(e, { s: 1 + .14 * wG(t) * Math.max(0, 1 - Math.abs(cFrac(t / .8 + .5) - .5) * 6) }); });
+    rb.forEach((e, i) => mO(e, mRamp(t, t32 + .2 + i * .07, t32 + .4 + i * .07)));
+    mO(glow, .55 + .45 * Math.sin(t * 3) ** 2);
+  }, D);
+}],
+
+/* ---------- fork ---------- */
+['fork', 'The pyruvate fork', (m, D) => {
+  const p = panel(0), tF = m('fork'), tN = m('noo2'), tO = m('o2on'), tB = m('obl'), tC = m('fac'), tW = m('sw');
+  const pf = pyruvateFork(p, { x: 800, y: 440, s: .88 });
+  pf.build(0);
+  // obl: obligate anaerobes stay on the left branch
+  const ob = G(p, { o: 0 }); show(ob, tB + 2.4, .5);
+  const obI = G(ob, { x: 300, y: 690 }); o2Molecule(obI, { r: 16 }); redX(obI, 0, 0, 26, 7);
+  wLabel(ob, 'obligate anaerobes:', { x: 340, y: 682, size: 24, weight: 800, fill: MC.stim, anchor: 'start', o: 1 });
+  wLabel(ob, 'this side only; O₂ kills them', { x: 340, y: 714, size: 20, fill: COL.dim, weight: 600, anchor: 'start', o: 1 });
+  // fac: facultative anaerobes use either branch
+  const fc = G(p, { o: 0 }); show(fc, tC + .3, .5);
+  const fcP = G(fc, { x: 800, y: 826 }); pill(fcP, 'facultative anaerobes: yeast, many bacteria', 0, 0, { size: 24, fill: MC.yeast, edge: MC.yeast });
+  mArrow(fc, [560, 806], [470, 772], { color: MC.yeast, w: 4, head: 14 });
+  mArrow(fc, [1040, 806], [1130, 772], { color: MC.yeast, w: 4, head: 14 });
+  wLabel(fc, 'either branch', { x: 800, y: 784, size: 20, fill: COL.dim, weight: 600, o: 1 });
+  // sw: the O₂ level decides; a switch at the pyruvate box follows it
+  const sw = G(p, { o: 0 }); show(sw, tW, .4);
+  const gg = o2Gauge(sw, { x: 1480, y: 600, h: 260 });
+  const lev = G(sw, { x: 800, y: 360 });
+  const arm = G(lev, { s: .999 }); path(arm, 'M0 0H74', { stroke: MC.elec, 'stroke-width': 8, 'stroke-linecap': 'round' }); mk('circle', { cx: 78, r: 11, fill: MC.elec, stroke: MC.elecEdge, 'stroke-width': 2 }, arm);
+  mk('circle', { r: 9, fill: '#3a2a06', stroke: MC.elec, 'stroke-width': 3 }, lev);
+  // tokens: glucose down the glycolysis arrow, pyruvate down whichever branch is lit, acetyl groups round the cycle
+  const F = ([lx, ly]) => [800 + .88 * lx, 440 + .88 * ly];
+  const hexTok = g => { path(g, zNgon(6, 11, 0, 0, 0), { fill: MC.glucose, stroke: MC.glucoseEdge, 'stroke-width': 2.5 }); return g; };
+  const pyrTok = g => carbonChain(g, { n: 3, r: 6, sp: 12, back: true });
+  const runS = tokenRun(p, [[0, -282], [0, -172]].map(F), hexTok, { n: 2, period: 2.3 });
+  const runL = tokenRun(p, [[-112, -100], [-322, 36]].map(F), pyrTok, { n: 3, period: 2.4 });
+  const runR = tokenRun(p, [[112, -100], [204, 34]].map(F), pyrTok, { n: 2, period: 2.3 });
+  const lap = [[312, 112], [384, 136], ...Array.from({ length: 21 }, (_, i) => { const a = (202 + i * 14) * Math.PI / 180; return [455 + 70 * Math.cos(a), 160 + 70 * Math.sin(a)]; })];
+  const runC = tokenRun(p, lap.map(F), g => carbonChain(g, { n: 2, r: 6, sp: 12, color: MC.pyrOx }), { n: 3, period: 3.4 });
+  const KL = knots([[tN + 1.6, 0], [tN + 2.2, 1], [tO - .4, 1], [tO, 0], [tB + .2, 0], [tB + .8, 1]]);
+  const KR = knots([[tO + 2, 0], [tO + 2.6, 1], [tB - .6, 1], [tB, 0], [tC + .2, 0], [tC + .8, 1]]);
+  const BK = knots([[tF, 0], [tF + 4, .5], [tN, .5], [tN + 1.5, 4 / 6], [tO, 4 / 6], [tO + 2, 1]]);
+  clockRun(t => {
+    t = rt(t);
+    pf.build(BK(t));
+    {
+      const lvl = .5 + .5 * Math.cos(2 * Math.PI * Math.max(0, t - tW) / 4), sw = mRamp(t, tW, tW + .4);
+      const wL = KL(t) * (1 - sw) + sw * (1 - lvl), wR = KR(t) * (1 - sw) + sw * lvl;
+      runS.set(t, mRamp(t, tF + 3.6, tF + 4.4)); runL.set(t, wL); runR.set(t, wR); runC.set(t - 1, wR);
+      // obligate anaerobes: the crossed-out O₂ throbs as the voice says they cannot survive in it; the yeast pill as yeast is named
+      const throb = (a, b, per) => mRamp(t, a, a + .4) * (1 - mRamp(t, b - .4, b)) * Math.sin(Math.PI * cFrac((t - a) / per)) ** 2;
+      cSet(obI, { s: 1 + .14 * throb(tB + 4.6, tC - .4, 1.1) });
+      cSet(fcP, { s: 1 + .05 * throb(tC + 3.1, tW, 1.4) });
+    }
+    const level = .5 + .5 * Math.cos(2 * Math.PI * Math.max(0, t - tW) / 4);
+    gg.set(level);
+    const ang = 147 - 93 * io(level); cSet(arm, { r: ang });
+    const base = ['cell', 'glucose', 'pyruvate'];
+    if (t >= tW) pf.focus([...base, level > .5 ? 'aerobic' : 'fermentation'], Math.abs(level - .5) * 2 * mRamp(t, tW, tW + .4));
+    else if (t >= tC) pf.focus([], 1);
+    else if (t >= tB) pf.focus([...base, 'fermentation'], io(mRamp(t, tB + .2, tB + .8)));
+    else if (t >= tO) pf.focus([...base, 'aerobic'], io(mRamp(t, tO + 2, tO + 2.6)) * (1 - mRamp(t, tB - .6, tB)));
+    else pf.focus([...base, 'fermentation'], io(mRamp(t, tN + 1.5, tN + 2.1)) * (1 - mRamp(t, tO - .4, tO)));
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  pyruvateFork(p, { x: 410, y: 480, s: .56 });
+  wLabel(p, 'a yeast cell loses its O₂', { x: 430, y: 150, size: 30, weight: 700, fill: MC.yeast, o: 1 });
+  o2Gauge(p, { x: 830, y: 640, h: 180 }).set(0);
+  wLabel(p, 'O₂: none', { x: 830, y: 676, size: 22, fill: MC.oxy, weight: 700, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-yeast', prompt: ['A yeast cell loses its oxygen. What does it do?'],
+  build: choice([['it dies at once'], ['it switches to fermentation, and still makes 2 ATP per glucose'], ['it runs its electron transport chain with sulfate instead'], ['it stops glycolysis and makes no ATP']], 1,
+    'Right. Yeast is a facultative anaerobe: without O₂ it ferments, making 2 ATP per glucose by glycolysis.',
+    ['Yeast is a facultative anaerobe: it survives without O₂ by switching branches.', null,
+      'That is anaerobic respiration, done by some bacteria. Yeast ferments instead.',
+      'Glycolysis does not need O₂: it keeps going as long as fermentation returns NAD⁺.']),
+}], done) }],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tE = m('end');
+  wLabel(p, 'Summary: fermentation and anaerobic respiration', { x: 800, y: 62, size: 34, weight: 700, o: 1 });
+  const ROWS = [
+    ['s1', 'Glycolysis makes ATP with or without O_2', 'but it needs NAD^+ to keep going', MC.gly],
+    ['s2', 'Fermentation regenerates NAD^+ without a chain', 'alcohol: ethanol + CO_2 · lactic acid: lactate', MC.nad],
+    ['s3', '2 ATP per glucose', 'against about 30 to 32 for aerobic respiration', MC.elec],
+    ['s4', 'Pyruvate is the fork: O_2 decides the road', 'obligate anaerobes: one side · facultative: either', MC.stim],
+  ];
+  const rows = [];
+  ROWS.forEach(([mk_, a, b, col], i) => {
+    const y = 175 + i * 160, g = G(p, { o: 0 });
+    panelBox(g, 150, y - 68, 1300, 140);
+    wChem(g, a, { x: 450, y: y - 4, size: 32, weight: 700, fill: col, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 450, y: y + 38, size: 24, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i === 0) { glucoseRing(g, { x: 215, y, R: 26, r: 7 }); mArrow(g, [252, y], [312, y], { color: MC.gly, w: 6, head: 16 }); nadShuttle(g, { x: 368, y: y - 4, s: .6, label: false }); }
+    if (i === 1) { rows.push(loopGlyph(g, { x: 230, y, s: .6 })); carbonChain(g, { x: 350, y: y - 22, n: 2, r: 8, sp: 18, color: MC.ethanol }); carbonChain(g, { x: 350, y: y + 22, n: 3, r: 8, sp: 18, color: MC.lactate }); }
+    if (i === 2) { atpBar(g, { x: 190, y: y - 20, w: 220, h: 20, size: 12, ticks: false, segs: [{ n: 2, color: MC.ethanol }] }); atpBar(g, { x: 190, y: y + 20, w: 220, h: 20, size: 12, ticks: false, segs: [{ n: 32, color: MC.oxph }] }); }
+    if (i === 3) {
+      path(g, `M290 ${y - 50}V${y - 12}M290 ${y - 12}L215 ${y + 40}M290 ${y - 12}L365 ${y + 40}`, { stroke: COL.chalk, 'stroke-width': 5 });
+      mk('rect', { x: 255, y: y - 30, width: 70, height: 34, rx: 8, fill: '#6c9fe0' }, g);
+      mk('rect', { x: 185, y: y + 34, width: 60, height: 28, rx: 8, fill: MC.stim }, g);
+      mk('rect', { x: 335, y: y + 34, width: 60, height: 28, rx: 14, fill: MC.oxph }, g);
+    }
+    show(g, m(mk_) + .1, .5);
+  });
+  say(p, 'Now try the chapter practice.', 800, 862, tE, { size: 30, fill: WC.bond });
+  clockRun(t => rows.forEach(r => r.set(t)), D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  at('nad', g => {
+    panelBox(g, 980, 90, 580, 720);
+    respIcon(g, 'glucose', { x: 1060, y: 300, s: 1.2 });
+    glyArrow(g, 1110, 1350, 300);
+    redX(g, 1230, 298, 24, 8);
+    wLabel(g, 'glycolysis stalls', { x: 1270, y: 200, size: 30, weight: 800, fill: MC.inhib, o: 1 });
+    wChem(g, 'NAD^+ supply', { x: 1270, y: 480, size: 26, weight: 700, fill: MC.nad, o: 1 });
+    const sb = supplyBox(g, { x: 1270, y: 540, n: 6 }); sb.set(0);
+    wLabel(g, 'every seat empty', { x: 1270, y: 600, size: 22, fill: COL.dim, weight: 500, o: 1 });
+    nadShuttle(g, { x: 1170, y: 700, s: .8, size: 22 }).set(1); nadShuttle(g, { x: 1370, y: 700, s: .8, size: 22 }).set(1);
+  });
+  at('which', g => {
+    panelBox(g, 980, 90, 580, 720);
+    wLabel(g, 'alcohol fermentation', { x: 1270, y: 150, size: 26, weight: 700, fill: MC.ethanol, o: 1 });
+    fermentation(g, { kind: 'alcohol', x: 1307, y: 330, s: .5 });
+    wLabel(g, 'lactic acid fermentation', { x: 1270, y: 500, size: 26, weight: 700, fill: MC.lactate, o: 1 });
+    fermentation(g, { kind: 'lactic', x: 1307, y: 660, s: .5 });
+  });
+  at('atp', g => {
+    panelBox(g, 980, 90, 580, 720);
+    wLabel(g, 'fermentation', { x: 1270, y: 160, size: 28, weight: 700, fill: MC.ethanol, o: 1 });
+    [0, 1].forEach(i => respIcon(g, 'ATP', { x: 1240 + 60 * i, y: 230 }));
+    wLabel(g, '? ATP', { x: 1270, y: 300, size: 26, weight: 800, fill: MC.elec, o: 1 });
+    wLabel(g, 'aerobic respiration', { x: 1270, y: 400, size: 28, weight: 700, fill: MC.oxph, o: 1 });
+    for (let i = 0; i < 32; i++) respIcon(g, 'ATP', { x: 1095 + 50 * (i % 8), y: 470 + 46 * Math.floor(i / 8) });
+    wLabel(g, 'about ? ATP', { x: 1270, y: 700, size: 26, weight: 800, fill: MC.elec, o: 1 });
+  });
+  at('acc', g => {
+    panelBox(g, 980, 90, 580, 720);
+    const route = (y, name, col, chain) => {
+      wLabel(g, name, { x: 1270, y: y - 60, size: 26, weight: 700, fill: col, o: 1 });
+      pill(g, 'glycolysis', 1090, y, { size: 20, fill: MC.gly, edge: MC.gly });
+      mArrow(g, [1160, y], [1210, y], { color: COL.dim, w: 4, head: 12 });
+      if (chain) chainIcon(g, { x: 1290, y: y - 4, s: .5, label: false }); else wLabel(g, 'no chain', { x: 1290, y: y + 8, size: 20, fill: COL.dim, weight: 600, o: 1 });
+      mArrow(g, [1360, y], [1410, y], { color: COL.dim, w: 4, head: 12 });
+      pill(g, '?', 1460, y, { size: 26, fill: MC.oxy, edge: MC.oxy });
+    };
+    route(240, 'fermentation', MC.ethanol, false);
+    route(470, 'aerobic respiration', MC.oxph, true);
+    route(700, 'anaerobic respiration', MC.complex, true);
+  });
+  at('obl', g => {
+    panelBox(g, 980, 90, 580, 720);
+    pyruvateFork(g, { x: 1270, y: 440, s: .42 });
+    redX(g, 1410, 500, 70, 10);
+    wLabel(g, 'an organism that can only', { x: 1270, y: 700, size: 24, weight: 700, o: 1 });
+    wLabel(g, 'live on the left branch', { x: 1270, y: 732, size: 24, weight: 700, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('nad');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-nad', prompt: ['Why does glycolysis stall in a cell that cannot regenerate NAD⁺?'],
+    build: withPic('nad', choice([['it has run out of glucose'], ['it needs NAD⁺ to take electrons, and none is left'], ['it needs O₂ directly'], ['ATP piles up and blocks it']], 1,
+      'Right. Each glucose turns 2 NAD⁺ into 2 NADH. With every NAD⁺ used up and none returned, glycolysis has nothing to hand its electrons to.',
+      ['Glucose is not the problem: there is plenty. The helper that takes electrons is.', null,
+        'Glycolysis itself does not use O₂. It needs NAD⁺, which O₂ (through the chain) or fermentation gives back.',
+        'That is not the reason here: the supply of NAD⁺ has run dry.'])) },
+  { id: 'p-which', prompt: ['Which fermentation does this?'],
+    build: withPic('which', grid([
+      { parts: ['releases CO₂'], ans: ['a'], why: 'Alcohol: pyruvate loses a carbon as CO₂.' },
+      { parts: ['the product is lactate'], ans: ['l'], why: 'Lactic acid: pyruvate goes straight to lactate.' },
+      { parts: ['NADH reduces pyruvate itself'], ans: ['l'], why: 'Lactic acid: the electrons go onto pyruvate, not acetaldehyde.' },
+      { parts: ['makes acetaldehyde on the way'], ans: ['a'], why: 'Alcohol: acetaldehyde is the step after CO₂ leaves.' },
+      { parts: ['yeast raising bread'], ans: ['a'], why: 'Alcohol: the CO₂ puffs up the dough.' },
+      { parts: ['a muscle fibre short of O₂'], ans: ['l'], why: 'Lactic acid: muscle makes lactate when O₂ is scarce.' },
+    ], [['a', 'alcohol', null, 'A'], ['l', 'lactic acid', null, 'L']], { multi: false, text: true })) },
+  { id: 'p-atp', prompt: ['ATP from one glucose (give respiration’s upper figure):'],
+    build: withPic('atp', blanks([
+      { parts: ['fermentation: ', { box: '2' }, ' ATP'], why: 'Fermentation stops after glycolysis: 2 ATP, by substrate-level phosphorylation.', hint: 'Fermentation makes only what glycolysis makes.' },
+      { parts: ['aerobic respiration: about ', { box: '32' }, ' ATP'], why: 'About 30 to 32: glycolysis, the cycle and, above all, oxidative phosphorylation.', hint: 'Respiration adds the cycle and the chain to glycolysis: think tens, not units.', test: v => v[0] === 32 || v[0] === 30 },
+    ])) },
+  { id: 'p-acc', prompt: ['Which route ends with this final electron acceptor?'],
+    build: withPic('acc', grid([
+      { parts: ['O₂'], ans: ['a'], why: 'Aerobic respiration: the chain ends on O₂, making water.' },
+      { parts: ['sulfate'], ans: ['n'], why: 'Anaerobic respiration: a chain, but its last acceptor is not O₂.' },
+      { parts: ['acetaldehyde'], ans: ['f'], why: 'Fermentation (alcohol): NADH reduces acetaldehyde; no chain.' },
+      { parts: ['pyruvate (lactic)'], ans: ['f'], why: 'Fermentation (lactic acid): pyruvate becomes lactate; no chain.' },
+    ], [['f', 'fermentation', null, 'F'], ['a', 'aerobic', null, 'A'], ['n', 'anaerobic', null, 'N']], { multi: false, text: true })) },
+  { id: 'p-obl', prompt: ['What makes an organism an obligate anaerobe?'],
+    build: withPic('obl', choice([['it makes more ATP in O₂'], ['it can switch between fermentation and respiration'], ['it uses only fermentation or anaerobic respiration, and cannot survive in O₂'], ['it needs O₂ to start glycolysis']], 2,
+      'Right. An obligate anaerobe stays on the no-O₂ side: fermentation or anaerobic respiration only, and O₂ kills it.',
+      ['O₂ harms it: it cannot use O₂ at all.',
+        'That is a facultative anaerobe, such as yeast.', null,
+        'Glycolysis needs no O₂ in any organism.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>
