@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 3, Lesson 2: Primary and Secondary Structure — Biochemistry</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid.text .opts { gap: 4px; } .screen .grid.text .opt { padding: 2px 9px; font-size: 17px; min-height: 36px; } .screen .grid.text .opt kbd { display: none; }
+.screen .grid.text .row { padding: 4px 0 4px 12px; row-gap: 0; } .screen .grid.text .why { font-size: 18px; line-height: 1.25; }</style><!-- all rows wrong: four rows and their why lines fit above Check -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/protein.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biochemistry, Chapter 3 (Protein Structure), lesson 2: a telephone cord and a paper fan on a desk; the four-levels
+// strip with primary and secondary lit; primary structure (a numbered 20-bead chain, peptide links, N and C ends,
+// counting from the N end); the sickle-cell swap at position 6; secondary structure (backbone C=O and N–H, the chain
+// folding on backbone hydrogen bonds); the α-helix (right-handed, 3.6 per turn, 0.54 nm per turn, n → n + 4); the
+// β-sheet (pleat, strands, intrachain and interchain, parallel and antiparallel); a comparison card; summary; practice.
+// Plan, errata and beats: books/biochemistry/chapters/chapter-03/lesson-02.md.
+const CHAPTER = { number: 302, label: '3, lesson 2', title: 'Primary and Secondary Structure', minutes: 7, language: 'en', lead: false, next: '../lesson-03/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, weight: 700, ...o, o: 0 }); show(e, t0, .4); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const dg = a => a * Math.PI / 180;
+const r1 = v => Math.round(v * 10) / 10;
+const box = (g, x, y, w, h, { fill = '#0b1626', stroke = COL.faint, sw = 3, rx = 22, fo = 1 } = {}) => mk('rect', { x, y, width: w, height: h, rx, fill, 'fill-opacity': fo, stroke, 'stroke-width': sw }, g);
+// keyframes [[t, a, b, …], …]: eased between keys, held before the first and after the last
+function keyAt(t, K) {
+  if (t <= K[0][0]) return K[0].slice(1);
+  for (let i = 1; i < K.length; i++) if (t < K[i][0]) { const a = K[i - 1], b = K[i], f = soft((t - a[0]) / (b[0] - a[0])); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * f); }
+  return K[K.length - 1].slice(1);
+}
+// one text whose words change at given times [[t, str], …]: it fades out before each change and back in after, so two
+// words never share one spot; before the first time it is hidden
+function stepText(p, steps, { x = 0, y = 0, size = 28, fill = COL.chalk, anchor = 'middle', weight = 700 } = {}) {
+  const e = wChem(p, steps[0][1], { x, y, size, fill, anchor, weight, o: 0 });
+  return Object.assign(e, {
+    set(t) {
+      let i = -1; for (let j = 0; j < steps.length; j++) if (t >= steps[j][0]) i = j;
+      wChemSet(e, steps[Math.max(0, i)][1]);
+      const nx = steps[i + 1] ? steps[i + 1][0] : null;
+      mO(e, i < 0 ? 0 : mRamp(t, steps[i][0], steps[i][0] + .3) * (nx == null ? 1 : 1 - mRamp(t, nx - .3, nx)));
+      return e;
+    },
+  });
+}
+// a label with a leader line to the point it names: text at (lx, ly), the line from near the text to (ax, ay)
+function callout(p, [ax, ay], [lx, ly], str, { size = 24, fill = COL.chalk, anchor = 'middle', o = 0, line = COL.dim } = {}) {
+  const g = G(p, { o });
+  const sy = ly < ay ? ly + 10 : ly - size - 4, dx = ax - lx, dy = ay - sy, L = Math.hypot(dx, dy) || 1;
+  path(g, `M${r1(lx)} ${r1(sy)}L${r1(ax - dx / L * 14)} ${r1(ay - dy / L * 14)}`, { stroke: line, 'stroke-width': 2.5 });
+  wChem(g, str, { x: lx, y: ly, size, fill, anchor, weight: 700, o: 1 });
+  return g;
+}
+// coloured runs of text in one line: parts [[str, colour], …]
+function runs(p, parts, { x = 0, y = 0, size = 30, anchor = 'middle', weight = 800, o = 1 } = {}) {
+  const t = T(p, '', { x, y, size, anchor, weight, o });
+  for (const [s, c] of parts) { const ts = mk('tspan', { fill: c }, t); ts.textContent = s; }
+  return t;
+}
+const halo = (p, x, y, r, color = PC.peptide) => { const g = G(p, { x, y, o: 0 }); mk('circle', { r, fill: 'none', stroke: color, 'stroke-width': 4 }, g); return g; };
+
+/* ---------- intro backdrop: a desk with a coiled telephone cord and a pleated paper fan ---------- */
+// the cord as a coil seen side-on: loops along x (pitch 36 px), drawn with a sag and a travelling wiggle of amplitude a
+function cordPath(a, t) {
+  let d = '';
+  const N = 12 * 24;
+  for (let i = 0; i <= N; i++) {
+    const th = i / 24 * 2 * Math.PI, u = i / N;
+    const x = 196 + 36 * i / 24 + 18 * Math.sin(th), y = 676 + 26 * Math.cos(th) + 18 * Math.sin(Math.PI * u) + a * Math.sin(2 * Math.PI * (u * 1.5 - t / 1.4)) * Math.sin(Math.PI * u);
+    d += (i ? 'L' : 'M') + r1(x) + ' ' + r1(y);
+  }
+  return d;
+}
+function desk(p) {
+  const g = G(p);
+  mk('rect', { x: 0, y: 0, width: 1600, height: 620, fill: '#162c49' }, g);
+  mk('rect', { x: 0, y: 600, width: 1600, height: 300, fill: '#6b4a2e' }, g);
+  mk('rect', { x: 0, y: 600, width: 1600, height: 12, fill: '#8a6340' }, g);
+  [660, 740, 820].forEach(y => path(g, `M0 ${y}C400 ${y - 8} 1000 ${y + 10} 1600 ${y}`, { stroke: '#5c3f27', 'stroke-width': 3 }));
+  // the telephone: body, dial and the handset at the cord's far end
+  mk('rect', { x: 40, y: 560, width: 150, height: 110, rx: 26, fill: '#c94c4c', stroke: '#7c2a2a', 'stroke-width': 4 }, g);
+  mk('circle', { cx: 115, cy: 612, r: 32, fill: '#f2efe6', stroke: '#7c2a2a', 'stroke-width': 3 }, g);
+  for (let i = 0; i < 8; i++) mk('circle', { cx: r1(115 + 21 * Math.cos(dg(45 * i))), cy: r1(612 + 21 * Math.sin(dg(45 * i))), r: 5, fill: '#7c2a2a' }, g);
+  path(g, 'M650 700C650 660 690 652 700 676L790 676C800 652 840 660 840 700C840 728 812 734 800 718L690 718C678 734 650 728 650 700Z', { fill: '#c94c4c', stroke: '#7c2a2a', 'stroke-width': 4 });
+  const cord = path(g, cordPath(0, 0), { stroke: '#e3dccb', 'stroke-width': 6 });
+  const trace = path(g, cordPath(0, 0), { stroke: PC.helix, 'stroke-width': 7 }, { d: 0 });
+  return Object.assign(g, { cord, trace });
+}
+// a pleated paper fan on its pivot; .set(open, edge) opens it (0 shut … 1 open) and shows the cyan zigzag edge
+function paperFan(p, { x = 1190, y = 790, R = 210, n = 14 } = {}) {
+  const g = G(p, { x, y });
+  const panels = Array.from({ length: n }, (_, i) => path(g, 'M0 0', { fill: i % 2 ? '#d8d0bc' : '#f2efe6', stroke: '#a89a78', 'stroke-width': 2 }));
+  const edge = path(g, 'M0 0', { stroke: PC.sheet, 'stroke-width': 6 }), hub = mk('circle', { r: 12, fill: '#8a6340', stroke: '#4a3220', 'stroke-width': 3 }, g);
+  void hub;
+  let key = '';
+  return Object.assign(g, {
+    set(open, ek) {
+      const span = 14 + 136 * mClamp(open), k = r1(span) + '|' + Math.round(ek * 1000);
+      if (k === key) return g; key = k;
+      const a0 = -90 - span / 2, step = span / n, pt = (a, rr) => r1(rr * Math.cos(dg(a))) + ' ' + r1(rr * Math.sin(dg(a)));
+      let ed = '';
+      panels.forEach((e, i) => {
+        const a = a0 + step * i, b = a + step, rA = i % 2 ? R - 18 : R, rB = i % 2 ? R : R - 18;
+        mD(e, `M0 0L${pt(a, rA)}L${pt(b, rB)}Z`);
+        ed += (i ? 'L' : 'M') + pt(a, rA);
+        if (i === n - 1) ed += 'L' + pt(b, rB);
+      });
+      mD(edge, ed); mO(edge, ek);
+      return g;
+    },
+  });
+}
+
+/* ---------- a red blood cell: round (0) to sickle (1); hemoglobin dots scattered (0) or clumped in a rod (1) ---------- */
+function redCell(p, { x = 0, y = 0, R = 130 } = {}) {
+  const g = G(p, { x, y, o: 0 });
+  const N = 60, A = dg(55), c = .5 * R, rho = Math.hypot(Math.cos(A) * R - c, Math.sin(A) * R);
+  const beta = Math.atan2(Math.sin(A) * R, Math.cos(A) * R - c);   // the inner arc's bottom end, seen from its centre
+  // round: the outer arc from top right over the left side to bottom right, then back up the right side; sickle: the
+  // same outer arc, then an inner arc centred right of the middle, so the cell bows into a crescent
+  const round = [], sick = [];
+  for (let i = 0; i < N; i++) {
+    const u = i / (N - 1), a = A + u * (2 * Math.PI - 2 * A);
+    round.push([R * Math.cos(-a), R * Math.sin(-a)]); sick.push(round[i].slice());
+  }
+  for (let i = 0; i < N; i++) {
+    const u = i / (N - 1), a = A - u * 2 * A, b = beta + u * (2 * Math.PI - 2 * beta);
+    round.push([R * Math.cos(a), R * Math.sin(a)]);
+    sick.push([c + rho * Math.cos(b), rho * Math.sin(b)]);
+  }
+  const body = path(g, 'M0 0', { fill: '#c8323a', stroke: '#f08c7a', 'stroke-width': 4 });
+  const dimple = mk('ellipse', { rx: R * .45, ry: R * .4, fill: '#a5232c' }, g);
+  const dots = Array.from({ length: 7 }, (_, i) => {
+    const e = mk('circle', { r: 9, fill: '#5a0d14', stroke: '#e8a0a0', 'stroke-width': 1.5 }, g);
+    return { e, a: [R * .5 * Math.cos(dg(i * 103 + 20)), R * .5 * Math.sin(dg(i * 103 + 20))], b: [-.62 * R, (i - 3) * .14 * R] };
+  });
+  let key = -1;
+  return Object.assign(g, {
+    set(k, clump) {
+      const kk = Math.round(k * 500) / 500, ck = Math.round(clump * 500) / 500, id = kk * 10 + ck;
+      if (id === key) return g; key = id;
+      mD(body, round.map((q, i) => (i ? 'L' : 'M') + r1(q[0] + (sick[i][0] - q[0]) * kk) + ' ' + r1(q[1] + (sick[i][1] - q[1]) * kk)).join('') + 'Z');
+      put(dimple, { o: Math.round((1 - kk) * 1000) / 1000 });
+      dots.forEach(({ e, a, b }) => { e.setAttribute('cx', r1(a[0] + (b[0] - a[0]) * ck)); e.setAttribute('cy', r1(a[1] + (b[1] - a[1]) * ck)); });
+      return g;
+    },
+  });
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A cord, a fan and the four levels', (m, D) => {
+  const p = panel(0), tC = m('cord'), tF = m('fan'), tS = m('strip');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W, { o: 0 }); show(back, .1, .6);
+  const dk = desk(back), fan = paperFan(back);
+  const lc = G(back, { o: 0 }); show(lc, tC + 1.2, .4);
+  wLabel(lc, 'coiled: a helix', { x: 440, y: 790, size: 30, fill: PC.helix, weight: 800, o: 1 });
+  const lf = G(back, { o: 0 }); show(lf, tF + 2.6, .4);
+  wLabel(lf, 'pleated: a zigzag', { x: 1190, y: 850, size: 30, fill: PC.sheet, weight: 800, o: 1 });
+  const both = say(back, 'a long strip, folded in a regular way', 800, 500, 10.6, { size: 28, fill: COL.chalk });
+  void both;
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOCHEMISTRY · CHAPTER 3 · LESSON 2', { x: 1200, y: 110, size: 24, fill: COL.dim, o: 1 });
+  ['Primary and', 'secondary structure'].forEach((s, i) => wLabel(ttl, s, { x: 1200, y: 185 + i * 64, size: 54, o: 1 }));
+  wLabel(ttl, 'Protein structure', { x: 1200, y: 300, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tS - .6, .5);
+  hide(back, tS - .2, .6);
+  // the strip: primary and secondary lit
+  const sg = G(W, { x: 800, y: 420, s: .8, o: 0 });
+  tw(sg, { s: 1, o: 1 }, tS + .1, 1.2, out);
+  const ls = levelsStrip(sg, { x: 0, y: 0 });
+  const today = G(p, { o: 0 }); show(today, 19.3, .5);
+  wLabel(today, 'today:', { x: 800, y: 680, size: 26, fill: COL.dim, weight: 600, o: 1 });
+  runs(today, [['primary', PC.primary], ['  and  ', COL.chalk], ['secondary', PC.secondary]], { x: 800, y: 728, size: 36, o: 1 });
+  hide(today, D - 2.4, .4);
+  clockRun(t => {
+    const wig = 3 + 12 * mBump(t, tC, tC + 3.2);
+    mD(dk.cord, cordPath(wig, t)); mD(dk.trace, cordPath(wig, t));
+    const tk = Math.round(mRamp(t, tC + .3, tC + 2.6) * 500) / 500;
+    if (st(dk.trace).d !== tk) put(dk.trace, { d: tk });
+    mO(dk.trace, 1 - .6 * mRamp(t, tC + 4, tC + 5));
+    fan.set(1 - .9 * mBump(t, tF + .2, tF + 2.4), mRamp(t, tF + 2.4, tF + 3));
+    ls.build(mRamp(t, tS + .2, tS + 2.6)).tags(mRamp(t, tS + 3, tS + 4))
+      .focus(['primary', 'secondary'], mRamp(t, 19.4, 20.4))
+      .glow('primary', mRamp(t, 20.6, 21.2)).glow('secondary', mRamp(t, 22.2, 22.8));
+  }, D);
+  // the push into the primary frame as the narration ends
+  cam.to({ x: 260, y: 420, z: 1.9 }, D - 2.2, 2);
+}],
+
+/* ---------- primary ---------- */
+['primary', 'Primary structure', (m, D) => {
+  const p = panel(0), tB = m('bond'), tN = m('nend'), tC = m('cend'), tK = m('count');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const ttl = G(p, { o: 0 }); show(ttl, .2, .5);
+  wLabel(ttl, 'primary structure', { x: 800, y: 92, size: 44, fill: PC.primary, weight: 800, o: 1 });
+  say(p, 'the number, type and sequence of amino acids', 800, 146, 1.6, { size: 28 });
+  const ch = beadChain(W, { x: 800, y: 430, n: 20, sp: 64, r: 20, chips: false, numbers: [1, 5, 10, 15, 20] });
+  const bd = say(W, 'like beads on a string: the order matters', 800, 300, 6.2, { size: 26, fill: COL.dim, weight: 600 }); hide(bd, tB - .2, .3);
+  // the peptide bond
+  const [lx, ly] = ch.linkPt(9);
+  const pb = G(W, { o: 0 }); show(pb, tB + .3, .4); hide(pb, tN - .4, .4);
+  path(pb, `M${lx} ${ly - 26}L${lx} ${ly - 84}`, { stroke: PC.peptide, 'stroke-width': 3 });
+  wLabel(pb, 'peptide bond', { x: lx, y: ly - 128, size: 30, fill: PC.peptide, weight: 800, o: 1 });
+  wChem(pb, '–CO–NH–', { x: lx, y: ly - 94, size: 28, fill: COL.chalk, weight: 700, o: 1 });
+  // the two ends
+  const [nx, ny] = ch.endPt('N'), [cx, cy] = ch.endPt('C');
+  const hn = halo(W, nx, ny, 24, PC.nTerm), hc = halo(W, cx, cy, 24, PC.cTerm);   // inside the end-group text above the tag
+  const ln = G(W, { o: 0 }); show(ln, tN + .6, .4); hide(ln, tC - .3, .3); show(ln, tK, .4);   // off while the camera is on the C end
+  wLabel(ln, 'N-terminal end', { x: nx - 30, y: 580, size: 30, fill: PC.nTerm, weight: 800, anchor: 'start', o: 1 });
+  wChem(ln, 'free amino group (NH_2) of the first', { x: nx - 30, y: 618, size: 24, fill: COL.chalk, weight: 600, anchor: 'start', o: 1 });
+  const lcG = G(W, { o: 0 }); show(lcG, tC + .6, .4);
+  wLabel(lcG, 'C-terminal end', { x: cx + 30, y: 580, size: 30, fill: PC.cTerm, weight: 800, anchor: 'end', o: 1 });
+  wChem(lcG, 'free carboxyl group (COOH) of the last', { x: cx + 30, y: 618, size: 24, fill: COL.chalk, weight: 600, anchor: 'end', o: 1 });
+  say(p, 'at body pH the ends are ionised: H_3N^+ … COO^−', 800, 860, tC + 5.4, { size: 20, fill: COL.dim, weight: 500 });
+  // counting
+  say(W, 'counted from the N-terminal end', 800, 690, tK + .8, { size: 30, fill: PC.primary });
+  clockRun(t => {
+    ch.reveal(mRamp(t, .4, 6)).bond(9, mRamp(t, tB, tB + .6) * (1 - mRamp(t, tN - .4, tN)))
+      .numbers(mRamp(t, tK + .4, tK + 2.4)).readArrow(mRamp(t, tK + .4, tK + 3))
+      .glow(0, mBump(t, tK + 3.5, tK + 5.6)).glow(19, mBump(t, tK + 5, tK + 7));
+    mO(hn, mRamp(t, tN + .3, tN + .7) * (1 - mRamp(t, tC, tC + .4)));
+    mO(hc, mRamp(t, tC + .3, tC + .7) * (1 - mRamp(t, tK, tK + .4)));
+  }, D);
+  cam.to({ x: 560, y: 470, z: 1.3 }, tN - .2, 1.4);
+  cam.to({ x: 1040, y: 470, z: 1.3 }, tC - .2, 1.4);
+  cam.to({ x: 800, y: 450, z: 1 }, tK - .2, 1.4);
+}],
+
+/* ---------- change ---------- */
+['change', 'One bead changed', (m, D) => {
+  const p = panel(0), tS = m('swap'), tD = m('defect');
+  const g = G(p, { x: -80, s: .95, o: 0 }); tw(g, { x: 0, s: 1, o: 1 }, .1, 1);
+  const AA = ['Val', 'His', 'Leu', 'Thr', 'Pro', 'Glu', 'Glu', 'Lys'];
+  wLabel(g, 'hemoglobin β chain: the first 8 amino acids', { x: 520, y: 200, size: 30, weight: 800, o: 1 });
+  say(g, 'counted from the N-terminal end', 520, 244, 5.5, { size: 24, fill: COL.dim, weight: 600 });
+  const ch = beadChain(g, { x: 520, y: 380, aa: AA, numbers: true, s: 1.3 });
+  const [bx, by] = ch.pt(5);
+  const sw = G(g, { o: 0 }); show(sw, tS + 3.9, .4);
+  mArrow(sw, [bx, 560], [bx, 488], { color: COL.chalk, w: 4, head: 14 });
+  runs(sw, [['Glu', PC.acidic], [' → ', COL.chalk], ['Val', PC.branched]], { x: bx, y: 600, size: 34 });
+  wLabel(sw, 'glutamic acid → valine, at position 6', { x: bx, y: 640, size: 24, fill: COL.dim, weight: 600, o: 1 });
+  say(g, 'one bead out of 146', 520, 700, 16.1, { size: 26, fill: COL.chalk });
+  // the red blood cell
+  const cell = redCell(g, { x: 1230, y: 390, R: 130 }); show(cell, 4.2, .6);
+  const cl = stepText(g, [[4.4, 'red blood cell'], [tD + 2.6, 'sickle cell']], { x: 1230, y: 580, size: 28, fill: '#f08c7a' });
+  say(g, 'hemoglobin clumps', 1230, 225, tD + 1, { size: 24, fill: '#e8a0a0' });
+  const cap = G(p, { o: 0 }); show(cap, tD + 5, .5);
+  box(cap, 260, 750, 1080, 110, { stroke: PC.primary, sw: 3 });
+  wLabel(cap, 'one changed amino acid → a physiological defect', { x: 800, y: 800, size: 34, weight: 800, fill: PC.primary, o: 1 });
+  say(cap, '(not every change does this)', 800, 840, 27.2, { size: 22, fill: COL.dim, weight: 600 });
+  clockRun(t => {
+    ch.reveal(mRamp(t, .3, 3)).numbers(mRamp(t, 3.8, 5.6)).swap(5, 'branched', mRamp(t, tS + 3.9, tS + 5), 'Val').glow(5, mRamp(t, tS + .3, tS + .9));
+    cell.set(io(mRamp(t, tD + .6, tD + 2.6)), io(mRamp(t, tD + .2, tD + 1.6)));
+    cl.set(t);
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'which one is number 1?', { x: 320, y: 220, size: 30, weight: 800, fill: PC.primary, o: 1 });
+  const ch = beadChain(p, { x: 320, y: 430, aa: ['Val', 'His', 'Leu', 'Thr', 'Pro', 'Val', 'Glu', 'Lys'], s: .85 });
+  const [nx, ny] = ch.endPt('N'), [cx, cy] = ch.endPt('C');
+  wLabel(p, '?', { x: nx, y: ny + 80, size: 48, weight: 800, fill: PC.nTerm, o: 1 });
+  wLabel(p, '?', { x: cx, y: cy + 80, size: 48, weight: 800, fill: PC.cTerm, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-end', prompt: ['Which end of the chain is amino acid number one?'],
+  build: choice([['the C-terminal end (free carboxyl group)'], ['the N-terminal end (free amino group)'], ['the middle of the chain'], ['either end: it does not matter']], 1,
+    'Right. Amino acids are counted from the N-terminal end, the one with the free amino group.',
+    ['The C-terminal end is where the counting stops: it holds the last amino acid, with the free carboxyl group.', null,
+      'The middle has no free group at all. Counting starts at an end: the one with the free NH₂.',
+      'It matters: the sequence is always read and numbered from the N-terminal end, so "position 6" means one bead.']),
+}], done) }],
+
+/* ---------- secondary ---------- */
+['secondary', 'Secondary structure', (m, D) => {
+  const p = panel(0), tF = m('fold');
+  wLabel(p, 'secondary structure', { x: 800, y: 80, size: 44, fill: PC.secondary, weight: 800, o: 1 });
+  const sub = say(p, 'the chain does not stay stretched out', 800, 128, 2, { size: 26, fill: COL.dim, weight: 600 }); hide(sub, tF - .4, .4);
+  // the backbone, stretched
+  const A = G(p, { o: 1 }); hide(A, tF - .1, .6);
+  const bb = backbone(A, { x: 800, y: 420, units: 6, s: 1.5 });
+  const [ox, oy] = bb.pt(0, 1, 'O'), [hx, hy] = bb.pt(0, 2, 'H');
+  callout(A, [ox, oy], [ox - 60, oy + 120], 'carbonyl O', { size: 28, fill: PC.O });
+  callout(A, [hx, hy], [hx + 60, hy - 100], 'H on N', { size: 28, fill: COL.chalk });
+  const cA = A.lastChild, cB = A.lastChild.previousSibling;
+  show(cB, 7.4, .4); show(cA, 9.2, .4);
+  say(A, 'every peptide bond: a C=O and an N–H', 800, 640, 8.2, { size: 28, fill: COL.chalk });
+  // folded back on itself: two stretches of the chain joined by backbone hydrogen bonds
+  const B = G(p, { o: 0 }); show(B, tF + .1, .6);
+  const turnG = G(B);   // under the atoms
+  const b2 = backbone(B, { x: 760, y: 330, units: 4, strands: 2, mode: 'anti', s: 1.15 });
+  const [tx, ty] = b2.pt(0, 3, 'C'), [ux, uy] = b2.pt(1, 0, 'N');
+  path(turnG, `M${r1(tx)} ${r1(ty)}C${r1(tx + 150)} ${r1(ty)} ${r1(ux + 150)} ${r1(uy)} ${r1(ux)} ${r1(uy)}`, { stroke: PC.stick, 'stroke-width': 7 });
+  wLabel(B, 'the chain turns back', { x: tx + 130, y: (ty + uy) / 2 + 8, size: 22, fill: COL.dim, weight: 600, anchor: 'start', o: 1 });
+  const hl = G(B, { o: 0 }); show(hl, tF + 5, .4);
+  wLabel(hl, 'hydrogen bonds: backbone only', { x: 760, y: 540, size: 32, fill: PC.hbond, weight: 800, o: 1 });
+  wChem(hl, 'C=O ··· H–N, never the side chains', { x: 760, y: 580, size: 24, fill: COL.chalk, weight: 600, o: 1 });
+  // two shapes
+  const two = G(p, { o: 0 }); show(two, 19.8, .5);
+  mArrow(two, [640, 600], [480, 660], { color: COL.chalk, w: 4, head: 14 });
+  mArrow(two, [880, 600], [1040, 660], { color: COL.chalk, w: 4, head: 14 });
+  box(two, 210, 668, 400, 200, { stroke: PC.helix });
+  box(two, 960, 668, 400, 200, { stroke: PC.sheet });
+  alphaHelix(two, { x: 320, y: 768, n: 9, r: 36, rise: 18, s: .9, numbers: false, bead: 8 });
+  wLabel(two, 'α-helix', { x: 480, y: 780, size: 34, fill: PC.helix, weight: 800, o: 1 });
+  betaSheet(two, { x: 1080, y: 768, strands: 3, len: 170, hw: 14, gap: 44, tags: false });
+  wLabel(two, 'β-sheet', { x: 1260, y: 780, size: 34, fill: PC.sheet, weight: 800, o: 1 });
+  clockRun(t => {
+    bb.draw(mRamp(t, .4, 3.4)).ends(mRamp(t, 3, 3.6)).atoms(mRamp(t, 6.4, 7.4)).rDim(mRamp(t, 7.2, 8.2));
+    b2.rDim(1).hbonds(mRamp(t, tF + 1.6, tF + 4.6)).deltas(0);
+  }, D);
+}],
+
+/* ---------- helix ---------- */
+['helix', 'The α-helix', (m, D) => {
+  const p = panel(0), tT = m('turn'), tH = m('hb'), tK = m('stack');
+  wLabel(p, 'α-helix', { x: 140, y: 100, size: 48, fill: PC.helix, weight: 800, anchor: 'start', o: 1 });
+  const hg = G(p, { x: 760, y: 470, s: .8, o: 0 }); tw(hg, { s: 1, o: 1 }, .1, 1.4, out);
+  const hx = alphaHelix(hg, { x: 0, y: 0, n: 14, r: 80, rise: 30, s: 1.25 });
+  const RX = 1060;
+  say(p, 'right-handed coil', RX, 230, 2.4, { size: 32, fill: PC.helix, anchor: 'start' });
+  say(p, 'like the telephone cord', RX, 270, 3.4, { size: 24, fill: COL.dim, weight: 600, anchor: 'start' });
+  const hb = G(p, { o: 0 }); show(hb, tH + 2.8, .4);
+  wLabel(hb, 'hydrogen bond:', { x: RX, y: 380, size: 28, fill: PC.hbond, weight: 800, anchor: 'start', o: 1 });
+  wChem(hb, 'C=O of n → N–H of n + 4', { x: RX, y: 420, size: 26, fill: COL.chalk, weight: 700, anchor: 'start', o: 1 });
+  const pr = stepText(p, [[tH + 4.2, '1 → 5'], [24.6, '2 → 6'], [26.4, '3 → 7']], { x: RX + 110, y: 500, size: 44, fill: PC.hbond });
+  say(p, 'the bonds line up like rungs', RX, 610, tK + .6, { size: 26, anchor: 'start' });
+  say(p, 'intrachain:', RX, 680, 33.6, { size: 30, fill: PC.secondary, anchor: 'start' });
+  say(p, 'inside the same chain', RX, 718, 33.9, { size: 26, anchor: 'start' });
+  clockRun(t => {
+    const g1 = mRamp(t, tH + 3, tH + 3.6) * (1 - mRamp(t, 24.2, 24.6)), g2 = mBump(t, 24.4, 26.4), g3 = mBump(t, 26.2, 28.4);
+    hx.draw(mRamp(t, .3, 4.5)).turnBracket(mRamp(t, tT + .2, tT + 1.6))
+      .glow(0, g1).glow(4, g1).glow(1, g2).glow(5, g2).glow(2, g3).glow(6, g3)
+      .bond(0, mRamp(t, tH + 3.6, tH + 5)).bond(1, mRamp(t, 24.6, 25.4)).bond(2, mRamp(t, 26.4, 27.2))
+      .bonds(mRamp(t, tK + .2, tK + 3.4));
+    pr.set(t);
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'α-helix', { x: 320, y: 140, size: 34, weight: 800, fill: PC.helix, o: 1 });
+  alphaHelix(p, { x: 330, y: 470, n: 12, r: 70, rise: 28 }).glow(0, 1);
+  wLabel(p, '1 → ?', { x: 320, y: 790, size: 40, weight: 800, fill: PC.hbond, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-n4', prompt: ['In an α-helix, the carbonyl O of amino acid 1 bonds to the N–H of amino acid…'],
+  build: choice([['2'], ['4'], ['5'], ['9']], 2,
+    'Right. Four places along: 1 bonds to 5, then 2 to 6, 3 to 7 (n → n + 4).',
+    ['Amino acid 2 is the next one along: 1 and 2 are already joined by their peptide bond, not a hydrogen bond.',
+      'Four is only three places along. Count on four from 1: 2, 3, 4, 5.', null,
+      'Nine is two turns away. The bond reaches four places along, just over one turn.']),
+}], done) }],
+
+/* ---------- sheet ---------- */
+['sheet', 'The β-sheet', (m, D) => {
+  const p = panel(0), tS = m('strands'), tI = m('intra'), tE = m('inter'), tP = m('par'), tA = m('anti');
+  wLabel(p, 'β-sheet', { x: 140, y: 100, size: 48, fill: PC.sheet, weight: 800, anchor: 'start', o: 1 });
+  // A: the pleat, then two strands side by side
+  const A = G(p, { o: 0 }); show(A, .1, .5); hide(A, tI - .5, .5);
+  const fanG = G(A, { x: 0, y: 0 }); paperFan(fanG, { x: 1420, y: 330, R: 120, n: 12 }).set(1, 1);
+  wLabel(A, 'like the paper fan', { x: 1420, y: 370, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  const ps1 = pleatSide(A, { x: 700, y: 260, len: 900, folds: 9, amp: 44 });
+  say(A, 'pleated (zigzag)', 700, 380, 2.4, { size: 32, fill: PC.sheet });
+  const ps2 = pleatSide(A, { x: 700, y: 610, len: 900, folds: 9, amp: 44, strands: 2, gap: 170, o: 0 }); show(ps2, tS - .2, .5);
+  const hl = G(A, { o: 0 }); show(hl, tS + 2, .4);
+  wLabel(hl, 'strands side by side', { x: 1220, y: 580, size: 28, fill: COL.chalk, weight: 800, anchor: 'start', o: 1 });
+  wLabel(hl, 'hydrogen bonds', { x: 1220, y: 625, size: 26, fill: PC.hbond, weight: 700, anchor: 'start', o: 1 });
+  wChem(hl, 'C=O ··· H–N', { x: 1220, y: 662, size: 24, fill: COL.chalk, weight: 600, anchor: 'start', o: 1 });
+  // B: the same bond, two cases
+  const B = G(p, { o: 0 }); show(B, tI, .1); hide(B, tP - .5, .5);
+  const L = G(B, { o: 0 }); show(L, tI + .2, .5);
+  box(L, 80, 170, 680, 520, { stroke: COL.faint });
+  const s1 = betaSheet(L, { x: 400, y: 410, strands: 2, dir: 'anti', len: 420, gap: 130, rungs: 4 });
+  wLabel(L, 'one chain, folded back', { x: 420, y: 230, size: 28, weight: 800, o: 1 });
+  say(L, 'intrachain', 420, 600, tI + 3.2, { size: 34, fill: PC.secondary });
+  say(L, 'between segments of the same chain', 420, 645, tI + 3.6, { size: 22, fill: COL.dim, weight: 600 });
+  const R = G(B, { o: 0 }); show(R, tE + .2, .5);
+  box(R, 840, 170, 680, 520, { stroke: COL.faint });
+  const s2 = betaSheet(R, { x: 1180, y: 410, strands: 2, dir: 'anti', len: 420, gap: 130, rungs: 4 });
+  wLabel(R, 'two adjacent chains', { x: 1180, y: 230, size: 28, weight: 800, o: 1 });
+  wLabel(R, 'chain 1', { x: 900, y: 352, size: 20, fill: COL.dim, weight: 700, anchor: 'start', o: 1 });
+  wLabel(R, 'chain 2', { x: 900, y: 482, size: 20, fill: COL.dim, weight: 700, anchor: 'start', o: 1 });
+  say(R, 'interchain', 1180, 600, tE + 2, { size: 34, fill: PC.secondary });
+  say(R, 'between two chains', 1180, 645, tE + 2.4, { size: 22, fill: COL.dim, weight: 600 });
+  say(B, 'same bond, two cases', 800, 790, 26.8, { size: 30, fill: PC.hbond });
+  // C: four strands, parallel then antiparallel
+  const C = G(p, { o: 0 }); show(C, tP, .5);
+  const s4 = betaSheet(C, { x: 800, y: 420, strands: 4, len: 560, gap: 120 });
+  const dirT = stepText(C, [[tP + 1.6, 'parallel: all run N → C'], [tA + 2, 'antiparallel: they alternate']], { x: 800, y: 760, size: 36, fill: PC.sheet });
+  clockRun(t => {
+    ps1.draw(mRamp(t, .3, 2.6)); ps2.draw(mRamp(t, tS - .2, tS + 1.4)).hbonds(mRamp(t, tS + 1.6, tS + 4.4));
+    s1.strands(mRamp(t, tI + .4, tI + 2)).hairpin(mRamp(t, tI + 1.6, tI + 3)).hbonds(mRamp(t, tI + 3.2, tI + 5.4)).tags(0);
+    s2.strands(mRamp(t, tE + .4, tE + 1.6)).hbonds(mRamp(t, tE + 1.6, tE + 3.4)).tags(0);
+    s4.strands(mRamp(t, tP + .2, tP + 1.6)).hbonds(1).tags(mRamp(t, tP + 1.2, tP + 1.8)).anti(mRamp(t, tA + .4, tA + 1.8));
+    dirT.set(t);
+  }, D);
+}],
+
+/* ---------- compare ---------- */
+['compare', 'Helix and sheet compared', (m, D) => {
+  const p = panel(0), tH = m('h'), tB = m('b'), tL = m('levels');
+  wLabel(p, 'α-helix and β-sheet', { x: 800, y: 62, size: 38, weight: 800, o: 1 });
+  say(p, 'in both: hydrogen bonds between backbone C=O and N–H, never side chains', 800, 108, 1.4, { size: 24, fill: PC.hbond });
+  const card = G(p, { o: 0 }); show(card, .2, .5);
+  box(card, 110, 138, 1380, 520);
+  path(card, 'M450 290H1470M450 380H1470M450 470H1470M450 560H1470', { stroke: COL.faint, 'stroke-width': 1.5 });
+  path(card, 'M450 160V640M960 160V640', { stroke: COL.faint, 'stroke-width': 1.5 });
+  alphaHelix(card, { x: 650, y: 210, axis: 0, n: 13, r: 28, rise: 15, numbers: false, bead: 7, w: 10 });
+  wLabel(card, 'α-helix', { x: 850, y: 222, size: 30, fill: PC.helix, weight: 800, o: 1 });
+  betaSheet(card, { x: 1130, y: 214, strands: 3, len: 200, hw: 12, gap: 34, tags: false });
+  wLabel(card, 'β-sheet', { x: 1340, y: 226, size: 30, fill: PC.sheet, weight: 800, o: 1 });
+  const ROWS = ['shape', 'repeat', 'hydrogen bond', 'same chain?'];
+  ROWS.forEach((s, i) => wLabel(card, s, { x: 150, y: 345 + i * 90, size: 26, fill: COL.dim, weight: 700, anchor: 'start', o: 1 }));
+  const H = ['right-handed coil', '3.6 amino acids per turn', 'C=O of n → N–H of n + 4', 'yes: inside one chain'];
+  const S2 = ['pleated strands side by side', 'parallel or antiparallel', 'between neighbouring strands', 'one chain or adjacent chains'];
+  H.forEach((s, i) => say(card, s, 705, 345 + i * 90, tH + .6 + i * 1.6, { size: 26, fill: COL.chalk }));
+  S2.forEach((s, i) => say(card, s, 1215, 345 + i * 90, tB + .4 + i * 1.1, { size: 26, fill: COL.chalk }));
+  // the strip, small: primary untouched
+  const lg = G(p, { x: 640, y: 780, s: .5, o: 0 }); show(lg, tL + .2, .5);
+  const ls = levelsStrip(lg, { x: 0, y: 0 });
+  const nt = G(p, { o: 0 }); show(nt, tL + 3, .5);
+  wLabel(nt, 'primary level unchanged:', { x: 1030, y: 760, size: 26, fill: PC.primary, weight: 800, anchor: 'start', o: 1 });
+  wLabel(nt, 'the same peptide bonds,', { x: 1030, y: 798, size: 24, weight: 600, anchor: 'start', o: 1 });
+  wLabel(nt, 'the same sequence', { x: 1030, y: 832, size: 24, weight: 600, anchor: 'start', o: 1 });
+  clockRun(t => { ls.focus(['primary', 'secondary'], 1).tick('primary', mRamp(t, tL + 2.6, tL + 3.2)).glow('primary', mBump(t, tL + 2.6, tL + 6)); }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tE = m('end');
+  wLabel(p, 'Summary: primary and secondary structure', { x: 800, y: 62, size: 34, weight: 700, o: 1 });
+  const ROWS = [
+    ['s1', 'Primary: the sequence of amino acids', 'peptide bonds · counted from the N-terminal end · one change can cause disease', PC.primary],
+    ['s2', 'Secondary: the chain folded by hydrogen bonds', 'between backbone C=O and N–H, never the side chains', PC.secondary],
+    ['s3', 'α-helix: a right-handed coil', '3.6 amino acids per turn · C=O of n to N–H of n + 4, within one chain', PC.helix],
+    ['s4', 'β-sheet: pleated strands side by side', 'bonds between strands · parallel or antiparallel', PC.sheet],
+  ];
+  const edges = [];
+  ROWS.forEach(([k, a, b, col], i) => {
+    const y = 180 + i * 172, g = G(p, { o: 0 });
+    box(g, 110, y - 74, 1380, 152);
+    const e = box(g, 110, y - 74, 1380, 152, { fill: 'none', stroke: col, sw: 4 }); put(e, { o: 0 }); edges.push([e, k, i]);
+    wChem(g, a, { x: 500, y: y - 6, size: 32, weight: 700, fill: col, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 500, y: y + 38, size: 24, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i === 0) beadChain(g, { x: 300, y, n: 6, sp: 40, r: 14, chips: false });
+    if (i === 1) { const bb = backbone(g, { x: 300, y, units: 3, strands: 2, s: .55, gap: 160 }); bb.rDim(1).hbonds(1); }
+    if (i === 2) alphaHelix(g, { x: 300, y, axis: 0, n: 13, r: 32, rise: 16, numbers: false, bead: 7, w: 10 }).bonds(1);
+    if (i === 3) betaSheet(g, { x: 290, y, strands: 3, len: 220, hw: 13, gap: 40, tags: false, rungs: 4 }).hbonds(1);
+    show(g, m(k) + .1, .5);
+  });
+  say(p, 'Now try the practice.', 800, 868, tE, { size: 30, fill: PC.hbond });
+  clockRun(t => edges.forEach(([e, k, i]) => {
+    const a = m(k) + .3, b = i < 3 ? m(ROWS[i + 1][0]) : tE;
+    mO(e, mRamp(t, a, a + .5) * (1 - mRamp(t, b - .3, b + .2)));
+  }), D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const frame = g => box(g, 980, 90, 580, 720);
+  const AA = ['Val', 'His', 'Leu', 'Thr', 'Pro', 'Glu', 'Glu', 'Lys'];
+  at('primary', g => {
+    frame(g);
+    beadChain(g, { x: 1270, y: 400, n: 9, sp: 52, r: 18, chips: false, numbers: true }).numbers(1);
+    wLabel(g, 'which level is this?', { x: 1270, y: 620, size: 28, weight: 700, fill: PC.primary, o: 1 });
+  });
+  at('ends', g => {
+    frame(g);
+    const ch = beadChain(g, { x: 1270, y: 420, n: 8, sp: 56, r: 20, chips: false });
+    const [nx, ny] = ch.endPt('N'), [cx, cy] = ch.endPt('C');
+    wLabel(g, 'N', { x: nx, y: ny + 90, size: 40, weight: 800, fill: PC.nTerm, o: 1 });
+    wLabel(g, 'C', { x: cx, y: cy + 90, size: 40, weight: 800, fill: PC.cTerm, o: 1 });
+    wLabel(g, 'which end?', { x: 1270, y: 640, size: 28, weight: 700, o: 1 });
+  });
+  at('sickle', g => {
+    frame(g);
+    const ch = beadChain(g, { x: 1270, y: 380, aa: AA, numbers: true, s: .95 }).numbers(1).swap(5, 'branched', 1, 'Val').glow(5, 1);
+    const [bx] = ch.pt(5);
+    runs(g, [['Glu', PC.acidic], [' → ', COL.chalk], ['Val', PC.branched], ['  at 6', COL.chalk]], { x: bx - 40, y: 520, size: 30, o: 1 });
+    wLabel(g, 'which level changed first?', { x: 1270, y: 660, size: 26, weight: 700, o: 1 });
+  });
+  at('atoms', g => {
+    frame(g);
+    const bb = backbone(g, { x: 1270, y: 400, units: 3, s: 1.1 }); bb.atoms(1).rDim(1);
+    wLabel(g, 'which atoms bond?', { x: 1270, y: 640, size: 28, weight: 700, fill: PC.hbond, o: 1 });
+  });
+  at('shape', g => {
+    frame(g);
+    alphaHelix(g, { x: 1120, y: 420, n: 11, r: 56, rise: 26, numbers: false, bead: 9 });
+    betaSheet(g, { x: 1400, y: 420, strands: 3, len: 200, hw: 16, gap: 60, tags: false });
+    wLabel(g, 'A', { x: 1120, y: 680, size: 36, weight: 800, fill: PC.helix, o: 1 });
+    wLabel(g, 'B', { x: 1400, y: 680, size: 36, weight: 800, fill: PC.sheet, o: 1 });
+  });
+  at('blanks', g => {
+    frame(g);
+    alphaHelix(g, { x: 1270, y: 440, n: 14, r: 70, rise: 30, s: .95 }).glow(0, 1).glow(9, 1);
+    wLabel(g, 'count four places along', { x: 1270, y: 760, size: 26, weight: 700, fill: PC.hbond, o: 1 });
+  });
+  at('sheet', g => {
+    frame(g);
+    betaSheet(g, { x: 1270, y: 420, strands: 4, len: 380, hw: 22, gap: 100 }).hbonds(1);
+    wLabel(g, 'which sheet?', { x: 1270, y: 720, size: 28, weight: 700, fill: PC.sheet, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('primary');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-primary', prompt: ['Which describes primary structure?'],
+    build: withPic('primary', choice([['the coiling of the chain into a helix'], ['the number, type and sequence of amino acids'], ['the hydrogen-bonded pleats of a sheet'], ['several chains packed together']], 1,
+      'Right. Primary structure is the chain itself: how many amino acids, which ones, and in what order.',
+      ['Coiling into a helix is secondary structure, held by backbone hydrogen bonds.', null,
+        'Pleats held by hydrogen bonds are the β-sheet: secondary structure.',
+        'Chains packed together are quaternary structure (lesson three).'])) },
+  { id: 'p-ends', prompt: ['Which end of the chain?'],
+    build: withPic('ends', grid([
+      { parts: ['free amino group (NH₂)'], ans: ['n'], why: 'the free NH₂ end' },
+      { parts: ['free carboxyl group (COOH)'], ans: ['c'], why: 'the free COOH end' },
+      { parts: ['amino acid number 1'], ans: ['n'], why: 'counting starts here' },
+      { parts: ['the last amino acid'], ans: ['c'], why: 'the chain ends here' },
+    ], [['n', 'N-terminal', null, 'N'], ['c', 'C-terminal', null, 'C']], { multi: false, text: true })) },
+  { id: 'p-sickle', prompt: ['In sickle-cell hemoglobin, glutamic acid at position 6 becomes valine. Which level changed first?'],
+    build: withPic('sickle', choice([['secondary structure'], ['the peptide bonds'], ['primary structure: the sequence'], ['the number of chains']], 2,
+      'Right. Swapping one amino acid for another changes the sequence: primary structure.',
+      ['The helices may still form. What changed first is the order of the beads itself.',
+        'The peptide bonds are all still there: valine is linked in just as glutamic acid was.', null,
+        'The number of chains is unchanged. One bead in one chain is different.'])) },
+  { id: 'p-atoms', prompt: ['Which atoms make the hydrogen bonds of secondary structure?'],
+    build: withPic('atoms', choice([['the side chains (R groups)'], ['the carbonyl O and the N–H of the backbone'], ['the sulfur atoms of two cysteines'], ['the α-carbons']], 1,
+      'Right. The C=O of one peptide bond bonds to the N–H of another: backbone atoms only.',
+      ['Side-chain bonds hold the tertiary structure (lesson three). Secondary structure uses the backbone.', null,
+        'Two cysteine sulfurs make a disulfide bridge, a covalent bond of the tertiary structure.',
+        'The α-carbons carry the side chains; they take no part in these hydrogen bonds.'])) },
+  { id: 'p-shape', prompt: ['Which structure is it?'],
+    build: withPic('shape', grid([
+      { parts: ['3.6 amino acids per turn'], ans: ['a'], why: 'turns: a coil' },
+      { parts: ['strands side by side'], ans: ['b'], why: 'strands: a sheet' },
+      { parts: ['zigzag pleat'], ans: ['b'], why: 'the pleated sheet' },
+      { parts: ['right-handed coil'], ans: ['a'], why: 'the helix' },
+    ], [['a', 'α-helix', null, 'A'], ['b', 'β-sheet', null, 'B']], { multi: false, text: true })) },
+  { id: 'p-blanks', prompt: ['In an α-helix, the C=O of each residue bonds to the N–H of which residue?'],
+    build: withPic('blanks', blanks([
+      { parts: ['residue 1 → residue ', { box: '5' }], why: '1 + 4 = 5', hint: 'Add four.' },
+      { parts: ['residue 10 → residue ', { box: '14' }], why: '10 + 4 = 14', hint: 'Add four.' },
+    ])) },
+  { id: 'p-sheet', prompt: ['Four strands all run N → C in the same direction. Which sheet is it?'],
+    build: withPic('sheet', choice([['an antiparallel β-sheet'], ['a parallel β-sheet'], ['an α-helix'], ['a random coil']], 1,
+      'Right. When every strand runs the same way, N to C, the sheet is parallel.',
+      ['In an antiparallel sheet the strands alternate: one runs N → C, the next C → N.', null,
+        'An α-helix is one coiled stretch of chain, not strands lying side by side.',
+        'A random coil has no regular pattern of hydrogen bonds. These strands are bonded side by side.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

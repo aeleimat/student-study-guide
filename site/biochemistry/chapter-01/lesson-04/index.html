@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 1, Lesson 4: Metabolic Classification: Glucogenic and Ketogenic — Biochemistry</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid.text .opts { gap: 4px; } .screen .grid.text .opt { padding: 2px 9px; font-size: 17px; min-height: 36px; } .screen .grid.text .opt kbd { display: none; }
+.screen .grid.text .row { padding: 4px 0 4px 12px; row-gap: 0; } .screen .grid.text .why { font-size: 18px; line-height: 1.25; }</style><!-- all rows wrong: the rows and their why lines fit above Check -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/protein.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biochemistry, Chapter 1 (Amino Acids), lesson 4: the metabolic classification. A plate of egg and beans digested into
+// amino acids; the amino acid card with its Metabolic tab lit; the amino group taken off, leaving the carbon skeleton;
+// a forked road to ketone bodies and to glucose (and both, for the mixed); the slide's table filled column by column:
+// LL (ketogenic), FITTT (mixed), the remaining 13 (glucogenic), the branched-chain trap; the count 2 + 5 + 13 = 20,
+// 18 can make glucose and 7 ketone bodies; a long fast (liver, blood glucose, ketone bodies for brain and muscle); the
+// chapter recap: lysine, then tyrosine, filed under all four tabs; a summary; practice.
+// Plan, errata and beats: books/biochemistry/chapters/chapter-01/lesson-04.md.
+const CHAPTER = { number: 104, label: '1, lesson 4', title: 'Metabolic Classification: Glucogenic and Ketogenic', minutes: 7, language: 'en', lead: false, next: '../../chapter-02/lesson-01/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, weight: 700, ...o, o: 0 }); show(e, t0, .4); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const MIXC = mix(PC.gluco, PC.keto, .5);   // the mixed class: between glucose gold and ketone violet
+const frac = v => v - Math.floor(v);
+const box5 = (g, x, y, w, h, { fill = '#0b1626', stroke = COL.faint, sw = 3, rx = 22, fo = 1 } = {}) => mk('rect', { x, y, width: w, height: h, rx, fill, 'fill-opacity': fo, stroke, 'stroke-width': sw }, g);
+// keyframes [[t, a, b, …], …]: eased (soft) between keys, held before the first and after the last
+function keyAt(t, K) {
+  if (t <= K[0][0]) return K[0].slice(1);
+  for (let i = 1; i < K.length; i++) if (t < K[i][0]) { const a = K[i - 1], b = K[i], f = soft((t - a[0]) / (b[0] - a[0])); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * f); }
+  return K[K.length - 1].slice(1);
+}
+// pose x, y, s and o of a wrapper group, rounded, written only when they change
+function poseS(e, x, y, s, o) {
+  const v = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, s: Math.round(s * 1000) / 1000, o: Math.round(o * 1000) / 1000 }, c = st(e);
+  if (c.x !== v.x || c.y !== v.y || c.s !== v.s || c.o !== v.o) put(e, v);
+  return e;
+}
+// one text whose words change at given times [[t, str], …]: it fades out before each change and back in after, so two
+// words never share one spot; before the first time it is hidden
+function stepText(p, steps, { x = 0, y = 0, size = 28, fill = COL.chalk, anchor = 'middle', weight = 700 } = {}) {
+  const e = wChem(p, steps[0][1], { x, y, size, fill, anchor, weight, o: 0 });
+  return Object.assign(e, {
+    set(t) {
+      let i = -1; for (let j = 0; j < steps.length; j++) if (t >= steps[j][0]) i = j;
+      wChemSet(e, steps[Math.max(0, i)][1]);
+      const nx = steps[i + 1] ? steps[i + 1][0] : null;
+      mO(e, i < 0 ? 0 : mRamp(t, steps[i][0], steps[i][0] + .3) * (nx == null ? 1 : 1 - mRamp(t, nx - .3, nx)));
+      return e;
+    },
+  });
+}
+// a polyline with its length table: .at(k)
+function lineOf(pts) {
+  const L = [0]; for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const tot = L[L.length - 1];
+  return {
+    at(k) {
+      const want = mClamp(k) * tot; let i = 1; while (i < L.length - 1 && L[i] < want) i++;
+      const f = (want - L[i - 1]) / ((L[i] - L[i - 1]) || 1), a = pts[i - 1], b = pts[i];
+      return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+    },
+  };
+}
+// a filled pill with dark text, origin at its centre
+function tagPill(p, str, fill, { x = 0, y = 0, size = 28, o = 1, ink = '#0f1e33', split = false } = {}) {
+  const g = G(p, { x, y, o }), w = Math.round(uiW(str, size) * 1.08 + 40), h = size + 22;
+  if (split) {
+    mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill: PC.gluco }, g);
+    path(g, `M0 ${-h / 2}H${w / 2 - h / 2}A${h / 2} ${h / 2} 0 0 1 ${w / 2 - h / 2} ${h / 2}H0Z`, { fill: PC.keto });
+    mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill: 'none', stroke: '#0f1e33', 'stroke-width': 2.5 }, g);
+  } else mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill, stroke: '#0f1e33', 'stroke-width': 2.5 }, g);
+  wLabel(g, str, { y: size * .36, size, fill: ink, weight: 800, o: 1 });
+  return Object.assign(g, { w });
+}
+// a gold glucose hexagon crossed out (never glucose)
+function noGlucose(p, { x = 0, y = 0, size = 44, o = 1 } = {}) {
+  const g = G(p, { x, y, o });
+  classIcon(g, 'glucose', { size });
+  const r = size * .42;
+  path(g, `M${-r} ${-r}L${r} ${r}M${r} ${-r}L${-r} ${r}`, { stroke: COL.bad, 'stroke-width': 5 });
+  return g;
+}
+// the carbon skeleton: four grey carbon beads in a zigzag, in two halves (for the split of the mixed ones)
+function skeleton(p, { s = 1 } = {}) {
+  const g = G(p, { x: 1, y: 1, s, o: 0 });
+  const half = sg => {
+    const h = G(g);
+    path(h, `M${sg * 8} 6L${sg * 26} -8L${sg * 44} 6`, { stroke: PC.stick, 'stroke-width': 5, fill: 'none' });
+    [[8, 6], [26, -8], [44, 6]].forEach(([x, y]) => mk('circle', { cx: sg * x, cy: y, r: 11, fill: PC.C, stroke: PC.CEdge, 'stroke-width': 2.5 }, h));
+    return h;
+  };
+  const L = half(-1), R = half(1);
+  return Object.assign(g, { L, R });
+}
+// the amino acid card shrunk to a corner (the chapter thread), its Metabolic tab lit
+function cornerCard(p, { x = 175, y = 800, s = .22, o = 1 } = {}) {
+  const w = G(p, { x, y, s, o });
+  const c = aminoCard(w, { x: 0, y: 0 });
+  c.focus('metabolic', 1).glow('metabolic', 1);
+  return w;
+}
+
+/* ---------- the plate (intro backdrop) ---------- */
+function plate(p, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  mk('ellipse', { cx: 0, cy: 14, rx: 300, ry: 150, fill: '#0a1424', 'fill-opacity': .6 }, g);
+  mk('ellipse', { rx: 300, ry: 150, fill: '#e9e4d6', stroke: '#b9b2a0', 'stroke-width': 5 }, g);
+  mk('ellipse', { rx: 220, ry: 104, fill: '#f4f0e6', stroke: '#d4cdbc', 'stroke-width': 4 }, g);
+  const food = G(g);
+  // the egg half: white with its yolk
+  const egg = G(food, { x: -70, y: -6 });
+  path(egg, 'M-92 0C-92 -60 -40 -84 8 -80C64 -76 96 -40 92 6C88 50 40 70 -6 66C-56 62 -92 40 -92 0Z', { fill: '#fffdf6', stroke: '#d8d2c0', 'stroke-width': 4 });
+  mk('circle', { cx: 4, cy: -4, r: 40, fill: '#f6b93b', stroke: '#d08a1e', 'stroke-width': 4 }, egg);
+  mk('circle', { cx: -8, cy: -16, r: 11, fill: '#ffe08a', 'fill-opacity': .8 }, egg);
+  // beans: kidney shapes
+  const BEANS = [[80, -40, 20], [130, -10, -30], [96, 30, 60], [150, 40, 10], [60, 60, -15], [170, -50, 80], [120, 74, 35]];
+  BEANS.forEach(([bx, by, r], i) => {
+    const b = G(food, { x: bx, y: by, r });
+    path(b, 'M-26 -4C-26 -22 -6 -24 4 -16C10 -12 16 -16 22 -14C32 -10 30 12 18 18C4 24 -26 18 -26 -4Z', { fill: i % 2 ? '#8b3a2e' : '#a5473a', stroke: '#5e2219', 'stroke-width': 3 });
+    mk('ellipse', { cx: -8, cy: -6, rx: 8, ry: 4, fill: '#d98a7a', 'fill-opacity': .5 }, b);
+  });
+  return Object.assign(g, { food });
+}
+
+/* ---------- the slide's table: three columns (ketogenic, mixed, glucogenic) ---------- */
+const COLS = [
+  { key: 'keto', x: 300, title: 'Ketogenic', sub: 'ketone bodies only', color: PC.keto, icon: 'ketone' },
+  { key: 'both', x: 800, title: 'Mixed', sub: 'glucose and ketone bodies', color: MIXC, icon: 'fork' },
+  { key: 'gluco', x: 1300, title: 'Glucogenic', sub: 'carbohydrate (glucose) only', color: PC.gluco, icon: 'glucose' },
+];
+const COL_TOP = 80, COL_BOT = 840, COL_W = 460;
+function sortTable(p) {
+  const cols = COLS.map(c => {
+    const g = G(p);
+    box5(g, c.x - COL_W / 2, COL_TOP, COL_W, COL_BOT - COL_TOP, { stroke: c.color, sw: 3, rx: 26, fo: .85 });
+    path(g, `M${c.x - COL_W / 2 + 16} 210H${c.x + COL_W / 2 - 16}`, { stroke: c.color, 'stroke-width': 2, 'stroke-opacity': .5 });
+    classIcon(g, c.icon, { x: c.x - 172, y: 145, size: c.icon === 'fork' ? 56 : 66 });
+    wLabel(g, c.title, { x: c.x - 112, y: 142, size: 34, fill: c.color, weight: 800, anchor: 'start', o: 1 });
+    wLabel(g, c.sub, { x: c.x - 112, y: 180, size: 19, fill: COL.dim, weight: 600, anchor: 'start', o: 1 });
+    return Object.assign(g, { c });
+  });
+  return cols;
+}
+// chip sliding into place: from 36 px to the right (never across the chip above), fading in over .35 s from t0
+const dropAt = (chip, x, y, t, t0) => { const k = mRamp(t, t0, t0 + .35); mPose(chip, x + 36 * (1 - io(k)), y, k); };
+// the ketogenic column's content. T: { ll, leu, lys, l1, l2, never, ess, cls1, cls2 } (times; negative = already there)
+function ketoContent(g, T) {
+  const L1 = wLabel(g, 'L', { x: 255, y: 360, size: 120, fill: PC.keto, weight: 800, o: 0 });
+  const L2 = wLabel(g, 'L', { x: 345, y: 360, size: 120, fill: PC.keto, weight: 800, o: 0 });
+  const leu = aaChip(g, 'leucine', { code: 'name', size: 28, o: 0 }), lys = aaChip(g, 'lysine', { code: 'name', size: 28, o: 0 });
+  const ess = [480, 600].map(y => { const e = G(g, { o: 0 }); classIcon(e, 'star', { x: 344, y: y + 18, size: 26 }); wLabel(e, 'essential', { x: 362, y: y + 26, size: 20, fill: PC.essential, weight: 700, anchor: 'start', o: 1 }); return e; });
+  const c1 = wLabel(g, 'branched-chain', { x: 330, y: 472, size: 20, fill: PC.branched, weight: 700, anchor: 'start', o: 0 });
+  const c2 = wLabel(g, 'basic', { x: 330, y: 592, size: 20, fill: PC.basic, weight: 700, anchor: 'start', o: 0 });
+  const nv = G(g, { o: 0 });
+  wLabel(nv, 'ketone bodies only', { x: 300, y: 715, size: 24, fill: PC.keto, weight: 700, o: 1 });
+  noGlucose(nv, { x: 200, y: 770, size: 46 });
+  wLabel(nv, 'never glucose', { x: 236, y: 779, size: 24, fill: COL.bad, weight: 700, anchor: 'start', o: 1 });
+  return {
+    leu, lys, L1, L2,
+    set(t) {
+      mO(L1, mRamp(t, T.ll, T.ll + .4)); mO(L2, mRamp(t, T.ll + .2, T.ll + .6));
+      dropAt(leu, 205, 480, t, T.leu); dropAt(lys, 205, 600, t, T.lys);
+      const g1 = mBump(t, T.l1, T.l1 + 1.2), g2 = mBump(t, T.l2, T.l2 + 1.2);
+      leu.glow(g1); lys.glow(g2);
+      mO(nv, mRamp(t, T.never, T.never + .5));
+      ess.forEach((e, i) => mO(e, mRamp(t, T.ess + .3 * i, T.ess + .3 * i + .4)));
+      mO(c1, mRamp(t, T.cls1, T.cls1 + .4)); mO(c2, mRamp(t, T.cls2, T.cls2 + .4));
+    },
+  };
+}
+// the mixed column: FITTT letters, five chips, rings, the split. T: { fit, chips: [5 times], ring, split }
+const FITTT = [['F', 'phenylalanine'], ['I', 'isoleucine'], ['T', 'tyrosine'], ['T', 'tryptophan'], ['T', 'threonine']];
+function mixedContent(g, T) {
+  const lit = FITTT.map((_, i) => { const e = G(g, { x: 800 + (i - 2) * 72, y: 296, o: 0 }); mk('rect', { x: -32, y: -38, width: 64, height: 76, rx: 14, fill: MIXC, 'fill-opacity': .25, stroke: MIXC, 'stroke-width': 3 }, e); return e; });
+  const letters = FITTT.map(([c], i) => wLabel(g, c, { x: 800 + (i - 2) * 72, y: 330, size: 92, fill: COL.chalk, weight: 800, o: 0 }));
+  const chips = FITTT.map(([, n]) => aaChip(g, n, { code: 'name', size: 26, o: 0 }));
+  const rg = G(g, { o: 0 });
+  ring(rg, 'benzene', { x: 950, y: 430, b: 16 }); ring(rg, 'benzene', { x: 950, y: 586, b: 16 }); ring(rg, 'indole', { x: 960, y: 664, b: 14 });
+  const nt = G(g, { o: 0 });
+  wLabel(nt, 'part → glucose', { x: 800, y: 796, size: 22, fill: PC.gluco, weight: 700, o: 1 });
+  wLabel(nt, 'part → ketone bodies', { x: 800, y: 826, size: 22, fill: PC.keto, weight: 700, o: 1 });
+  return {
+    chips, letters,
+    set(t) {
+      letters.forEach((e, i) => mO(e, mRamp(t, T.fit + .25 * i, T.fit + .25 * i + .4)));
+      lit.forEach((e, i) => mO(e, mRamp(t, T.chips[i] - .1, T.chips[i] + .2) * (1 - mRamp(t, (T.chips[i + 1] ?? T.chips[4] + 2) - .2, (T.chips[i + 1] ?? T.chips[4] + 2) + .1))));
+      chips.forEach((c, i) => { dropAt(c, 770, 430 + i * 78, t, T.chips[i] + .2); c.split(mRamp(t, T.split + .25 * i, T.split + .25 * i + .5)); });
+      mO(rg, mRamp(t, T.ring, T.ring + .5));
+      mO(nt, mRamp(t, T.split + 3, T.split + 3.5));
+    },
+  };
+}
+// the glucogenic column: "the remaining 13" and thirteen chips in the slide's order. T: { rest, names: [13 times] }
+const GLUCO = ['alanine', 'arginine', 'asparagine', 'aspartic acid', 'glutamic acid', 'glutamine', 'glycine', 'cysteine', 'histidine', 'methionine', 'proline', 'serine', 'valine'];
+const glucoAt = i => [i < 7 ? 1188 : 1410, 410 + (i < 7 ? i : i - 7) * 58];
+function glucoContent(g, T) {
+  const rm = wLabel(g, 'the remaining', { x: 1300, y: 250, size: 24, fill: COL.dim, weight: 700, o: 0 });
+  const n13 = wLabel(g, '13', { x: 1300, y: 345, size: 96, fill: PC.gluco, weight: 800, o: 0 });
+  const chips = GLUCO.map(n => aaChip(g, n, { code: 'name', size: 21, o: 0 }));
+  return {
+    chips,
+    set(t) {
+      mO(rm, mRamp(t, T.rest, T.rest + .4)); mO(n13, mRamp(t, T.rest + 2.2, T.rest + 2.6));
+      chips.forEach((c, i) => dropAt(c, ...glucoAt(i), t, T.names[i]));
+    },
+  };
+}
+const ALL_DONE = { ll: -9, leu: -9, lys: -9, l1: -9, l2: -9, never: -9, ess: -9, cls1: -9, cls2: -9, fit: -9, chips: [-9, -9, -9, -9, -9], ring: -9, split: -12, rest: -9, names: GLUCO.map(() => -9) };
+// the thirteen names spoken from t0 to t1: start times by syllable count
+function nameTimes(t0, t1) {
+  const syl = [3, 3, 4, 4, 4, 3, 2, 3, 3, 4, 2, 2, 3], gap = .55, tot = syl.reduce((a, b) => a + b, 0) + gap * 12;
+  let a = 0; return syl.map(n => { const v = t0 + (t1 - t0) * a / tot; a += n + gap; return v; });
+}
+
+/* ---------- fast: small flat shapes ---------- */
+function liver(p, { x, y }) {
+  const g = G(p, { x, y });
+  path(g, 'M-150 -30C-140 -90 -40 -100 40 -90C110 -84 160 -60 150 -10C142 40 60 64 -10 76C-80 86 -150 50 -150 -30Z', { fill: '#8a3b32', stroke: '#c8786c', 'stroke-width': 5 });
+  path(g, 'M-30 -88C-10 -40 -20 20 -40 70', { stroke: '#6e2a22', 'stroke-width': 4, fill: 'none' });
+  wLabel(g, 'liver', { y: 10, size: 32, fill: '#f6d8d0', weight: 800, o: 1 });
+  return g;
+}
+function brain(p, { x, y }) {
+  const g = G(p, { x, y });
+  path(g, 'M-90 20C-110 -10 -96 -56 -60 -64C-48 -90 -6 -96 14 -80C40 -96 84 -82 90 -50C116 -40 116 0 96 18C96 44 66 58 40 52C20 66 -14 66 -30 52C-60 62 -90 48 -90 20Z', { fill: '#3a2a44', stroke: '#e8a0c8', 'stroke-width': 5 });
+  path(g, 'M-56 -30C-40 -20 -40 0 -56 10M-6 -60C6 -40 -10 -24 4 -6M40 -50C30 -30 50 -16 40 6M-20 20C0 30 20 26 30 34', { stroke: '#e8a0c8', 'stroke-width': 3.5, fill: 'none', 'stroke-opacity': .8 });
+  wLabel(g, 'brain', { y: 100, size: 26, fill: '#e8a0c8', weight: 700, o: 1 });
+  return g;
+}
+function muscle(p, { x, y }) {
+  const g = G(p, { x, y });
+  path(g, 'M-110 0C-70 -44 70 -44 110 0C70 44 -70 44 -110 0Z', { fill: '#7a3036', stroke: '#e07a72', 'stroke-width': 5 });
+  path(g, 'M-70 -14C-20 -24 20 -24 70 -14M-80 2C-20 -6 20 -6 80 2M-70 16C-20 24 20 24 70 16', { stroke: '#e07a72', 'stroke-width': 3, fill: 'none', 'stroke-opacity': .7 });
+  wLabel(g, 'muscle', { y: 74, size: 26, fill: '#e07a72', weight: 700, o: 1 });
+  return g;
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A plate, and the metabolic tab', (m, D) => {
+  const p = panel(0), tP = m('plate'), tC = m('card'), tT = m('tab');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W, { o: 0 }); show(back, .2, .6); hide(back, tC + .6, .6);
+  const pl = plate(back, { x: 560, y: 500 });
+  // the chips the protein breaks into: scattered round the plate, a few glowing (used as fuel)
+  const SC = [['Ala', 330, 300], ['Leu', 520, 270], ['Gly', 720, 300], ['Lys', 860, 420], ['Ser', 880, 600], ['Phe', 740, 720], ['Val', 520, 740],
+    ['Glu', 320, 700], ['Thr', 220, 560], ['Tyr', 230, 400], ['Asp', 620, 520], ['Ile', 440, 500]];
+  const chipG = G(back); hide(chipG, tC, .5);   // the chips go first, the plate as the camera pushes in
+  const chips = SC.map(([n]) => aaChip(chipG, n, { size: 26, o: 0 }));
+  const fuel = [1, 3, 6, 9];
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOCHEMISTRY · CHAPTER 1 · LESSON 4', { x: 1270, y: 250, size: 24, fill: COL.dim, o: 1 });
+  ['Metabolic', 'classification'].forEach((s, i) => wLabel(ttl, s, { x: 1270, y: 335 + i * 64, size: 54, o: 1 }));
+  wLabel(ttl, 'glucogenic and ketogenic', { x: 1270, y: 476, size: 30, fill: PC.gluco, weight: 700, o: 1 });
+  wLabel(ttl, 'Amino acids', { x: 1270, y: 530, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .6, .5);
+  const fl = say(chipG, 'some used as fuel', 560, 860, 9.4, { size: 28, fill: PC.task });
+  void fl;
+  cam.to({ x: 560, y: 500, z: 3 }, tC, 1.8);
+  // the card: in screen space, fades in as the camera pushes into the plate, then shrinks to the corner on "tab"
+  const cw = G(p, { x: 800, y: 450, s: .6, o: 0 });
+  const card = aminoCard(cw, { x: 0, y: 0 });
+  // the skeleton question (after "tab")
+  const Q = G(p);
+  const am = aminoAcid(Q, { x: 520, y: 520, s: 1.1, r: 'R' });
+  const nh = G(Q, { o: 0 });   // the amino group, drawn here so it can leave
+  const stick = path(Q, 'M485 520L424 520', { stroke: PC.stick, 'stroke-width': 7.7 }); put(stick, { o: 0 });
+  mk('rect', { x: -59, y: -28.5, width: 118, height: 57, rx: 28.5, fill: PC.amino, stroke: PC.ink, 'stroke-width': 3 }, nh);
+  wChem(nh, 'NH_2', { y: 12, size: 33, fill: PC.ink, weight: 800, o: 1 });
+  const nl = G(Q, { o: 0 });
+  wLabel(nl, 'amino group (the nitrogen)', { x: 250, y: 300, size: 24, fill: PC.amino, weight: 700, o: 1 });
+  wLabel(nl, 'taken off first', { x: 250, y: 330, size: 24, fill: COL.chalk, weight: 700, o: 1 });
+  const sk = G(Q, { o: 0 });
+  mk('rect', { x: 462, y: 348, width: 326, height: 310, rx: 26, fill: 'none', stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '12 10' }, sk);
+  wLabel(sk, 'carbon skeleton', { x: 625, y: 330, size: 28, fill: COL.chalk, weight: 800, o: 1 });
+  const arw = G(Q, { o: 0 }); mArrow(arw, [810, 510], [930, 510], { color: COL.chalk, w: 6 });
+  const qm = say(Q, '?', 990, 545, tT + 7.4, { size: 110, fill: PC.task, weight: 800 });
+  void qm;
+  const opts = [['glucose', 'glucose', PC.gluco, 330], ['ketone', 'ketone bodies', PC.keto, 510], ['fork', 'both', MIXC, 690]].map(([ic, str, col, y], i) => {
+    const g = G(Q, { o: 0 });
+    mArrow(g, [1050, 510 + (y - 510) * .25], [1130, y], { color: COL.dim, w: 4, head: 14 });
+    classIcon(g, ic, { x: 1200, y, size: ic === 'fork' ? 64 : 76 });
+    wLabel(g, str, { x: 1262, y: y + 11, size: 34, fill: col, weight: 800, anchor: 'start', o: 1 });
+    show(g, tT + 10.9 + .55 * i, .4);
+    return g;
+  });
+  void opts;
+  const cc = cornerCard(p, { o: 0 });
+  clockRun(t => {
+    // the plate digests: the food shrinks away, chips scatter out from the middle
+    put(pl.food, { o: Math.round((1 - mRamp(t, 6.8, 8.2)) * 1000) / 1000 });
+    chips.forEach((c, i) => {
+      // each starts on the food, half way out to its place (so no two start on one spot), and moves out
+      const [, x, y] = SC[i], k = io(mRamp(t, 6.8 + .08 * i, 8.4 + .08 * i));
+      mPose(c, mLerp(560 + .5 * (x - 560), x, k), mLerp(500 + .5 * (y - 500), y, k), mRamp(t, 6.8 + .08 * i, 7.2 + .08 * i));
+      if (fuel.includes(i)) c.glow(mRamp(t, 9.6, 10.2) * (.65 + .35 * Math.sin((t - 9.6) * 3) ** 2));
+      else c.glow(0);
+    });
+    // the card: in at "card", the Metabolic tab lit, then to its corner at "tab"
+    const [x, y, s] = keyAt(t, [[tC + .6, 800, 450, .6], [tC + 1.8, 800, 450, .944], [tT, 800, 450, .944], [tT + 1.2, 175, 800, .22]]);
+    poseS(cw, x, y, s, mRamp(t, tC + .6, tC + 1.3) * (1 - mRamp(t, tT + 1, tT + 1.3)));
+    card.focus('metabolic', mRamp(t, tC + 2.4, tC + 3.2)).glow('metabolic', mRamp(t, tC + 3, tC + 3.6));
+    mO(cc, mRamp(t, tT + 1, tT + 1.3));
+    // the skeleton question: the amino acid builds, the amino group is taken off, the rest is outlined
+    const b = mRamp(t, tT + .8, tT + 2.2);
+    am.parts({ ca: mRamp(b, 0, .3), amino: 0, carboxyl: mRamp(b, .2, .6), h: mRamp(b, .4, .8), r: mRamp(b, .5, 1) });
+    const [nx, ny] = keyAt(t, [[tT + 2.6, 364, 520], [tT + 4.3, 250, 395]]);
+    mPose(nh, nx, ny, mRamp(t, tT + 1.2, tT + 1.7));
+    mO(stick, mRamp(t, tT + 1.2, tT + 1.7) * (1 - mRamp(t, tT + 2.4, tT + 2.7)));
+    mO(nl, mRamp(t, tT + 3.6, tT + 4.1));
+    mO(sk, mRamp(t, tT + 4.6, tT + 5.1));
+    mO(arw, mRamp(t, tT + 6.6, tT + 7.1));
+  }, D);
+}],
+
+/* ---------- fork ---------- */
+['fork', 'A road that forks', (m, D) => {
+  const p = panel(0), tF = m('fork'), tG = m('glc'), tK = m('ket'), tB = m('both'), t3 = m('three');
+  const cc = cornerCard(p);
+  void cc;
+  const J = [800, 640], LP = [[800, 900], J, [760, 575], [340, 350]], RP = [[800, 900], J, [840, 575], [1260, 350]];
+  const road = G(p, { o: 0 }); show(road, tF, .8);
+  const pd = pts => 'M' + pts.map(q => q.join(' ')).join('L');
+  [LP, RP].forEach(P => path(road, pd(P), { stroke: '#22344d', 'stroke-width': 66, fill: 'none', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+  [LP, RP].forEach(P => path(road, pd(P.slice(2)), { stroke: '#5d7392', 'stroke-width': 3, fill: 'none', 'stroke-dasharray': '16 14' }));
+  path(road, 'M800 900L800 620', { stroke: '#5d7392', 'stroke-width': 3, fill: 'none', 'stroke-dasharray': '16 14' });
+  const sl = say(p, 'carbon skeleton', 860, 838, tF + .6, { size: 24, fill: COL.dim, anchor: 'start' }); hide(sl, tG + 1, .4);
+  // the ends: ketone bodies (left), glucose (right)
+  const endG = (x, ic, name, sub, tag, col, t0, tSub, tTag) => {
+    const iw = G(p, { x, y: 270 }), ii = G(iw, { o: 0 }); classIcon(ii, ic, { size: 130 });
+    tw(ii, { o: 1 }, t0, .4); pulse(iw, t0 + .1, 1.25);
+    say(p, name, x, 165, t0 + .2, { size: 34, fill: col, weight: 800 });
+    say(p, sub, x, 202, tSub, { size: 22, fill: COL.dim, weight: 600 });
+    const tw0 = G(p, { x, y: 95 }), tg = tagPill(tw0, tag, col, { o: 0, ink: col === PC.keto ? '#f6f0ff' : '#0f1e33' }); show(tg, tTag, .4);
+    return { iw, tw: tw0 };
+  };
+  const gl = endG(1290, 'glucose', 'glucose', 'the slide says: carbohydrate', 'glucogenic', PC.gluco, tG, tG + 2.2, tG + 9.6);
+  const kt = endG(310, 'ketone', 'ketone bodies', 'a fuel the liver makes', 'ketogenic', PC.keto, tK, tK + 1.6, tK + 5.4);
+  const mxw = G(p, { x: 800, y: 420 }), mx = tagPill(mxw, 'mixed', null, { o: 0, split: true }); show(mx, tB + 3.9, .4);
+  say(p, 'glucogenic and ketogenic', 800, 474, tB + 4.4, { size: 22, fill: COL.chalk, weight: 700 });
+  // tags light in order on "Ketogenic, mixed, and glucogenic"
+  [[kt.tw, t3 + 1.9], [mxw, t3 + 2.7], [gl.tw, t3 + 3.6]].forEach(([w, t0]) => pulse(w, t0, 1.25));
+  // skeletons on the road
+  const lineL = lineOf(LP), lineR = lineOf(RP), lineJ = lineOf([[800, 840], J]);
+  const sA = skeleton(p), sB = skeleton(p), sC = skeleton(p), cL = skeleton(p), cR = skeleton(p);
+  [cL.R, cR.L].forEach(h => put(h, { o: 0 }));   // the two halves of the mixed one: one half each
+  // fraction of the road from the foot to the junction
+  const kJ = 260 / (260 + Math.hypot(LP[2][0] - J[0], LP[2][1] - J[1]) + Math.hypot(LP[3][0] - LP[2][0], LP[3][1] - LP[2][1]));
+  clockRun(t => {
+    // A to glucose, B to ketone bodies: wait at the foot, run, arrive and fade into the end
+    const run = (s, line, t0, t1, tWait) => {
+      const k = io(mRamp(t, t0, t1)), [x, y] = line.at(mLerp(.06, 1, k));
+      const bob = 5 * Math.sin(2 * Math.PI * (t - tWait) / 1.6) * (1 - mRamp(t, t0 - .4, t0));   // waiting at the foot
+      mPose(s, x, y + bob, mRamp(t, tWait, tWait + .3) * (1 - mRamp(t, t1, t1 + .4)));
+    };
+    run(sA, lineR, tG + 7.7, tG + 10.1, tF + .6);
+    run(sB, lineL, tK + 5.3, tK + 7.6, tG + 10.4);
+    // C: to the junction, then splits: its left half to ketone bodies, its right half to glucose
+    const kc = io(mRamp(t, tB + .6, tB + 1.8)), [jx, jy] = lineJ.at(kc);
+    const o0 = mRamp(t, tK + 7.9, tK + 8.2);
+    mPose(sC, jx, jy, o0 * (1 - mRamp(t, tB + 1.8, tB + 1.9)));
+    const ks = io(mRamp(t, tB + 2, tB + 4.2));
+    const [lx, ly] = lineL.at(mLerp(kJ, 1, ks)), [rx, ry] = lineR.at(mLerp(kJ, 1, ks));
+    const oh = mRamp(t, tB + 1.8, tB + 1.9) * (1 - mRamp(t, tB + 4.2, tB + 4.6));
+    mPose(cL, lx, ly, oh); mPose(cR, rx, ry, oh);
+  }, D);
+  pulse(gl.iw, tG + 10.1, 1.2); pulse(kt.iw, tK + 7.6, 1.2);
+  [gl.iw, kt.iw].forEach(e => pulse(e, tB + 4.2, 1.2));
+}],
+
+/* ---------- keto ---------- */
+['keto', 'Ketogenic: LL', (m, D) => {
+  const p = panel(0), tL = m('ll'), tT = m('tag'), tK = m('link');
+  const cols = sortTable(p);
+  const kc = ketoContent(cols[0], { ll: tL + .2, leu: tL + 3.2, lys: tL + 4.2, l1: 8.9, l2: 9.6, never: tT, ess: tK + .4, cls1: tK + 4.8, cls2: tK + 6.6 });
+  // frames follow the words: "two L's" (6.8 s) round LL, "They never become glucose" (13.6 s) round the never-glucose lines
+  const frm = (x, y, w, h) => { const r = mk('rect', { x, y, width: w, height: h, rx: 18, fill: PC.keto, 'fill-opacity': .1, stroke: PC.keto, 'stroke-width': 4 }, p); put(r, { o: 0 }); return r; };
+  const fLL = frm(190, 256, 220, 124), fNv = frm(140, 680, 320, 124);
+  clockRun(t => {
+    kc.set(t);
+    mO(fLL, mRamp(t, 6.7, 7.1) * (1 - mRamp(t, 9.8, 10.3))); mO(fNv, mRamp(t, 13.4, 13.8) * (1 - mRamp(t, 15.2, 15.7)));
+    mO(cols[0], 1); mO(cols[1], .3); mO(cols[2], .3);
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', () => {
+  const p = panel(0);
+  box5(p, 90, 120, 470, 620, { stroke: PC.keto, rx: 26 });
+  classIcon(p, 'ketone', { x: 325, y: 270, size: 150 });
+  wLabel(p, 'ketone bodies only', { x: 325, y: 410, size: 30, fill: PC.keto, weight: 800, o: 1 });
+  noGlucose(p, { x: 230, y: 470, size: 44 });
+  wLabel(p, 'never glucose', { x: 264, y: 479, size: 24, fill: COL.bad, weight: 700, anchor: 'start', o: 1 });
+  aaChip(p, '?', { x: 240, y: 600, color: PC.keto, size: 34, w: 120 });
+  aaChip(p, '?', { x: 410, y: 600, color: PC.keto, size: 34, w: 120 });
+  wLabel(p, 'which two?', { x: 325, y: 690, size: 26, fill: COL.dim, weight: 700, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-keto', prompt: ['Which two amino acids are purely ketogenic?'],
+  build: choice([['phenylalanine and tyrosine'], ['leucine and lysine'], ['alanine and glycine'], ['threonine and tryptophan']], 1,
+    'Right. Two L’s: leucine and lysine give ketone bodies only, never glucose.',
+    ['Phenylalanine and tyrosine are in fit with three T’s: they are mixed, giving glucose as well as ketone bodies.', null,
+      'Alanine and glycine are glucogenic: they belong to the long list of thirteen.',
+      'Threonine and tryptophan are two of the T’s in FITTT: mixed, not purely ketogenic.']),
+}], done) }],
+
+/* ---------- mixed ---------- */
+['mixed', 'Mixed: FITTT', (m, D) => {
+  const p = panel(0), tF = m('fit'), tR = m('ring'), tS = m('split');
+  const cols = sortTable(p);
+  const kc = ketoContent(cols[0], ALL_DONE);
+  const mc = mixedContent(cols[1], { fit: tF + 5.7, chips: [m('f'), m('i'), m('t1'), m('t2'), m('t3')], ring: tR + 1.2, split: tS + .4 });
+  const s5 = say(p, 'five give both', 800, 242, tF + 1.9, { size: 26, fill: MIXC });
+  void s5;
+  clockRun(t => {
+    kc.set(t); mc.set(t);
+    mO(cols[0], .45); mO(cols[1], 1); mO(cols[2], .3);
+  }, D);
+}],
+
+/* ---------- gluco ---------- */
+['gluco', 'Glucogenic: the remaining thirteen', (m, D) => {
+  const p = panel(0), tR = m('rest'), tN = m('names'), tT = m('tip'), tQ = m('trio');
+  const cols = sortTable(p);
+  const kc = ketoContent(cols[0], ALL_DONE), mc = mixedContent(cols[1], ALL_DONE);
+  const gc = glucoContent(cols[2], { rest: tR + .1, names: nameTimes(tN, tN + 11.9) });
+  const tip = G(p, { o: 0 }); show(tip, tT + 3.2, .5); hide(tip, tQ - .5, .4);
+  wLabel(tip, 'not leucine, not lysine, not FITTT  →  glucogenic', { x: 800, y: 880, size: 28, fill: PC.gluco, weight: 800, o: 1 });
+  const trio = G(p, { o: 0 }); show(trio, tQ + 1, .5);
+  wLabel(trio, 'branched-chain cousins: three different roads', { x: 800, y: 880, size: 28, fill: PC.branched, weight: 800, o: 1 });
+  // the tip read along: a frame lights each column as its words are said (cue at tip + 3.2 s; word times estimated)
+  const hiCol = COLS.map(c => { const r = mk('rect', { x: c.x - COL_W / 2 - 8, y: COL_TOP - 8, width: COL_W + 16, height: COL_BOT - COL_TOP + 16, rx: 32, fill: 'none', stroke: c.color, 'stroke-width': 6 }, p); put(r, { o: 0 }); return r; });
+  const HI = [[tT + 3.7, tT + 5.6], [tT + 5.6, tT + 7.4], [tT + 7.4, tQ - .5]];
+  const TRIO = [[mc.chips[1], 5.9], [kc.leu, 7.3], [gc.chips[12], 6.4]];
+  const others = [kc.lys, ...mc.chips.filter((_, i) => i !== 1), ...gc.chips.slice(0, 12)];
+  clockRun(t => {
+    kc.set(t); mc.set(t); gc.set(t);
+    const all = mRamp(t, tT + .4, tT + 1.2);
+    mO(cols[0], .45 + .55 * all); mO(cols[1], .45 + .55 * all); mO(cols[2], 1);
+    // the trap: valine, isoleucine and leucine glow in their own columns; the rest dim
+    const tk = mRamp(t, tQ + 1, tQ + 1.6);
+    others.forEach(c => mO(c, st(c).o * (1 - .7 * tk)));   // after set(t), which wrote this frame's fade-in
+    TRIO.forEach(([c, dt]) => c.glow(tk * (t < tQ + dt ? .55 : .55 + .45 * mBump(t, tQ + dt, tQ + dt + 1.4))));
+    // "not leucine, not lysine" lights LL and its two chips; "not in fit…" the mixed column; then the glucogenic one breathes
+    HI.forEach(([a, b], i) => mO(hiCol[i], mRamp(t, a, a + .3) * (1 - mRamp(t, b - .3, b)) * (i < 2 ? 1 : .55 + .45 * (1 - Math.cos(2 * Math.PI * (t - a) / 2.2)) / 2)));
+    if (t < tQ) { kc.leu.glow(mBump(t, tT + 3.7, tT + 4.9)); kc.lys.glow(mBump(t, tT + 4.6, tT + 5.8)); }
+    else kc.leu.glow(tk * (t < tQ + 7.3 ? .55 : .55 + .45 * mBump(t, tQ + 7.3, tQ + 8.7)));
+  }, D);
+}],
+
+/* ---------- count ---------- */
+['count', 'Twenty, each filed once', (m, D) => {
+  const p = panel(0), tC = m('count'), tS = m('sum'), tTn = m('ten');
+  const sc = .62, wrap = G(p, { x: 800 * (1 - sc), y: 0, s: sc });
+  const cols = sortTable(wrap);
+  ketoContent(cols[0], ALL_DONE).set(0); mixedContent(cols[1], ALL_DONE).set(0); glucoContent(cols[2], ALL_DONE).set(0);
+  const X = COLS.map(c => 800 * (1 - sc) + c.x * sc);   // the columns' centres on the stage
+  const Y = 610;
+  const nums = [['2', PC.keto, 2.3], ['5', MIXC, 3.3], ['13', PC.gluco, 4.3]].map(([s, col, dt], i) => {
+    const w = G(p, { x: X[i], y: Y }), e = wLabel(w, s, { y: 24, size: 70, fill: col, weight: 800, o: 0 });
+    show(e, tC + dt - .2, .3); pulse(w, tC + dt, 1.3); return w;
+  });
+  [[2, tTn + 3.1], [1, tTn + 4.2], [0, tTn + 8.4], [1, tTn + 9.3]].forEach(([i, t0]) => pulse(nums[i], t0, 1.2));   // "the thirteen, plus the five" … "the two, plus the five"
+  say(p, '+', (X[0] + X[1]) / 2, Y + 22, tS + .3, { size: 60, weight: 800 });
+  say(p, '+', (X[1] + X[2]) / 2, Y + 22, tS + 1.6, { size: 60, weight: 800 });
+  say(p, '= 20', X[2] + 210, Y + 24, tS + 2.6, { size: 70, weight: 800, fill: COL.chalk });
+  say(p, 'our own sum', X[2] + 210, Y + 66, tS + 3.2, { size: 20, fill: COL.dim, weight: 600 });
+  say(p, 'all 20 standard amino acids, each filed once', 800, 712, tS + 4.4, { size: 26, fill: COL.chalk });
+  // brackets: 18 can make glucose (mixed + glucogenic), 7 can make ketone bodies (ketogenic + mixed)
+  const bracket = (x1, x2, y, col, str, t0) => {
+    const g = G(p, { o: 0 }); show(g, t0, .5);
+    path(g, `M${x1} ${y - 16}V${y}H${x2}V${y - 16}`, { stroke: col, 'stroke-width': 5, fill: 'none' });
+    wChem(g, str, { x: (x1 + x2) / 2, y: y + 38, size: 28, fill: col, weight: 800, o: 1 });
+    return g;
+  };
+  bracket(X[1] - 140, X[2] + 140, 760, PC.gluco, '18 can make glucose: 13 + 5', tTn + .3);
+  bracket(X[0] - 140, X[1] + 140, 830, PC.keto, '7 can make ketone bodies: 2 + 5', tTn + 5.6);
+  const hi = G(p, { o: 0 }); show(hi, tTn + .3, .5); hide(hi, tTn + 5.3, .4);
+  [1, 2].forEach(i => mk('rect', { x: X[i] - 150, y: 40, width: 300, height: 498, rx: 20, fill: 'none', stroke: PC.gluco, 'stroke-width': 4 }, hi));
+  const hk = G(p, { o: 0 }); show(hk, tTn + 5.6, .5);
+  [0, 1].forEach(i => mk('rect', { x: X[i] - 146, y: 44, width: 292, height: 490, rx: 18, fill: 'none', stroke: PC.keto, 'stroke-width': 4, 'stroke-dasharray': '12 8' }, hk));
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', () => {
+  const p = panel(0);
+  [['ketone', PC.keto, 'ketogenic', '2'], ['fork', MIXC, 'mixed', '5'], ['glucose', PC.gluco, 'glucogenic', '13']].forEach(([ic, col, name, n], i) => {
+    const x = 140 + i * 175;
+    box5(p, x - 78, 160, 156, 400, { stroke: col, rx: 20 });
+    classIcon(p, ic, { x, y: 230, size: ic === 'fork' ? 54 : 64 });
+    wLabel(p, name, { x, y: 310, size: 22, fill: col, weight: 800, o: 1 });
+    wLabel(p, n, { x, y: 440, size: 76, fill: col, weight: 800, o: 1 });
+  });
+  classIcon(p, 'glucose', { x: 230, y: 660, size: 60 });
+  wLabel(p, 'can make glucose: ?', { x: 270, y: 670, size: 28, weight: 800, anchor: 'start', o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-count', prompt: ['How many of the twenty amino acids can make glucose?'],
+  build: choice([['13'], ['15'], ['18'], ['20']], 2,
+    'Right. The 13 glucogenic ones plus the 5 mixed ones: 13 + 5 = 18. Only leucine and lysine cannot.',
+    ['13 counts only the purely glucogenic ones. The five mixed ones (FITTT) can make glucose too.',
+      '15 is not a sum of any of the groups. Add the glucogenic 13 and the mixed 5.', null,
+      'Not all twenty: leucine and lysine are purely ketogenic and never become glucose.']),
+}], done) }],
+
+/* ---------- fast ---------- */
+['fast', 'Why it matters: a long fast', (m, D) => {
+  const p = panel(0), tM = m('meal'), tF = m('fast'), tK = m('ketone'), tL = m('light');
+  // the clock: hours pass
+  const ck = G(p, { x: 190, y: 190, o: 0 }); show(ck, tM + .2, .5);
+  mk('circle', { r: 86, fill: '#f2efe6', stroke: '#9fb0c6', 'stroke-width': 6 }, ck);
+  for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; mk('line', { x1: 70 * Math.sin(a), y1: -70 * Math.cos(a), x2: 80 * Math.sin(a), y2: -80 * Math.cos(a), stroke: '#0f1e33', 'stroke-width': i % 3 ? 3 : 6 }, ck); }
+  const hh = G(ck), mh = G(ck);
+  mk('line', { x1: 0, y1: 8, x2: 0, y2: -44, stroke: '#0f1e33', 'stroke-width': 8, 'stroke-linecap': 'round' }, hh);
+  mk('line', { x1: 0, y1: 10, x2: 0, y2: -66, stroke: '#0f1e33', 'stroke-width': 5, 'stroke-linecap': 'round' }, mh);
+  mk('circle', { r: 7, fill: '#0f1e33' }, ck);
+  say(p, 'many hours without food', 190, 318, tF + .4, { size: 24, fill: COL.chalk });
+  // the last meal: an empty plate that fades as the fast begins
+  const pm = G(p, { x: 420, y: 190, o: 0 }); show(pm, tM, .3); hide(pm, tF + .8, .6);
+  const pl = plate(pm, { s: .34 }); put(pl.food, { o: 0 });
+  wLabel(pm, 'last meal', { y: 86, size: 22, fill: COL.dim, weight: 700, o: 1 });
+  // liver, blood glucose gauge, brain, muscle
+  const LV = [620, 500];
+  liver(G(p), { x: LV[0], y: LV[1] });
+  const GX = 1250, GY0 = 160, GH = 300;
+  const gauge = G(p);
+  wLabel(gauge, 'blood glucose', { x: GX, y: GY0 - 30, size: 28, fill: PC.gluco, weight: 800, o: 1 });
+  mk('rect', { x: GX - 40, y: GY0, width: 80, height: GH, rx: 14, fill: '#3a1218', stroke: '#e07a72', 'stroke-width': 4 }, gauge);
+  const lev = mk('rect', { x: GX - 32, y: GY0 + 8, width: 64, height: 10, rx: 8, fill: PC.gluco }, gauge);
+  path(gauge, `M${GX - 56} ${GY0 + GH * .45}H${GX + 56}`, { stroke: COL.chalk, 'stroke-width': 3, 'stroke-dasharray': '8 6' });
+  const kept = say(p, 'kept up', GX + 70, GY0 + GH * .45 + 9, tF + 9, { size: 24, fill: COL.chalk, anchor: 'start' });
+  void kept;
+  const BR = [1060, 680], MU = [1400, 700];
+  const brG = G(p, { o: 0 }); show(brG, tK + 2.5, .5); brain(brG, { x: BR[0], y: BR[1] });
+  const muG = G(p, { o: 0 }); show(muG, tK + 3.2, .5); muscle(muG, { x: MU[0], y: MU[1] });
+  // glucogenic chips into the liver, glucose hexagons out to the blood
+  const IN = ['Ala', 'Gly', 'Ser'].map(n => aaChip(p, n, { size: 24, o: 0 }));
+  const hex = Array.from({ length: 5 }, () => classIcon(p, 'glucose', { size: 40, o: 0 }));
+  const lg = say(p, 'glucogenic skeletons → new glucose', 620, 330, tF + 6.6, { size: 26, fill: PC.gluco });
+  void lg;
+  // ketone bodies: flasks from the liver to brain and muscle; leucine and lysine feed them, never glucose
+  const fl = Array.from({ length: 6 }, () => classIcon(p, 'ketone', { size: 40, o: 0 }));
+  const KIN = ['Leu', 'Lys'].map(n => aaChip(p, n, { size: 24, o: 0 }));
+  const kl = say(p, 'ketone bodies: fuel for brain and muscle', 1180, 826, tK + 4.2, { size: 26, fill: PC.keto });
+  void kl;
+  const ng = G(p, { o: 0 }); show(ng, tK + 8.4, .4);
+  noGlucose(ng, { x: 300, y: 780, size: 44 });
+  wLabel(ng, 'no glucose from these', { x: 334, y: 789, size: 24, fill: COL.bad, weight: 700, anchor: 'start', o: 1 });
+  const lt = say(p, 'how these pathways work: a later course', 800, 880, tL + 1.8, { size: 22, fill: COL.dim, weight: 600 });
+  lt.setAttribute('font-style', 'italic');
+  const toBlood = lineOf([[LV[0] + 150, LV[1] - 40], [GX - 100, GY0 + GH - 30], [GX, GY0 + GH - 30]]);
+  const toBrain = lineOf([[LV[0] + 80, LV[1] + 70], [BR[0] - 60, BR[1] - 30]]);
+  const toMuscle = lineOf([[LV[0] + 140, LV[1] + 40], [1190, 560], [MU[0] - 60, MU[1] - 50]]);
+  const chipIn = lineOf([[120, 520], [LV[0] - 120, 500]]);
+  const kIn = lineOf([[160, 680], [LV[0] - 80, LV[1] + 60]]);
+  clockRun(t => {
+    const hrs = 12 * mRamp(t, tF, tF + 20) + .5 * mRamp(t, tF + 20, D);
+    put(hh, { r: Math.round(hrs * 30 * 10) / 10 }); put(mh, { r: Math.round(hrs * 360 * 10) / 10 % 360 });
+    // the level falls, then holds once new glucose arrives
+    const L = .8 - .32 * io(mRamp(t, tF + .6, tF + 5.5)) + .08 * io(mRamp(t, tF + 8, tF + 10));
+    const hpx = Math.round(L * (GH - 16));
+    lev.setAttribute('y', GY0 + GH - 8 - hpx); lev.setAttribute('height', hpx);
+    // streams: each item loops along its line with a period, phase-shifted; all from t
+    const stream = (items, line, t0, per, t1 = 1e9) => items.forEach((e, i) => {
+      const u = (t - t0) / per - i / items.length;
+      if (u < 0 || t > t1 + per) { mO(e, 0); return; }
+      const f = frac(u), [x, y] = line.at(f);
+      mPose(e, x, y, Math.min(mRamp(f, 0, .1), 1 - mRamp(f, .85, 1)) * (t < t1 ? 1 : 1 - mRamp(t, t1, t1 + .5)));
+    });
+    stream(IN, chipIn, tF + 5.2, 3);
+    stream(hex, toBlood, tF + 6.6, 2.6);
+    stream(fl.slice(0, 3), toBrain, tK + 2.6, 2.6);
+    stream(fl.slice(3), toMuscle, tK + 3.2, 2.6);
+    stream(KIN, kIn, tK + 7.2, 2.8);
+  }, D);
+}],
+
+/* ---------- recap ---------- */
+['recap', 'The whole chapter on one card', (m, D) => {
+  const p = panel(0), tC = m('card2'), tS = m('s'), tCh = m('c'), tN = m('n'), tM = m('m'), tA = m('all'), tY = m('tyr');
+  const cw = G(p, { x: 800, y: 430, s: .95 });
+  const card = aminoCard(cw, { x: 0, y: 0, aa: 'lysine' });
+  const two = say(p, 'two NH_2, one COOH', 1338, 590, tCh + 1.4, { size: 24, fill: COL.dim, weight: 700 }); hide(two, tY, .4);
+  const strip = stepText(p, [[tA + .4, 'lysine: aliphatic basic · basic · essential · ketogenic'], [tY + 1.6, 'tyrosine: aromatic · neutral · non-essential · mixed']], { x: 800, y: 862, size: 30, fill: COL.chalk });
+  const tY1 = tY + .2, tSw = tY + .9;   // lysine fades out, tyrosine fades in
+  const LYS = { structural: ['aliphatic|basic', PC.basic, tS + 1], chemical: ['basic|+ charge', PC.basic, tCh + 1], nutritional: ['essential|from the diet', PC.essential, tN + 1], metabolic: ['ketogenic', PC.keto, tM + 1.1] };
+  const TYR = { structural: ['aromatic', PC.aromatic, tY + 1.8], chemical: ['neutral', PC.neutral, tY + 2.4], nutritional: ['non-essential|made in the body', PC.nonEssential, tY + 3.1], metabolic: ['mixed (FITTT)', MIXC, tY + 4.3] };
+  const ORDER = ['structural', 'chemical', 'nutritional', 'metabolic'], LIT = [[tS, 'structural'], [tCh, 'chemical'], [tN, 'nutritional'], [tM, 'metabolic']];
+  clockRun(t => {
+    card.build(mRamp(t, tC + .1, tC + 3.2));
+    const lys = t < tSw;
+    card.setAcid(lys ? 'lysine' : 'tyrosine');
+    mO(card.aa, 1 - mRamp(t, tY1, tSw) + mRamp(t, tSw, tSw + .5));
+    ORDER.forEach(n => {
+      const [txt, col, t0] = lys ? LYS[n] : TYR[n];
+      const k = lys ? mRamp(t, t0, t0 + .8) * (1 - mRamp(t, tY1, tSw)) : mRamp(t, t0, t0 + .7);
+      card.fill(n, k, txt, col);
+    });
+    // one tab lit at a time while it is filled, then all four glow together; the tyrosine pass lights all
+    let lit = null; for (const [t0, n] of LIT) if (t >= t0) lit = n;
+    const allK = mRamp(t, tA, tA + .6);
+    card.focus(t < tS || allK >= 1 ? null : lit, mRamp(t, tS, tS + .5) * (1 - allK));
+    const breathe = t0 => .6 + .4 * (1 - Math.cos(2 * Math.PI * (t - t0) / 2)) / 2;
+    const WORD = { structural: tA + 2, chemical: tA + 3, nutritional: tA + 3.7, metabolic: tA + 4.6 };   // "aliphatic basic, basic, essential, ketogenic"
+    ORDER.forEach(n => {
+      const t0 = LIT.find(q => q[1] === n)[0];
+      card.glow(n, allK > 0 ? allK * (1 - mRamp(t, tY, tY + .5)) * (.55 + .45 * mBump(t, WORD[n] - .2, WORD[n] + 1.2)) : (lit === n ? mRamp(t, t0, t0 + .5) * breathe(t0) : 0));
+    });
+    card.aa.hi('amino', mBump(t, tCh + .8, tCh + 6));
+    strip.set(t);
+  }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tW = m('wrap'), tN = m('next');
+  wLabel(p, 'Four ways to classify the same twenty', { x: 800, y: 62, size: 34, weight: 700, o: 1 });
+  [['Structural', 'the side chain', '#bba8ee', 1.6], ['Chemical', 'the charge', '#ff7aa8', 2.8], ['Nutritional', 'the diet', '#ffd27a', 3.8], ['Metabolic', 'the fate of the skeleton', '#8fd6b0', 4.8]].forEach(([a, b, col, dt], i) => {
+    const g = G(p, { o: 0 }), x = 230 + i * 380; show(g, tW + dt, .4);
+    mk('rect', { x: x - 170, y: 100, width: 340, height: 104, rx: 20, fill: '#172a45', stroke: col, 'stroke-width': 4 }, g);
+    wLabel(g, a, { x, y: 145, size: 30, fill: col, weight: 800, o: 1 });
+    wLabel(g, 'by ' + b, { x, y: 182, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  });
+  say(p, 'the three metabolic lists', 800, 280, tW + 9.4, { size: 30, fill: COL.chalk });
+  const lists = [
+    [PC.keto, 'ketone', 'LL', 'ketogenic', ['leucine, lysine'], 11.6],
+    [MIXC, 'fork', 'FITTT', 'mixed', ['phenylalanine, isoleucine,', 'tyrosine, tryptophan,', 'threonine'], 13.4],
+    [PC.gluco, 'glucose', '13', 'glucogenic', ['all the others'], 15.3],
+  ];
+  lists.forEach(([col, ic, big, name, lines, dt], i) => {
+    const g = G(p, { o: 0 }), x = 300 + i * 500; show(g, tW + dt, .45);
+    box5(g, x - 220, 320, 440, 380, { stroke: col, rx: 26 });
+    classIcon(g, ic, { x: x - 150, y: 384, size: ic === 'fork' ? 56 : 66 });
+    wLabel(g, name, { x: x - 96, y: 396, size: 32, fill: col, weight: 800, anchor: 'start', o: 1 });
+    wLabel(g, big, { x, y: 535, size: 96, fill: col, weight: 800, o: 1 });
+    lines.forEach((s, j) => wLabel(g, s, { x, y: 600 + j * 32, size: 24, fill: COL.chalk, weight: 600, o: 1 }));
+  });
+  // next: a chain of amino acids slides in
+  const nx = G(p, { x: 1900, y: 820, o: 0 }); tw(nx, { x: 1180, o: 1 }, tN, 1.4, out);
+  beadChain(nx, { n: 7, sp: 52, r: 20, s: .9 });
+  const nt = say(p, 'Chapter 2: proteins, chains of amino acids', 760, 830, tN + 1, { size: 28, fill: COL.chalk, anchor: 'end' });
+  void nt;
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', () => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const frame = g => box5(g, 980, 90, 580, 720);
+  const cap = (g, s, y = 770) => wLabel(g, s, { x: 1270, y, size: 26, weight: 700, o: 1 });
+  at('keto', g => {
+    frame(g);
+    classIcon(g, 'ketone', { x: 1270, y: 300, size: 160 });
+    wLabel(g, 'ketone bodies only', { x: 1270, y: 450, size: 30, fill: PC.keto, weight: 800, o: 1 });
+    aaChip(g, '?', { x: 1180, y: 560, color: PC.keto, size: 34, w: 120 }); aaChip(g, '?', { x: 1360, y: 560, color: PC.keto, size: 34, w: 120 });
+    cap(g, 'which pair goes only this way?');
+  });
+  at('phe', g => {
+    frame(g);
+    FITTT.forEach(([c], i) => wLabel(g, c, { x: 1270 + (i - 2) * 60, y: 230, size: 72, fill: i === 0 ? PC.task : COL.dim, weight: 800, o: 1 }));
+    aaChip(g, 'phenylalanine', { x: 1270, y: 340, code: 'name', size: 32 });
+    mArrow(g, [1270, 380], [1270, 470], { color: COL.chalk, w: 5 });
+    classIcon(g, 'ketone', { x: 1130, y: 560, size: 90 }); classIcon(g, 'glucose', { x: 1410, y: 560, size: 90 });
+    wLabel(g, 'ketone bodies', { x: 1130, y: 640, size: 22, fill: PC.keto, weight: 700, o: 1 });
+    wLabel(g, 'glucose', { x: 1410, y: 640, size: 22, fill: PC.gluco, weight: 700, o: 1 });
+    wLabel(g, '?', { x: 1270, y: 590, size: 80, fill: PC.task, weight: 800, o: 1 });
+    cap(g, 'where does its skeleton go?');
+  });
+  at('sort', g => {
+    frame(g);
+    [['ketone', PC.keto, 'ketogenic'], ['fork', MIXC, 'mixed'], ['glucose', PC.gluco, 'glucogenic']].forEach(([ic, col, n], i) => {
+      const x = 1110 + i * 160;
+      classIcon(g, ic, { x, y: 200, size: ic === 'fork' ? 60 : 72 });
+      wLabel(g, n, { x, y: 270, size: 24, fill: col, weight: 800, o: 1 });
+    });
+    ['alanine', 'leucine', 'tryptophan'].forEach((n, i) => aaChip(g, n, { x: 1270, y: 420 + i * 90, code: 'name', size: 32, color: PC.neutral }));   // neutral: no class colour to hint
+    cap(g, 'sort each one');
+  });
+  at('count', g => {
+    frame(g);
+    [['ketone', PC.keto, '2'], ['fork', MIXC, '5'], ['glucose', PC.gluco, '?']].forEach(([ic, col, n], i) => {
+      const x = 1110 + i * 160;
+      box5(g, x - 66, 150, 132, 420, { stroke: col, rx: 18 });
+      classIcon(g, ic, { x, y: 210, size: ic === 'fork' ? 50 : 60 });
+      wLabel(g, n, { x, y: 420, size: 84, fill: n === '?' ? PC.task : col, weight: 800, o: 1 });
+    });
+    cap(g, '20 standard amino acids in all', 660);
+  });
+  at('fittt', g => {
+    frame(g);
+    FITTT.forEach(([c], i) => {
+      wLabel(g, c, { x: 1270 + (i - 2) * 92, y: 380, size: 110, fill: MIXC, weight: 800, o: 1 });
+      aaChip(g, '?', { x: 1270 + (i - 2) * 92, y: 470, color: MIXC, size: 26, w: 70 });
+    });
+    classIcon(g, 'fork', { x: 1270, y: 210, size: 80 });
+    cap(g, 'the mixed five: which is NOT here?');
+  });
+  const ROWS6 = [['Structural', 'aliphatic basic', '#bba8ee'], ['Chemical', 'basic (+)', '#ff7aa8'], ['Nutritional', 'essential', '#ffd27a'], ['Metabolic', 'glucogenic', '#8fd6b0']];
+  const rows6 = [];
+  at('card', g => {
+    frame(g);
+    aaChip(g, 'lysine', { x: 1270, y: 170, code: 'name', size: 36 });
+    ROWS6.forEach(([a, b, col], i) => {
+      const r = G(g, { x: 1270, y: 290 + i * 120 });
+      mk('rect', { x: -250, y: -46, width: 500, height: 92, rx: 18, fill: '#172a45', stroke: col, 'stroke-width': 4 }, r);
+      wLabel(r, a, { x: -226, y: 10, size: 30, fill: col, weight: 800, anchor: 'start', o: 1 });
+      wLabel(r, b, { x: 226, y: 10, size: 30, fill: COL.chalk, weight: 700, anchor: 'end', o: 1 });
+      rows6.push(r);
+    });
+    cap(g, 'one tab is wrong: click it', 790);
+  });
+  at('arom', g => {
+    frame(g);
+    [['ring', 'aromatic (benzene ring)', PC.aromatic], ['star', 'essential', PC.essential], ['fork', 'glucose and ketone bodies', MIXC]].forEach(([ic, s, col], i) => {
+      const y = 210 + i * 130;
+      classIcon(g, ic, { x: 1070, y, size: ic === 'fork' ? 60 : 66 });
+      wLabel(g, s, { x: 1130, y: y + 10, size: 28, fill: col, weight: 800, anchor: 'start', o: 1 });
+    });
+    aaChip(g, '?', { x: 1270, y: 620, color: PC.aromatic, size: 40, w: 160 });
+    cap(g, 'which amino acid is all three?');
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.rows6 = rows6;
+  S.pics('keto');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-keto', prompt: ['Which pair is purely ketogenic?'],
+    build: withPic('keto', choice([['phenylalanine and isoleucine'], ['alanine and glycine'], ['leucine and lysine'], ['serine and threonine']], 2,
+      'Right. LL: leucine and lysine give ketone bodies only.',
+      ['Phenylalanine and isoleucine are the F and the I of FITTT: mixed, they give glucose too.',
+        'Alanine and glycine are glucogenic: their skeletons become glucose.', null,
+        'Serine is glucogenic and threonine is mixed (a T in FITTT). Neither is ketogenic only.'])) },
+  { id: 'p-phe', prompt: ['Phenylalanine is the F in FITTT. What does its skeleton give?'],
+    build: withPic('phe', choice([['glucose only'], ['ketone bodies only'], ['both glucose and ketone bodies'], ['neither']], 2,
+      'Right. FITTT is the mixed group: part of the skeleton goes to glucose and part to ketone bodies.',
+      ['Glucose only is the long list of thirteen. FITTT gives ketone bodies as well.',
+        'Ketone bodies only is just leucine and lysine (LL).', null,
+        'Every one of the twenty goes somewhere: ketogenic, mixed or glucogenic.'])) },
+  { id: 'p-sort', prompt: ['Sort each amino acid by its metabolic fate.'],
+    build: withPic('sort', grid([
+      { parts: ['alanine'], ans: ['g'], why: 'Glucogenic: not LL, not FITTT.' },
+      { parts: ['leucine'], ans: ['k'], why: 'Ketogenic: an L in LL.' },
+      { parts: ['tryptophan'], ans: ['m'], why: 'Mixed: a T in FITTT.' },
+    ], [['g', 'glucogenic', PC.gluco, 'G'], ['k', 'ketogenic', PC.keto, 'K'], ['m', 'mixed', MIXC, 'M']], { multi: false, text: true })) },
+  { id: 'p-count', prompt: ['Two are ketogenic and five are mixed. How many are purely glucogenic?'],
+    build: withPic('count', choice([['12'], ['13'], ['15'], ['18']], 1,
+      'Right. 20 − 2 − 5 = 13.',
+      ['Count again: 20 − 2 − 5 leaves one more than that.', null,
+        '15 would leave out only the five mixed ones. Take away the two ketogenic ones as well.',
+        '18 is how many can make glucose (13 + 5), not how many are purely glucogenic.'])) },
+  { id: 'p-fittt', prompt: ['Which of these is NOT one of the mixed five (fit, with three T’s)?'],
+    build: withPic('fittt', choice([['threonine'], ['lysine'], ['isoleucine'], ['tyrosine']], 1,
+      'Right. Lysine is an L of LL: purely ketogenic, not mixed.',
+      ['Threonine is the last T of FITTT: mixed.', null, 'Isoleucine is the I of FITTT: mixed.', 'Tyrosine is the first T of FITTT: mixed.'])) },
+  { id: 'p-card', prompt: ['This card files lysine under all four classifications, but one tab is wrong. Click it.'],
+    build: withPic('card', (body, api) => pickEls(S.rows6.map((el, i) => ({ el, box: [1015, 240 + i * 120, 510, 100], label: ['Structural', 'Chemical', 'Nutritional', 'Metabolic'][i] })), 3,
+      'Right. Lysine is ketogenic (an L in LL), not glucogenic. The other three tabs are right.',
+      i => ['Structural is right: lysine’s side chain ends in an amino group, so it is aliphatic basic.',
+        'Chemical is right: two amino groups and one carboxyl group make lysine basic.',
+        'Nutritional is right: lysine is essential and must come from the diet.'][i])(body, api)) },
+  { id: 'p-arom', prompt: ['Which amino acid is aromatic, essential, and gives both glucose and ketone bodies?'],
+    build: withPic('arom', choice([['tyrosine'], ['tryptophan'], ['phenylalanine'], ['leucine']], 2,
+      'Right. Phenylalanine: a benzene ring, essential, and the F in FITTT.',
+      ['Tyrosine is aromatic and mixed, but non-essential: the body makes it.',
+        'Tryptophan is essential and mixed, but its indole ring makes it heterocyclic, not aromatic in the lecture’s grouping.', null,
+        'Leucine is essential, but it is branched-chain (no ring) and purely ketogenic.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

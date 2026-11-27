@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biochemistry</title>
+<meta name="description" content="Short animated, narrated biochemistry lessons, one unit per lecture chapter, with checks inside the picture.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231d2b27'/%3E%3Ctext x='32' y='45' text-anchor='middle' font-size='48' fill='%23f0b45a'%3E∞%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="lib/units.css">
+<link rel="stylesheet" href="lib/contents.css">
+<script src="lib/units.js"></script>
+<script src="lib/contents.js"></script>
+<script src="unit-art.js"></script>
+<!-- <script src="refs.js"></script>  a book that cites works: its reference list, built by the skill's scripts/refs.py -->
+<link rel="expect" href="#ch101" blocking="render">
+<!-- The book's own look, if it differs from the chalkboard: override the tokens of lib/contents.css here. A light look
+     sets them all, since the chapter cards (--panel) and their text (--chalk, --dim) change together, and replaces the
+     chalkboard's dark vignette (body::before); the notebook books' cover (site/physics-notebook/) draws lined paper there:
+<style>
+:root { --page: #d9d3c4; --board: #fcfaf3; --panel: #fffdf8; --edge: #d4ccb8;
+  --chalk: #26241f; --dim: #6c665a; --faint: #a39b8a; --task: #c4327a; --quiz: #2a7dbb; --good: #2f8a54;
+  --top-bg: rgba(252, 250, 243, .9); --top-line: #ddd5c3; --lift: rgba(60, 50, 30, .18); color-scheme: light; }
+body::before { background: none; }
+</style> -->
+<style>
+/* Biochemistry: the deep-water board the lessons use (lib/book.css, the same as Biology), so the cover and contents match them. */
+:root { --page: #08111f; --board: #0f1e33; --panel: #152a45; --edge: #2c4568;
+  --chalk: #f2efe6; --dim: #9fb0c6; --faint: #4b6180; --task: #f39a2b; --quiz: #5fd3e8; --good: #8fd6b0;
+  --top-bg: rgba(15, 30, 51, .92); --top-line: #213a5a; }
+/* Unit 3's sketch: the chain's coil breathes, folding and loosening. */
+.seen .unit-art .fold-breathe { animation: art-draw 1.1s cubic-bezier(.5, 0, .3, 1) forwards, fold-breathe 4s ease-in-out 2.2s infinite; animation-delay: calc(var(--k) * 55ms + 120ms), 2.2s; transform-origin: 470px 90px; }
+@keyframes fold-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(.94); } }
+@media (prefers-reduced-motion: reduce) { .seen .unit-art .fold-breathe { animation: art-draw .01s forwards; } }
+</style>
+</head>
+<body>
+<section id="cover">
+  <div class="chalk" aria-hidden="true"><!-- a few faint formulas or phrases from the book, drawn in chalk -->
+    <span style="left:7%;top:13%;--d:1.6">H₂N–CαH(R)–COOH</span>
+    <span style="right:8%;top:17%;--d:1.9">–CO–NH–</span>
+    <span style="left:5%;bottom:20%;--d:2.2">S–S</span>
+    <span style="right:6%;bottom:15%;--d:2.5">α-helix · β-sheet</span>
+  </div>
+  <svg class="mascot draw" id="guide" width="210" height="147" aria-hidden="true"></svg>
+  <h1>Biochemistry</h1>
+  <p class="kicker">An animated book</p>
+  <p class="lede">Short animated lessons, chapter by chapter: watch amino acids join, chains fold and proteins come apart, then check yourself inside the picture.</p>
+  <div class="acts">
+    <a class="btn go" href="#contents" data-t="open">Open the book<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2.5 11.5 8 6 13.5 4.6 12.1 8.7 8 4.6 3.9z"/></svg></a>
+    <a class="btn quiet" id="resume" hidden></a>
+  </div>
+  <p class="meta" id="meta"></p>
+</section>
+
+<main id="contents">
+  <header class="top">
+    <a class="home" href="#book" aria-label="Back to the cover" data-t-label="toCover"><svg class="mascot" id="guideSmall" width="52" height="36" aria-hidden="true"></svg><strong>Biochemistry</strong></a>
+    <span class="prog" id="prog"></span>
+  </header>
+  <div id="units"></div>
+  <p class="refs-more" id="refsMore" hidden><a href="#references"><b data-t="references">References</b><span id="refsCount"></span><i data-t="viewAll">View all →</i></a></p>
+</main>
+
+<main id="refpage" aria-labelledby="refsTitle">
+  <header class="top">
+    <a class="back" href="#contents" data-t="backToContents">← Contents</a>
+    <span class="rp-book" id="rpBook"></span>
+  </header>
+  <section class="refs" id="references">
+    <h1 id="refsTitle" tabindex="-1" data-t="references">References</h1>
+    <p class="lead" data-t="refsLead">Every work cited in the lessons.</p>
+    <ol id="refList"></ol>
+  </section>
+</main>
+
+<script>
+// One unit per lecture chapter. Lessons live in chapter-NN/lesson-NN/; inside the engine each lesson's number is
+// chapter × 100 + lesson (Chapter 1, lesson 2 = 102 = its CHAPTER.number), which keeps progress and the cards' ids
+// unique across the book. The card shows the lesson number. Add a lesson here when it is ready; a new chapter is a new
+// unit whose third entry starts its numbering, e.g. ['Title', [...], { unit: 4, chapter: 401 }].
+// Later units restart the shown number per lesson ({ chapter: k }).
+Contents.book({
+  start: { unit: 1, chapter: 101, label: 1 },
+  units: [   // [unit title, [[lesson title, minutes], ...], { unit, chapter }?]
+    ['Amino Acid Classifications', [['What Amino Acids Are: the General Structure', 6], ['Structural Classification: the Side Chains', 8], ['Chemical and Nutritional Classification', 8], ['Metabolic Classification: Glucogenic and Ketogenic', 7]]],
+    ['Protein Types', [['What Proteins Are and What They Do', 7, { chapter: 1 }], ['Simple Proteins and Biological Value', 7, { chapter: 2 }], ['Conjugated and Derived Proteins', 8, { chapter: 3 }]], { unit: 2, chapter: 201 }],
+    ['Protein Structure and Folding', [['Protein Folding and the Bonds That Hold It', 7, { chapter: 1 }], ['Primary and Secondary Structure', 6, { chapter: 2 }], ['Tertiary and Quaternary Structure', 6, { chapter: 3 }], ['Denaturation and Misfolding', 7, { chapter: 4 }]], { unit: 3, chapter: 301 }],
+  ],
+  hues: ['#f3c95c', '#bba8ee', '#8fd6b0', '#f4a48c', '#86c9e8', '#e8a0c8', '#f0b45a'],   // one colour per unit, cycling
+  progressKey: 'animebook:progress:biochemistry',   // the same key as --progress-key in lib/book.css
+});
+// The engine links a card to chNNN/; send it to chapter-NN/lesson-NN/ instead (302 → chapter-03/lesson-02/).
+const lessonPath = n => `chapter-${String(Math.floor(n / 100)).padStart(2, '0')}/lesson-${String(n % 100).padStart(2, '0')}/`;
+for (const a of document.querySelectorAll('#units a.ch[id^="ch"]')) a.setAttribute('href', lessonPath(+a.id.slice(2)));
+// The cover's "Continue" button copied its card's old href while drawing; it names a lesson, not a textbook chapter.
+const resume = document.getElementById('resume'), resumeTo = resume.getAttribute('href')?.match(/^ch(\d+)\/$/);
+if (resumeTo) {
+  resume.setAttribute('href', lessonPath(+resumeTo[1]));
+  resume.textContent = resume.textContent.replace('Chapter', 'Lesson');
+}
+// The engine labels each unit "Unit N"; a unit here is a textbook chapter, so the label reads "Chapter N" and the
+// unit titles in Contents.book carry only the chapter's name.
+for (const l of document.querySelectorAll('#units .unit h2 .label')) l.textContent = l.textContent.replace(/^Unit\b/, 'Chapter');
+// The engine counts its cards as "chapters" and the units as "units"; in this book a unit is a textbook chapter and a
+// card is a lesson. Rewrite the cover line and the contents header to say so ("3 chapters, 17 lessons, with sound").
+{
+  const cards = [...document.querySelectorAll('#units a.ch[id^="ch"]')], done = cards.filter(a => a.classList.contains('done')).length;
+  const nUnits = document.querySelectorAll('#units .unit').length, plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  document.getElementById('meta').textContent = `${plural(nUnits, 'chapter')}, ${plural(cards.length, 'lesson')}, with sound`;
+  document.getElementById('prog').innerHTML = done ? `<b>${done}</b> of ${plural(cards.length, 'lesson')} finished` : plural(cards.length, 'lesson');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 3, Lesson 1: Protein Folding and the Bonds That Hold It — Biochemistry</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid.text .opts { gap: 4px; } .screen .grid.text .opt { padding: 2px 9px; font-size: 17px; min-height: 36px; } .screen .grid.text .opt kbd { display: none; }
+.screen .grid.text .row { padding: 4px 0 4px 12px; row-gap: 0; } .screen .grid.text .why { font-size: 18px; line-height: 1.25; }</style><!-- all rows wrong: four rows and their why lines fit above Check -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/protein.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biochemistry, Chapter 3 (Protein Structure and Folding), lesson 1: a strand of yarn rolled into a ball (same strand,
+// different shape) opens on the four-levels strip, still empty; the chain from chapter 2 folds into its native shape, a
+// pocket fits its partner and loses it when unfolded, two sequences fold two ways; the strip filled level by level and
+// the five bonds in a strong and a weak column; the peptide bond, the disulfide bridge (check 1), the hydrogen bond, the
+// salt bridge, hydrophobic interactions (check 2); all five on one folded chain; a summary; practice.
+// Plan, errata and beats: books/biochemistry/chapters/chapter-03/lesson-01.md.
+const CHAPTER = { number: 301, label: '3, lesson 1', title: 'Protein Folding and the Bonds That Hold It', minutes: 7, language: 'en', lead: false, next: '../lesson-02/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, weight: 700, ...o, o: 0 }); show(e, t0, .4); return e; };
+const lab = (p, str, x, y, o = {}) => wChem(p, str, { x, y, weight: 700, ...o, o: 1 });
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const box5 = (g, x, y, w, h, { fill = '#0b1626', stroke = COL.faint, sw = 3, rx = 22, fo = 1 } = {}) => mk('rect', { x, y, width: w, height: h, rx, fill, 'fill-opacity': fo, stroke, 'stroke-width': sw }, g);
+const r1 = v => Math.round(v * 10) / 10;
+// keyframes [[t, a, b, …], …]: eased (soft) between keys, held before the first and after the last
+function keyAt(t, K) {
+  if (t <= K[0][0]) return K[0].slice(1);
+  for (let i = 1; i < K.length; i++) if (t < K[i][0]) { const a = K[i - 1], b = K[i], f = soft((t - a[0]) / (b[0] - a[0])); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * f); }
+  return K[K.length - 1].slice(1);
+}
+// a line from a point to a label (the label's text sits at the far end)
+function callout(p, [ax, ay], [lx, ly], str, { size = 24, fill = COL.chalk, anchor, o = 0, weight = 700 } = {}) {
+  const g = G(p, { o });
+  const L = Math.hypot(lx - ax, ly - ay) || 1, ux = (lx - ax) / L, uy = (ly - ay) / L;
+  path(g, `M${r1(ax + ux * 14)} ${r1(ay + uy * 14)}L${r1(lx - ux * 8)} ${r1(ly - uy * 8)}`, { stroke: fill, 'stroke-width': 2.5, 'stroke-opacity': .8 });
+  const an = anchor || (Math.abs(ux) < .35 ? 'middle' : ux > 0 ? 'start' : 'end');
+  const dy = an === 'middle' ? (uy > 0 ? size * .9 : -size * .35) : size * .35;
+  wChem(g, str, { x: lx + (an === 'start' ? 6 : an === 'end' ? -6 : 0), y: ly + dy, size, fill, anchor: an, weight, o: 1 });
+  return g;
+}
+// a beat heading at the top right: the bond's name and its kind
+function heading(p, str, sub, color, t0 = .2) {
+  const g = G(p, { o: 0 }); show(g, t0, .5);
+  lab(g, str, 1080, 82, { size: 38, fill: color, weight: 800 });
+  if (sub) lab(g, sub, 1080, 124, { size: 24, fill: COL.dim, weight: 600 });
+  return g;
+}
+// the chapter map, small at the top left, with this beat's levels lit
+function miniStrip(p, lit, { x = 300, y = 84, s = .4 } = {}) {
+  const w = G(p, { x, y, s });
+  const ls = levelsStrip(w, { x: 0, y: 0 });
+  ls.focus(lit, 1);
+  return Object.assign(w, { ls });
+}
+// a tick and a cross
+function tickMark(p, x, y, { r = 20, o = 0 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: PC.good }, g);
+  path(g, `M${-r * .45} 0L${-r * .1} ${r * .38}L${r * .5} ${-r * .38}`, { stroke: '#fff', 'stroke-width': 4.5, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  return g;
+}
+function crossMark(p, x, y, { r = 20, o = 0 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: COL.bad }, g);
+  path(g, `M${-r * .4} ${-r * .4}L${r * .4} ${r * .4}M${r * .4} ${-r * .4}L${-r * .4} ${r * .4}`, { stroke: '#fff', 'stroke-width': 4.5, 'stroke-linecap': 'round' });
+  return g;
+}
+// a charge disc (pink −, indigo +), origin = centre
+function chargeDisc(p, sign, { r = 18, o = 1 } = {}) {
+  const g = G(p, { x: 1, y: 1, o });
+  mk('circle', { r, fill: sign === '+' ? PC.saltPlus : PC.saltMinus, stroke: PC.ink, 'stroke-width': 2.5 }, g);
+  path(g, sign === '+' ? `M${-r * .5} 0H${r * .5}M0 ${-r * .5}V${r * .5}` : `M${-r * .5} 0H${r * .5}`, { stroke: PC.ink, 'stroke-width': 4, 'stroke-linecap': 'round' });
+  return g;
+}
+// a ball of yarn, origin = centre; .set(r, turn) its radius and how far it has rolled (degrees)
+function yarnBall(p, { color = '#6c8cff', o = 1 } = {}) {
+  const g = G(p, { x: 1, y: 1, o }), spin = G(g, { s: 1 });
+  const body = mk('circle', { r: 10, fill: color, stroke: '#3d56b8', 'stroke-width': 3 }, spin);
+  const wraps = [0, 40, 80, 120, 160].map(a => { const e = mk('ellipse', { rx: 9, ry: 4, fill: 'none', stroke: '#a9bbff', 'stroke-width': 3, transform: `rotate(${a})` }, spin); return e; });
+  let R0 = -1;
+  return Object.assign(g, {
+    set(r, turn) {
+      const rr = Math.round(r * 2) / 2;
+      if (rr !== R0) { body.setAttribute('r', rr); wraps.forEach((e, i) => { e.setAttribute('rx', r1(rr * .92)); e.setAttribute('ry', r1(rr * (.25 + .14 * i))); }); R0 = rr; }
+      put(spin, { r: Math.round(turn) });
+      return g;
+    },
+  });
+}
+// a woven basket, two layers (back, front) so a ball sits in it; origin = middle of the rim
+function basket(back, front, x, y) {
+  const b = G(back, { x, y }), f = G(front, { x, y });
+  mk('ellipse', { rx: 150, ry: 26, fill: '#5a3d22', stroke: '#3c2814', 'stroke-width': 3 }, b);
+  path(f, 'M-150 0L-112 150Q0 166 112 150L150 0Q0 30 -150 0Z', { fill: '#b88a4e', stroke: '#6e4f28', 'stroke-width': 4 });
+  for (let i = 1; i < 5; i++) path(f, `M${-150 + i * 7.5} ${i * 30}Q0 ${i * 30 + 26} ${150 - i * 7.5} ${i * 30}`, { stroke: '#8a6434', 'stroke-width': 3, fill: 'none' });
+  for (let i = -3; i <= 3; i++) path(f, `M${i * 40} ${20}L${i * 30} ${156}`, { stroke: '#8a6434', 'stroke-width': 3 });
+  path(f, 'M-150 0Q0 30 150 0', { stroke: '#d9b27a', 'stroke-width': 6, fill: 'none' });
+}
+// a row of small bars (one weak bond each); .set(n) shows n of them, .solid(k) wraps them in one thick bar
+function barStack(p, { x, y, n = 14, w = 26, gap = 6, h = 26, label = '' } = {}) {
+  const g = G(p, { x, y, o: 0 });
+  const cols = [PC.hbond, PC.saltMinus, PC.hydrophobic];
+  const bars = Array.from({ length: n }, (_, i) => { const e = mk('rect', { x: i * (w + gap), y: -h / 2, width: w, height: h, rx: 5, fill: cols[i % 3] }, g); put(e, { o: 0 }); return e; });
+  const W = n * (w + gap) - gap;
+  const shell = mk('rect', { x: -8, y: -h / 2 - 8, width: W + 16, height: h + 16, rx: 12, fill: 'none', stroke: COL.chalk, 'stroke-width': 5 }, g); put(shell, { o: 0 });
+  return Object.assign(g, {
+    W,
+    set(v) { bars.forEach((b, i) => mO(b, mClamp(v - i))); return g; },
+    solid(k) { mO(shell, k); return g; },
+  });
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro: yarn on a kitchen table → the empty four-levels strip ---------- */
+['intro', 'One strand, two shapes', (m, D) => {
+  const p = panel(0), tY = m('yarn'), tB = m('ball'), tS = m('strip'), tN = m('bonds');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W, { o: 0 }); show(back, .1, .6);
+  // the kitchen: a tiled wall and a wooden table
+  box5(back, 0, 0, 1600, 640, { fill: '#1a2c44', stroke: 'none', rx: 0 });
+  for (let x = 80; x < 1600; x += 160) path(back, `M${x} 0V630`, { stroke: '#22385a', 'stroke-width': 3 });
+  for (let y = 80; y < 640; y += 160) path(back, `M0 ${y}H1600`, { stroke: '#22385a', 'stroke-width': 3 });
+  box5(back, 40, 600, 1520, 250, { fill: '#7a5434', stroke: '#4f3320', sw: 5, rx: 18 });
+  box5(back, 40, 836, 1520, 40, { fill: '#5d3e25', stroke: '#4f3320', sw: 5, rx: 10 });
+  for (const y of [660, 720, 790]) path(back, `M60 ${y}Q800 ${y + 10} 1540 ${y - 6}`, { stroke: '#8a6342', 'stroke-width': 3, fill: 'none' });
+  const bBack = G(back), mid = G(back), bFront = G(back);
+  basket(bBack, bFront, 1340, 690);
+  // the strand lies on the table from x 260 to 1100; the ball rolls along it from the left, winding it up
+  const X0 = 260, X1 = 1100, TY = 752;
+  const strandAt = (a, b) => { let d = ''; for (let x = a; x <= b + .1; x += 12) d += (d ? 'L' : 'M') + r1(x) + ' ' + r1(TY - 6 + 9 * Math.sin(x / 34)); return d || 'M0 0'; };
+  const glowS = path(mid, strandAt(X0, X1), { stroke: PC.glow, 'stroke-width': 18, 'stroke-opacity': .35, fill: 'none', 'stroke-linecap': 'round' }, { o: 0 });
+  const strand = path(mid, strandAt(X0, X1), { stroke: '#6c8cff', 'stroke-width': 7, fill: 'none', 'stroke-linecap': 'round' });
+  const ball = yarnBall(mid, { o: 0 });
+  const one = say(mid, 'one strand', 680, 700, tY + .4, { size: 30 }); hide(one, tB + .2, .3);
+  const same = say(back, 'same strand, different shape', 760, 560, tB + 2.6, { size: 32, fill: PC.glow });
+  const fits = tickMark(back, 1340, 540); show(fits, tB + 6.4, .3);
+  // the title, top right
+  const ttl = G(p, { o: 0, y: 24 });
+  lab(ttl, 'BIOCHEMISTRY · CHAPTER 3 · LESSON 1', 1180, 120, { size: 22, fill: COL.dim, weight: 600 });
+  ['Protein folding', 'and the bonds', 'that hold it'].forEach((s, i) => lab(ttl, s, 1180, 196 + i * 60, { size: 50, weight: 800 }));
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tB - .4, .5);
+  clockRun(t => {
+    const k = io(mRamp(t, tB + .2, tB + 2.6)), r = 16 + 64 * Math.sqrt(k), xb = mLerp(X0, X1, k);
+    const u = io(mRamp(t, tB + 4.2, tB + 5.8));
+    const bx = mLerp(xb, 1340, u), by = mLerp(TY + 2 - r, 676, u) - 150 * Math.sin(Math.PI * u);
+    ball.set(r, (xb - X0) * 1.3 + 200 * u);
+    mPose(ball, bx, by, mRamp(k, 0, .02));
+    mD(strand, k < .999 ? strandAt(xb, X1) : 'M0 0'); mO(strand, k < .999 ? 1 : 0);
+    mO(glowS, mBump(t, tY + .2, tB));
+  }, D);
+  // the push into the ball, which opens onto the chapter map
+  cam.to({ x: 1340, y: 640, z: 7 }, tS + .1, 2.2);
+  hide(cam.el, tS + 1.5, .7);
+  const stripG = G(p, { o: 0 }); show(stripG, tS + 1.7, .7);
+  const ls = levelsStrip(stripG, { x: 800, y: 330 });
+  const title = say(p, 'the chapter map: four levels of protein structure', 800, 110, tS + 2.4, { size: 30, fill: COL.dim, weight: 600 });
+  void title;
+  const LV = [tS + 5.8, tS + 6.7, tS + 7.5, tS + 8.3];
+  const chips = ['peptide', 'disulfide', 'hydrogen', 'salt', 'hydrophobic'].map((kd, i) => { const c = bondChip(p, kd, { x: 340 + i * 230, y: 680, o: 0 }); tw(c, { o: .55 }, tN + .6 + .25 * i, .4); return c; });
+  void chips;
+  say(p, '5 bonds and forces hold it', 800, 830, tN + 2.2, { size: 30 });
+  clockRun(t => {
+    ls.contents(0).build(io(mRamp(t, tS + 2, tS + 4.4)));
+    LV.forEach((t0, i) => ls.glow(i + 1, mBump(t, t0, t0 + 1.6)));
+  }, D);
+}],
+
+/* ---------- fold: the chain, folding, shape and function, two sequences ---------- */
+['fold', 'Protein folding', (m, D) => {
+  const p = panel(0), tF = m('fold'), tFn = m('fn'), tSq = m('seq');
+  // shot A: the chain from chapter 2, then folded
+  const A = G(p, { o: 0 }); show(A, .1, .5); hide(A, tFn - .4, .4);
+  const ch = beadChain(A, { x: 540, y: 470, s: 1.6, aa: ['Gly', 'Lys', 'Ser', 'Glu', 'Phe', 'Leu', 'Cys', 'Ala'] });
+  say(A, 'chapter 2: amino acids joined by peptide links', 540, 290, .6, { size: 26, fill: PC.peptide });
+  // folding: the bead chain hands over to a globule laid out straight in its place (same bead colours), which folds;
+  // the kit's .curl passes the chain through itself on the way
+  const chG = G(A, { x: 540, y: 470, o: 0 });
+  const fg = globule(chG, { R: 140, beads: 8, beadColors: ['Gly', 'Lys', 'Ser', 'Glu', 'Phe', 'Leu', 'Cys', 'Ala'].map(n => pClassColor(pAA(n).cls)) });
+  show(chG, tF + .3, .6);
+  const [nx, ny] = ch.endPt('N'), [cx, cy] = ch.endPt('C');
+  const nl = callout(A, [nx, ny + 20], [nx + 30, ny + 120], 'N-terminal: free amino end', { size: 24, fill: PC.nTerm }); show(nl, 4.6, .4);
+  const cl = callout(A, [cx, cy + 20], [cx - 30, cy + 190], 'C-terminal: free carboxyl end', { size: 24, fill: PC.cTerm }); show(cl, 6.6, .4);
+  [nl, cl].forEach(e => hide(e, tF - .2, .4));
+  const cards = G(A);
+  say(cards, 'protein folding', 1200, 340, tF + 3.3, { size: 44, fill: PC.tertiary, weight: 800 });
+  say(cards, 'polypeptide chain', 1200, 420, tF + 5, { size: 28 });
+  const ar = G(cards, { o: 0 }); show(ar, tF + 5.6, .3); mArrow(ar, [1200, 440], [1200, 490], { color: COL.chalk, w: 4, head: 14 });
+  say(cards, 'native 3D structure', 1200, 530, tF + 7.6, { size: 32, fill: PC.glow });
+  say(cards, 'its biologically active shape', 1200, 572, tF + 8.6, { size: 24, fill: COL.dim, weight: 600 });
+  // shot B: a pocket that fits its partner, lost when the chain unfolds
+  const B = G(p, { o: 0 }); show(B, tFn, .5); hide(B, tSq - .4, .4);
+  const gl = globule(B, { x: 560, y: 480, R: 160, pocket: true, beads: 8 });
+  say(B, 'structure decides function', 960, 260, tFn + .6, { size: 34, fill: PC.glow, anchor: 'start' });
+  const pk = say(B, 'its pocket fits a partner', 960, 400, tFn + 4.8, { size: 28, anchor: 'start' });
+  const tk = tickMark(B, 1480, 391); show(tk, tFn + 6.9, .3);
+  say(B, 'unfolded: the partner no longer fits', 960, 500, tFn + 8.4, { size: 28, anchor: 'start' });
+  const xk = crossMark(B, 1480, 491); show(xk, tFn + 10.4, .3);
+  void pk;
+  // shot C: two sequences, two shapes
+  const C = G(p, { o: 0 }); show(C, tSq, .5);
+  const gA = globule(C, { x: 400, y: 440, R: 140, seed: 3, rows: 6, beads: 8, beadColors: [PC.simple, PC.basic, PC.acidic, PC.aromatic, PC.simple, PC.hydroxy, PC.branched, PC.basic] });
+  const wB = G(C, { x: 1200, y: 440, r: -30 });
+  const gB = globule(wB, { R: 155, seed: 8, rows: 3, m: 60, helices: [[3, 22]], sheets: [[30, 38], [40, 48]], beads: 8, beadColors: [PC.acidic, PC.branched, PC.hetero, PC.sulfur, PC.imino, PC.acidic, PC.aromatic, PC.hydroxy], color: PC.quaternary });
+  say(C, 'sequence 1', 400, 200, tSq + .4, { size: 26, fill: COL.dim });
+  say(C, 'sequence 2', 1200, 200, tSq + .4, { size: 26, fill: COL.dim });
+  say(C, 'different sequence, different shape', 800, 750, tSq + 3.4, { size: 36, fill: PC.glow });
+  say(C, 'each side chain is a different brick; their order decides where the chain bends', 800, 805, tSq + 4.6, { size: 24, fill: COL.dim, weight: 600 });
+  clockRun(t => {
+    ch.reveal(mRamp(t, .3, 2.8)); mO(ch, 1 - mRamp(t, tF + .3, tF + .9));
+    fg.fold(io(mRamp(t, tF + 1, tF + 4)));
+    for (let i = 0; i < 7; i++) ch.bond(i, mBump(t, 2.2 + .12 * i, 4.6 + .12 * i));
+    gl.pocket(mBump(t, tFn + 4.2, tFn + 7.4)).partner(io(mRamp(t, tFn + 5, tFn + 6.8)) * (1 - io(mRamp(t, tFn + 9, tFn + 10.2)))).tangle(io(mRamp(t, tFn + 7.8, tFn + 10)));
+    const kf = mLerp(.35, 1, io(mRamp(t, tSq + .6, tSq + 3.4)));
+    gA.fold(kf); gB.fold(kf);
+  }, D);
+}],
+
+/* ---------- levels: the strip filled, then the five bonds in two columns ---------- */
+['levels', 'Four levels and five bonds', (m, D) => {
+  const p = panel(0), L = [m('l1'), m('l2'), m('l3'), m('l4')], tF = m('forces');
+  const wrap = G(p, { x: 800, y: 360 });
+  const ls = levelsStrip(wrap, { x: 0, y: 0 });
+  tw(wrap, { x: 300, y: 84, s: .4 }, tF + .2, 1.2);
+  const TAG = [['the order of amino acids', 'sequence'], ['coiled or pleated', 'helix, sheet'], ['one chain, folded', '3D shape'], ['several chains', 'packed together']];
+  const tags = G(p); hide(tags, tF - .1, .4);
+  TAG.forEach(([a, b], i) => { const x = 260 + 360 * i, c = ls.pt(i + 1); void c; const g = G(tags, { o: 0 }); show(g, L[i] + .6, .4); lab(g, b, x, 600, { size: 30, fill: PC[LEVEL_NAMES[i]] }); lab(g, a, x, 640, { size: 22, fill: COL.dim, weight: 600 }); });
+  say(tags, 'lessons two and three take each level in turn', 800, 770, L[3] + 4.2, { size: 26, fill: COL.dim, weight: 600 });
+  // the five bonds: strong (covalent) and weak (non-covalent)
+  const left = G(p, { o: 0 }), right = G(p, { o: 0 });
+  show(left, tF + 1.8, .5); show(right, tF + 1.8, .5);
+  box5(left, 100, 230, 560, 560, { stroke: PC.peptide, sw: 3 });
+  box5(right, 720, 230, 800, 560, { stroke: PC.hbond, sw: 3 });
+  lab(left, 'Covalent', 380, 300, { size: 38, fill: PC.peptide, weight: 800 });
+  lab(left, 'strong · 2', 380, 344, { size: 26, fill: COL.dim, weight: 600 });
+  lab(right, 'Non-covalent', 1120, 300, { size: 38, fill: PC.hbond, weight: 800 });
+  lab(right, 'weak · 3', 1120, 344, { size: 26, fill: COL.dim, weight: 600 });
+  const strong = [bondChip(left, 'peptide', { x: 265, y: 540, lock: true }), bondChip(left, 'disulfide', { x: 495, y: 540, lock: true })];
+  const weak = [bondChip(right, 'hydrogen', { x: 885, y: 540 }), bondChip(right, 'salt', { x: 1120, y: 540 }), bondChip(right, 'hydrophobic', { x: 1355, y: 540 })];
+  const sL = say(left, 'peptide bond, disulfide bridge', 380, 720, tF + 6.2, { size: 22, fill: COL.dim, weight: 600 });
+  const sR = say(right, 'hydrogen bonds, salt bridges, hydrophobic interactions', 1120, 720, tF + 8.4, { size: 22, fill: COL.dim, weight: 600 });
+  void sL; void sR;
+  clockRun(t => {
+    const pk = L.map(t0 => io(mRamp(t, t0 + .2, t0 + 1)));
+    ls.build(1).contents(1);
+    L.forEach((t0, i) => ls.glow(i + 1, mBump(t, t0, t0 + 3.6)));
+    mO(ls.chain, pk[0]); mO(ls.helix, pk[1]); mO(ls.sheet, pk[1]); mO(ls.glob, pk[2]); mO(ls.quat, pk[3]);
+    strong.forEach(c => c.lit(mBump(t, tF + 5.8, tF + 8)));
+    weak.forEach(c => c.lit(mBump(t, tF + 8.1, tF + 10.4)));
+  }, D);
+}],
+
+/* ---------- peptide ---------- */
+['peptide', 'Strong bond 1: the peptide bond', (m, D) => {
+  const p = panel(0), tJ = m('join'), tW = m('water'), tK = m('keep');
+  const ms = miniStrip(p, 'primary');
+  heading(p, 'Strong bond 1: the peptide bond', 'covalent', PC.peptide);
+  const pb = peptideBond(p, { x: 800, y: 420 });
+  const halos = [0, 1].map(() => { const h = G(p, { x: 1, y: 1, o: 0 }); mk('rect', { x: -78, y: -36, width: 156, height: 72, rx: 36, fill: PC.glow, 'fill-opacity': .28, stroke: PC.glow, 'stroke-width': 3 }, h); return h; });
+  const [wx, wy] = pb.pt('water');
+  const wl = say(p, 'one water removed', wx, wy + 110, tW + 2.6, { size: 24, fill: PC.water }); void wl;
+  const cn = say(p, 'carbonyl group joined to an N–H group', 800, 236, tW + 4.6, { size: 24, fill: PC.peptide }); void cn;
+  // keep: the chain the bond builds
+  const K = G(p, { o: 0 }); show(K, tK + .2, .5);
+  const ch = beadChain(K, { x: 640, y: 760, s: .85, n: 6 });
+  const lk = G(K, { x: 1100, y: 760 });
+  box5(lk, 0, -34, 330, 68, { stroke: PC.peptide, sw: 3, rx: 34 });
+  lab(lk, 'strong · covalent', 175, 9, { size: 26, fill: PC.peptide, weight: 800 });
+  const lock = G(lk, { x: -36, y: 0 });
+  path(lock, 'M-11 -3V-13A11 11 0 0 1 11 -13V-3', { stroke: COL.chalk, 'stroke-width': 4.5, fill: 'none' });
+  mk('rect', { x: -16, y: -4, width: 32, height: 26, rx: 5, fill: COL.chalk }, lock);
+  say(K, 'ordinary folding never breaks it', 1265, 830, tK + 4.4, { size: 24, fill: COL.dim, weight: 600 });
+  clockRun(t => {
+    pb.form(keyAt(t, [[tJ + .4, 0], [tJ + 3.6, .4], [tW + .2, .4], [tW + 5, 1]])[0]);
+    const g = mRamp(t, tJ, tJ + .6) * (1 - mRamp(t, tJ + 3.4, tJ + 4));
+    const ca = pb.A.pt('carboxyl'), nb = pb.B.pt('amino'), xa = st(pb.A.parentNode).x, xb = st(pb.B.parentNode).x;
+    mPose(halos[0], 800 + xa + ca[0], 420 + ca[1], g); mPose(halos[1], 800 + xb + nb[0], 420 + nb[1], g);
+    ms.ls.glow('primary', mBump(t, tK, tK + 3.5));
+    for (let i = 0; i < 5; i++) ch.bond(i, mBump(t, tK + .8 + .2 * i, tK + 3.4 + .2 * i));
+  }, D);
+}],
+
+/* ---------- disulfide ---------- */
+['disulfide', 'Strong bond 2: the disulfide bridge', (m, D) => {
+  const p = panel(0), tN = m('near'), tS = m('ss'), tC = m('cystine'), tB = m('brace');
+  miniStrip(p, 'tertiary');
+  heading(p, 'Strong bond 2: the disulfide bridge', 'covalent', PC.ss);
+  const cp = cysPair(p, { x: 520, y: 500, mode: 'chain', gap: 300, apart: 200 });
+  const halo = [0, 1].map(() => { const g = G(p, { x: 1, y: 1, o: 0 }); mk('circle', { r: 30, fill: PC.glow, 'fill-opacity': .3, stroke: PC.glow, 'stroke-width': 3 }, g); return g; });
+  const sh = G(p, { o: 0 }); show(sh, 7, .4); hide(sh, tS - .2, .3);
+  lab(sh, 'SH: sulfhydryl group', 760, 500, { size: 28, fill: PC.S, weight: 800, anchor: 'start' });
+  lab(sh, 'on each cysteine', 760, 536, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  const lines = path(p, 'M0 0', { stroke: PC.S, 'stroke-width': 2.5, fill: 'none', 'stroke-opacity': .8 });
+  // cystine: the two cysteines on their own, joined by S–S
+  const R = G(p, { o: 0 }); show(R, tC + .2, .5); hide(R, tB - .1, .4);
+  const aa = cysPair(R, { x: 1230, y: 500, s: .8, mode: 'aa' }).bridge(1).name(1);
+  void aa;
+  say(R, 'met in chapter 1', 1230, 868, tC + 1.2, { size: 22, fill: COL.dim, weight: 600 });
+  const arr = G(R); mArrow(arr, [870, 500], [970, 500], { color: COL.chalk, w: 4, head: 14 });
+  // brace: the bridge clamps two faraway parts, like a staple
+  const st2 = G(p, { o: 0 }); show(st2, tB + .3, .5);
+  lab(st2, 'like a staple:', 1150, 470, { size: 30, fill: PC.ss, weight: 800 });
+  lab(st2, 'it clamps two faraway', 1150, 512, { size: 26, weight: 700 });
+  lab(st2, 'parts of the chain together', 1150, 548, { size: 26, weight: 700 });
+  const star = G(p, { x: 520, y: 500, o: 0 }); path(star, 'M0 -34L8 -8L34 0L8 8L0 34L-8 8L-34 0L-8 -8Z', { fill: PC.glow });
+  clockRun(t => {
+    cp.near(io(mRamp(t, tN + .2, tN + 2.6))).bridge(mRamp(t, tS + .3, tS + 5.4));
+    const S1 = cp.pt('S1'), S2 = cp.pt('S2'), hk = mBump(t, 5, tN + .1);
+    mPose(halo[0], S1[0], S1[1], hk); mPose(halo[1], S2[0], S2[1], hk);
+    mD(lines, `M${r1(S1[0] + 34)} ${r1(S1[1])}L752 482M${r1(S2[0] + 34)} ${r1(S2[1])}L752 500`); mO(lines, mRamp(t, 7, 7.4) * (1 - mRamp(t, tS - .2, tS + .1)));
+    const sk = mBump(t, tB + .4, tB + 2.2) + mBump(t, tB + 2.4, tB + 4.2);
+    put(star, { o: Math.round(.85 * sk * 1000) / 1000, s: Math.round((.3 + .4 * sk) * 1000) / 1000, r: Math.round((t - tB) * 40) });
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  lab(p, 'two cysteines', 310, 120, { size: 34, fill: PC.ss, weight: 800 });
+  const c = cysPair(p, { x: 310, y: 470, s: .72, mode: 'aa', labels: false });
+  c.bridge(.32);
+  lab(p, '?', 400, 486, { size: 64, fill: PC.glow, weight: 800 });
+  lab(p, 'they lose 2 H and join', 310, 830, { size: 26 });
+  void D;
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-ss', prompt: ['Two cysteine side chains lose two hydrogens and join. What bond forms?'],
+  build: choice([['a peptide bond'], ['a disulfide bridge (S–S)'], ['a salt bridge'], ['a hydrogen bond']], 1,
+    'Right. Each sulfhydryl group (SH) gives up its hydrogen, and the two sulfurs join: S–S, a strong covalent bridge.',
+    ['A peptide bond joins a carboxyl group to an amino group, and a water is lost, not two hydrogens. Look at the two sulfurs.', null,
+      'A salt bridge needs a plus and a minus side chain. Cysteine’s SH carries no charge here. Look at the two sulfurs.',
+      'A hydrogen bond joins a C=O to an N–H, and nothing is lost. Here two hydrogens leave: look at the two sulfurs.']),
+}], done) }],
+
+/* ---------- hbond ---------- */
+['hbond', 'Weak bond 1: the hydrogen bond', (m, D) => {
+  const p = panel(0), tH = m('hb'), tD = m('delta'), tM = m('many');
+  miniStrip(p, 'secondary');
+  heading(p, 'Weak bond 1: the hydrogen bond', 'non-covalent', PC.hbond);
+  const bb = backbone(p, { x: 620, y: 490, s: 1.5, strands: 2, units: 5, mode: 'anti' });
+  bb.rDim(1);
+  // the carbonyl O and N–H that face the other strand, for the callouts
+  const up = [];
+  for (let i = 0; i < 5; i++) { const o = bb.pt(0, i, 'O'), h2 = bb.pt(0, i, 'H'); if (o && h2) up.push([o, h2]); }
+  const topO = up.map(u => u[0]).filter(q => q[1] < 470).sort((a, b) => a[0] - b[0])[0];
+  const topH = up.map(u => u[1]).filter(q => q[1] < 470).sort((a, b) => b[0] - a[0])[0];
+  const cO = topO ? callout(p, topO, [topO[0] - 40, topO[1] - 90], 'carbonyl C=O', { size: 24, fill: '#ff9a86' }) : G(p, { o: 0 });
+  const cH = topH ? callout(p, topH, [topH[0] + 40, topH[1] - 90], 'N–H group', { size: 24, fill: '#aebfff' }) : G(p, { o: 0 });
+  [cO, cH].forEach(e => { show(e, 5.2, .4); hide(e, tH, .4); });
+  const RX = 1190;
+  say(p, 'C=O ··· H–N', 1360, 420, tH + 1.4, { size: 34, fill: PC.hbond });
+  say(p, 'one peptide link to another nearby', 1360, 458, tH + 2, { size: 22, fill: COL.dim, weight: 600 });
+  // the weak meter
+  const met = G(p, { o: 0 }); show(met, tD + 5.5, .4);
+  lab(met, 'how strong?', RX, 560, { size: 24, anchor: 'start', fill: COL.dim, weight: 600 });
+  box5(met, RX, 580, 340, 34, { fill: 'none', stroke: COL.chalk, sw: 3, rx: 10 });
+  const fill = mk('rect', { x: RX + 4, y: 584, width: 10, height: 26, rx: 7, fill: PC.hbond }, met);
+  const w1 = say(met, 'one: weak', RX, 650, tD + 6.2, { size: 24, anchor: 'start', fill: PC.hbond }); void w1;
+  const w2 = say(met, 'many: firm', RX + 340, 650, tM + 2.6, { size: 24, anchor: 'end', fill: COL.chalk }); void w2;
+  // side chains too: a serine and a threonine sharing a hydrogen bond
+  const sc = G(p, { o: 0 }); show(sc, tM + 2.4, .5);
+  aaChip(sc, 'Ser', { x: RX + 40, y: 780 }); aaChip(sc, 'Thr', { x: RX + 300, y: 780 });
+  const sb = hBondMark(sc); sb.set(RX + 82, 780, RX + 256, 780, 1);
+  lab(sc, 'side chains too', RX + 170, 740, { size: 24, fill: PC.hbond });
+  let fw = -1;
+  clockRun(t => {
+    bb.draw(mRamp(t, .4, 3.2)).atoms(mBump(t, 4.6, tH + .6));
+    bb.hbonds(keyAt(t, [[tH + .4, 0], [tH + 1.6, 1 / bb.pairs], [tH + 3.4, 1 / bb.pairs], [tH + 5.6, 1]])[0]);
+    bb.deltas(mRamp(t, tD + 1.4, tD + 2.4));
+    const w = Math.round(mLerp(18, 332, io(mRamp(t, tM + .4, tM + 3))));
+    if (w !== fw) { fill.setAttribute('width', w); fw = w; }
+  }, D);
+}],
+
+/* ---------- salt ---------- */
+['salt', 'Weak bond 2: the salt bridge', (m, D) => {
+  const p = panel(0), tG = m('glu'), tP = m('pair'), tBo = m('both');
+  miniStrip(p, 'tertiary');
+  heading(p, 'Weak bond 2: the salt bridge', 'electrostatic or ionic interaction', PC.saltMinus);
+  // a hinged chain: two arms of six beads from a bend at the bottom; lysine and glutamic acid face each other
+  const HX = 400, HY = 560, SP = 64, N = 6, LI = 4;
+  const U = G(p, { s: 1.3 });
+  const chainG = G(U);
+  const links = path(chainG, 'M0 0', { stroke: PC.peptide, 'stroke-width': 8, fill: 'none' });
+  const stalks = [0, 1].map(() => path(chainG, 'M0 0', { stroke: PC.stick, 'stroke-width': 6, fill: 'none' }, { o: 0 }));
+  const ARM = [[PC.simple, PC.hydroxy, PC.branched, PC.simple, PC.basic, PC.amide], [PC.branched, PC.simple, PC.hydroxy, PC.aromatic, PC.acidic, PC.simple]];
+  const beads = ARM.map(cols => cols.map((c, i) => { const g = G(chainG, { x: 1, y: 1 }); mk('circle', { r: i === LI ? 26 : 22, fill: c, stroke: PC.ink, 'stroke-width': 2.5 }, g); return g; }));
+  const hinge = G(chainG, { x: HX, y: HY + 50 }); mk('circle', { r: 22, fill: PC.hetero, stroke: PC.ink, 'stroke-width': 2.5 }, hinge);
+  lab(beads[0][LI], 'Lys', 0, 6, { size: 15, fill: PC.ink, weight: 800 }); lab(beads[1][LI], 'Glu', 0, 6, { size: 15, fill: PC.ink, weight: 800 });
+  const plus = chargeDisc(U, '+', { o: 0 }), minus = chargeDisc(U, '−', { o: 0 });
+  const lysL = G(U, { o: 0 }), gluL = G(U, { o: 0 });
+  lab(lysL, 'lysine', 0, 0, { size: 28, fill: PC.basic, anchor: 'end' }); lab(lysL, 'basic, +', 0, 34, { size: 22, fill: COL.dim, weight: 600, anchor: 'end' });
+  lab(gluL, 'glutamic acid', 0, 0, { size: 28, fill: PC.acidic, anchor: 'start' }); lab(gluL, 'acidic, −', 0, 34, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  const line = G(U, { o: 0 });
+  const lm = path(line, 'M0 0', { stroke: PC.saltMinus, 'stroke-width': 5, 'stroke-dasharray': '9 7' }), lp = path(line, 'M0 0', { stroke: PC.saltPlus, 'stroke-width': 5, 'stroke-dasharray': '9 7' });
+  const hb = hBondMark(U, { o: 0 });
+  // the right-hand notes
+  const NX = 960;
+  say(p, 'between oppositely charged side groups', NX, 260, 5.2, { size: 26, anchor: 'start' });
+  say(p, 'chapter 1: acidic carry −, basic carry +', NX, 302, 8.2, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  say(p, 'plus meets minus: they attract', NX, 420, tP + 1.8, { size: 28, fill: PC.glow, anchor: 'start' });
+  const sm = G(p, { o: 0 }); show(sm, tBo + 1.2, .4);
+  const shb = hBondMark(sm); shb.set(NX, 520, NX + 50, 520, 1);
+  lab(sm, 'the same pair, seen', NX + 66, 514, { size: 24, anchor: 'start' });
+  lab(sm, 'as a hydrogen bond', NX + 66, 546, { size: 24, anchor: 'start' });
+  say(p, 'one pair, not a new kind of bond', NX, 620, tBo + 6, { size: 26, fill: PC.glow, anchor: 'start' });
+  clockRun(t => {
+    const th = mLerp(22, 0, io(mRamp(t, tP + .2, tP + 2.4))) * Math.PI / 180;
+    const P = [-1, 1].map(sg => Array.from({ length: N }, (_, i) => [HX + sg * (90 + i * SP * Math.sin(th)), HY - i * SP * Math.cos(th)]));
+    let d = '';
+    P.forEach(arm => { d += `M${HX} ${HY + 50}`; arm.forEach(([x, y]) => { d += `L${r1(x)} ${r1(y)}`; }); });
+    mD(links, d);
+    P.forEach((arm, a) => arm.forEach(([x, y], i) => mPose(beads[a][i], x, y)));
+    const L0 = P[0][LI], L1 = P[1][LI], tipP = [L0[0] + 44, L0[1] - 14], tipM = [L1[0] - 44, L1[1] - 14];
+    mD(stalks[0], `M${r1(L0[0] + 20)} ${r1(L0[1] - 4)}L${r1(tipP[0])} ${r1(tipP[1])}`); mD(stalks[1], `M${r1(L1[0] - 20)} ${r1(L1[1] - 4)}L${r1(tipM[0])} ${r1(tipM[1])}`);
+    mO(stalks[0], mRamp(t, 8.2, 8.6)); mO(stalks[1], mRamp(t, 8.8, 9.2));
+    mPose(plus, tipP[0], tipP[1], mRamp(t, 8.2, 8.6)); mPose(minus, tipM[0], tipM[1], mRamp(t, 8.8, 9.2));
+    mPose(lysL, L0[0] - 46, L0[1] + 4); mPose(gluL, L1[0] + 46, L1[1] + 4);
+    mO(lysL, mRamp(t, 8.2, 8.6) * (1 - .6 * mRamp(t, tP, tP + .5))); mO(gluL, mRamp(t, 8.8, 9.2) * (1 - .6 * mRamp(t, tP, tP + .5)));
+    // the dashed attraction line, pink half from the − side, indigo half from the +
+    const k = mRamp(t, tP + 1.6, tP + 2.6), mx = (tipP[0] + tipM[0]) / 2, my = tipP[1];
+    mD(lm, `M${r1(tipM[0] - 18)} ${r1(my)}L${r1(mLerp(tipM[0] - 18, mx, k))} ${r1(my)}`);
+    mD(lp, `M${r1(tipP[0] + 18)} ${r1(my)}L${r1(mLerp(tipP[0] + 18, mx, k))} ${r1(my)}`);
+    mO(line, mRamp(t, tP + 1.6, tP + 1.8));
+    hb.set(tipM[0] - 14, my + 30, tipP[0] + 14, my + 30, mRamp(t, tBo + .4, tBo + 1.4)); mO(hb, .75 * mRamp(t, tBo + .3, tBo + .5));
+  }, D);
+}],
+
+/* ---------- hydro ---------- */
+['hydro', 'Weak force 3: hydrophobic interactions', (m, D) => {
+  const p = panel(0), tP = m('push'), tG = m('gather'), tN = m('notbond');
+  miniStrip(p, 'tertiary');
+  heading(p, 'Weak force 3: hydrophobic interactions', 'non-covalent', PC.hydrophobic);
+  const hc = hydrophobicCore(p, { x: 560, y: 500, R: 200, s: 1.05, labels: false });
+  const lc = callout(p, [565, 545], [565, 846], 'non-polar inside, in the core', { size: 26, fill: PC.hydrophobic }); show(lc, tG + 3, .4);
+  say(p, 'water pushed out', 200, 230, tG + 3.4, { size: 26, fill: PC.water, anchor: 'start' });
+  const NX = 1070;
+  const leg = G(p, { o: 0 }); show(leg, 2.6, .4);
+  const b1 = G(leg, { x: NX + 16, y: 222 }); mk('circle', { r: 16, fill: PC.hydrophobic, stroke: PC.hydrophobicEdge, 'stroke-width': 2.5 }, b1);
+  lab(leg, 'non-polar side chains', NX + 46, 231, { size: 28, fill: PC.hydrophobic, anchor: 'start' });
+  ['Val', 'Leu', 'Ile', 'Phe'].forEach((n, i) => { const c = aaChip(p, n, { x: NX + 46 + i * 100, y: 280, o: 0 }); show(c, [4.8, 5.6, 6.5, 7.9][i], .3); });
+  say(p, 'no charge to offer the water', NX, 340, 9.1, { size: 24, fill: COL.dim, weight: 600, anchor: 'start' });
+  const leg2 = G(p, { o: 0 }); show(leg2, tG + 2.6, .4);
+  const b2 = G(leg2, { x: NX + 16, y: 420 }); mk('circle', { r: 16, fill: PC.hydroxy, stroke: PC.ink, 'stroke-width': 2.5 }, b2);
+  lab(leg2, 'polar and charged: stay outside', NX + 46, 429, { size: 24, anchor: 'start' });
+  const ex = say(p, 'our explanation: water crowds them out', NX, 490, tP + .6, { size: 22, fill: PC.water, weight: 600, anchor: 'start' });
+  ex.setAttribute('font-style', 'italic');
+  say(p, 'no true bond: a tendency', NX, 590, tN + .4, { size: 30, fill: PC.glow, anchor: 'start' });
+  say(p, 'but it helps keep the shape', NX, 628, tN + 3.2, { size: 24, anchor: 'start' });
+  say(p, 'van der Waals forces: tiny attractions', NX, 730, tN + 8, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  say(p, 'when packed close, a different thing', NX, 762, tN + 8, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  clockRun(t => { hc.fold(io(mRamp(t, tP + .2, tG + 4.2))); }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  lab(p, 'valine and leucine', 310, 120, { size: 32, fill: PC.hydrophobic, weight: 800 });
+  lab(p, 'non-polar', 310, 160, { size: 24, fill: COL.dim, weight: 600 });
+  hydrophobicCore(p, { x: 310, y: 480, R: 200, s: .78, labels: false }).fold(.15);
+  lab(p, 'folding … where do they go?', 310, 820, { size: 26 });
+  void D;
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-core', prompt: ['Valine and leucine are non-polar. Where do they end up in a folded protein?'],
+  build: choice([['on the surface, in the water'], ['together inside, in the core, away from water'], ['at the N-terminal end of the chain'], ['each one bonded to a lysine']], 1,
+    'Right. Water crowds the non-polar side chains together, so they gather in the core; polar and charged side chains stay outside.',
+    ['The surface, in the water, is where polar and charged side chains sit. Non-polar ones have no charge to offer the water.', null,
+      'Folding, not the chain’s ends, decides where a side chain sits. Non-polar side chains gather in the middle.',
+      'Bonding to a lysine’s plus charge would be a salt bridge, which needs a charge. Valine and leucine have none.']),
+}], done) }],
+
+/* ---------- together ---------- */
+['together', 'All five on one chain', (m, D) => {
+  const p = panel(0), tG = m('glob'), tW = m('weak'), tS = m('side');
+  const wrap = G(p, { x: 300, y: 84, s: .4 });
+  const ls = levelsStrip(wrap, { x: 0, y: 0 });
+  tw(wrap, { x: 800, y: 96, s: .5 }, .2, 1.1);
+  const gl = globule(p, { x: 500, y: 570, R: 195, pocket: true, beads: 10, o: 0 }); show(gl, tG, .5);
+  const RX = 960;
+  const cov = G(p, { o: 0 }); show(cov, tG + 1.8, .4);
+  bondChip(cov, 'peptide', { x: RX + 50, y: 290, card: false, label: false, s: .8 });
+  bondChip(cov, 'disulfide', { x: RX + 170, y: 290, card: false, label: false, s: .8 });
+  lab(cov, 'covalent: strong', RX + 250, 300, { size: 30, fill: PC.peptide, anchor: 'start' });
+  const wk = G(p, { o: 0 }); show(wk, tW + .3, .4);
+  bondChip(wk, 'hydrogen', { x: RX + 50, y: 380, card: false, label: false, s: .7 });
+  bondChip(wk, 'salt', { x: RX + 160, y: 380, card: false, label: false, s: .7 });
+  bondChip(wk, 'hydrophobic', { x: RX + 260, y: 380, card: false, label: false, s: .7 });
+  lab(wk, 'each one weak', RX + 330, 390, { size: 30, fill: PC.hbond, anchor: 'start' });
+  const bs = barStack(p, { x: RX + 20, y: 480, n: 16, w: 24, gap: 7 });
+  show(bs, tW + 4.4, .3);
+  say(p, 'very many together: firm', RX + 20 + bs.W / 2, 548, tW + 7.6, { size: 30, fill: PC.glow });
+  say(p, 'yet gentle enough to do its work', RX + 20 + bs.W / 2, 590, tW + 9.6, { size: 24, fill: COL.dim, weight: 600 });
+  // the side chains that act the bonds out
+  const ROW = ['Cys', 'Cys', 'Lys', 'Glu', 'Ser', 'Leu', 'Val'];
+  const sc = G(p, { o: 0 }); show(sc, tS + .3, .4);
+  lab(sc, 'the side chains act them out', RX + 280, 680, { size: 28, anchor: 'middle' });
+  const chips = ROW.map((n, i) => { const c = aaChip(sc, n, { x: RX + 20 + i * 80, y: 730, o: 0 }); show(c, tS + .6 + .15 * i, .3); return c; });
+  void chips;
+  say(p, 'so the sequence decides the shape', RX + 280, 812, tS + 3.4, { size: 30, fill: PC.glow });
+  clockRun(t => {
+    ls.focus(null, 1).glow('tertiary', mBump(t, tG, tG + 3));
+    gl.bonds({ peptide: mRamp(t, tG + 1.6, tG + 2.8), ss: mRamp(t, tG + 2.6, tG + 3.6), h: mRamp(t, tW + .2, tW + 1.2), salt: mRamp(t, tW + 1.2, tW + 2.2), core: mRamp(t, tW + 2.2, tW + 3.2) });
+    bs.set(16 * mRamp(t, tW + 4.6, tW + 7.4)).solid(mRamp(t, tW + 7.4, tW + 7.9));
+    gl.pocket(mRamp(t, tW + 8.4, tW + 9.2)).partner(io(mRamp(t, tW + 9, tW + 10.8)));
+    gl.glow(mBump(t, tS, tS + 3));
+  }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tE = m('end');
+  lab(p, 'Summary: protein folding and its bonds', 800, 62, { size: 34, weight: 700 });
+  const ROWS = [
+    ['s1', 'A chain folds into its native 3D shape', 'the shape decides the function', PC.tertiary],
+    ['s2', 'Four levels: primary, secondary, tertiary, quaternary', 'the next lessons take them in turn', COL.chalk],
+    ['s3', 'Two strong, covalent bonds', 'the peptide bond –CO–NH– and the disulfide bridge S–S', PC.peptide],
+    ['s4', 'Three weak, non-covalent forces', 'hydrogen bonds, salt bridges, hydrophobic interactions: many together hold firm', PC.hbond],
+  ];
+  ROWS.forEach(([k, a, b, col], i) => {
+    const y = 180 + i * 172, g = G(p, { o: 0 });
+    box5(g, 110, y - 74, 1380, 152);
+    wChem(g, a, { x: 500, y: y - 6, size: 32, weight: 700, fill: col, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 500, y: y + 38, size: 23, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i === 0) {
+      const yb = yarnBall(g, {}); yb.set(44, 30); put(yb, { x: 200, y });
+      mArrow(g, [262, y], [312, y], { color: COL.chalk, w: 4, head: 14 });
+      globule(g, { x: 390, y, R: 46, mini: true, seed: 2 });
+    }
+    if (i === 1) levelsStrip(g, { x: 300, y, s: .24 });
+    if (i === 2) { bondChip(g, 'peptide', { x: 210, y, card: false, label: false }); bondChip(g, 'disulfide', { x: 380, y, card: false, label: false }); }
+    if (i === 3) { bondChip(g, 'hydrogen', { x: 180, y, card: false, label: false, s: .85 }); bondChip(g, 'salt', { x: 300, y, card: false, label: false, s: .85 }); bondChip(g, 'hydrophobic', { x: 415, y, card: false, label: false, s: .85 }); }
+    show(g, m(k) + .1, .5);
+  });
+  say(p, 'Now try the practice.', 800, 868, tE, { size: 30, fill: WC.bond });
+  void D;
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const frame = g => box5(g, 980, 90, 580, 720);
+  at('sort', g => {
+    frame(g);
+    [['peptide', 1150, 300], ['hydrogen', 1390, 300], ['disulfide', 1150, 500], ['salt', 1390, 500]].forEach(([kd, x, y]) => bondChip(g, kd, { x, y }));
+    lab(g, 'strong or weak?', 1270, 700, { size: 28 });
+  });
+  at('blanks', g => {
+    frame(g);
+    const pb = peptideBond(g, { x: 1270, y: 230, s: .5 }); pb.form(.5);
+    lab(g, '? H₂O', 1270, 340, { size: 26, fill: PC.water });
+    const c = cysPair(g, { x: 1270, y: 520, s: .45, mode: 'aa', labels: false }); c.bridge(.15);
+    lab(g, '? H lost', 1440, 530, { size: 26 });
+    lab(g, 'levels of structure: ?', 1270, 760, { size: 26, fill: PC.tertiary });
+  });
+  at('hb', g => {
+    frame(g);
+    path(g, 'M1060 330C1160 300 1260 360 1360 330S1480 300 1500 330', { stroke: PC.ca, 'stroke-width': 10, fill: 'none' });
+    path(g, 'M1060 520C1160 490 1260 550 1360 520S1480 490 1500 520', { stroke: PC.ca, 'stroke-width': 10, fill: 'none' });
+    lab(g, 'backbone', 1100, 300, { size: 22, fill: COL.dim });
+    const hm = hBondMark(g); hm.set(1280, 360, 1280, 492, 1);
+    lab(g, '?', 1280, 380, { size: 40, fill: PC.glow });
+    lab(g, '?', 1280, 500, { size: 40, fill: PC.glow });
+    lab(g, 'which groups does it join?', 1270, 700, { size: 26 });
+  });
+  at('pairs', g => {
+    frame(g);
+    [['Lys', 'Glu'], ['Leu', 'Val'], ['Arg', 'Asp'], ['Phe', 'Ile']].forEach(([a, b], i) => {
+      const y = 200 + i * 120;
+      aaChip(g, a, { x: 1180, y }); aaChip(g, b, { x: 1360, y });
+      lab(g, '···', 1270, y + 8, { size: 30, fill: COL.dim });
+    });
+    lab(g, 'which interaction?', 1270, 720, { size: 26 });
+  });
+  at('cys', g => {
+    frame(g);
+    sideChain(g, 'cysteine', { x: 1140, y: 470, s: 2.2 }); sideChain(g, 'serine', { x: 1400, y: 470, s: 2.2 });
+    lab(g, 'cysteine', 1140, 520, { size: 26, fill: PC.sulfur });
+    lab(g, 'serine', 1400, 520, { size: 26, fill: PC.hydroxy });
+    lab(g, 'which pair can make S–S?', 1270, 720, { size: 26 });
+  });
+  at('many', g => {
+    frame(g);
+    globule(g, { x: 1270, y: 330, R: 130 }).bonds({ h: 1, salt: 1, core: 1 });
+    const b = barStack(g, { x: 1050, y: 600, n: 14, w: 24, gap: 7 }); put(b, { o: 1 }); b.set(14);
+    lab(g, 'each bar: one weak bond', 1270, 680, { size: 24, fill: COL.dim });
+  });
+  at('seq', g => {
+    frame(g);
+    globule(g, { x: 1140, y: 380, R: 90, seed: 3, beads: 8, beadColors: [PC.simple, PC.basic, PC.acidic, PC.aromatic, PC.simple, PC.hydroxy, PC.branched, PC.basic] });
+    globule(G(g, { x: 1400, y: 380, r: -30 }), { R: 100, seed: 8, rows: 3, m: 60, helices: [[3, 22]], sheets: [[30, 38], [40, 48]], beads: 8, color: PC.quaternary, beadColors: [PC.acidic, PC.branched, PC.hetero, PC.sulfur, PC.imino, PC.acidic, PC.aromatic, PC.hydroxy] });
+    lab(g, 'sequence 1', 1140, 560, { size: 24, fill: COL.dim }); lab(g, 'sequence 2', 1400, 560, { size: 24, fill: COL.dim });
+    lab(g, 'why two shapes?', 1270, 700, { size: 26 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('sort');
+  void D;
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-sort', prompt: ['Strong (covalent) or weak (non-covalent)?'],
+    build: withPic('sort', grid([
+      { parts: ['peptide bond'], ans: ['s'], why: 'Covalent: –CO–NH–.' },
+      { parts: ['hydrogen bond'], ans: ['w'], why: 'Non-covalent: C=O ··· H–N.' },
+      { parts: ['disulfide bridge'], ans: ['s'], why: 'Covalent: S–S.' },
+      { parts: ['salt bridge'], ans: ['w'], why: 'Non-covalent: plus meets minus.' },
+    ], [['s', 'strong', null, 'S'], ['w', 'weak', null, 'W']], { multi: false, text: true })) },
+  { id: 'p-blanks', prompt: ['Count them:'],
+    build: withPic('blanks', blanks([
+      { parts: ['peptide bond: ', { box: '1' }, ' water out'], why: 'One H₂O per peptide bond.', hint: 'The OH of one and an H of the other.' },
+      { parts: ['disulfide bridge: ', { box: '2' }, ' hydrogens lost'], why: 'One H from each of the two SH groups.', hint: 'One from each cysteine.' },
+      { parts: ['levels of structure: ', { box: '4' }], why: 'Primary, secondary, tertiary, quaternary.', hint: 'Count the chevrons of the map.' },
+    ])) },
+  { id: 'p-hb', prompt: ['A hydrogen bond between backbone atoms forms between which two groups?'],
+    build: withPic('hb', choice([['the sulfurs of two cysteines'], ['the C=O of one peptide link and the N–H of another nearby'], ['two non-polar side chains'], ['a lysine and a glutamic acid side group']], 1,
+      'Right. The slightly negative carbonyl oxygen attracts the slightly positive hydrogen of an N–H nearby.',
+      ['Two cysteine sulfurs make a disulfide bridge, a strong covalent bond.', null,
+        'Non-polar side chains gather together in the core: that is the hydrophobic interaction, not a hydrogen bond.',
+        'A lysine (+) and a glutamic acid (−) make a salt bridge, between side groups, not backbone atoms.'])) },
+  { id: 'p-pairs', prompt: ['Which interaction holds each pair?'],
+    build: withPic('pairs', grid([
+      { parts: ['lysine (+) with glutamic acid (−)'], ans: ['b'], why: 'Plus meets minus.' },
+      { parts: ['leucine with valine'], ans: ['h'], why: 'Both non-polar: the core.' },
+      { parts: ['arginine (+) with aspartic acid (−)'], ans: ['b'], why: 'Plus meets minus.' },
+      { parts: ['phenylalanine with isoleucine'], ans: ['h'], why: 'Both non-polar: the core.' },
+    ], [['b', 'salt bridge', null, 'B'], ['h', 'hydrophobic', null, 'H']], { multi: false, text: true })) },
+  { id: 'p-cys', prompt: ['Which pair can be joined by a disulfide bridge?'],
+    build: withPic('cys', choice([['two serines'], ['two cysteines'], ['a lysine and a glutamic acid'], ['a leucine and a valine']], 1,
+      'Right. Only cysteine has a sulfhydryl group (SH). Two of them lose two hydrogens and join S–S.',
+      ['Serine has an OH group, not an SH: no sulfur, so no S–S.', null,
+        'That pair makes a salt bridge: plus meets minus, a weak bond.',
+        'Those two are non-polar: they gather in the core, with no bond between them.'])) },
+  { id: 'p-many', prompt: ['Hydrogen bonds, salt bridges and the hydrophobic core are all weak. Why can they still hold a protein’s shape?'],
+    build: withPic('many', choice([['each one is stronger than a peptide bond'], ['a protein has very many of them, and together they hold firmly'], ['they are covalent bonds'], ['only one of them is needed']], 1,
+      'Right. Each is weak, but a folded chain makes very many, and together they hold the shape firmly.',
+      ['Each one is weaker than a peptide bond, which is covalent.', null,
+        'They are non-covalent. Only the peptide bond and the disulfide bridge are covalent.',
+        'One weak bond is easily broken. It is the great number of them, acting together, that holds.'])) },
+  { id: 'p-seq', prompt: ['Why do two proteins with different amino acid sequences fold into different shapes?'],
+    build: withPic('seq', choice([['the chain always folds into the same ball'], ['the peptide bonds differ from protein to protein'], ['different side chains make different bonds in different places'], ['folding does not depend on the amino acids']], 2,
+      'Right. The side chains act out the bonds, so their order decides where the chain bends and what holds it.',
+      ['Different sequences fold differently: the order of the amino acids decides where the chain bends.',
+        'The peptide bond is always the same link, –CO–NH–. The side chains are what differ.', null,
+        'Folding depends on the side chains: they make the bonds that hold the shape.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+const LEVEL_NAMES = ['primary', 'secondary', 'tertiary', 'quaternary'];
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

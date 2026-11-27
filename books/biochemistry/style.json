@@ -1,0 +1,319 @@
+{
+  "schema": 1,
+  "tier": 2,
+  "book": {
+    "title": "Biochemistry",
+    "slug": "biochemistry",
+    "language": "en",
+    "readers": "university medical biochemistry; one lecture-slide PDF per chapter (Medical Biochemistry & Molecular Biology lectures after Vasudevan, Chatterjea and Lippincott); each chapter is a unit of lessons",
+    "units": [
+      {
+        "unit": 1,
+        "title": "Chapter 1: Amino Acid Classifications",
+        "source": "books/biochemistry/source/chapter-01-amino-acid-classifications.pdf",
+        "sections": "books/biochemistry/source/chapter-01-sections.json",
+        "lessons": [
+          "chapter-01/lesson-01",
+          "chapter-01/lesson-02",
+          "chapter-01/lesson-03",
+          "chapter-01/lesson-04"
+        ]
+      },
+      {
+        "unit": 2,
+        "title": "Chapter 2: Protein Types",
+        "source": "books/biochemistry/source/chapter-02-protein-types.pdf",
+        "sections": "books/biochemistry/source/chapter-02-sections.json",
+        "lessons": [
+          "chapter-02/lesson-01",
+          "chapter-02/lesson-02",
+          "chapter-02/lesson-03"
+        ]
+      },
+      {
+        "unit": 3,
+        "title": "Chapter 3: Protein Structure and Folding",
+        "source": "books/biochemistry/source/chapter-03-protein-structure-and-folding.pdf",
+        "sections": "books/biochemistry/source/chapter-03-sections.json",
+        "lessons": [
+          "chapter-03/lesson-01",
+          "chapter-03/lesson-02",
+          "chapter-03/lesson-03",
+          "chapter-03/lesson-04"
+        ]
+      }
+    ],
+    "pilot": "none of its own: the look, voice and models are Biology's (books/biology/style.json), whose approved pilot is biology chapter-03/lesson-02",
+    "layout": "same as Biology: lessons in site/biochemistry/chapter-NN/lesson-NN/; CHAPTER.number = chapter*100 + lesson (101); cards relinked by index.html; progress key animebook:progress:biochemistry pinned in lib/book.css",
+    "use": "published openly on GitHub Pages beside Biology by the user's choice (2026-11-27), after being told the lecture slides are likely in copyright; the PDFs and extracted pages are never pushed"
+  },
+  "words": [
+    "Intake 2026-11-27: a new subject, titled Biochemistry; same look, voice and models as Biology; chapter order amino acids, protein types, protein structure and folding.",
+    "Art: Flat vector, in code — clean flat shapes drawn in code (a tree, a beach, a lake); the camera pushes in to ball-and-stick water molecules whose hydrogen bonds snap and form; labels on what they name.",
+    "Cast: Molecules only — no humans; the molecules carry every scene, everyday settings are backdrops.",
+    "Look: Deep-water board — dark navy board, cream ink; oxygen red, hydrogen white, H-bonds dashed cyan, heat orange, cold blue; system UI font.",
+    "chapter-03/lesson-02 storyboard: Motion + fixes — camera pushes into the tree trunk and into the cell, stronger differences or fewer moments in units and specific heat, a fuller practice screen.",
+    "chapter-03/lesson-02 storyboard: Keep them — exaggerated molecule speed differences (still following √T) and illustrative temperatures are fine for teaching."
+  ],
+  "look": {
+    "palette": {
+      "board": "#0f1e33",
+      "ink": "#f2efe6",
+      "accent": [
+        "#e5533d",
+        "#5fd3e8",
+        "#f39a2b",
+        "#4a8fe7"
+      ]
+    },
+    "meaning": {
+      "oxygen": "#e5533d",
+      "hydrogen": "#f4f4f0",
+      "hbond": "#5fd3e8 dashed",
+      "heat": "#f39a2b",
+      "cold": "#4a8fe7",
+      "acid / H+": "#ff7aa8",
+      "base / OH-": "#6c8cff",
+      "electron": "#ffd27a",
+      "phosphate": "#bba8ee",
+      "sugar (pentose)": "#f3c95c",
+      "base A": "#f07a6a",
+      "base G": "#8fd6b0",
+      "base C": "#6c8cff",
+      "base T": "#ffd27a",
+      "base U": "#f39a2b",
+      "membrane": "#8fb0d6",
+      "ER": "#4fa3a5 (rough: ribosome dots)",
+      "Golgi": "#7fd1b9",
+      "vesicle": "#a8e0ea rim, coral cargo",
+      "lysosome": "#9a6cd0",
+      "mitochondrion": "#f39a2b",
+      "chloroplast": "#5bbf5b",
+      "peroxisome": "#c9d45c",
+      "microtubule": "#8fd6b0",
+      "actin": "#ff7aa8",
+      "intermediate filament": "#f3c95c",
+      "cell wall": "#c9b27a",
+      "collagen": "#f0b45a",
+      "integrin": "#6c8cff",
+      "phospholipid": "head #8fb0d6 ball, tails #e9c46a (kink = unsaturated)",
+      "cholesterol": "#e8a87c",
+      "integral protein": "#6c8cff (peripheral #bba8ee)",
+      "channel": "#4fa3a5 (aquaporin too)",
+      "carrier": "#7fd1b9",
+      "pump": "#5b6ee1",
+      "Na+": "#ffb347 disc",
+      "K+": "#c07ae0 rounded square",
+      "Cl-": "#8fd6b0",
+      "membrane potential": "+ #e5533d outside, − #6c8cff inside",
+      "red blood cell": "#d9534f",
+      "free energy": "height on the diagram (G up, progress across)",
+      "exergonic / ΔG < 0": "#f39a2b downhill",
+      "endergonic / ΔG > 0": "#6c8cff uphill",
+      "ATP": "#ffd27a spark, adenine #f07a6a, ribose #f3c95c, phosphates #bba8ee",
+      "enzyme": "#a8c66c (edge #6f8a3d), active-site notch",
+      "substrate": "#f07a6a (products coral + gold #f3c95c)",
+      "activation energy": "#ff7aa8 bracket on the hump",
+      "competitive inhibitor": "#e5533d",
+      "noncompetitive inhibitor": "#9a6cd0",
+      "allosteric activator": "#5bbf5b (allosteric inhibitor #e5533d)",
+      "cofactor": "metal ion #4fa3a5, coenzyme #e8a87c",
+      "H+ / proton": "#ff7aa8 disc with + (acid colour); H atom white ball carrying a gold electron",
+      "NAD+ / NADH": "#e8a87c peach shuttle (empty with + / carrying 2 e- and H); FAD / FADH2 smaller tan #c9b27a shuttle",
+      "oxidation / reduction": "outgoing orange #f39a2b arrow (loses e-) / incoming blue #6c8cff arrow (gains e-)",
+      "carbon": "#9aa3ad grey beads; CO2 grey C with two red O; pyruvate coral #f07a6a 3-bead chain; CoA teal #4fa3a5 tag",
+      "respiration stages": "glycolysis #5fb8c9, pyruvate oxidation #d9826a, citric acid cycle #d0533d, oxidative phosphorylation #8a7ad1",
+      "electron transport chain": "complexes I-IV #6c8cff, iron dots #c46a3c; ATP synthase #5b6ee1 with a lighter rotor",
+      "fermentation products": "ethanol #a8e0ea, lactate #f2a0a0"
+    },
+    "fonts": {
+      "text": "system UI",
+      "math": "serif (engine default)"
+    },
+    "notation": "°C, cal, kcal, J with a space (1 cal = 4.184 J); δ+ / δ− for partial charges; H₂O with subscripts; 5′ and 3′ with the prime ′ (U+2032); µm and nm with a space (0.5 µm, 25 nm)"
+  },
+  "voice": {
+    "engine": "edge",
+    "voice": "en-US-AndrewNeural",
+    "rate": "-4%"
+  },
+  "pacing": {
+    "minutes": [
+      6,
+      10
+    ],
+    "checks": "one or two quick checks inside the lesson, practice at the end"
+  },
+  "engine": {
+    "source": "DozenTwelve/Papermorph",
+    "ref": "engine-v2.12"
+  },
+  "models": {
+    "extract": "haiku",
+    "narration": "sonnet",
+    "picture": "opus",
+    "checks": "haiku",
+    "review": "sonnet",
+    "rework": "opus",
+    "register": "haiku"
+  },
+  "scenes": {
+    "art": "flat vector drawn in code on the navy board; everyday settings as simple backdrops; camera pushes in from scene to molecules",
+    "cast": [
+      {
+        "name": "amino acid",
+        "look": "ball-and-stick alpha carbon with blue amino group, pink carboxyl, white H and a coloured side-chain badge; no human characters",
+        "file": "site/biochemistry/lib/protein.js"
+      }
+    ],
+    "storyboard": "no storyboard stop (the user's standing choice); lessons self-check against Biology's approved lessons"
+  },
+  "components": [
+    {
+      "name": "waterMolecule",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "ball-and-stick H2O with face; δ+/δ− labels on demand; jiggle speed from temperature; look, blink, hold hands"
+    },
+    {
+      "name": "hBond",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "dashed cyan link H→O between molecules; snaps with a flash, draws on when formed"
+    },
+    {
+      "name": "moleculeCrowd",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "a region of molecules at a temperature: ice lattice, liquid, escaping gas; its thermometer reads from the same motion"
+    },
+    {
+      "name": "heatArrow + thermometer",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "wavy orange heat-flow arrow; thermometer with live °C readout from the same function as the motion"
+    },
+    {
+      "name": "beaker",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "glass of water, origin at the bottom centre; .surface gives the water line"
+    },
+    {
+      "name": "wAim",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "turn a molecule so a chosen hydrogen points at a target (to line up H-bonds)"
+    },
+    {
+      "name": "wAtom",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "lettered atom ball (O, H, Na, Cl)"
+    },
+    {
+      "name": "electronCloud",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "shared-electron cloud with two circling electrons, .set(a,b,bias,t)"
+    },
+    {
+      "name": "wLobes",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "oxygen's two negative regions, follow the molecule's pose"
+    },
+    {
+      "name": "wAngle",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "H–O–H angle arc that draws on"
+    },
+    {
+      "name": "wAim2",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "point both hydrogens at two targets"
+    },
+    {
+      "name": "wOnOff",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "an H-bond that breaks and re-forms as a function of time"
+    },
+    {
+      "name": "wIon",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "Na+/Cl- ion as a disc with face, charge badge and dashed ring"
+    },
+    {
+      "name": "wShellSlot",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "position of water k of n in a hydration shell (O toward cation, H toward anion)"
+    },
+    {
+      "name": "volFlask",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "volumetric flask with fill mark; .set(k) fills it"
+    },
+    {
+      "name": "wIonChar",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "H+, OH-, H3O+ or H2O in the water molecule's own frame, pink/indigo ring and charge badge"
+    },
+    {
+      "name": "pHStrip",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "pH scale pink-cream-indigo with .at(pH), .marker(), .band(a,b)"
+    },
+    {
+      "name": "wProtein",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "16-bead chain that folds or loosens with .set(fold, t)"
+    },
+    {
+      "name": "wChem",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "upright chemical formulas from ^/_ markup (also wChemSet, wChemEl, wChemParts)"
+    },
+    {
+      "name": "wSci",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "number formatting: 3.162e-9 as 3.2 × 10⁻⁹ (also wPH, wHof, wDec)"
+    },
+    {
+      "name": "wAcid",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "weak-acid character: .hold(k) HA (pink, holds its H) to A- (indigo, minus badge); .hp()"
+    },
+    {
+      "name": "wFracBar",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "bar split acid / conjugate base with percentages; .set(f)"
+    },
+    {
+      "name": "wAmmonia",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "NH3, or NH4+ with plus"
+    },
+    {
+      "name": "wBaseFrac",
+      "file": "site/biochemistry/lib/water.js",
+      "what": "base fraction from pH and pKa (also wSplitFrac(Ka, C))"
+    },
+    {
+      "name": "macro.js (chapter 5 kit)",
+      "file": "site/biochemistry/lib/macro.js",
+      "what": "monomer beads, polymer chain with dehydration/hydrolysis, nucleotide, base shapes, polynucleotide, DNA ladder/helix, cell with nucleus and ribosome, mRNA; API in its header"
+    },
+    {
+      "name": "metab.js (chapter 8 kit)",
+      "file": "site/biochemistry/lib/metab.js",
+      "what": "pathway strip, energy diagrams (E_A, ΔG), ATP/ADP/Pi and the ATP cycle, enzyme with active site and induced fit, catalytic cycle, inhibitors, cofactors, rate curves, allosteric enzyme, feedback pathway; API in its header"
+    },
+    {
+      "name": "protein.js (biochemistry kit)",
+      "file": "site/biochemistry/lib/protein.js",
+      "what": "amino acid (alpha carbon, amino, carboxyl, H, R side chain by class), the 20 side chains, peptide bond formation, polypeptide bead chain with N and C ends, alpha helix, beta sheet, bonds (H-bond, disulfide, salt bridge, hydrophobic), folded globule, subunit assemblies, prosthetic groups, denaturation; API in its header"
+    }
+  ],
+  "images": {
+    "sources": [
+      "drawn in code"
+    ]
+  },
+  "approved": [
+    {
+      "chapter": "biology chapter-03/lesson-02",
+      "why": "the shared model lesson: Biology's approved pilot (see books/biology/style.json)"
+    }
+  ]
+}

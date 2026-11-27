@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 2, Lesson 2: Simple Proteins and Biological Value — Biochemistry</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid.text .opts { gap: 4px; } .screen .grid.text .opt { padding: 2px 9px; font-size: 17px; min-height: 36px; } .screen .grid.text .opt kbd { display: none; }
+.screen .grid.text .row { padding: 4px 0 4px 12px; row-gap: 0; } .screen .grid.text .why { font-size: 18px; line-height: 1.25; }</style><!-- all rows wrong: four rows and their why lines fit above Check -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/protein.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biochemistry, Chapter 2 (Proteins), lesson 2: a kitchen table (jelly, egg, milk) and the push into the chapter's
+// protein family tree with the simple branch lit; the three classes (slide 7); the simple proteins (slide 8): albumin
+// and globulin from egg, milk and blood, coagulated by heat (a beaker and a frying egg); histones, basic, packing DNA on
+// nucleosome spools; the albuminoids keratin and collagen with their four NOTs; gelatin from boiled collagen (slide 9),
+// a gel on cooling, easily digested, lacking tryptophan, filed by many texts under derived; biological value (slide 10)
+// on two shelves, vegetable proteins corrected (soy; rice with beans); a plate sort; a summary; practice.
+// Plan, errata and beats: books/biochemistry/chapters/chapter-02/lesson-02.md.
+const CHAPTER = { number: 202, label: '2, lesson 2', title: 'Simple Proteins and Biological Value', minutes: 8, language: 'en', lead: false, next: '../lesson-03/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, weight: 700, ...o, o: 0 }); show(e, t0, .4); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const RED = '#ef6a5a', GREEN = PC.good, AMBER = PC.derived, SIMPLE = PC.simpleP;
+const box5 = (g, x, y, w, h, { fill = '#0b1626', stroke = COL.faint, sw = 3, rx = 22, fo = 1 } = {}) => mk('rect', { x, y, width: w, height: h, rx, fill, 'fill-opacity': fo, stroke, 'stroke-width': sw }, g);
+const r40 = k => Math.round(mClamp(k) * 40) / 40;
+const fr = v => v - Math.floor(v);
+const f1 = v => (Math.round(v * 10) / 10).toString();
+// an attribute written only when it changes
+// x and y only, rounded, written when they change (the element's opacity stays with its tween)
+function setXY(e, x, y) { const X = Math.round(x * 10) / 10, Y = Math.round(y * 10) / 10, q = st(e); if (q.x !== X || q.y !== Y) put(e, { x: X, y: Y }); return e; }
+function setA(e, k, v) { if (e['_a' + k] !== v) { e.setAttribute(k, v); e['_a' + k] = v; } return e; }
+// keyframes [[t, a, b, …], …]: eased (soft) between keys, held before the first and after the last
+function keyAt(t, K) {
+  if (t <= K[0][0]) return K[0].slice(1);
+  for (let i = 1; i < K.length; i++) if (t < K[i][0]) { const a = K[i - 1], b = K[i], f = soft((t - a[0]) / (b[0] - a[0])); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * f); }
+  return K[K.length - 1].slice(1);
+}
+// a dark pill with coloured text, origin at its centre
+function tagPill(p, str, { x = 0, y = 0, size = 22, col = COL.chalk, edge, o = 1, dash = false } = {}) {
+  const g = G(p, { x, y, o }), w = Math.round(uiW(str.replace(/[_^]/g, ''), size) * 1.08 + 30), h = size + 16;
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill: '#0b1626', stroke: edge || col, 'stroke-width': 2.5, ...(dash ? { 'stroke-dasharray': '7 6' } : {}) }, g);
+  wChem(g, str, { y: size * .36, size, fill: col, weight: 700, o: 1 });
+  return Object.assign(g, { w, h });
+}
+function tickMark(p, { x = 0, y = 0, s = 1, col = GREEN, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-16 2L-5 13L17 -12', { stroke: col, 'stroke-width': 7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  return g;
+}
+function cross(p, { x = 0, y = 0, s = 1, col = RED, o = 1, w = 7 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-14 -14L14 14M14 -14L-14 14', { stroke: col, 'stroke-width': w, 'stroke-linecap': 'round' });
+  return g;
+}
+const drop = 'M0 -34C12 -16 24 -2 24 12A24 24 0 0 1 -24 12C-24 -2 -12 -16 0 -34Z';
+
+/* ---------- foods and things (origin at the bottom centre unless said) ---------- */
+// the jelly's dome; w wobbles it (−1 … 1)
+const jellyD = w => { const hw = 90 + 7 * w, h = 120 - 9 * w; return `M${f1(-hw)} 0C${f1(-hw)} ${f1(-h * .75)} ${f1(-hw * .55)} ${f1(-h)} 0 ${f1(-h)}C${f1(hw * .55)} ${f1(-h)} ${f1(hw)} ${f1(-h * .75)} ${f1(hw)} 0Z`; };
+function jelly(p, { x = 0, y = 0, s = 1, o = 1, stand = true } = {}) {
+  const g = G(p, { x, y, s, o });
+  if (stand) {
+    mk('ellipse', { cy: -6, rx: 66, ry: 10, fill: '#cfe3f0', 'fill-opacity': .45, stroke: '#a9c2df', 'stroke-width': 3 }, g);
+    mk('rect', { x: -9, y: -70, width: 18, height: 64, fill: '#a9c2df', 'fill-opacity': .6 }, g);
+    path(g, 'M-112 -84H112L86 -68H-86Z', { fill: '#cfe3f0', 'fill-opacity': .5, stroke: '#a9c2df', 'stroke-width': 3 });
+  }
+  const body = G(g, { x: 1, y: stand ? -84 : 0 });
+  const dome = path(body, jellyD(0), { fill: '#d8344a', stroke: '#8f1d2c', 'stroke-width': 3 });
+  const rib = path(body, 'M-45 -8Q-50 -60 -30 -100M0 -6V-112M45 -8Q50 -60 30 -100', { stroke: '#b02639', 'stroke-width': 3, fill: 'none' });
+  path(body, 'M-58 -62Q-50 -96 -18 -106', { stroke: '#ff9aa8', 'stroke-width': 7, 'stroke-linecap': 'round', fill: 'none' });
+  void rib;
+  return Object.assign(g, { wob(w) { mD(dome, jellyD(Math.round(w * 50) / 50)); return g; } });
+}
+function eggOval(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('ellipse', { rx: 40, ry: 52, fill: '#f2e6cf', stroke: '#b8a888', 'stroke-width': 3 }, g);
+  mk('ellipse', { cx: -13, cy: -20, rx: 9, ry: 14, fill: '#fff', 'fill-opacity': .5 }, g);
+  return g;
+}
+function eggCup(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  eggOval(g, { x: 1, y: -128 });
+  mk('ellipse', { cy: -8, rx: 42, ry: 9, fill: '#5f86d8', stroke: '#3d56b8', 'stroke-width': 3 }, g);
+  mk('rect', { x: -11, y: -32, width: 22, height: 24, fill: '#5f86d8' }, g);
+  path(g, 'M-54 -94Q-54 -32 0 -28Q54 -32 54 -94Z', { fill: '#6c8cff', stroke: '#3d56b8', 'stroke-width': 3 });
+  return g;
+}
+function milkGlass(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-52 -150L-44 -4H44L52 -150Z', { fill: '#f4f1e8' });
+  mk('ellipse', { cy: -150, rx: 52, ry: 8, fill: '#ffffff' }, g);
+  path(g, 'M-58 -196L-46 0H46L58 -196', { stroke: '#a9c2df', 'stroke-width': 5, fill: 'none' });
+  path(g, 'M-36 -130L-30 -20', { stroke: '#ffffff', 'stroke-width': 6, 'stroke-linecap': 'round' });
+  return g;
+}
+function breadSlice(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const D = 'M-78 0V-108Q-98 -128 -88 -150Q-76 -184 -38 -178Q0 -198 38 -178Q76 -184 88 -150Q98 -128 78 -108V0Z';
+  path(g, D, { fill: '#b9813c', stroke: '#7a5222', 'stroke-width': 4 });
+  path(g, 'M-64 -10V-110Q-80 -126 -72 -144Q-62 -168 -34 -164Q0 -182 34 -164Q62 -168 72 -144Q80 -126 64 -110V-10Z', { fill: '#f0d7a4' });
+  return g;
+}
+// a frying pan with an egg: .set(k) the white turns from clear to solid white (coagulation)
+function friedEgg(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: 110, y: -12, width: 170, height: 24, rx: 10, fill: '#3a3f47', stroke: '#1d2027', 'stroke-width': 3 }, g);
+  mk('circle', { r: 128, fill: '#2b2f36', stroke: '#555c66', 'stroke-width': 6 }, g);
+  const white = path(g, 'M-86 -6C-96 -56 -40 -92 6 -84C58 -92 98 -50 88 4C96 52 46 88 0 80C-50 92 -92 48 -86 -6Z', { fill: '#cfe7f5', 'fill-opacity': .3, stroke: '#9fc4dc', 'stroke-width': 2.5 });
+  mk('circle', { cx: 6, cy: -2, r: 30, fill: '#f3b81f', stroke: '#c48a10', 'stroke-width': 3 }, g);
+  mk('circle', { cx: -4, cy: -12, r: 8, fill: '#fff', 'fill-opacity': .5 }, g);
+  return Object.assign(g, {
+    set(k) {
+      const q = r40(k);
+      setA(white, 'fill', mix('#cfe7f5', '#fbfaf4', q)); setA(white, 'fill-opacity', String(Math.round((.3 + .7 * q) * 100) / 100));
+      setA(white, 'stroke', mix('#9fc4dc', '#e2ddd0', q));
+      return g;
+    },
+  });
+}
+// a flame (origin at its base); .set(t) flickers it
+const flameD = (h, w) => `M${f1(-w)} 0Q${f1(-w * 1.1)} ${f1(-34 * h)} 0 ${f1(-74 * h)}Q${f1(w * 1.1)} ${f1(-34 * h)} ${f1(w)} 0Z`;
+function flame(p, { x = 0, y = 0, s = 1, o = 1, n = 3, sp = 46 } = {}) {
+  const g = G(p, { x, y, s, o }), F = [];
+  for (let i = 0; i < n; i++) {
+    const fg = G(g, { x: (i - (n - 1) / 2) * sp, y: 1 });
+    F.push([path(fg, flameD(1, 20), { fill: WC.heat }), path(fg, flameD(.6, 10), { fill: '#ffd27a' })]);
+  }
+  return Object.assign(g, {
+    set(t) {
+      F.forEach(([a, b], i) => { const h = Math.round((1 + .12 * Math.sin(2 * Math.PI * (t / .45 + i * .37))) * 50) / 50; mD(a, flameD(h, 20)); mD(b, flameD(h * .6, 10)); });
+      return g;
+    },
+  });
+}
+// a pot on the stove (origin at the pot's bottom centre): bones and skin in it; .set(t, k) bubbles and steam at strength k
+function bone(p, { x = 0, y = 0, s = 1, r = 0, o = 1, col = '#f2ead6' } = {}) {
+  const g = G(p, { x, y, s, r, o });
+  [[-44, -11], [-44, 11], [44, -11], [44, 11]].forEach(([cx, cy]) => mk('circle', { cx, cy, r: 14, fill: col, stroke: '#b8ab8a', 'stroke-width': 3 }, g));
+  mk('rect', { x: -46, y: -10, width: 92, height: 20, fill: col }, g);
+  path(g, 'M-34 -10H34M-34 10H34', { stroke: '#b8ab8a', 'stroke-width': 3 });
+  return g;
+}
+function pot(p, { x = 0, y = 0, s = 1, o = 1, bones = true, w = 150 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const fl = flame(g, { x: 1, y: 74, n: 3, sp: w * .5 });
+  mk('rect', { x: -w - 10, y: 74, width: 2 * w + 20, height: 12, rx: 6, fill: '#3a4250' }, g);
+  mk('ellipse', { cy: -190, rx: w, ry: 28, fill: '#5d7f9e' }, g);
+  const inG = G(g, { x: 1, y: -196 });
+  if (bones) { bone(inG, { x: -50, y: -14, r: -25, s: .75 }); bone(inG, { x: 46, y: -8, r: 20, s: .65 }); mk('ellipse', { cx: 4, cy: 4, rx: 38, ry: 10, fill: '#e8b9a0', stroke: '#b88a7a', 'stroke-width': 2.5 }, inG); }
+  path(g, `M${-w} -190Q${-w + 4} -14 ${-w + 20} 0H${w - 20}Q${w - 4} -14 ${w} -190A${w} 28 0 0 1 ${-w} -190Z`, { fill: '#6b7686', stroke: '#3a4250', 'stroke-width': 4 });
+  path(g, `M${-w} -190A${w} 28 0 0 0 ${w} -190`, { stroke: '#9aa6b6', 'stroke-width': 6, fill: 'none' });
+  mk('rect', { x: -w - 34, y: -168, width: 36, height: 16, rx: 8, fill: '#3a4250' }, g);
+  mk('rect', { x: w - 2, y: -168, width: 36, height: 16, rx: 8, fill: '#3a4250' }, g);
+  const bub = Array.from({ length: 6 }, () => mk('circle', { r: 7, fill: '#cfe3f0', 'fill-opacity': .7 }, g));
+  bub.forEach(b => put(b, { x: 1, y: 1, o: 0 }));
+  const steam = Array.from({ length: 3 }, (_, i) => { const e = path(g, 'M0 0C-14 -20 14 -40 0 -60C-14 -80 14 -100 0 -120', { stroke: '#cfe3f0', 'stroke-width': 5, fill: 'none', 'stroke-linecap': 'round' }); put(e, { x: (i - 1) * w * .5, y: -230, o: 0 }); return e; });
+  return Object.assign(g, {
+    set(t, k = 1) {
+      fl.set(t); mO(fl, k > 0 ? 1 : 0);
+      bub.forEach((b, i) => { const u = fr(t / 1.3 + i / 6), xx = (i % 3 - 1) * w * .45 + (i > 2 ? w * .2 : 0); mPose(b, xx, -190 + 8 * Math.sin(i * 2.1), k * mBump(u, 0, 1)); });
+      steam.forEach((e, i) => { const u = fr(t / 2.4 + i / 3); mPose(e, (i - 1) * w * .5, -230 - 50 * u, k * .6 * mBump(u, 0, 1)); });
+      return g;
+    },
+  });
+}
+// a source icon: 'egg' 'milk' 'blood' (origin at the centre)
+function sourceIcon(p, kind, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  if (kind === 'egg') eggOval(g, { x: 1, y: 1, s: .9 });
+  else if (kind === 'milk') { path(g, drop, { fill: '#f4f1e8', stroke: '#b9b5a8', 'stroke-width': 3, transform: 'scale(1.5)' }); }
+  else { path(g, drop, { fill: '#c8303e', stroke: '#7f1822', 'stroke-width': 3, transform: 'scale(1.5)' }); }
+  return g;
+}
+// hair, nail, skin, connective tissue, tendon, bone (origin at the centre, about 100 across)
+function tissueIcon(p, kind, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  if (kind === 'hair') path(g, 'M-26 46C-44 10 -6 -10 -24 -48M0 48C-18 12 18 -12 0 -50M26 46C8 10 44 -10 26 -48', { stroke: '#d9a25c', 'stroke-width': 7, 'stroke-linecap': 'round', fill: 'none' });
+  else if (kind === 'nail') {
+    path(g, 'M-34 46V-4Q-34 -48 0 -48Q34 -48 34 -4V46Z', { fill: '#f3d6c6', stroke: '#b88a7a', 'stroke-width': 4 });
+    path(g, 'M-22 36Q0 16 22 36', { stroke: '#ffffff', 'stroke-width': 4, fill: 'none' });
+    path(g, 'M-18 -30Q-10 -38 2 -38', { stroke: '#ffffff', 'stroke-width': 4, 'stroke-linecap': 'round', fill: 'none' });
+  } else if (kind === 'skin') {
+    mk('rect', { x: -46, y: -40, width: 92, height: 22, rx: 6, fill: '#e8b9a0' }, g);
+    mk('rect', { x: -46, y: -18, width: 92, height: 30, fill: '#d9967a' }, g);
+    mk('rect', { x: -46, y: 12, width: 92, height: 28, rx: 6, fill: '#f2d79a' }, g);
+    mk('rect', { x: -46, y: -40, width: 92, height: 80, rx: 8, fill: 'none', stroke: '#9a6a52', 'stroke-width': 3 }, g);
+  } else if (kind === 'connective') {
+    mk('rect', { x: -46, y: -40, width: 92, height: 80, rx: 10, fill: '#2a2236', stroke: '#9a6a8a', 'stroke-width': 3 }, g);
+    path(g, 'M-40 -24C-20 -34 0 -10 20 -22S40 -14 40 -14M-40 4C-20 -8 0 18 20 4S40 12 40 12M-40 28C-18 18 0 38 24 26', { stroke: '#f0c8d8', 'stroke-width': 4, fill: 'none' });
+    path(g, 'M-24 -36C-30 -10 -12 10 -22 36M14 -36C6 -6 24 12 16 36', { stroke: '#e8a87c', 'stroke-width': 3.5, fill: 'none' });
+  } else if (kind === 'tendon') {
+    path(g, 'M-50 -12Q-30 -20 0 -18Q30 -20 50 -12V12Q30 20 0 18Q-30 20 -50 12Z', { fill: '#efe4cc', stroke: '#b8ab8a', 'stroke-width': 3 });
+    path(g, 'M-42 -6H42M-42 0H42M-42 6H42', { stroke: '#c9bb98', 'stroke-width': 2 });
+  } else if (kind === 'bone') bone(g, { x: 1, y: 1, s: .9 });
+  return g;
+}
+// the four NOT icons: 'heat' 'enzyme' 'water' 'plant' (origin at the centre, about 60 across)
+function notIcon(p, kind, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  if (kind === 'heat') { path(g, flameD(1, 20), { fill: WC.heat, transform: 'translate(0 30) scale(.75)' }); path(g, flameD(.6, 10), { fill: '#ffd27a', transform: 'translate(0 30) scale(.75)' }); }
+  else if (kind === 'enzyme') path(g, 'M0 0L26 -14A30 30 0 1 0 26 14Z', { fill: MC.enzyme, stroke: MC.enzymeEdge, 'stroke-width': 3 });
+  else if (kind === 'water') path(g, drop, { fill: '#4a8fe7', stroke: '#2a5f9a', 'stroke-width': 3 });
+  else { path(g, 'M0 28C-26 14 -24 -18 0 -30C24 -18 26 14 0 28Z', { fill: WC.leaf, stroke: WC.leafDk, 'stroke-width': 3 }); path(g, 'M0 24V-22', { stroke: WC.leafDk, 'stroke-width': 2.5 }); }
+  return g;
+}
+// a shield (support and protection), origin at the centre
+function shield(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M0 -50L40 -36V0Q40 32 0 52Q-40 32 -40 0V-36Z', { fill: '#1f3a33', stroke: SIMPLE, 'stroke-width': 5 });
+  path(g, 'M-16 2L-4 14L18 -12', { stroke: SIMPLE, 'stroke-width': 6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  return g;
+}
+// a nucleosome seen face on (origin at the spool's centre): a disc of eight histones (+) and the DNA (−) that winds
+// round it. .wind(u) DNA from a loose strand above (0) to wound 1.3 turns round the spool (1); .core(k) the histone
+// disc; .minus(k) the DNA's − marks; .plus(k) the histones' + marks
+const NUC_N = [14, 60, 14];
+function nucleosome(p, { x = 0, y = 0, s = 1, o = 1, strand = [-360, 360, -230], tails = 400 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const n = NUC_N[0] + NUC_N[1] + NUC_N[2], A0 = -150, A1 = 330, R0 = 92, R1 = 114;
+  const coil = [], line = [];
+  const sp0 = [R0 * Math.cos(A0 * Math.PI / 180), R0 * Math.sin(A0 * Math.PI / 180)], sp1 = [R1 * Math.cos(A1 * Math.PI / 180), R1 * Math.sin(A1 * Math.PI / 180)];
+  for (let i = 0; i < NUC_N[0]; i++) { const f = i / NUC_N[0]; coil.push([mLerp(-tails, sp0[0], f), mLerp(-180, sp0[1], f)]); }
+  for (let i = 0; i < NUC_N[1]; i++) { const f = i / (NUC_N[1] - 1), a = (A0 + (A1 - A0) * f) * Math.PI / 180, R = mLerp(R0, R1, f); coil.push([R * Math.cos(a), R * Math.sin(a)]); }
+  for (let i = 1; i <= NUC_N[2]; i++) { const f = i / NUC_N[2]; coil.push([mLerp(sp1[0], tails, f), mLerp(sp1[1], -180, f)]); }
+  for (let i = 0; i < n; i++) { const f = i / (n - 1); line.push([mLerp(strand[0], strand[1], f), strand[2] + 10 * Math.sin(f * 14)]); }
+  const core = G(g, { o: 1 });
+  mk('circle', { r: 80, fill: '#1c2a4a', stroke: PC.basic, 'stroke-width': 4 }, core);
+  const plus = G(g, { o: 0 });
+  for (let i = 0; i < 8; i++) {
+    const a = (i * 45 - 90) * Math.PI / 180, cx = 52 * Math.cos(a), cy = 52 * Math.sin(a);
+    mk('circle', { cx: f1(cx), cy: f1(cy), r: 20, fill: PC.basic, stroke: PC.ink, 'stroke-width': 2.5 }, core);
+    if (i % 2 === 0) classIcon(plus, 'plus', { x: cx, y: cy, size: 30 });
+  }
+  const outer = path(g, 'M0 0', { stroke: MC.dna, 'stroke-width': 16, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  const inner = path(g, 'M0 0', { stroke: '#a89a78', 'stroke-width': 3, fill: 'none' });
+  const MI = [18, 30, 42, 54, 66], minus = MI.map(() => classIcon(g, 'minus', { size: 30, o: 0 }));
+  let wu = -1, mk2 = 0;
+  const at = (i, u) => [mLerp(line[i][0], coil[i][0], u), mLerp(line[i][1], coil[i][1], u)];
+  const nu = Object.assign(g, {
+    wind(u) {
+      const q = Math.round(mClamp(u) * 400) / 400;
+      if (q !== wu) { wu = q; const e = soft(q); let d = ''; for (let i = 0; i < n; i++) { const [px, py] = at(i, e); d += (i ? 'L' : 'M') + f1(px) + ' ' + f1(py); } mD(outer, d); mD(inner, d); }
+      const e = soft(wu); MI.forEach((i, j) => { const [px, py] = at(i, e); mPose(minus[j], px, py, mk2); });
+      return nu;
+    },
+    minus(k) { mk2 = Math.round(mClamp(k) * 1000) / 1000; return nu.wind(Math.max(0, wu)); },
+    core(k) { mO(core, k); return nu; },
+    plus(k) { mO(plus, k); return nu; },
+  });
+  return nu.wind(1);
+}
+// a row of the essential amino acids as small gold beads (the lecture's ten); gap: indices drawn as empty dashed slots,
+// named under them. Order: Trp Thr His Val Ile Phe Met Arg Leu Lys
+const ESS = ['Trp', 'Thr', 'His', 'Val', 'Ile', 'Phe', 'Met', 'Arg', 'Leu', 'Lys'];
+function essChain(p, { x = 0, y = 0, s = 1, o = 1, gap = [], sp = 28, r = 11, names = true, size = 18 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const c = beadChain(g, { x: 1, y: 1, n: 10, sp, r, chips: false, ends: false, colors: ESS.map(() => PC.essential), gap });
+  if (names) gap.forEach(i => wLabel(g, ESS[i], { x: 1 + (i - 4.5) * sp, y: 1 + r + size + 4, size, fill: PC.essential, weight: 700, o: 1 }));
+  return Object.assign(g, { chain: c, slotX: i => (i - 4.5) * sp });
+}
+// a grey "named, not drilled" chip
+function greyChip(p, str, { x = 0, y = 0, size = 22, o = 1 } = {}) {
+  const g = G(p, { x, y, o }), w = Math.round(uiW(str, size) * 1.08 + 28), h = size + 16;
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill: PC.tab, stroke: COL.dim, 'stroke-width': 2.5, 'stroke-dasharray': '7 6' }, g);
+  wLabel(g, str, { y: size * .36, size, fill: COL.dim, weight: 700, o: 1 });
+  return Object.assign(g, { w });
+}
+// a rice grain heap and a bean (small icons, origin at the centre)
+function riceIcon(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-34 0H34Q30 30 0 32Q-30 30 -34 0Z', { fill: '#8f6a4a', stroke: '#5c412b', 'stroke-width': 3 });
+  [[-20, -6], [-6, -10], [8, -8], [22, -4], [-12, -18], [4, -20], [16, -15]].forEach(([cx, cy], i) => mk('ellipse', { cx, cy, rx: 7, ry: 4, fill: '#f6f3ea', stroke: '#c9c4b4', 'stroke-width': 1.5, transform: `rotate(${(i * 37) % 60 - 30} ${cx} ${cy})` }, g));
+  return g;
+}
+function beanIcon(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  [[-14, 4, -20], [14, -2, 15]].forEach(([cx, cy, r]) => path(g, 'M-16 -8C-16 -20 16 -20 16 -6C16 2 6 2 4 8C2 16 -16 16 -16 -8Z', { fill: '#8a3a2a', stroke: '#4f1f16', 'stroke-width': 2.5, transform: `translate(${cx} ${cy}) rotate(${r})` }));
+  return g;
+}
+
+/* ---------- the kitchen (intro backdrop) ---------- */
+function kitchen(p) {
+  const g = G(p);
+  mk('rect', { x: -400, y: -300, width: 2400, height: 900, fill: '#1a2c47' }, g);
+  path(g, 'M-400 560H2000', { stroke: '#2a3f5f', 'stroke-width': 4 });
+  mk('rect', { x: 1060, y: 120, width: 400, height: 300, rx: 10, fill: '#132238', stroke: '#2a3f5f', 'stroke-width': 6 }, g);
+  mk('rect', { x: -400, y: 600, width: 2400, height: 600, fill: '#6b4a32' }, g);
+  mk('rect', { x: -400, y: 594, width: 2400, height: 14, fill: '#8a6244' }, g);
+  return g;
+}
+
+/* ---------- beats ---------- */
+const TREE = { x: 800, y: 470 };
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A kitchen table and the family tree', (m, D) => {
+  const p = panel(0), tJ = m('jelly'), tT = m('tree');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const K = G(W, { o: 0 }); show(K, .1, .6);
+  kitchen(K);
+  const foods = [];
+  [[jelly, 300, 0, 'gelatin dessert'], [eggCup, 560, 1.9, 'boiled egg'], [milkGlass, 820, 3.0, 'glass of milk']].forEach(([f, x, dt, name]) => {
+    const w = G(K, { x, y: 600, o: 0 }), e = f(w, { x: 1, y: 1 });
+    foods.push(e);
+    show(w, tJ + dt, .3); pulse(w, tJ + dt + .05, 1.12);
+    wLabel(w, name, { y: 56, size: 24, fill: '#f2e6cf', weight: 700, o: 1 });
+  });
+  const all = G(K, { o: 0 }); show(all, tJ + 4.1, .5);
+  wLabel(all, 'all three are protein', { x: 560, y: 270, size: 30, weight: 700, o: 1 });
+  path(all, 'M200 352Q560 376 920 352', { stroke: COL.dim, 'stroke-width': 3, fill: 'none' });
+  say(K, 'not the same kind · not equally good food', 560, 312, tJ + 6.3, { size: 24, fill: COL.dim });
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOCHEMISTRY · CHAPTER 2 · LESSON 2', { x: 1260, y: 220, size: 24, fill: COL.dim, o: 1 });
+  ['Simple proteins', 'and biological', 'value'].forEach((s, i) => wLabel(ttl, s, { x: 1260, y: 300 + i * 64, size: 50, o: 1 }));
+  wLabel(ttl, 'Proteins', { x: 1260, y: 500, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tJ + 3.6, .5);
+  // the push into the milk, then the family tree board
+  cam.to({ x: 820, y: 520, z: 3.6 }, tT - .3, 1.6);
+  hide(cam.el, tT + .5, 1.1);
+  const TG = G(p, { o: 0 }); show(TG, tT + .6, 1.1);   // a cross-fade from the milk to the board
+  const tr = proteinTree(TG, { x: TREE.x, y: TREE.y });
+  const q = G(p, { o: 0 }); show(q, tT + 8.8, .5);
+  classIcon(q, 'plate', { x: 520, y: 846, size: 52 });
+  wLabel(q, 'then: how good is a protein as food?', { x: 560, y: 858, size: 28, fill: PC.essential, weight: 700, anchor: 'start', o: 1 });
+  clockRun(t => {
+    foods[0].wob(.6 * Math.sin(2 * Math.PI * (t - tJ) / .7) * mRamp(t, tJ, tJ + .15) * (1 - mRamp(t, tJ + .2, tJ + 2.2)));
+    tr.grow(mRamp(t, tT + 1, tT + 3.8)).focus(['simple'], mRamp(t, tT + 5.1, tT + 6));
+    tr.root.glow('all', mBump(t, tT + 1.2, tT + 4.4));
+    tr.glow('simple', mBump(t, tT + 5.1, tT + 8.2));
+  }, D);
+}, { lead: false }],
+
+/* ---------- types ---------- */
+['types', 'Three classes of protein', (m, D) => {
+  const p = panel(0), tS = m('simple'), tC = m('conj'), tD = m('derived'), tL = m('lit');
+  const tr = proteinTree(p, { x: TREE.x, y: TREE.y });
+  tr.label('derived', 'products of hydrolysis');
+  say(p, 'three classes', 800, 70, .4, { size: 30, fill: COL.dim });
+  // simple: only amino acids
+  const cS = G(p);
+  say(cS, 'formed only of amino acids', 330, 150, tS + .2, { size: 28, fill: SIMPLE });
+  const chS = beadChain(cS, { x: 330, y: 300, n: 4, sp: 56, r: 20, chips: false, ends: false, o: 0 }); show(chS, tS + .6, .4);
+  say(cS, 'hydrolysis', 330, 226, tS + 3.4, { size: 24, fill: '#9fd0f0' });
+  say(cS, 'amino acids, nothing else', 330, 392, tS + 6.6, { size: 26, fill: COL.chalk });
+  // conjugated: protein + non-protein part
+  const cC = G(p);
+  say(cC, 'protein + non-protein part', 800, 150, tC + .2, { size: 28, fill: PC.conjugated });
+  const cc = G(cC, { o: 0 }); show(cc, tC + .8, .5);
+  beadChain(cc, { x: 800, y: 320, n: 4, sp: 56, r: 20, chips: false, ends: false });
+  path(cc, 'M772 300L780 262', { stroke: COL.chalk, 'stroke-width': 4 });
+  prosthetic(cc, 'sugar', { x: 790, y: 232, s: .8 });
+  say(cC, 'protein', 800, 380, tC + 2.2, { size: 24, fill: SIMPLE });
+  say(cC, 'non-protein part', 836, 240, tC + 3.2, { size: 24, fill: PC.sugar, anchor: 'start' });
+  // derived: products of hydrolysis
+  const cD = G(p);
+  say(cD, 'products of hydrolysis of', 1270, 136, tD + .2, { size: 28, fill: AMBER });
+  say(cD, 'simple or compound proteins', 1270, 172, tD + 1.2, { size: 28, fill: AMBER });
+  const chD = beadChain(cD, { x: 1270, y: 300, n: 6, sp: 50, r: 18, chips: false, ends: false, o: 0 }); show(chD, tD + .8, .4);
+  const lt = say(cD, 'denaturation products: lesson three', 1270, 392, tD + 5.3, { size: 22, fill: COL.dim, weight: 600 }); lt.setAttribute('font-style', 'italic');
+  clockRun(t => {
+    tr.focus(['simple'], (1 - mRamp(t, .3, 1.2)) + mRamp(t, tL, tL + .8));
+    tr.glow('simple', mRamp(t, tS, tS + .4) * (1 - mRamp(t, tC - .4, tC)));
+    tr.glow('conjugated', mRamp(t, tC, tC + .4) * (1 - mRamp(t, tD - .4, tD)));
+    tr.glow('derived', mRamp(t, tD, tD + .4) * (1 - mRamp(t, tL - .4, tL)));
+    tr.root.glow('all', mBump(t, .2, 2.6));
+    // the simple chain is broken link by link; it slides left so its pieces stay centred
+    const k = [0, 1, 2].map(i => mRamp(t, tS + 3.6 + i * .9, tS + 4.8 + i * .9));
+    [0, 1, 2].forEach(i => chS.cut(i, k[i]));
+    setXY(chS, 330 - 100 * (k[0] + k[1] + k[2]) / 3, 300);
+    const kd = [mRamp(t, tD + 1.4, tD + 2.6), mRamp(t, tD + 2, tD + 3.2)];
+    chD.cut(1, kd[0]).cut(3, kd[1]);
+    setXY(chD, 1270 - 30 * (kd[0] + kd[1]), 300);
+    const dim = 1 - .75 * mRamp(t, tL, tL + .8);
+    mO(cC, dim); mO(cD, dim);
+  }, D);
+}],
+
+/* ---------- simple ---------- */
+['simple', 'The simple proteins: albumin and globulin', (m, D) => {
+  const p = panel(0), tA = m('alb'), tG = m('glob'), tH = m('heat'), tE = m('egg');
+  // part 1: the simple branch grows its four leaves; three more names, dim
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), A = G(cam.world);
+  const tr = proteinTree(A, { x: TREE.x, y: TREE.y });
+  cam.to({ x: 500, y: 420, z: 1.45 }, .6, 2.6);   // in to the simple branch as its leaves grow
+  const nm = G(A, { o: 0 }); show(nm, 9.6, .5);
+  wLabel(nm, 'also named', { x: 330, y: 168, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  const chips = ['protamine', 'glutelin', 'gliadin'].map((s, i) => greyChip(nm, s, { x: 190 + i * 140, y: 214, size: 20 }));
+  hide(A, tA - .6, .5);
+  // part 2: albumin and globulin, their sources, heat
+  const B = G(p, { o: 0 }); show(B, tA - .2, .5);
+  const CARD = [[100, 'Albumin', ['egg albumin', 'lactalbumin', 'serum albumin'], tA, [.8, 3.2, 5.3]], [840, 'Globulin', ['egg globulin', 'lactoglobulin', 'serum globulin'], tG, [1.6, 3.2, 5.2]]];
+  const tags = [];
+  CARD.forEach(([x0, title, names, t0, dts], ci) => {
+    const g = G(B, { o: ci ? 0 : 1 }); if (ci) show(g, t0, .5);
+    box5(g, x0, 70, 660, 380, { stroke: SIMPLE, sw: 3.5 });
+    wLabel(g, title, { x: x0 + 330, y: 132, size: 40, fill: SIMPLE, weight: 800, o: 1 });
+    ['egg', 'milk', 'blood'].forEach((k, i) => {
+      const cx = x0 + 120 + i * 210, e = G(g, { o: 0 }); show(e, t0 + dts[i], .4);
+      const w = G(e, { x: cx, y: 250 }); sourceIcon(w, k, { x: 1, y: 1 }); pulse(w, t0 + dts[i] + .05, 1.15);
+      wLabel(e, names[i], { x: cx, y: 348, size: 26, weight: 700, o: 1 });
+      wLabel(e, ['in egg', 'in milk', 'in blood'][i], { x: cx, y: 382, size: 20, fill: COL.dim, weight: 600, o: 1 });
+    });
+    const tg = tagPill(B, 'coagulated by heat', { x: x0 + 330, y: 426, size: 22, col: WC.heat, o: 0 });
+    tags.push(tg); show(tg, tE + 3.6 + ci * .3, .4);
+  });
+  // heat: an arrow into each card, a beaker that thickens, a frying egg
+  [430, 1170].forEach(x => heatArrow(B, [x, 580], [x, 466], { label: 'heat', side: 1, size: 24 }).in(tH + .3, .8));
+  const bk = G(B, { o: 0 }); show(bk, tH + 1.6, .5);
+  const bkr = beaker(bk, { x: 220, y: 790, w: 170, h: 180, level: .7, fill: '#9fd0e8' });
+  setA(bkr.water, 'fill-opacity', '.35');
+  const bfl = flame(bk, { x: 220, y: 868, n: 3, sp: 40, s: .8 });
+  say(B, 'coagulation:', 340, 650, tH + 2.4, { size: 30, fill: WC.heat, anchor: 'start' });
+  say(B, 'liquid → solid,', 340, 694, tH + 4, { size: 28, anchor: 'start' });
+  say(B, 'or a thicker liquid', 340, 734, tH + 5.6, { size: 28, anchor: 'start' });
+  const pan = friedEgg(B, { x: 1130, y: 720, s: .95, o: 0 }); show(pan, tE - .3, .5);
+  say(B, 'the clear white turns solid', 1130, 880, tE + 1.6, { size: 24, fill: '#f2e6cf' });
+  clockRun(t => {
+    tr.focus(['simple'], 1).leaves('simple', mRamp(t, 2.8, 7.4));
+    tr.leafGlow('simple', 0, mBump(t, 3, 5)); tr.leafGlow('simple', 1, mBump(t, 3.6, 5.6));
+    put(chips[2], { s: Math.round((1 + .12 * mBump(t, 13.5, 15)) * 1000) / 1000 });
+    const k = mRamp(t, tH + 2.6, tH + 7);
+    setA(bkr.water, 'fill', mix('#9fd0e8', '#f2ead6', r40(k))); setA(bkr.water, 'fill-opacity', String(Math.round((.35 + .6 * r40(k)) * 100) / 100));
+    bfl.set(t);
+    pan.set(mRamp(t, tE + .4, tE + 3.4));
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'four simple proteins', { x: 320, y: 140, size: 30, fill: SIMPLE, weight: 800, o: 1 });
+  ['albumins', 'globulins', 'histones', 'albuminoids'].forEach((s, i) => tagPill(p, s, { x: 320, y: 210 + i * 62, size: 24, col: COL.chalk, edge: SIMPLE }));
+  const fl = flame(p, { x: 320, y: 640, n: 3, sp: 46 });
+  heatArrow(p, [320, 556], [320, 466], { o: 1 });
+  wLabel(p, 'which coagulate?', { x: 320, y: 720, size: 28, fill: WC.heat, weight: 700, o: 1 });
+  clockRun(t => fl.set(t), D);
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-heat', prompt: ['Which simple proteins are coagulated by heat?'],
+  build: choice([['histone and keratin'], ['albumin and globulin'], ['collagen and gelatin'], ['every simple protein']], 1,
+    'Right. Albumin and globulin coagulate on heating: the clear egg white turning solid is albumin coagulating.',
+    ['Neither of these coagulates on heating: histones and keratin, an albuminoid, stay as they are.', null,
+      'Collagen is an albuminoid and is not coagulated by heat. Gelatin is made by boiling and only sets into a gel when it cools.',
+      'Not all of them: histones and the albuminoids are not coagulated by heat. Think of the frying egg.']),
+}], done) }],
+
+/* ---------- histone ---------- */
+['histone', 'Histones pack DNA', (m, D) => {
+  const p = panel(0), tN = m('dna'), tX = m('not');
+  wLabel(p, 'Histones', { x: 380, y: 110, size: 44, fill: SIMPLE, weight: 800, o: 1 });
+  const ch = beadChain(p, { x: 380, y: 250, aa: ['Lys', 'Arg', 'Ala', 'Lys', 'His', 'Gly', 'Arg', 'Lys'], sp: 56, r: 22, endText: false, marks: { 0: '+', 1: '+', 3: '+', 4: '+', 6: '+', 7: '+' } });
+  say(p, 'basic proteins,', 380, 360, 1.9, { size: 28 });
+  say(p, 'rich in basic amino acids', 380, 398, 2.8, { size: 28, fill: PC.basic });
+  const AHL = [['A', 'arginine', 200], ['H', 'histidine', 380], ['L', 'lysine', 560]];
+  AHL.forEach(([L, n, x], i) => {
+    say(p, L, x, 500, 6.4 + i * .5, { size: 44, fill: PC.basic });
+    const c = aaChip(p, n, { x, y: 552, code: 'name', size: 22, badge: 'plus', o: 0 }); c.badge(1); show(c, 10.4 + i * .5, .4);
+  });
+  // DNA and the spool
+  const nu = nucleosome(p, { x: 1150, y: 430 });
+  const dl = say(p, 'DNA', 1150, 160, tN + 3, { size: 28, fill: MC.dna });
+  hide(dl, tN + 6, .4);
+  say(p, '+ attracts −', 1150, 610, tN + 9.4, { size: 26, fill: COL.chalk });
+  say(p, 'nucleosome: DNA wound on histones', 1150, 120, tN + 7.6, { size: 28, fill: PC.basic });
+  // not: heat does nothing
+  heatArrow(p, [1150, 820], [1150, 650], { label: 'heat', side: 1, size: 24 }).in(tX + .3, .8);
+  const nt = tagPill(p, 'not coagulated by heat', { x: 1150, y: 866, size: 22, col: COL.dim, o: 0 }); show(nt, tX + 1.5, .4);
+  clockRun(t => {
+    ch.reveal(mRamp(t, .2, 1.8)).marks(mRamp(t, 2.6, 3.4)).glow('all', mBump(t, tN, tN + 3));
+    nu.core(mRamp(t, tN + 6.2, tN + 7.2)).plus(mRamp(t, tN + 7, tN + 7.6));
+    mO(nu, mRamp(t, tN + 2.6, tN + 3.2));
+    nu.wind(mRamp(t, tN + 6.6, tN + 9.6)).minus(mRamp(t, tN + 3.4, tN + 4.2));
+    mPose(nu, 1150 + 6 * Math.sin(2 * Math.PI * 7 * t) * mBump(t, tX + .9, tX + 1.7), 430);   // the heat arrives: a shiver, no change
+  }, D);
+}],
+
+/* ---------- scler ---------- */
+['scler', 'The albuminoids: keratin and collagen', (m, D) => {
+  const p = panel(0), tC = m('coll'), tN = m('nots'), tS = m('sup');
+  wLabel(p, 'Albuminoids (scleroproteins)', { x: 420, y: 96, size: 36, fill: SIMPLE, weight: 800, o: 1 });
+  wLabel(p, 'the supporting proteins', { x: 420, y: 136, size: 24, fill: COL.dim, weight: 600, o: 1 });
+  // keratin
+  const kp = tagPill(p, 'keratin', { x: 150, y: 246, size: 26, col: SIMPLE, o: 0 }); show(kp, 1.6, .4);
+  [['hair', 360, 2.2], ['nail', 540, 2.9]].forEach(([k, x, t0]) => {
+    const e = G(p, { o: 0 }); show(e, t0, .4);
+    const w = G(e, { x, y: 236 }); tissueIcon(w, k, { x: 1, y: 1 }); pulse(w, t0 + .05, 1.12);
+    wLabel(e, k, { x, y: 316, size: 22, weight: 700, o: 1 });
+  });
+  // collagen
+  const cp = tagPill(p, 'collagen', { x: 150, y: 420, size: 26, col: SIMPLE, o: 0 }); show(cp, tC + .1, .4);
+  const rope = collagenRope(p, { x: 480, y: 420, len: 340, amp: 16, turns: 5, w: 8 });
+  const IC = [['skin', 'skin', 170, 1.3], ['connective', 'connective tissue', 345, 2.1], ['tendon', 'tendon', 520, 3.3], ['bone', 'bone', 670, 4.1]];
+  IC.forEach(([k, n, x, dt]) => {
+    const e = G(p, { o: 0 }); show(e, tC + dt, .4);
+    const w = G(e, { x, y: 540 }); tissueIcon(w, k, { x: 1, y: 1, s: .85 }); pulse(w, tC + dt + .05, 1.12);
+    wLabel(e, n, { x, y: 612, size: 22, weight: 700, o: 1 });
+  });
+  // the four NOTs
+  const NP = G(p, { o: 0 }); show(NP, tN, .5);
+  box5(NP, 850, 170, 690, 440, { stroke: RED, sw: 3 });
+  wLabel(NP, 'four NOTs', { x: 1195, y: 226, size: 34, fill: RED, weight: 800, o: 1 });
+  const NOTS = [['heat', 'not coagulated by heat', 1.9], ['enzyme', 'not digested by the usual enzymes', 3.9], ['water', 'not soluble in water', 6.4], ['plant', 'not found in plants', 8.2]];
+  NOTS.forEach(([k, s, dt], i) => {
+    const y = 300 + i * 82, e = G(NP, { o: 0 }); show(e, tN + dt, .4);
+    notIcon(e, k, { x: 910, y });
+    const cx = cross(e, { x: 910, y, s: 1.3, o: 0 }); show(cx, tN + dt + .3, .2); pulse(cx, tN + dt + .35, 1.3);
+    wLabel(e, s, { x: 966, y: y + 9, size: 26, weight: 700, anchor: 'start', o: 1 });
+  });
+  // support and protection; boil an egg and a nail
+  const sp = G(p, { o: 0 }); show(sp, tS + .2, .5);
+  shield(sp, { x: 170, y: 760 });
+  wLabel(sp, 'support and protection', { x: 230, y: 770, size: 30, fill: SIMPLE, weight: 800, anchor: 'start', o: 1 });
+  const egg = G(p, { o: 0 }); show(egg, tS + 2, .4);
+  const eW = mk('ellipse', { cx: 1010, cy: 700, rx: 34, ry: 44, fill: '#cfe7f5', 'fill-opacity': .4, stroke: '#9fc4dc', 'stroke-width': 3 }, egg);
+  mk('circle', { cx: 1010, cy: 706, r: 16, fill: '#f3b81f', stroke: '#c48a10', 'stroke-width': 2.5 }, egg);
+  const nl = G(p, { o: 0 }); show(nl, tS + 4, .4);
+  tissueIcon(nl, 'nail', { x: 1370, y: 700, s: .8 });
+  const P1 = pot(p, { x: 1010, y: 790, s: .42, bones: false, o: 0 }), P2 = pot(p, { x: 1370, y: 790, s: .42, bones: false, o: 0 });
+  show(P1, tS + 2, .4); show(P2, tS + 4, .4);
+  say(p, 'egg: goes hard', 1010, 880, tS + 3.2, { size: 24, fill: WC.heat });
+  say(p, 'nail: no change', 1370, 880, tS + 5.2, { size: 24, fill: COL.dim });
+  clockRun(t => {
+    rope.draw(mRamp(t, tC + .3, tC + 1.6));
+    const k = r40(mRamp(t, tS + 2.6, tS + 4));
+    setA(eW, 'fill', mix('#cfe7f5', '#fbfaf4', k)); setA(eW, 'fill-opacity', String(Math.round((.4 + .6 * k) * 100) / 100));
+    P1.set(t, 1); P2.set(t, 1);
+  }, D);
+}],
+
+/* ---------- gelatin ---------- */
+['gelatin', 'Gelatin, from boiled collagen', (m, D) => {
+  const p = panel(0), tG = m('gel'), tE = m('easy'), tL = m('low'), tN = m('note');
+  // the gelatin tile with its two stars (slide 9)
+  const tile = G(p, { o: 0 }); show(tile, .3, .4);
+  box5(tile, 1180, 590, 300, 96, { stroke: SIMPLE, sw: 3.5, rx: 20 });
+  wLabel(tile, 'gelatin', { x: 1300, y: 652, size: 36, fill: COL.chalk, weight: 800, o: 1 });
+  const stars = [1406, 1446].map(x => { const w = G(tile, { x, y: 630 }); classIcon(w, 'star', { x: 1, y: 1, size: 36 }); return w; });
+  stars.forEach((w, i) => { pulse(w, 1.2 + i * .2, 1.4); pulse(w, tN + .4 + i * .2, 1.4); });
+  wLabel(tile, 'on the slide', { x: 1330, y: 720, size: 20, fill: COL.dim, weight: 600, o: 1 });
+  // boil: the pot, collagen loosening into gelatin
+  const po = pot(p, { x: 240, y: 420, s: .9, o: 0 }); show(po, .2, .5);
+  say(p, 'bones and skin', 240, 548, 3.4, { size: 26, fill: '#f2e6cf' });
+  const ba = G(p, { o: 0 }); show(ba, 4.2, .4);
+  mArrow(ba, [420, 330], [560, 330], { color: WC.heat, w: 6, head: 18 });
+  wLabel(ba, 'boil', { x: 490, y: 306, size: 24, fill: WC.heat, weight: 700, o: 1 });
+  const rope = collagenRope(p, { x: 790, y: 330, len: 380, amp: 18, turns: 5, w: 9, o: 0 }); show(rope, 3.6, .4);
+  const cl = say(p, 'collagen', 790, 262, 3.8, { size: 28, fill: SIMPLE }); hide(cl, 6.4, .3);
+  say(p, 'gelatin', 790, 446, 7, { size: 30, fill: COL.chalk });
+  // gel on cooling
+  heatArrow(p, [1010, 330], [1150, 330], { label: 'cool', color: WC.cold, side: -1, size: 24 }).in(tG + .2, .7);
+  const jw = G(p, { x: 1320, y: 470, o: 0 }); show(jw, tG + .6, .4); pulse(jw, tG + .65, 1.1);
+  const jl = jelly(jw, { x: 1, y: 1, s: .95 });
+  say(p, 'a gel on cooling', 1320, 528, tG + 1.4, { size: 26, fill: '#ff9aa8' });
+  // easily digested
+  const ez = G(p, { o: 0 }); show(ez, tE + .2, .4);
+  tickMark(ez, { x: 630, y: 510, s: 1.1 });
+  wLabel(ez, 'easily digested', { x: 660, y: 520, size: 28, fill: GREEN, weight: 800, anchor: 'start', o: 1 });
+  say(p, '(collagen: not digested by the usual enzymes)', 790, 560, tE + 2, { size: 20, fill: COL.dim, weight: 600 });
+  // low biological value: no tryptophan
+  const hd = G(p, { o: 0 }); show(hd, tL + .2, .4);
+  classIcon(hd, 'star', { x: 250, y: 640, size: 30 });
+  wLabel(hd, 'gelatin’s essential amino acids', { x: 274, y: 650, size: 24, fill: PC.essential, weight: 700, anchor: 'start', o: 1 });
+  const ec = essChain(p, { x: 520, y: 730, sp: 46, r: 18, gap: [0], size: 22, o: 0 }); show(ec, tL + .3, .4);
+  const gapRing = G(p, { x: 520 + ec.slotX(0), y: 730, o: 0 }); mk('circle', { r: 24, fill: 'none', stroke: RED, 'stroke-width': 4 }, gapRing);
+  show(gapRing, tL + 3.6, .3); pulse(gapRing, tL + 3.7, 1.25);
+  say(p, 'lacks tryptophan: low biological value', 520, 830, tL + 2.4, { size: 28, fill: RED });
+  // note: many texts file it under derived
+  const n1 = tagPill(p, 'lecture: simple proteins', { x: 1330, y: 790, size: 22, col: SIMPLE, o: 0 }); show(n1, tN + 6.9, .4);
+  const n2 = tagPill(p, 'many texts: derived', { x: 1330, y: 852, size: 22, col: AMBER, dash: true, o: 0 }); show(n2, tN + 3.6, .4);
+  clockRun(t => {
+    po.set(t, mRamp(t, .4, 1.2));
+    rope.loosen(mRamp(t, 4.6, 7.6));
+    jl.wob(.5 * Math.sin(2 * Math.PI * (t - tG) / .6) * mRamp(t, tG + .6, tG + .8) * (1 - mRamp(t, tG + 1, tG + 3.6)) + .25 * Math.sin(2 * Math.PI * (t - tG) / .6) * mBump(t, tG + 2.4, tG + 4));
+    ec.chain.reveal(mRamp(t, tL + .3, tL + 2.2));
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'gelatin', { x: 320, y: 300, size: 36, fill: COL.chalk, weight: 800, o: 1 });
+  wLabel(p, 'its essential amino acids', { x: 320, y: 340, size: 22, fill: PC.essential, weight: 700, o: 1 });
+  essChain(p, { x: 320, y: 420, sp: 34, r: 14, gap: [0], size: 20 });
+  wLabel(p, '?', { x: 320 - 4.5 * 34, y: 380, size: 40, fill: RED, weight: 800, o: 1 });
+  wLabel(p, 'biological value: low. why?', { x: 320, y: 540, size: 26, weight: 700, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-gel', prompt: ['Why does gelatin have a low biological value?'],
+  build: choice([['it cannot be digested'], ['it is not made of amino acids'], ['it lacks tryptophan, an essential amino acid'], ['it is coagulated by heat']], 2,
+    'Right. Gelatin lacks tryptophan, one of the essential amino acids the body cannot make, so it cannot be an adequate diet on its own.',
+    ['The opposite: gelatin is easily digested, unlike the collagen it comes from.',
+      'Gelatin is a protein, made of amino acids. The trouble is which ones are missing.', null,
+      'Gelatin is not coagulated by heat: it sets into a gel on cooling. Look at the empty slot on its chain.']),
+}], done) }],
+
+/* ---------- value ---------- */
+['value', 'Biological value', (m, D) => {
+  const p = panel(0), tH = m('high'), tL = m('low'), tV = m('veg'), tC = m('cas');
+  const row = G(p, { x: 800, y: 420, s: 1.5 });
+  tw(row, { y: 114, s: 1 }, tH - 1.2, 1.1);
+  say(row, 'essential amino acids (chapter one): the diet must bring them', 0, -54, .3, { size: 26, fill: COL.dim });
+  const chips = ESS.map((n, i) => {
+    const c = aaChip(row, n, { x: (i - 4.5) * 86, y: 1, badge: n === 'His' || n === 'Arg' ? 'halfStar' : 'star', o: 0 });
+    c.badge(1); show(c, .6 + i * .18, .3); return c;
+  });
+  // the two shelves
+  const SH = [[60, 'high biological value', GREEN, tH], [820, 'low biological value', RED, tL]];
+  SH.forEach(([x0, s, col, t0]) => {
+    const g = G(p, { o: 0 }); show(g, t0, .5);
+    box5(g, x0, 180, 720, 470, { stroke: col, sw: 3 });
+    wLabel(g, s, { x: x0 + 360, y: 232, size: 32, fill: col, weight: 800, o: 1 });
+  });
+  say(p, 'all the essential amino acids', 420, 272, tH + .8, { size: 22, fill: COL.dim, weight: 600 });
+  say(p, 'lack one or more', 1180, 272, tL + .8, { size: 22, fill: COL.dim, weight: 600 });
+  const ROWS = [
+    [90, 340, 'casein (milk)', [], tH + 5, true], [90, 450, 'albumin', [], tH + 6.4, true], [90, 560, 'globulin', [], tH + 7.4, true],
+    [850, 340, 'gelatin', [0], tL + 3.3, false], [850, 450, 'gliadin (wheat)', [9], tL + 4.5, false], [850, 560, 'vegetable proteins', [6, 9], tL + 7, false],
+  ];
+  const chains = [];
+  ROWS.forEach(([x0, y, n, gap, t0, ok]) => {
+    const g = G(p, { o: 0 }); show(g, t0, .4);
+    wLabel(g, n, { x: x0, y: y + 9, size: 26, weight: 700, anchor: 'start', o: 1 });
+    const c = essChain(g, { x: x0 + 412, y, gap, sp: 28, r: 11, size: 16 }); chains.push([c, t0]);
+    (ok ? tickMark : cross)(g, { x: x0 + 640, y });
+  });
+  const ph = tagPill(p, 'also a phosphoprotein: lesson three', { x: 402, y: 380, size: 18, col: PC.conjugated, o: 0 }); show(ph, tC + 1.6, .4);
+  // vegetable proteins, with care: soy is complete; rice and beans fill each other's gaps
+  const vb = G(p, { o: 0 });   // faded by the clock below
+  box5(vb, 60, 680, 1480, 200, { stroke: PC.essential, sw: 2.5 });
+  wLabel(vb, 'with care:', { x: 90, y: 726, size: 24, fill: PC.essential, weight: 800, anchor: 'start', o: 1 });
+  const soy = G(p, { o: 0 }); show(soy, tV + 5.4, .4);
+  wLabel(soy, 'soy', { x: 90, y: 800, size: 28, weight: 800, anchor: 'start', o: 1 });
+  essChain(soy, { x: 330, y: 790, sp: 26, r: 10 });
+  tickMark(soy, { x: 500, y: 790 });
+  wLabel(soy, 'complete', { x: 530, y: 799, size: 24, fill: GREEN, weight: 700, anchor: 'start', o: 1 });
+  const rb = G(p, { o: 0 }); show(rb, tV + 7, .4);
+  wLabel(rb, 'rice', { x: 740, y: 750, size: 22, weight: 700, anchor: 'start', o: 1 }); wLabel(rb, 'beans', { x: 740, y: 838, size: 22, weight: 700, anchor: 'start', o: 1 });
+  riceIcon(rb, { x: 840, y: 742, s: .8 }); beanIcon(rb, { x: 840, y: 830, s: .8 });
+  const rice = essChain(rb, { x: 1100, y: 742, sp: 26, r: 10, gap: [9], names: false }), bean = essChain(rb, { x: 1100, y: 830, sp: 26, r: 10, gap: [6], names: false });
+  const fill = G(p, { o: 0 }); show(fill, tV + 8.6, .4);
+  [[1100 + rice.slotX(9), 816, 758], [1100 + bean.slotX(6), 756, 814]].forEach(([x, a, b]) => mArrow(fill, [x, a], [x, b], { color: PC.essential, w: 4, head: 12 }));
+  const rbk = G(p, { o: 0 }); show(rbk, tV + 9.6, .4);
+  tickMark(rbk, { x: 1320, y: 786 });
+  wLabel(rbk, 'together:', { x: 1350, y: 776, size: 22, fill: GREEN, weight: 700, anchor: 'start', o: 1 });
+  wLabel(rbk, 'complete', { x: 1350, y: 804, size: 22, fill: GREEN, weight: 700, anchor: 'start', o: 1 });
+  clockRun(t => {
+    chips.forEach((c, i) => c.glow(mBump(t, 2.6 + i * .15, 4.6 + i * .15)));
+    chains.forEach(([c, t0]) => c.chain.reveal(mRamp(t, t0 + .1, t0 + 1)));
+    const sl = soft(mRamp(t, tV + 7.2, tV + 8.4));
+    mPose(rice, 1100 - 50 * (1 - sl), 742); mPose(bean, 1100 + 50 * (1 - sl), 830);
+    mO(vb, mRamp(t, tV + .2, tV + .7) * (1 - .5 * mRamp(t, tC, tC + .6)));
+  }, D);
+}],
+
+/* ---------- sort ---------- */
+['sort', 'Sorting a plate', (m, D) => {
+  const p = panel(0), T0 = { egg: m('egg'), milk: m('milk'), jel: m('jel'), bread: m('bread') }, tM = m('mix');
+  const tray = G(p, { o: 0 }); show(tray, .1, .5);
+  mk('ellipse', { cx: 800, cy: 286, rx: 760, ry: 40, fill: '#e6e1d4', stroke: '#a8a498', 'stroke-width': 4 }, tray);
+  mk('ellipse', { cx: 800, cy: 282, rx: 700, ry: 26, fill: 'none', stroke: '#c8c4b8', 'stroke-width': 3 }, tray);
+  const X = [230, 610, 990, 1370];
+  const foods = [[x => eggOval(p, { x, y: 228, s: 1.1 }), 'egg'], [x => milkGlass(p, { x, y: 290, s: .85 }), 'milk'], [x => jelly(p, { x, y: 290, s: .8 }), 'jel'], [x => breadSlice(p, { x, y: 290, s: .85 }), 'bread']];
+  foods.forEach(([f, k], i) => { const e = f(X[i]); put(e, { o: 0 }); show(e, .4 + i * .25, .4); pulse(e, T0[k] + .05, 1.08); });
+  const COLS = [
+    ['egg', ['albumin, globulin'], [['simple', SIMPLE, 1.4], ['coagulated by heat', WC.heat, 2.6], ['high value', GREEN, 3.6]], []],
+    ['milk', ['casein, lactalbumin,', 'lactoglobulin'], [['high value', GREEN, 3.8]], []],
+    ['jel', ['gelatin'], [['easily digested', GREEN, 1.8], ['low value: no Trp', RED, 3.2]], [0]],
+    ['bread', ['gliadin'], [['low value: short of one', RED, 1.9]], [9]],
+  ];
+  COLS.forEach(([k, lines, pills, gap], i) => {
+    const t0 = T0[k], x = X[i];
+    lines.forEach((s, j) => say(p, s, x, 400 + j * 34, t0 + .3 + j * .5, { size: 26 }));
+    pills.forEach(([s, col, dt], j) => { const e = tagPill(p, s, { x, y: 494 + j * 58, size: 22, col, o: 0 }); show(e, t0 + dt, .4); });
+    const ec = essChain(p, { x, y: 690, sp: 24, r: 9, gap, size: 16, o: 0 }); show(ec, t0 + (gap.length ? 3.6 : 4.2), .4);
+    if (!gap.length) tickMark(ec, { x: 150, y: 1, s: .8 });
+  });
+  // mix: rice and beans together
+  const mx = G(p, { o: 0 }); show(mx, tM + .3, .5);
+  riceIcon(mx, { x: 560, y: 812 }); wLabel(mx, '+', { x: 616, y: 826, size: 36, weight: 800, o: 1 }); beanIcon(mx, { x: 670, y: 812 });
+  wLabel(mx, 'mix your sources: what one food lacks, another supplies', { x: 720, y: 822, size: 28, fill: PC.essential, weight: 700, anchor: 'start', o: 1 });
+  const bt = G(p, { o: 0 }); show(bt, tM + 2.6, .3); tickMark(bt, { x: 500, y: 812, s: 1.2 }); pulse(bt, tM + 2.65, 1.3);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tE = m('end');
+  wLabel(p, 'Summary: simple proteins and biological value', { x: 800, y: 62, size: 34, weight: 700, o: 1 });
+  const tr = proteinTree(p, { x: 500, y: 455, s: .8 });
+  const RX = 1010, RW = 570;
+  // over the tree, what the lesson lit: the simple branch, and how good a protein is as food
+  say(p, 'today: the simple branch', 500, 170, .5, { size: 32, fill: SIMPLE });
+  const fd = G(p, { o: 0 }); show(fd, m('s4') + .2, .5);
+  classIcon(fd, 'plate', { x: 350, y: 220, size: 48 });
+  wLabel(fd, 'and its value as food', { x: 390, y: 230, size: 26, fill: PC.essential, weight: 700, anchor: 'start', o: 1 });
+  const ROWS = [
+    ['s1', 'Simple: only amino acids', 'albumin, globulin: coagulated by heat'],
+    ['s2', 'Histones: basic (+)', 'they pack DNA into nucleosomes'],
+    ['s3', 'Albuminoids: keratin, collagen', 'four NOTs · gelatin: low in tryptophan'],
+    ['s4', 'Biological value', 'high: every essential · low: lacks one'],
+  ];
+  const live = [];
+  ROWS.forEach(([k, a, b], i) => {
+    const y = 180 + i * 172, g = G(p, { o: 0 }); show(g, m(k) + .1, .5);
+    box5(g, RX, y - 74, RW, 148);
+    wChem(g, a, { x: RX + 150, y: y - 6, size: 26, weight: 700, fill: [SIMPLE, PC.basic, SIMPLE, PC.essential][i], anchor: 'start', o: 1 });
+    wChem(g, b, { x: RX + 150, y: y + 32, size: 19, weight: 600, fill: COL.dim, anchor: 'start', o: 1 });
+    const cx = RX + 75;
+    if (i === 0) { const c = beadChain(g, { x: cx - 35, y: y + 4, n: 3, sp: 24, r: 11, chips: false, ends: false }); live.push([0, (t, q) => c.cut(0, q).cut(1, q)]); }
+    if (i === 1) nucleosome(g, { x: cx, y: y + 16, s: .3, tails: 220 }).plus(1);
+    if (i === 2) { notIcon(g, 'heat', { x: cx - 30, y }); cross(g, { x: cx - 30, y, s: .9 }); jelly(g, { x: cx + 36, y: y + 32, s: .32, stand: false }); }
+    if (i === 3) { essChain(g, { x: cx, y: y - 20, sp: 13, r: 5, names: false }); essChain(g, { x: cx, y: y + 20, sp: 13, r: 5, gap: [0], names: false }); }
+  });
+  say(p, 'Now try the practice.', 1295, 868, tE, { size: 30, fill: WC.bond });
+  const env = (t, i) => mRamp(t, m(ROWS[i][0]) + .6, m(ROWS[i][0]) + 3);
+  clockRun(t => {
+    tr.focus(['simple'], 1).leaves('simple', 1).tick('simple', mRamp(t, .4, .9));
+    [[0, 0], [1, 0], [2, 1], [3, 2]].forEach(([j, r]) => tr.leafGlow('simple', j, mRamp(t, m(ROWS[r][0]), m(ROWS[r][0]) + .5) * (1 - mRamp(t, m(ROWS[r + 1][0]) - .4, m(ROWS[r + 1][0])))));
+    tr.glow('simple', mRamp(t, m('s4'), m('s4') + .5) * (1 - mRamp(t, tE - .3, tE + .2)));
+    live.forEach(([i, f]) => f(t, env(t, i)));
+  }, D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const frame = g => box5(g, 980, 90, 580, 720);
+  const PX = 1270;
+  at('simple', g => {
+    frame(g);
+    wLabel(g, 'egg albumin', { x: PX, y: 200, size: 28, fill: SIMPLE, weight: 800, o: 1 });
+    beadChain(g, { x: PX, y: 290, n: 6, sp: 56, r: 20, chips: false, endText: false });
+    mArrow(g, [PX, 340], [PX, 460], { color: '#9fd0f0', w: 5, head: 16 });
+    wLabel(g, 'hydrolysis', { x: PX + 20, y: 408, size: 24, fill: '#9fd0f0', weight: 700, anchor: 'start', o: 1 });
+    wLabel(g, '?', { x: PX, y: 560, size: 72, fill: PC.essential, weight: 800, o: 1 });
+    wLabel(g, 'what comes out?', { x: PX, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('heat', g => {
+    frame(g);
+    friedEgg(g, { x: 1150, y: 360, s: .62 }).set(.5);
+    tissueIcon(g, 'nail', { x: 1440, y: 360, s: 1 });
+    flame(g, { x: 1150, y: 520, n: 3, sp: 36, s: .8 }); flame(g, { x: 1440, y: 520, n: 2, sp: 36, s: .8 });
+    wLabel(g, 'albumin', { x: 1150, y: 600, size: 24, weight: 700, o: 1 });
+    wLabel(g, 'keratin', { x: 1440, y: 600, size: 24, weight: 700, o: 1 });
+    wLabel(g, 'heat: does it coagulate?', { x: PX, y: 760, size: 26, weight: 700, fill: WC.heat, o: 1 });
+  });
+  at('histone', g => {
+    frame(g);
+    nucleosome(g, { x: PX, y: 400, s: .85, tails: 300 }).plus(1).minus(1);
+    wLabel(g, 'nucleosome', { x: PX, y: 620, size: 28, fill: PC.basic, weight: 800, o: 1 });
+    wLabel(g, 'what holds the DNA here?', { x: PX, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('albuminoid', g => {
+    frame(g);
+    [['hair', 1110, 'keratin'], ['tendon', 1430, 'collagen']].forEach(([k, x, n]) => { tissueIcon(g, k, { x, y: 230 }); wLabel(g, n, { x, y: 320, size: 24, fill: SIMPLE, weight: 700, o: 1 }); });
+    [['heat', 1080], ['enzyme', 1210], ['water', 1340], ['plant', 1470]].forEach(([k, x]) => { notIcon(g, k, { x, y: 480 }); wLabel(g, '?', { x, y: 570, size: 36, fill: PC.essential, weight: 800, o: 1 }); });
+    wLabel(g, 'heat, enzymes, water, plants', { x: PX, y: 650, size: 22, fill: COL.dim, weight: 600, o: 1 });
+    wLabel(g, 'which fits the albuminoids?', { x: PX, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('bv', g => {
+    frame(g);
+    classIcon(g, 'star', { x: 1090, y: 170, size: 32 });
+    wLabel(g, 'essential amino acids', { x: 1115, y: 180, size: 24, fill: PC.essential, weight: 700, anchor: 'start', o: 1 });
+    // one chain per grid row, in the grid's order
+    [['casein of milk', []], ['egg albumin', []], ['gelatin', [0]], ['gliadin of wheat', [9]]].forEach(([n, gap], i) => {
+      const y = 270 + i * 120;
+      wLabel(g, n, { x: 1005, y: y + 8, size: 22, weight: 700, anchor: 'start', o: 1 });
+      essChain(g, { x: 1395, y, sp: 26, r: 10, gap, size: 16 });
+    });
+    wLabel(g, 'high or low?', { x: PX, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('lysine', g => {
+    frame(g);
+    wLabel(g, 'a protein', { x: PX, y: 300, size: 28, weight: 800, o: 1 });
+    essChain(g, { x: PX, y: 400, sp: 46, r: 18, gap: [9], size: 24 });
+    wLabel(g, 'lysine missing', { x: PX, y: 520, size: 26, fill: RED, weight: 700, o: 1 });
+    wLabel(g, 'biological value?', { x: PX, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('blanks', g => {
+    frame(g);
+    [['Simple', SIMPLE, 1110], ['Conjugated', PC.conjugated, 1270], ['Derived', AMBER, 1430]].forEach(([s, c, x]) => { box5(g, x - 72, 150, 144, 50, { stroke: c, sw: 3, rx: 12 }); wLabel(g, s, { x, y: 183, size: 20, fill: c, weight: 800, o: 1 }); });
+    wLabel(g, '? classes', { x: PX, y: 250, size: 26, fill: PC.essential, weight: 800, o: 1 });
+    [['heat', 1080], ['enzyme', 1210], ['water', 1340], ['plant', 1470]].forEach(([k, x]) => { notIcon(g, k, { x, y: 350, s: .8 }); cross(g, { x, y: 350, s: 1 }); });
+    wLabel(g, '? NOTs', { x: PX, y: 430, size: 26, fill: PC.essential, weight: 800, o: 1 });
+    box5(g, 1040, 490, 220, 120, { stroke: GREEN, sw: 3, rx: 14 }); box5(g, 1280, 490, 220, 120, { stroke: RED, sw: 3, rx: 14 });
+    essChain(g, { x: 1150, y: 550, sp: 18, r: 7, names: false }); essChain(g, { x: 1390, y: 550, sp: 18, r: 7, gap: [0], names: false });
+    wLabel(g, '? levels of biological value', { x: PX, y: 660, size: 26, fill: PC.essential, weight: 800, o: 1 });
+    wLabel(g, 'count them', { x: PX, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('simple');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-simple', prompt: ['Why is egg albumin a simple protein?'],
+    build: withPic('simple', choice([['on hydrolysis it gives amino acids and a sugar'], ['it is made by breaking down another protein'], ['it is found in an egg'], ['on hydrolysis it gives only amino acids']], 3,
+      'Right. A simple protein is formed only of amino acids: hydrolysis gives amino acids and nothing else.',
+      ['A protein that also gives a sugar has a non-protein part: that makes it conjugated, not simple.',
+        'A product of the hydrolysis of another protein is a derived protein. Albumin is not made that way.',
+        'Where it is found does not decide the class. Egg holds simple and conjugated proteins alike. Ask what hydrolysis gives.', null])) },
+  { id: 'p-heat', prompt: ['Does heat coagulate it?'],
+    build: withPic('heat', grid([
+      { parts: ['egg albumin'], ans: ['c'], why: 'Albumin: yes.' },
+      { parts: ['serum globulin'], ans: ['c'], why: 'Globulin: yes.' },
+      { parts: ['histone'], ans: ['n'], why: 'Histone: no.' },
+      { parts: ['keratin'], ans: ['n'], why: 'An albuminoid: no.' },
+    ], [['c', 'Coagulated', null, 'C'], ['n', 'Not coagulated', null, 'N']], { multi: false, text: true })) },
+  { id: 'p-histone', prompt: ['What do histones do, and why are they suited to it?'],
+    build: withPic('histone', choice([['they pack DNA into nucleosomes, held by charge'], ['they carry oxygen in the blood, bound to iron'], ['they strengthen hair and nail as tough fibres'], ['they coagulate on heating, like egg albumin']], 0,
+      'Right. Histones are rich in basic amino acids (arginine, histidine, lysine), so they are positive and hold DNA, which is negative, wound into nucleosomes.',
+      [null, 'That is hemoglobin, a conjugated protein. Histones sit with DNA in the nucleus.',
+        'That is keratin, an albuminoid. Histones are the basic proteins that pack DNA.',
+        'Histones are not coagulated by heat. Only albumin and globulin are, of the simple proteins.'])) },
+  { id: 'p-albuminoid', prompt: ['Which statement fits the albuminoids, keratin and collagen?'],
+    build: withPic('albuminoid', choice([['coagulated by heat, just like egg albumin'], ['storage proteins found in plant seeds'], ['not coagulated by heat, not soluble in water'], ['dissolve freely in water, like albumin']], 2,
+      'Right. Two of the four NOTs: not coagulated by heat, not digested by the usual enzymes, not soluble in water, not found in plants.',
+      ['Boil a fingernail and nothing happens: albuminoids are not coagulated by heat.',
+        'Albuminoids are not found in plants. Keratin and collagen are animal proteins of support.', null,
+        'They are not soluble in water. That is one of the four NOTs.'])) },
+  { id: 'p-bv', prompt: ['Which biological value?'],
+    build: withPic('bv', grid([
+      { parts: ['casein of milk'], ans: ['h'], why: 'All the essential ones.' },
+      { parts: ['egg albumin'], ans: ['h'], why: 'All the essential ones.' },
+      { parts: ['gelatin'], ans: ['l'], why: 'No tryptophan.' },
+      { parts: ['gliadin of wheat'], ans: ['l'], why: 'Short of some.' },
+    ], [['h', 'High', null, 'H'], ['l', 'Low', null, 'L']], { multi: false, text: true })) },
+  { id: 'p-lysine', prompt: ['A protein lacks lysine, an essential amino acid. What is its biological value?'],
+    build: withPic('lysine', choice([['high, because it has all the others'], ['low, because it lacks an essential amino acid'], ['it depends only on how much is eaten'], ['it becomes high when it is boiled']], 1,
+      'Right. Lacking even one essential amino acid makes a protein low in biological value: the body cannot make lysine for itself.',
+      ['One missing essential amino acid is enough: high value means all of them are present.', null,
+        'Eating more of it never supplies the lysine it does not have.',
+        'Boiling does not add amino acids. Gelatin is made by boiling and is still low.'])) },
+  { id: 'p-blanks', prompt: ['Fill in the counts from the lecture:'],
+    build: withPic('blanks', blanks([
+      { parts: ['proteins are sorted into ', { box: '3' }, ' classes'], why: 'Simple, conjugated and derived.', hint: 'Count the branches of the family tree.' },
+      { parts: ['albuminoids have ', { box: '4' }, ' “not” properties'], why: 'Heat, enzymes, water, plants.', hint: 'Heat, enzymes, water and …' },
+      { parts: ['biological value has ', { box: '2' }, ' levels'], why: 'High and low.', hint: 'One shelf for complete proteins, one for the rest.' },
+    ])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

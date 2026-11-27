@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 2, Lesson 3: Conjugated and Derived Proteins — Biochemistry</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid.text .opts { gap: 4px; } .screen .grid.text .opt { padding: 2px 9px; font-size: 17px; min-height: 36px; } .screen .grid.text .opt kbd { display: none; }
+.screen .grid.text .row { padding: 4px 0 4px 12px; row-gap: 0; } .screen .grid.text .why { font-size: 18px; line-height: 1.25; }</style><!-- all rows wrong: three rows and their why lines fit above Check -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/protein.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biochemistry, Chapter 2 (Proteins), lesson 3: a loaf that takes butter, jam and cheese (a protein with a passenger);
+// the family tree with the conjugated and derived branches lit; the conjugated protein (protein + non-protein part)
+// and its six passengers; glyco- and lipoproteins (the lipoprotein carried along a blood vessel), phospho- and
+// metalloproteins (copper, zinc, iron; "carry, carry, store"), chromoproteins (red heme, yellow flavin), nucleoproteins
+// (chromosome and ribosome); derived proteins through two doors: primary (denaturation, the egg in the pan, protein →
+// protean → metaprotein, no peptide bond broken) and secondary (hydrolysis, the chain cut, proteoses → peptones →
+// peptides → amino acids); a side-by-side table and the "was the chain cut?" test; the finished family tree; summary;
+// practice. Plan, errata and beats: books/biochemistry/chapters/chapter-02/lesson-03.md.
+const CHAPTER = { number: 203, label: '2, lesson 3', title: 'Conjugated and Derived Proteins', minutes: 8, language: 'en', lead: false, next: '../../chapter-03/lesson-01/' };
+
+/* ---------- small helpers ---------- */
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+// a static label (shown at once) and a label that fades in at t0
+const lab = (p, str, x, y, o = {}) => wChem(p, str, { x, y, weight: 700, ...o, o: o.o ?? 1 });
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, weight: 700, ...o, o: 0 }); show(e, t0, .4); return e; };
+const box5 = (g, x, y, w, h, { fill = '#0b1626', stroke = COL.faint, sw = 3, rx = 22, fo = 1 } = {}) => mk('rect', { x, y, width: w, height: h, rx, fill, 'fill-opacity': fo, stroke, 'stroke-width': sw }, g);
+// keyframes [[t, a, b, …], …]: eased (soft) between keys, held before the first and after the last
+function keyAt(t, K) {
+  if (t <= K[0][0]) return K[0].slice(1);
+  for (let i = 1; i < K.length; i++) if (t < K[i][0]) { const a = K[i - 1], b = K[i], f = soft((t - a[0]) / (b[0] - a[0])); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * f); }
+  return K[K.length - 1].slice(1);
+}
+// a dark pill with text, origin at its centre
+function pill(p, str, { x = 0, y = 0, size = 22, fill = COL.chalk, edge = PC.conjugated, o = 1, w } = {}) {
+  const g = G(p, { x, y, o }), ww = w ?? Math.round(uiW(str.replace(/[_^]/g, ''), size) * 1.1 + 30), hh = size + 18;
+  mk('rect', { x: -ww / 2, y: -hh / 2, width: ww, height: hh, rx: hh / 2, fill: '#0b1626', stroke: edge, 'stroke-width': 2.5 }, g);
+  wChem(g, str, { y: size * .36, size, fill, weight: 700, o: 1 });
+  return Object.assign(g, { w: ww });
+}
+// a glow rectangle (o 0) for highlighting a row or a card
+const glowRect = (p, x, y, w, h, rx = 16) => { const e = mk('rect', { x, y, width: w, height: h, rx, fill: PC.glow, 'fill-opacity': .12, stroke: PC.glow, 'stroke-width': 3 }, p); put(e, { o: 0 }); return e; };
+// a type tile: a framed card with its number and name, and the passenger line under it
+function typeTile(p, x, y, w, h, title, sub, subColor) {
+  const g = G(p, { o: 0 });
+  box5(g, x, y, w, h, { stroke: PC.conjugated, sw: 3 });
+  lab(g, title, x + w / 2, y + 58, { size: 36, fill: PC.conjugated, weight: 800 });
+  lab(g, sub, x + w / 2, y + 100, { size: 26, fill: subColor });
+  return g;
+}
+// a colour wheel (chromo = colour)
+function colourWheel(p, { x = 0, y = 0, r = 30 } = {}) {
+  const g = G(p, { x, y });
+  ['#d9534f', '#f39a2b', '#f5e05a', '#8fd6b0', '#5fd3e8', '#bba8ee'].forEach((c, i) => {
+    const a1 = (i * 60 - 90) * Math.PI / 180, a2 = ((i + 1) * 60 - 90) * Math.PI / 180;
+    path(g, `M0 0L${(r * Math.cos(a1)).toFixed(1)} ${(r * Math.sin(a1)).toFixed(1)}A${r} ${r} 0 0 1 ${(r * Math.cos(a2)).toFixed(1)} ${(r * Math.sin(a2)).toFixed(1)}Z`, { fill: c, stroke: '#0b1626', 'stroke-width': 2 });
+  });
+  return g;
+}
+// a glass of milk
+function milkGlass(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-38 -40L38 -40L32 78L-32 78Z', { fill: '#f4f4f0' });
+  path(g, 'M-38 -40Q0 -32 38 -40', { stroke: '#d9d6cc', 'stroke-width': 3, fill: 'none' });
+  path(g, 'M-46 -88L46 -88L37 84L-37 84Z', { fill: 'none', stroke: '#cfe6f2', 'stroke-width': 4 });
+  return g;
+}
+// a little truck (carries) and a warehouse (stores), each with an iron badge
+function truck(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -46, y: -30, width: 58, height: 40, rx: 5, fill: PC.metal, stroke: PC.metalEdge, 'stroke-width': 3 }, g);
+  path(g, 'M14 -18H32L44 -4V10H14Z', { fill: '#2f7c7e', stroke: PC.metalEdge, 'stroke-width': 3 });
+  mk('rect', { x: 20, y: -14, width: 12, height: 10, rx: 2, fill: '#cfe6f2' }, g);
+  [-30, 28].forEach(cx => mk('circle', { cx, cy: 14, r: 9, fill: '#22262c', stroke: '#9aa3ad', 'stroke-width': 2.5 }, g));
+  lab(g, 'Fe', -17, -3, { size: 18, fill: '#fff', weight: 800 });
+  return g;
+}
+function warehouse(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  path(g, 'M-44 -6L0 -36L44 -6Z', { fill: '#2f7c7e', stroke: PC.metalEdge, 'stroke-width': 3 });
+  mk('rect', { x: -38, y: -6, width: 76, height: 40, fill: PC.metal, stroke: PC.metalEdge, 'stroke-width': 3 }, g);
+  [[-24, 8], [-8, 8], [-16, -6]].forEach(([bx, by]) => mk('rect', { x: bx, y: by + 6, width: 14, height: 14, rx: 2, fill: '#cfe6f2', stroke: PC.metalEdge, 'stroke-width': 1.5 }, g));
+  mk('rect', { x: 10, y: 6, width: 18, height: 28, fill: '#1d4a4b' }, g);
+  return g;
+}
+// a chromosome: histone beads with the DNA wound along them
+function chromosomeArt(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  let d = 'M-170 0';
+  for (let i = 0; i <= 64; i++) { const xx = -170 + i * 340 / 64; d += `L${xx.toFixed(1)} ${(34 * Math.sin(xx / 80 * 2 * Math.PI)).toFixed(1)}`; }
+  const back = path(g, d, { stroke: '#a89a78', 'stroke-width': 6, fill: 'none' });
+  void back;
+  [-120, -40, 40, 120].forEach(cx => mk('circle', { cx, cy: 0, r: 30, fill: PC.simpleP, stroke: PC.globuleEdge, 'stroke-width': 3 }, g));
+  path(g, d.replace(/L(-?\d+\.?\d*) (-?\d+\.?\d*)/g, (m0, a, b) => `L${a} ${(-b).toFixed(1)}`), { stroke: PC.nucleic, 'stroke-width': 6, fill: 'none' });
+  return g;
+}
+// a ribosome: a large and a small protein subunit with an RNA strand between them
+function ribosomeArt(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('ellipse', { cx: 0, cy: -30, rx: 95, ry: 58, fill: PC.simpleP, stroke: PC.globuleEdge, 'stroke-width': 3 }, g);
+  mk('ellipse', { cx: 0, cy: 52, rx: 72, ry: 36, fill: '#6fbf98', stroke: PC.globuleEdge, 'stroke-width': 3 }, g);
+  let d = 'M-160 22';
+  for (let i = 1; i <= 40; i++) { const xx = -160 + i * 8; d += `L${xx} ${(22 + 6 * Math.sin(i * .9)).toFixed(1)}`; }
+  path(g, d, { stroke: PC.nucleic, 'stroke-width': 6, fill: 'none' });
+  return g;
+}
+// beads in groups with orange links: counts [10] = one chain, [1, 1, …] = single amino acids
+function miniChain(p, counts, { x = 0, y = 0, r = 9, sp = 22, gap = 14, o = 1 } = {}) {
+  const g = G(p, { x, y, o }), cols = [PC.simple, PC.basic, PC.hydroxy, PC.acidic, PC.aromatic, PC.branched, PC.hetero, PC.imino];
+  let cx = 0, k = 0;
+  counts.forEach((n, gi) => {
+    if (gi) cx += gap;
+    if (n > 1) mk('rect', { x: cx, y: -3, width: (n - 1) * sp, height: 6, fill: PC.peptide }, g);
+    for (let i = 0; i < n; i++) { mk('circle', { cx: cx + i * sp, cy: 0, r, fill: cols[k++ % cols.length], stroke: PC.ink, 'stroke-width': 1.5 }, g); }
+    cx += (n - 1) * sp + sp;
+  });
+  return Object.assign(g, { w: cx - sp });
+}
+// the egg in its pan: .set(k) the white goes from clear to solid
+function eggPan(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: 215, y: -14, width: 190, height: 28, rx: 12, fill: '#22262c', stroke: '#4a5058', 'stroke-width': 3 }, g);
+  mk('ellipse', { rx: 235, ry: 74, fill: '#3a3f47', stroke: '#22262c', 'stroke-width': 5 }, g);
+  mk('ellipse', { rx: 208, ry: 60, fill: '#2a2e35' }, g);
+  let d = '';
+  for (let i = 0; i <= 40; i++) { const a = i / 40 * 2 * Math.PI, k = 1 + .08 * Math.sin(3 * a + 1) + .05 * Math.sin(5 * a); d += (i ? 'L' : 'M') + (150 * k * Math.cos(a)).toFixed(1) + ' ' + (44 * k * Math.sin(a)).toFixed(1); }
+  path(g, d + 'Z', { fill: '#dfeef7', 'fill-opacity': .2, stroke: '#cfe6f2', 'stroke-width': 3 });
+  const solid = path(g, d + 'Z', { fill: '#f6f4ec', stroke: '#d9d6cc', 'stroke-width': 3 }); put(solid, { o: 0 });
+  mk('circle', { cx: 18, cy: -4, r: 30, fill: '#f3c95c', stroke: '#c99a2e', 'stroke-width': 3 }, g);
+  return Object.assign(g, { set(k) { mO(solid, k); return g; } });
+}
+// a framed doorway (an arch) with its name above
+function doorway(p, x, y, w, h, name, { color = PC.derived, size = 24 } = {}) {
+  const g = G(p, { o: 0 });
+  path(g, `M${x - w / 2} ${y + h / 2}V${y - h / 2 + w / 2}A${w / 2} ${w / 2} 0 0 1 ${x + w / 2} ${y - h / 2 + w / 2}V${y + h / 2}`, { stroke: color, 'stroke-width': 7, fill: '#0b1626', 'fill-opacity': .6 });
+  lab(g, name, x, y - h / 2 - 14, { size, fill: color });
+  return g;
+}
+// a green enzyme with an open mouth (it bites at a peptide bond), origin = its mouth
+function enzymeArt(p, { o = 0 } = {}) {
+  const g = G(p, { x: 1, y: 1, o });
+  path(g, 'M0 0L-30 -42A52 52 0 1 0 30 -42Z', { fill: '#b6d36a', stroke: '#6d8a2a', 'stroke-width': 3 });
+  lab(g, 'enzyme', 0, -64, { size: 20, fill: '#1d2a10', weight: 800 });
+  return g;
+}
+// the six types as small cards: each a mini protein wearing its passenger
+const SIX = [['glycoprotein', 'sugar', 'carbohydrate'], ['lipoprotein', 'lipid', 'lipid'], ['phosphoprotein', 'phosphate', 'phosphate'],
+  ['metalloprotein', 'metal', 'metal'], ['chromoprotein', 'heme', 'pigment'], ['nucleoprotein', 'nucleic', 'nucleic acid']];
+function sixTiles(p, { x0 = 60, y0 = 300, w = 230, h = 330, gap = 20, cols = 6, R = 52, size = 22, names = true } = {}) {
+  return SIX.map(([name, kind, word], i) => {
+    const cx = x0 + (i % cols) * (w + gap), cy = y0 + Math.floor(i / cols) * (h + gap);
+    const g = G(p);
+    const gl = glowRect(g, cx - 8, cy - 8, w + 16, h + 16, 24);
+    box5(g, cx, cy, w, h, { stroke: PC.conjugated, sw: 3, rx: 20 });
+    const gx = cx + w / 2 - 14, gy = cy + h * .4;
+    const gb = globule(g, { x: gx, y: gy, R, mini: true, slots: 4 });
+    const [sx, sy] = gb.slotPt(1);
+    prosthetic(g, kind, { x: sx + 8, y: sy, s: R / 80 + .1, symbol: 'Fe' });
+    if (names) lab(g, name, cx + w / 2, cy + h - 52, { size, fill: COL.chalk });
+    else lab(g, '?', cx + w / 2, cy + h - 50, { size: size + 6, fill: COL.task, weight: 800 });
+    lab(g, word, cx + w / 2, cy + h - 22, { size: size - 2, fill: COL.dim, weight: 600 });
+    return Object.assign(g, { glow: gl });
+  });
+}
+// the ladder of secondary derivatives: one row per step, each row's chain in smaller pieces
+const LADDER = [['protein', [10]], ['proteoses', [5, 5]], ['peptones', [4, 3, 3]], ['peptides', [2, 2, 2, 2, 2]], ['amino acids', [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]];
+function ladder(p, { x = 1000, y = 190, dy = 130, cx = 1215, size = 28, names = true, r = 9, sp = 22, gap = 14 } = {}) {
+  return LADDER.map(([name, counts], i) => {
+    const g = G(p, { o: 1 }), yy = y + i * dy;
+    const gl = glowRect(g, x - 16, yy - 40, cx - x + 360, 80);
+    const nm = names ? lab(g, name, x, yy + size * .35, { size, fill: PC.derived, anchor: 'start' }) : lab(g, '?', x + 40, yy + size * .35, { size, fill: COL.dim });
+    miniChain(g, counts, { x: cx, y: yy, r, sp, gap });
+    return Object.assign(g, { glow: gl, nm });
+  });
+}
+
+/* ---------- intro backdrop: a loaf on a counter ---------- */
+const LOAF = { x: 560, y: 520 };
+function loafScene(p) {
+  const g = G(p);
+  mk('rect', { x: -200, y: 640, width: 2000, height: 400, fill: '#5a3d26' }, g);
+  mk('rect', { x: -200, y: 640, width: 2000, height: 16, fill: '#7a5636' }, g);
+  const board = G(g, { x: LOAF.x, y: LOAF.y + 116 });
+  mk('rect', { x: -290, y: -16, width: 580, height: 34, rx: 14, fill: '#b98a52', stroke: '#7a5636', 'stroke-width': 4 }, board);
+  const loaf = G(g, { x: LOAF.x, y: LOAF.y });
+  path(loaf, 'M-220 100L-220 0Q-224 -110 -110 -118Q0 -160 110 -118Q224 -110 220 0L220 100Z', { fill: '#d99a52', stroke: '#9a6430', 'stroke-width': 6 });
+  ['M-130 -96Q-110 -60 -90 -100', 'M-40 -124Q-20 -88 0 -128', 'M50 -122Q70 -86 90 -112'].forEach(d => path(loaf, d, { stroke: '#f0c38a', 'stroke-width': 7, fill: 'none' }));
+  return { g, loaf };
+}
+// toppings, each drawn round its own resting point on the loaf's top
+function butterPat(p) { const g = G(p, { x: 1, y: 1, o: 0 }); mk('rect', { x: -42, y: -18, width: 84, height: 36, rx: 6, fill: '#f7e08a', stroke: '#c9ac45', 'stroke-width': 3 }, g); return g; }
+function jamBlob(p) { const g = G(p, { x: 1, y: 1, o: 0 }); path(g, 'M-50 0Q-46 -26 -10 -22Q20 -34 46 -14Q60 4 30 12Q0 24 -30 14Q-56 12 -50 0Z', { fill: '#c0392b', stroke: '#7d1f16', 'stroke-width': 3 }); mk('circle', { cx: -14, cy: -8, r: 6, fill: '#e8735f' }, g); return g; }
+function cheeseSlice(p) { const g = G(p, { x: 1, y: 1, o: 0 }); path(g, 'M-54 16L48 16L28 -30Z', { fill: '#f3c95c', stroke: '#b8902e', 'stroke-width': 3 }); [[-10, 6, 6], [20, 2, 5], [26, -14, 4]].forEach(([cx, cy, r]) => mk('circle', { cx, cy, r, fill: '#d9a93a' }, g)); return g; }
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A loaf with a passenger, and the family tree', (m, D) => {
+  const p = panel(0), tB = m('bags'), tT = m('tree'), tL = m('lit');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W, { o: 0 }); show(back, .1, .6);
+  const sc = loafScene(back);
+  const tops = [[butterPat(back), -120, -118, tB + 4.7], [jamBlob(back), 0, -150, tB + 5.5], [cheeseSlice(back), 118, -120, tB + 6.4]];
+  const pg = say(back, 'the same bread, now with a passenger', LOAF.x, 790, tB + 7.8, { size: 30, fill: COL.chalk });
+  void pg;
+  tops.forEach(([e, , , t0]) => pulse(sc.loaf, t0 + .55, 1.04));
+  const ttl = G(p, { o: 0, y: 24 });
+  lab(ttl, 'BIOCHEMISTRY · CHAPTER 2 · LESSON 3', 1230, 220, { size: 24, fill: COL.dim, weight: 600 });
+  ['Conjugated and', 'derived proteins'].forEach((s, i) => lab(ttl, s, 1230, 310 + i * 64, { size: 52 }));
+  lab(ttl, 'Proteins', 1230, 470, { size: 26, fill: COL.dim, weight: 500 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tT - 1.6, .5);
+  hide(back, tT - .4, .5);
+  cam.to({ x: 730, y: 460, z: 1.12 }, .3, tT - 2);   // a slow push towards the loaf while it takes its toppings
+  cam.to({ x: LOAF.x, y: LOAF.y - 40, z: 2.4 }, tT - 1.5, 1.5);
+  // the family tree: simple lit (last lesson), then conjugated and derived
+  const trG = G(p, { o: 0 }); show(trG, tT, .6);
+  const tree = proteinTree(trG, { x: 800, y: 500 });
+  const today = G(p, { o: 0 }); show(today, tL + 1.6, .5);
+  lab(today, 'today:', 800, 120, { size: 26, fill: COL.dim, weight: 600 });
+  lab(today, 'conjugated', 780, 168, { size: 34, fill: PC.conjugated, weight: 800, anchor: 'end' });
+  lab(today, '+', 800, 168, { size: 34, weight: 800 });
+  lab(today, 'derived', 820, 168, { size: 34, fill: PC.derived, weight: 800, anchor: 'start' });
+  clockRun(t => {
+    tops.forEach(([e, dx, dy, t0]) => { const [yy, o] = keyAt(t, [[t0, -260, 0], [t0 + .1, -240, 1], [t0 + .55, 0, 1]]); mPose(e, LOAF.x + dx, LOAF.y + dy + yy, o); });
+    tree.leaves('simple', 1).tick('simple', mRamp(t, tT + 2.2, tT + 2.8));
+    if (t < tL) tree.focus(['simple'], io(mRamp(t, tT + 2, tT + 2.8)) * (1 - mRamp(t, tL - .5, tL)));
+    else tree.focus(['conjugated', 'derived'], io(mRamp(t, tL, tL + .9)));
+    tree.glow('simple', mBump(t, tT + 2, tT + 5)).glow('conjugated', mBump(t, tL + 1.2, tL + 4.4)).glow('derived', mBump(t, tL + 5.4, tL + 8.6));
+  }, D);
+}],
+
+/* ---------- conj ---------- */
+['conj', 'Conjugated proteins: a protein plus a passenger', (m, D) => {
+  const p = panel(0), tD = m('def'), tS = m('six');
+  const CX = 800, CY = 480;
+  const gb = globule(p, { x: CX, y: CY, R: 138, o: 0 }); show(gb, tD + .1, .6);
+  say(p, 'conjugated (compound) protein', 800, 92, tD + .3, { size: 42, fill: PC.conjugated, weight: 800 });
+  say(p, '= protein + non-protein part', 800, 145, tD + 2.6, { size: 30 });
+  const ps = pill(p, 'non-protein part', { size: 24, edge: PC.conjugated, fill: PC.conjugated, o: 0 });
+  const [sx, sy] = gb.slotPt(1);
+  const pl = say(p, 'protein part: a chain of amino acids', CX, 690, tD + 6.6, { size: 26, fill: PC.globule });
+  const nl = say(p, 'not made of amino acids', sx + 125, sy + 62, tD + 10.7, { size: 22, fill: PC.conjugated });
+  [pl, nl].forEach(e => hide(e, tS - .3, .4));
+  // six: the passengers in a ring
+  const RING = [-150, -90, -30, 30, 90, 150].map(a => [CX + 450 * Math.cos(a * Math.PI / 180), CY + 240 * Math.sin(a * Math.PI / 180)]);
+  const kinds = [['sugar', 'carbohydrate'], ['lipid', 'lipid'], ['phosphate', 'phosphate'], ['metal', 'metal'], ['heme', 'pigment'], ['nucleic', 'nucleic acid']];
+  const ic = kinds.map(([k, l]) => prosthetic(p, k, { x: CX, y: CY, s: 1.3, o: 0, label: l, size: 22, symbol: 'Fe' }));
+  const T6 = kinds.map((_, i) => tS + 6.15 + i * .9);
+  say(p, 'what is the passenger?', 800, 870, tS + 1.2, { size: 28, fill: COL.task });
+  const qs = RING.map(([x, y]) => { const w = G(p, { x, y, o: 0 }), q = G(w, { s: 1 }); mk('circle', { r: 40, fill: 'none', stroke: COL.task, 'stroke-width': 3, 'stroke-dasharray': '8 7' }, q); lab(q, '?', 0, 15, { size: 42, fill: COL.task, weight: 800 }); return [w, q]; });
+  clockRun(t => {
+    qs.forEach(([w, q], i) => { const a = tS + .8 + i * .3; mO(w, mRamp(t, a, a + .3) * (1 - mRamp(t, T6[i] - .1, T6[i] + .2))); const k = Math.round((1 + .12 * Math.sin(2 * Math.PI * (t - a) / 1.4) ** 2) * 1000) / 1000; if (st(q).s !== k) put(q, { s: k }); });
+    const [px, py, po] = keyAt(t, [[tD + 3, 1300, 300, 0], [tD + 3.3, 1270, 310, 1], [tD + 4.6, sx + 125, sy, 1]]);
+    mPose(ps, px, py, po * (1 - mRamp(t, tS - .3, tS + .1)));
+    ic.forEach((e, i) => { e.toward(RING[i], io(mRamp(t, T6[i], T6[i] + .7))).label(mRamp(t, T6[i] + .5, T6[i] + .9)); mO(e, mRamp(t, T6[i], T6[i] + .25)); });
+  }, D);
+}],
+
+/* ---------- sugarfat ---------- */
+['sugarfat', 'Glycoproteins and lipoproteins', (m, D) => {
+  const p = panel(0), tG = m('gly'), tL = m('lipo');
+  // glycoproteins
+  const L = typeTile(p, 50, 70, 730, 790, '1 · Glycoproteins', 'passenger: carbohydrate', PC.sugar);
+  const gb = globule(L, { x: 240, y: 410, R: 95, slots: 6 });
+  const sug = [0, 1, 5, 3].map(i => { const [x, y] = gb.slotPt(i), dx = x - 240, dy = y - 410, d = Math.hypot(dx, dy); return { e: prosthetic(L, 'sugar', { x: x + dx / d * 60, y: y + dy / d * 60, s: .7, o: 0 }), to: [x + dx / d * 14, y + dy / d * 14] }; });
+  lab(L, 'glycoprotein', 240, 590, { size: 26 });
+  lab(L, 'examples', 560, 228, { size: 22, fill: COL.dim, weight: 600 });
+  const EX = [['FSH, LH (hormones)', 7.4], ['antibodies', 11.2], ['blood-group antigens', 12.3], ['receptors', 13.8], ['many enzymes', 14.9]];
+  EX.forEach(([s, dt], i) => { const c = pill(L, s, { x: 560, y: 278 + i * 66, edge: PC.sugar, o: 0 }); show(c, tG + dt, .4); });
+  say(L, 'function: the slide gives no single one', 415, 730, tG + 16.4, { size: 24, fill: COL.dim, weight: 600 });
+  say(L, 'sugar-coated proteins do many jobs', 415, 770, tG + 18.2, { size: 24, fill: COL.dim, weight: 600 });
+  // lipoproteins
+  const R = typeTile(p, 820, 70, 730, 790, '2 · Lipoproteins', 'passenger: lipid (fat)', PC.lipid); show(R, tL, .5);
+  const gl = globule(R, { x: 980, y: 330, R: 78 });
+  [1, 2].forEach(i => { const [x, y] = gl.slotPt(i); prosthetic(R, 'lipid', { x: x + 10, y: y + (i === 1 ? -10 : 6), s: .7 }); });
+  const LP = [['chylomicrons', 9.2], ['VLDL (very-low-density)', 10.4], ['LDL (low-density)', 12.2], ['HDL (high-density)', 13.4]];
+  LP.forEach(([s, dt], i) => { const c = pill(R, s, { x: 1335, y: 250 + i * 64, edge: PC.lipid, o: 0 }); show(c, tL + dt, .4); });
+  // the blood vessel and the lipoprotein riding along it
+  const ves = G(R, { o: 0 }); show(ves, tL + 4.2, .5);
+  mk('rect', { x: 850, y: 610, width: 670, height: 124, rx: 62, fill: '#4a1822', stroke: '#c0485a', 'stroke-width': 5 }, ves);
+  const rbc = [0, 1, 2, 3, 4].map(i => { const e = G(ves, { x: 900 + i * 130, y: 640 + (i % 2) * 54 }); mk('ellipse', { rx: 22, ry: 13, fill: '#d9534f', stroke: '#8f2a26', 'stroke-width': 2 }, e); return e; });
+  const part = lipoprotein(ves, { x: 900, y: 672, R: 44 });
+  lab(ves, 'blood', 880, 598, { size: 20, fill: '#e88a96', anchor: 'start' });
+  say(R, 'lipid transport in blood', 1185, 790, tL + 15.4, { size: 28, fill: PC.lipid });
+  say(R, 'fat inside, protein outside', 1185, 566, tL + 5.6, { size: 22, fill: COL.dim, weight: 600 });
+  clockRun(t => {
+    sug.forEach(({ e, to }, i) => { const k = io(mRamp(t, tG + 2.4 + i * .4, tG + 3.4 + i * .4)); e.toward(to, k); mO(e, mRamp(t, tG + 2.4 + i * .4, tG + 2.7 + i * .4)); });
+    mPose(L, 385 * (1 - io(mRamp(t, tL - 1.4, tL - .3))), 0, mRamp(t, tG + .1, tG + .6) * (1 - .55 * mRamp(t, tL - .3, tL + .3)));   // alone, the tile sits centred; it slides left to make room
+    const u = ((t - tL) / 7 % 1 + 1) % 1;
+    mPose(part, 900 + 570 * u, 672, mRamp(u, 0, .06) * (1 - mRamp(u, .94, 1)));
+    rbc.forEach((e, i) => { const v = ((t / 9 + i / 5) % 1 + 1) % 1; mPose(e, 880 + 620 * v, 640 + (i % 2) * 54, mRamp(v, 0, .06) * (1 - mRamp(v, .94, 1))); });
+  }, D);
+}],
+
+/* ---------- phosmetal ---------- */
+['phosmetal', 'Phosphoproteins and metalloproteins', (m, D) => {
+  const p = panel(0), tP = m('phos'), tM = m('metal');
+  // phosphoproteins
+  const L = typeTile(p, 50, 70, 560, 790, '3 · Phosphoproteins', 'passenger: phosphoric acid', PC.phosphate);
+  const gb = globule(L, { x: 310, y: 350, R: 92 });
+  const ph = [1, 3].map(i => { const [x, y] = gb.slotPt(i); return prosthetic(L, 'phosphate', { x: x + (i === 1 ? 14 : -14), y, s: .8, o: 0 }); });
+  ph.forEach((e, i) => show(e, tP + 2.4 + i * .4, .4));
+  const mg = milkGlass(L, { x: 330, y: 600, o: 0 }); show(mg, tP + 4.6, .5);
+  say(L, 'caseinogen', 330, 760, tP + 5.6, { size: 32, fill: PC.phosphate, weight: 800 });
+  say(L, 'the main protein of milk', 330, 802, tP + 6.4, { size: 24 });
+  // metalloproteins
+  const R = typeTile(p, 650, 70, 900, 790, '4 · Metalloproteins', 'passenger: a metal', PC.metal); show(R, tM, .5);
+  const ION = [['Cu', 'copper', 4.8], ['Zn', 'zinc', 5.6], ['Fe', 'iron', 6.3]];
+  ION.forEach(([sym, nm, dt], i) => { const g = G(R, { o: 0 }); show(g, tM + dt, .4); prosthetic(g, 'metal', { x: 970 + i * 130, y: 240, s: .8, symbol: sym }); lab(g, nm, 970 + i * 130, 300, { size: 22 }); });
+  const ROWS = [['Cu', 'ceruloplasmin', 'carries and stores copper', 7.3, 'none'], ['Zn', 'insulin', 'regulates blood glucose', 10.1, 'glucose'],
+    ['Fe', 'transferrin', 'carries iron in the blood', 14, 'truck'], ['Fe', 'ferritin', 'stores iron in the cells', 16.6, 'warehouse']];
+  const rowG = ROWS.map(([sym, nm, fn, dt, icon], i) => {
+    const y = 380 + i * 92, g = G(R, { o: 0 }); show(g, tM + dt, .4);
+    const gl = glowRect(g, 670, y - 38, 860, 76);
+    prosthetic(g, 'metal', { x: 705, y, s: .6, symbol: sym });
+    lab(g, nm, 742, y + 10, { size: 28, anchor: 'start' });
+    lab(g, fn, 975, y + 9, { size: 24, fill: COL.dim, weight: 600, anchor: 'start' });
+    if (icon === 'glucose') classIcon(g, 'glucose', { x: 1460, y, size: 44 });
+    if (icon === 'truck') truck(g, { x: 1460, y: y + 6 });
+    if (icon === 'warehouse') warehouse(g, { x: 1460, y });
+    return { g, gl };
+  });
+  const mn = G(R, { o: 0 }); show(mn, tM + 18.7, .5);
+  lab(mn, 'carry · carry · store  =  copper · iron · iron', 1100, 800, { size: 30, fill: PC.sugar, weight: 800 });
+  const MN = [[0, 18.8], [2, 19.6], [3, 20.4]];
+  clockRun(t => {
+    mPose(L, 470 * (1 - io(mRamp(t, tM - 1.4, tM - .3))), 0, mRamp(t, tP + .1, tP + .6) * (1 - .55 * mRamp(t, tM - .3, tM + .3)));   // alone, the tile sits centred; it slides left to make room
+    rowG.forEach(({ gl }, i) => { const e = MN.find(([j]) => j === i); mO(gl, e ? mBump(t, tM + e[1], tM + e[1] + 2.2) : 0); });
+  }, D);
+}],
+
+/* ---------- pigment ---------- */
+['pigment', 'Chromoproteins: red heme, yellow flavin', (m, D) => {
+  const p = panel(0), tC = m('chromo'), tH = m('heme'), tF = m('flavin');
+  say(p, '5 · Chromoproteins', 800, 92, tC + .1, { size: 40, fill: PC.conjugated, weight: 800 });
+  say(p, 'chromo = colour  →  passenger: a pigment', 800, 142, tC + 2.1, { size: 28 });
+  const cw = colourWheel(p, { x: 1180, y: 132, r: 28 }); put(cw, { o: 0 }); show(cw, tC + 2.1, .4);
+  const side = (x, color, title) => { const g = G(p, { o: 0 }); box5(g, x, 200, 700, 630, { stroke: color, sw: 3 }); lab(g, title, x + 350, 262, { size: 32, fill: color, weight: 800 }); return g; };
+  const A = side(80, PC.heme, 'heme · the red pigment'), B = side(820, PC.flavin, 'flavin · the yellow pigment');
+  const ga = globule(A, { x: 410, y: 420, R: 95 }), gF = globule(B, { x: 1150, y: 420, R: 95 });
+  const he = prosthetic(A, 'heme', { x: 700, y: 330, s: 1.1, o: 0 }), fl = prosthetic(B, 'flavin', { x: 1450, y: 330, s: 1, o: 0 });
+  const [hx, hy] = ga.slotPt(1), [fx, fy] = gF.slotPt(1);
+  say(A, 'hemoproteins', 430, 575, tH + 2.4, { size: 28 });
+  say(A, 'hemoglobin, myoglobin → carry oxygen', 430, 662, tH + 4.3, { size: 26, fill: PC.heme });
+  say(A, 'cytochromes → carry electrons', 430, 732, tH + 7.2, { size: 26, fill: PC.heme });
+  say(B, 'flavoproteins', 1170, 575, tF + 2.4, { size: 28 });
+  say(B, 'FAD, FMN → carry hydrogen', 1170, 662, tF + 4.8, { size: 26, fill: PC.flavin });
+  say(p, 'red for heme · yellow for flavin', 800, 875, tF + 9.4, { size: 28, fill: COL.task });
+  clockRun(t => {
+    he.toward([hx + 14, hy], io(mRamp(t, tH + .6, tH + 1.8))); mO(he, mRamp(t, tH + .3, tH + .6));
+    fl.toward([fx + 18, fy], io(mRamp(t, tF + .6, tF + 1.8))); mO(fl, mRamp(t, tF + .3, tF + .6));
+    mO(A, mRamp(t, tC + 5.4, tC + 5.9) * (t < tH ? .45 : 1 - .5 * mRamp(t, tF - .3, tF + .3) + .5 * mRamp(t, tF + 9.2, tF + 9.8)));
+    mO(B, mRamp(t, tC + 5.4, tC + 5.9) * (t < tF ? .45 : 1));
+  }, D);
+}],
+
+/* ---------- nucleo ---------- */
+['nucleo', 'Nucleoproteins', (m, D) => {
+  const p = panel(0), tN = m('nuc'), tC = m('chromosome'), tR = m('ribosome');
+  const tSix = tN + 19.4;
+  const top = G(p); hide(top, tSix - .6, .5);
+  say(top, '6 · Nucleoproteins', 800, 92, tN + .1, { size: 40, fill: PC.conjugated, weight: 800 });
+  say(top, 'passenger: nucleic acid (DNA or RNA)', 800, 142, tN + 2.1, { size: 28, fill: PC.nucleic });
+  const a = G(top, { o: 0 }); show(a, tN + .3, .5);
+  const gb = globule(a, { x: 300, y: 430, R: 92 });
+  const [sx, sy] = gb.slotPt(1);
+  const na = prosthetic(a, 'nucleic', { x: sx + 70, y: sy - 60, s: 1.1, o: 0 });
+  lab(a, 'nucleoprotein', 300, 600, { size: 28 });
+  const b = G(top, { o: 0 }); show(b, tN + 6.6, .5);
+  chromosomeArt(b, { x: 800, y: 430 });
+  lab(b, 'histones (lesson two)', 800, 360, { size: 22, fill: PC.simpleP, weight: 600 });
+  say(b, 'chromosome', 800, 600, tC + .2, { size: 30, weight: 800 });
+  say(b, '= histone + DNA', 800, 640, tC + 1.4, { size: 26, fill: PC.nucleic });
+  const c = G(top, { o: 0 }); show(c, tR, .5);
+  ribosomeArt(c, { x: 1300, y: 420 });
+  lab(c, 'ribosome', 1300, 600, { size: 30, weight: 800 });
+  say(c, '= protein + RNA', 1300, 640, tR + 1.2, { size: 26, fill: PC.nucleic });
+  say(top, 'as with glycoproteins, the slide gives no single function', 800, 760, tN + 15.4, { size: 24, fill: COL.dim, weight: 600 });
+  // the six types in a row
+  const six = G(p, { o: 0 }); show(six, tSix, .6);
+  lab(six, 'six conjugated types, six passengers', 800, 200, { size: 34, fill: PC.conjugated, weight: 800 });
+  sixTiles(six, { x0: 60, y0: 290, w: 230, h: 330, gap: 20 });
+  clockRun(t => { na.toward([sx + 18, sy], io(mRamp(t, tN + 2.4, tN + 3.6))); mO(na, mRamp(t, tN + 2.2, tN + 2.5)); }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  lab(p, 'the six passengers: which class?', 320, 150, { size: 30, fill: PC.conjugated, weight: 800 });
+  const t = sixTiles(p, { x0: 40, y0: 200, w: 180, h: 250, gap: 15, cols: 3, R: 40, size: 19, names: false });
+  put(t[3].glow, { o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-metal', prompt: ['Which conjugated protein has iron or copper as its non-protein part?'],
+  build: choice([['glycoprotein'], ['metalloprotein'], ['chromoprotein'], ['nucleoprotein']], 1,
+    'Right. Metalloproteins carry a metal: ceruloplasmin copper, insulin zinc, transferrin and ferritin iron.',
+    ['A glycoprotein’s passenger is carbohydrate: sugar chains, not a metal.', null,
+      'A chromoprotein’s passenger is a pigment. Heme does hold iron, but the class is named for the coloured pigment, not the metal.',
+      'A nucleoprotein’s passenger is a nucleic acid, DNA or RNA.']),
+}], done) }],
+
+/* ---------- derived ---------- */
+['derived', 'Derived proteins', (m, D) => {
+  const p = panel(0), tD = m('def'), t2 = m('two');
+  const TW = G(p, { x: 800, y: 470 });
+  const tree = proteinTree(TW, { x: 0, y: 0 });
+  tw(TW, { y: 230, s: .55 }, tD + 2.6, 1.3, io);
+  // one door: a protein goes in and comes out changed
+  const d1 = doorway(p, 800, 650, 150, 240, 'denaturation or hydrolysis'); show(d1, tD + 3.6, .5); hide(d1, t2 - .2, .4);
+  const mvW = G(p, { x: 260, y: 660, o: 0 });
+  const mv = globule(mvW, { R: 70, mini: true });
+  const inL = say(p, 'simple or conjugated protein', 260, 800, tD + 4.8, { size: 24, fill: COL.dim, weight: 600 });
+  const chg = say(p, 'changed', 1330, 800, tD + 9.6, { size: 26, fill: PC.derived });
+  hide(inL, t2 - .2, .4); hide(chg, t2 - .2, .4);
+  // two doors
+  const two = G(p, { o: 0 }); show(two, t2, .5);
+  const src = globule(two, { x: 250, y: 650, R: 70, mini: true });
+  void src;
+  mArrow(two, [340, 620], [700, 545], { color: COL.dim, w: 4, head: 14 });
+  mArrow(two, [340, 690], [700, 760], { color: COL.dim, w: 4, head: 14 });
+  const dA = doorway(two, 800, 540, 130, 130, 'denaturation', { size: 22 }), dB = doorway(two, 800, 770, 130, 130, 'hydrolysis', { size: 22 });
+  put(dA, { o: 1 }); put(dB, { o: 1 });
+  mArrow(two, [880, 540], [990, 540], { color: COL.dim, w: 4, head: 14 });
+  mArrow(two, [880, 770], [990, 770], { color: COL.dim, w: 4, head: 14 });
+  const oA = G(two, { o: 0 }); show(oA, t2 + 3.9, .4);
+  globule(oA, { x: 1120, y: 540, R: 55, mini: true }).tangle(1);
+  lab(oA, 'primary derived', 1250, 532, { size: 28, fill: PC.derived, anchor: 'start' });
+  lab(oA, 'peptide bonds intact', 1250, 566, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  const oB = G(two, { o: 0 }); show(oB, t2 + 5.4, .4);
+  miniChain(oB, [3, 2, 3], { x: 1030, y: 770, r: 9, sp: 20, gap: 18 });
+  lab(oB, 'secondary derived', 1250, 762, { size: 28, fill: PC.derived, anchor: 'start' });
+  lab(oB, 'peptide bonds broken', 1250, 796, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  clockRun(t => {
+    tree.leaves('simple', 1).leaves('conjugated', 1).tick('simple', 1)
+      .focus(['derived'], io(mRamp(t, tD + .3, tD + 1.2))).glow('derived', mBump(t, tD + .6, tD + 3.6))
+      .leaves('derived', mRamp(t, t2 + 3.6, t2 + 5.8));
+    const x = keyAt(t, [[tD + 5.4, 260], [tD + 7.6, 800], [tD + 9.6, 1330]])[0];
+    mPose(mvW, x, 660, mRamp(t, tD + 4.6, tD + 5) * (1 - mRamp(t, t2 - .2, t2 + .2)));
+    mv.tangle(mRamp(x, 760, 900));
+  }, D);
+}],
+
+/* ---------- primary ---------- */
+['primary', 'Primary derived proteins: denaturation', (m, D) => {
+  const p = panel(0), tE = m('egg'), tC = m('chain'), tX = m('ex');
+  say(p, 'Primary derived proteins', 1180, 92, tE + .1, { size: 40, fill: PC.derived, weight: 800 });
+  say(p, 'denaturation · agent: heat', 1180, 140, tE + 1.6, { size: 28 });
+  const egg = eggPan(p, { x: 360, y: 470, o: 0 }); show(egg, tE + .2, .5);
+  const ha = heatArrow(p, [360, 790], [360, 590], { label: 'heat', side: 1, size: 30 }); ha.in(tE + 3.2, .9);
+  say(p, 'egg white turns solid', 360, 330, tE + 7, { size: 28 });
+  // the slide's chain
+  const CH = [['protein', 230, 0], ['protean', 345, 1.8], ['metaprotein', 460, 3.4]];
+  CH.forEach(([s, y, dt], i) => { say(p, s, 960, y, tC + dt, { size: 32, fill: i ? PC.derived : COL.chalk }); if (i) { const a = G(p, { o: 0 }); show(a, tC + dt - .3, .3); mArrow(a, [960, y - 95], [960, y - 42], { color: COL.dim, w: 4, head: 14 }); } });
+  say(p, '(coagulated protein)', 960, 494, tC + 4.6, { size: 22, fill: COL.dim, weight: 600 });
+  say(p, 'as on the slide', 960, 540, tC + 1, { size: 20, fill: COL.faint, weight: 600 });
+  const bc = beadChain(p, { x: 1350, y: 330, n: 8, sp: 36, r: 13, chips: false, endText: false, o: 0 }); show(bc, tC + 1, .5);
+  say(p, 'no peptide bond broken', 1350, 520, tC + 7.4, { size: 26, fill: PC.peptide });
+  say(p, 'molecular weight unchanged', 1350, 562, tC + 9.6, { size: 26 });
+  const ex = [['coagulated albumin', 1], ['coagulated globulin', 2.6]].map(([s, dt], i) => { const c = pill(p, s, { x: 1180, y: 680 + i * 66, edge: PC.derived, size: 26, o: 0 }); show(c, tX + dt, .4); return c; });
+  void ex;
+  say(p, 'same chain, new shape', 1180, 840, tX + 4.2, { size: 30, fill: COL.task });
+  say(p, 'denaturation in depth: chapter three', 360, 860, tX + 6.2, { size: 22, fill: COL.dim, weight: 600 });
+  clockRun(t => {
+    egg.set(io(mRamp(t, tE + 5.6, tE + 8.4)));
+    bc.tangle(io(mRamp(t, tC + 6.2, tC + 8.4)));
+    for (let i = 0; i < 7; i++) bc.bond(i, mBump(t, tC + 8.4 + i * .12, tC + 9.8 + i * .12));
+  }, D);
+}],
+
+/* ---------- secondary ---------- */
+['secondary', 'Secondary derived proteins: hydrolysis', (m, D) => {
+  const p = panel(0), tH = m('hyd'), tS = m('steps'), tM = m('mw');
+  say(p, 'Secondary derived proteins', 470, 92, tH + .1, { size: 40, fill: PC.derived, weight: 800 });
+  say(p, 'hydrolysis · agent: enzymes', 470, 140, tH + 2.4, { size: 28 });
+  const bc = beadChain(p, { x: 380, y: 300, n: 10, sp: 54, r: 18, chips: false, endText: false, o: 0 }); show(bc, tH + .4, .5);
+  const en = enzymeArt(p);
+  const [lx, ly] = bc.linkPt(4);
+  say(p, 'like a protein meal being digested', 470, 450, tH + 6, { size: 24, fill: COL.dim, weight: 600 });
+  say(p, 'peptide bonds break', 470, 520, tH + 8.4, { size: 28, fill: PC.peptide });
+  say(p, 'molecular weight falls', 470, 568, tH + 10.4, { size: 28 });
+  say(p, 'progressive hydrolysis of the peptide bond', 470, 690, tM + .3, { size: 26, fill: PC.derived });
+  say(p, 'one bond after another', 470, 734, tM + 1.6, { size: 22, fill: COL.dim, weight: 600 });
+  // the ladder
+  const rows = ladder(p, { x: 1000, y: 200, dy: 128 });
+  const RT = [.8, 2, 3.2, 4.4, 5.8];
+  rows.forEach((g, i) => { put(g, { o: 0 }); show(g, tS + RT[i], .4); });
+  const ar = G(p, { o: 0 }); show(ar, tM + 4.2, .5);
+  mArrow(ar, [970, 170], [970, 750], { color: PC.derived, w: 5, head: 18 });
+  lab(ar, 'molecular weight keeps falling', 1270, 858, { size: 26, fill: PC.derived });
+  say(p, 'chapter one’s units', 1430, 770, tM + 8, { size: 22, fill: COL.dim, weight: 600 });
+  clockRun(t => {
+    const [ex, ey, eo] = keyAt(t, [[tH + 6, lx + 40, ly + 150, 0], [tH + 6.3, lx + 30, ly + 140, 1], [tH + 8, lx, ly + 34, 1], [tH + 10.4, lx, ly + 34, 1], [tH + 11.4, lx - 40, ly + 160, 0]]);
+    mPose(en, ex, ey, eo);
+    bc.cut(4, mRamp(t, tH + 8.2, tH + 10.4)).cut(1, mRamp(t, tH + 10.4, tH + 12.2)).cut(7, mRamp(t, tH + 11.2, tH + 13));
+    rows.forEach((g, i) => mO(g.glow, mBump(t, tS + RT[i], tS + RT[i] + 1.4)));
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  eggPan(p, { x: 290, y: 300, s: .9 }).set(1);
+  lab(p, 'heat: egg white turns solid', 300, 160, { size: 26 });
+  beadChain(p, { x: 300, y: 600, n: 8, sp: 34, r: 12, chips: false, endText: false }).tangle(1);
+  lab(p, 'no peptide bond broken', 300, 770, { size: 26, fill: PC.peptide });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-egg', prompt: ['Heat turns an egg white solid, but no peptide bond is broken. What is the result?'],
+  build: choice([['a secondary derived protein'], ['a primary derived protein'], ['a simple protein'], ['a conjugated protein']], 1,
+    'Right. Denaturation by heat changes the shape only: a primary derived protein, such as coagulated albumin.',
+    ['A secondary derived protein needs broken peptide bonds (hydrolysis). Here the chain was not cut.', null,
+      'It started as a simple protein, but heat changed it: a changed protein is a derived protein.',
+      'Nothing was added to the protein, so it did not become conjugated.']),
+}], done) }],
+
+/* ---------- compare ---------- */
+['compare', 'Primary and secondary side by side', (m, D) => {
+  const p = panel(0), tS = m('side'), tT = m('trick');
+  const tb = G(p, { o: 0 }); show(tb, tS + .1, .5);
+  box5(tb, 140, 70, 1320, 560, { stroke: COL.faint });
+  lab(tb, 'primary', 790, 135, { size: 34, fill: PC.derived, weight: 800 });
+  lab(tb, 'secondary', 1200, 135, { size: 34, fill: PC.derived, weight: 800 });
+  const RY = [240, 340, 440, 540];
+  ['process', 'agent', 'peptide bonds', 'molecular weight'].forEach((s, i) => { lab(tb, s, 180, RY[i] + 10, { size: 28, fill: COL.dim, anchor: 'start' }); mk('rect', { x: 160, y: RY[i] - 52, width: 1280, height: 2, fill: COL.faint }, tb); });
+  const CELL = [
+    ['denaturation', 790, 0, .8], ['heat', 790, 1, 2.6], ['stay', 790, 2, 4.8], ['unchanged', 790, 3, 6.5],
+    ['hydrolysis', 1200, 0, 10.4], ['enzymes', 1200, 1, 12.2], ['break', 1200, 2, 14.6], ['falls', 1200, 3, 16.3],
+  ];
+  CELL.forEach(([s, x, r, dt]) => say(p, s, x, RY[r] + 11, tS + 2 + dt - .4, { size: 30, fill: s === 'stay' || s === 'break' ? PC.peptide : COL.chalk }));
+  // the test: was the chain cut?
+  say(p, 'did the chain get cut?', 300, 760, tT + .3, { size: 32, fill: COL.task });
+  const cA = G(p, { o: 0 }); show(cA, tT + 2.2, .4);
+  miniChain(cA, [6], { x: 705, y: 730, r: 14, sp: 34 });
+  lab(cA, 'no → primary', 790, 815, { size: 28, fill: PC.good });
+  const cB = G(p, { o: 0 }); show(cB, tT + 4, .4);
+  miniChain(cB, [3, 3], { x: 1090, y: 730, r: 14, sp: 34, gap: 50 });
+  lab(cB, 'yes → secondary', 1200, 815, { size: 28, fill: PC.derived });
+  // scissors at the cut
+  const sc = G(cB, { x: 1200, y: 706 });
+  [-1, 1].forEach(sg => { path(sc, `M0 0L${sg * 16} -30`, { stroke: COL.chalk, 'stroke-width': 4 }); mk('circle', { cx: sg * 20, cy: -38, r: 8, fill: 'none', stroke: COL.chalk, 'stroke-width': 3 }, sc); });
+}],
+
+/* ---------- tree ---------- */
+['tree', 'The family tree, complete', (m, D) => {
+  const p = panel(0), tF = m('full'), tDv = m('derived'), tE = m('end');
+  const cam = camera(p, D, { x: 800, y: 700, z: 1.5 }), W = cam.world;
+  const tree = proteinTree(W, { x: 800, y: 500, o: 0 }); show(tree, .1, .5);
+  cam.to({ x: 800, y: 450, z: 1 }, tF + .2, 3.4);
+  const dn = G(p, { o: 0 }); show(dn, tE + .3, .5);
+  lab(dn, 'chapter two done', 800, 130, { size: 40, fill: COL.task, weight: 800 });
+  lab(dn, 'every protein sits on one of these branches', 800, 178, { size: 24, fill: COL.dim, weight: 600 });
+  clockRun(t => {
+    tree.leaves('simple', mRamp(t, tF + 4.6, tF + 6.4)).leaves('conjugated', mRamp(t, tF + 7.8, tF + 15.2)).leaves('derived', mRamp(t, tDv + .6, tDv + 2.6))
+      .tick('simple', mRamp(t, tF + 6.4, tF + 6.8)).tick('derived', mRamp(t, tDv + 2.6, tDv + 3))
+      .glow('simple', mBump(t, tF + 4.6, tF + 7.6)).glow('conjugated', mBump(t, tF + 7.8, tF + 15.8)).glow('derived', mBump(t, tDv, tDv + 3.8));
+    tree.root.glow('all', mRamp(t, tE, tE + .6) * (.6 + .4 * Math.sin(2 * Math.PI * (t - tE) / 1.6) ** 2));
+  }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tE = m('end');
+  lab(p, 'Summary: conjugated and derived proteins', 800, 62, { size: 34 });
+  const ROWS = [
+    ['s1', 'Conjugated = protein + non-protein part', 'six types, named by the passenger: glyco, lipo, phospho, metallo, chromo, nucleo', PC.conjugated],
+    ['s2', 'Metalloproteins: copper, zinc, iron', 'chromoproteins: red heme or yellow flavin', PC.metal],
+    ['s3', 'Derived: primary = denaturation, no peptide bond broken', 'secondary = hydrolysis, the chain cut down to amino acids', PC.derived],
+  ];
+  // each row is lit while it is read; its pictures pulse as the voice names them (word times from timings.js)
+  const live = [];   // [wrapper, time named]
+  const pop = (g, x, y, t0, f) => { const w = G(g, { x, y }), q = G(w, { s: 1 }); f(q); live.push([q, t0]); return q; };
+  const ends = [m('s2'), m('s3'), tE];
+  const glows = ROWS.map(([k, a, b, col], i) => {
+    const y = 210 + i * 210, g = G(p, { o: 0 }), t0 = m(k);
+    const gl = glowRect(g, 72, y - 93, 1456, 196, 26);
+    box5(g, 80, y - 85, 1440, 180);
+    lab(g, a, 470, y - 8, { size: 32, fill: col, anchor: 'start' });
+    lab(g, b, 470, y + 38, { size: 24, fill: COL.dim, weight: 500, anchor: 'start' });
+    if (i === 0) ['sugar', 'lipid', 'phosphate', 'metal', 'heme', 'nucleic'].forEach((kd, j) => pop(g, 150 + (j % 3) * 100, y - 38 + Math.floor(j / 3) * 80, t0 + 7.5 + j * .75, q => prosthetic(q, kd, { s: .62, symbol: 'Fe' })));
+    if (i === 1) {
+      ['Cu', 'Zn', 'Fe'].forEach((sym, j) => pop(g, 150 + j * 90, y - 36, t0 + 2.1 + j * .55, q => prosthetic(q, 'metal', { s: .7, symbol: sym })));
+      pop(g, 190, y + 44, t0 + 5.7, q => prosthetic(q, 'heme', { s: .75 })); pop(g, 320, y + 44, t0 + 7, q => prosthetic(q, 'flavin', { s: .75 }));
+    }
+    if (i === 2) { pop(g, 210, y - 34, t0 + 2.6, q => miniChain(q, [6], { x: -60, r: 10, sp: 24 })); pop(g, 210, y + 40, t0 + 6.5, q => miniChain(q, [2, 2, 1, 1], { x: -60, r: 10, sp: 24, gap: 16 })); }
+    show(g, t0 + .1, .5);
+    return [gl, t0, ends[i]];
+  });
+  clockRun(t => {
+    glows.forEach(([gl, a, b]) => mO(gl, mRamp(t, a + .1, a + .6) * (1 - mRamp(t, b - .3, b + .1))));
+    live.forEach(([q, t0]) => { const k = Math.round((1 + .3 * mBump(t, t0, t0 + .7)) * 1000) / 1000; if (st(q).s !== k) put(q, { s: k }); });
+  }, D);
+  say(p, 'Now try the practice.', 800, 870, tE, { size: 30, fill: COL.task });
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const frame = g => box5(g, 980, 90, 580, 720);
+  at('pass', g => {
+    frame(g);
+    lipoprotein(g, { x: 1130, y: 220, R: 58 });
+    lab(g, 'LDL', 1300, 230, { size: 28, anchor: 'start' });
+    milkGlass(g, { x: 1130, y: 450, s: .8 });
+    lab(g, 'caseinogen', 1240, 460, { size: 28, anchor: 'start' });
+    ribosomeArt(g, { x: 1130, y: 660, s: .6 });
+    lab(g, 'ribosome', 1260, 670, { size: 28, anchor: 'start' });
+    lab(g, 'what is each one’s passenger?', 1270, 780, { size: 24, fill: COL.dim, weight: 600 });
+  });
+  at('store', g => {
+    frame(g);
+    warehouse(g, { x: 1150, y: 330, s: 2 });
+    lab(g, '?', 1150, 470, { size: 44, fill: COL.task });
+    truck(g, { x: 1400, y: 560, s: 1.8 });
+    lab(g, '?', 1400, 680, { size: 44, fill: COL.task });
+    lab(g, 'which one stores iron?', 1270, 780, { size: 26 });
+  });
+  at('pigment', g => {
+    frame(g);
+    prosthetic(g, 'heme', { x: 1140, y: 380, s: 2 });
+    prosthetic(g, 'flavin', { x: 1410, y: 380, s: 1.6 });
+    lab(g, 'red', 1140, 500, { size: 28, fill: PC.heme });
+    lab(g, 'yellow', 1410, 500, { size: 28, fill: PC.flavin });
+    lab(g, 'which pigment does each carry?', 1270, 780, { size: 24, fill: COL.dim, weight: 600 });
+  });
+  at('glyco', g => {
+    frame(g);
+    const gb = globule(g, { x: 1270, y: 420, R: 120, slots: 6 });
+    [0, 1, 2, 3, 4, 5].forEach(i => { const [x, y] = gb.slotPt(i), dx = x - 1270, dy = y - 420, d = Math.hypot(dx, dy); prosthetic(g, 'sugar', { x: x + dx / d * 16, y: y + dy / d * 16, s: .7 }); });
+    lab(g, 'a protein with sugar chains', 1270, 700, { size: 26 });
+  });
+  at('hyd', g => {
+    frame(g);
+    const r = ladder(g, { x: 1010, y: 180, dy: 120, cx: 1190, size: 26, r: 8, sp: 20, gap: 12 });
+    put(r[2].glow, { o: 1 });
+    lab(g, 'made by an enzyme', 1270, 780, { size: 24, fill: COL.dim, weight: 600 });
+  });
+  at('order', g => {
+    frame(g);
+    ladder(g, { x: 1010, y: 180, dy: 120, cx: 1190, size: 26, names: false, r: 8, sp: 20, gap: 12 });
+    lab(g, 'largest at the top', 1270, 780, { size: 24, fill: COL.dim, weight: 600 });
+  });
+  at('sort', g => {
+    frame(g);
+    eggPan(g, { x: 1230, y: 270, s: .62 }).set(1);
+    lab(g, 'heat', 1270, 190, { size: 24, fill: PC.heat });
+    miniChain(g, [3, 2, 3], { x: 1120, y: 560, r: 11, sp: 24, gap: 26 });
+    lab(g, 'enzyme', 1270, 500, { size: 24, fill: '#b6d36a' });
+    lab(g, 'primary or secondary?', 1270, 780, { size: 26 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('pass');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-pass', prompt: ['Name the passenger (the non-protein part).'],
+    build: withPic('pass', grid([
+      { parts: ['LDL'], ans: ['l'], why: 'A lipoprotein: a fat carrier.' },
+      { parts: ['caseinogen'], ans: ['p'], why: 'A phosphoprotein: milk protein.' },
+      { parts: ['ribosome'], ans: ['n'], why: 'A nucleoprotein: protein + RNA.' },
+    ], [['l', 'lipid', null, 'L'], ['p', 'phosphate', null, 'P'], ['n', 'nucleic acid', null, 'N']], { multi: false, text: true })) },
+  { id: 'p-store', prompt: ['Which protein stores iron in the cells?'],
+    build: withPic('store', choice([['transferrin'], ['ferritin'], ['ceruloplasmin'], ['hemoglobin']], 1,
+      'Right. Ferritin stores iron; transferrin carries it in the blood. Carry, carry, store.',
+      ['Transferrin carries iron in the blood: it is the truck, not the warehouse.', null,
+        'Ceruloplasmin carries and stores copper, not iron.',
+        'Hemoglobin has iron in its heme, but its job is carrying oxygen, not storing iron.'])) },
+  { id: 'p-pigment', prompt: ['Which pigment does each protein carry?'],
+    build: withPic('pigment', grid([
+      { parts: ['hemoglobin'], ans: ['h'], why: 'Heme: red, carries oxygen.' },
+      { parts: ['cytochrome'], ans: ['h'], why: 'Heme: red, carries electrons.' },
+      { parts: ['FAD protein'], ans: ['f'], why: 'Flavin: yellow, carries hydrogen.' },
+    ], [['h', 'heme', null, 'H'], ['f', 'flavin', null, 'F']], { multi: false, text: true })) },
+  { id: 'p-glyco', prompt: ['A blood-group antigen is a protein with sugar chains. What class is it?'],
+    build: withPic('glyco', choice([['lipoprotein'], ['phosphoprotein'], ['glycoprotein'], ['nucleoprotein']], 2,
+      'Right. Sugar (carbohydrate) is the passenger, so it is a glycoprotein.',
+      ['A lipoprotein carries lipid (fat), not sugar chains.', 'A phosphoprotein carries phosphoric acid, like caseinogen in milk.', null,
+        'A nucleoprotein carries a nucleic acid, DNA or RNA.'])) },
+  { id: 'p-hyd', prompt: ['An enzyme digests a protein into peptones. What kind of derived protein is a peptone?'],
+    build: withPic('hyd', choice([['primary: denaturation, peptide bonds intact'], ['secondary: hydrolysis, peptide bonds broken'], ['conjugated'], ['simple']], 1,
+      'Right. Digestion is hydrolysis: peptide bonds break and the molecular weight falls, so peptones are secondary.',
+      ['Primary derivatives keep every peptide bond. An enzyme digesting the chain breaks them.', null,
+        'Conjugated means a passenger was added. Here the chain was cut, not added to.',
+        'A simple protein is whole and unchanged. A peptone is a product of breaking one down.'])) },
+  { id: 'p-order', prompt: ['Which list runs from the largest piece to the smallest?'],
+    build: withPic('order', choice([['amino acids, peptides, peptones, proteoses'], ['peptones, proteoses, peptides, amino acids'], ['proteoses, peptones, peptides, amino acids'], ['peptides, peptones, proteoses, amino acids']], 2,
+      'Right. Protein → proteoses → peptones → peptides → amino acids: smaller at every step.',
+      ['That is the right chain, but backwards: it runs from the smallest piece to the largest.',
+        'Proteoses come first, straight from the protein; peptones are smaller.', null,
+        'Peptides are small pieces, near the end of the chain, not the start.'])) },
+  { id: 'p-sort', prompt: ['Which derived group?'],
+    build: withPic('sort', grid([
+      { parts: ['egg white sets in a hot pan'], ans: ['p'], why: 'Heat: shape changes only.' },
+      { parts: ['peptide bonds are broken'], ans: ['s'], why: 'Hydrolysis cuts the chain.' },
+      { parts: ['molecular weight unchanged'], ans: ['p'], why: 'No cut, no loss.' },
+    ], [['p', 'primary', null, 'P'], ['s', 'secondary', null, 'S']], { multi: false, text: true })) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

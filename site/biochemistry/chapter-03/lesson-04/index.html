@@ -1,0 +1,890 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 3, Lesson 4: Denaturation and Misfolding — Biochemistry</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid.text .opts { gap: 4px; } .screen .grid.text .opt { padding: 2px 9px; font-size: 17px; min-height: 36px; } .screen .grid.text .opt kbd { display: none; }
+.screen .grid.text .row { padding: 4px 0 4px 12px; row-gap: 0; } .screen .grid.text .why { font-size: 18px; line-height: 1.25; }</style><!-- all rows wrong: four rows and their why lines fit above Check -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/protein.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biochemistry, Chapter 3 (Protein Structure and Folding), lesson 4: an egg white turning solid in a hot pan, then the
+// four-levels strip; denaturation as unfolding (slide 20's folded → unfolded figure, the chain still one piece); the
+// strip run backwards (quaternary, tertiary, secondary lost, the primary chain and its peptide bonds kept, not
+// hydrolysis); the six causes; the five effects and cooking; misfolding and aggregates against denaturation;
+// Alzheimer's disease (amyloid β plaques, tau in one clause); the slide 23 case as two quick checks; summary and the
+// chapter close; practice. Plan, errata and beats: books/biochemistry/chapters/chapter-03/lesson-04.md.
+const CHAPTER = { number: 304, label: '3, lesson 4', title: 'Denaturation and Misfolding', minutes: 7, language: 'en', lead: false };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, weight: 700, ...o, o: 0 }); show(e, t0, .4); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const R1 = v => Math.round(v * 10) / 10;
+const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
+const dg = a => a * Math.PI / 180;
+// pose transform keys (rounded) only when they change
+function pose(e, o) {
+  const c = st(e), n = {};
+  for (const k in o) { const v = k === 'o' || k === 's' ? Math.round(o[k] * 1000) / 1000 : R1(o[k]); if (c[k] !== v) n[k] = v; }
+  for (const k in n) { put(e, n); break; }
+  return e;
+}
+// an attribute written only when it changes
+function attr(e, k, v) { if (e['_l' + k] !== v) { e.setAttribute(k, v); e['_l' + k] = v; } return e; }
+const box5 = (g, x, y, w, h, { fill = '#0b1626', stroke = COL.faint, sw = 3, rx = 22, fo = 1 } = {}) => mk('rect', { x, y, width: w, height: h, rx, fill, 'fill-opacity': fo, stroke, 'stroke-width': sw }, g);
+// keyframes [[t, a, b, …], …]: eased between keys, held before the first and after the last
+function keyAt(t, K) {
+  if (t <= K[0][0]) return K[0].slice(1);
+  for (let i = 1; i < K.length; i++) if (t < K[i][0]) { const a = K[i - 1], b = K[i], f = soft((t - a[0]) / (b[0] - a[0])); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * f); }
+  return K[K.length - 1].slice(1);
+}
+// a smooth path through points (Catmull-Rom)
+function smooth(pts, closed = false) {
+  const n = pts.length, P = i => closed ? pts[(i + n) % n] : pts[Math.max(0, Math.min(n - 1, i))];
+  let d = `M${f1(pts[0][0])} ${f1(pts[0][1])}`;
+  for (let i = 0; i < (closed ? n : n - 1); i++) {
+    const a = P(i - 1), b = P(i), c = P(i + 1), e = P(i + 2);
+    d += `C${f1(b[0] + (c[0] - a[0]) / 6)} ${f1(b[1] + (c[1] - a[1]) / 6)} ${f1(c[0] - (e[0] - b[0]) / 6)} ${f1(c[1] - (e[1] - b[1]) / 6)} ${f1(c[0])} ${f1(c[1])}`;
+  }
+  return d + (closed ? 'Z' : '');
+}
+function blob(rx, ry, seed = 1, wob = .07, n = 36, cx = 0, cy = 0) {
+  const pts = [];
+  for (let i = 0; i < n; i++) { const a = i / n * 2 * Math.PI, k = 1 + wob * (Math.sin(3 * a + seed) + .6 * Math.sin(5 * a + 2.1 * seed)); pts.push([cx + rx * k * Math.cos(a), cy + ry * k * Math.sin(a)]); }
+  return smooth(pts, true);
+}
+// a dark pill with text, origin at its centre; .w its width
+function pill(p, str, { x = 0, y = 0, size = 24, fill = COL.chalk, edge = COL.chalk, o = 1, w } = {}) {
+  const g = G(p, { x, y, o }), ww = w ?? Math.round(uiW(str.replace(/[_^]/g, ''), size) * 1.12 + 32), hh = size + 18;
+  mk('rect', { x: -ww / 2, y: -hh / 2, width: ww, height: hh, rx: hh / 2, fill: '#0b1626', stroke: edge, 'stroke-width': 2.5 }, g);
+  wChem(g, str, { y: size * .36, size, fill, weight: 700, o: 1 });
+  return Object.assign(g, { w: ww });
+}
+// one line of text in several colours: parts [[str, colour], …]
+function colText(p, parts, { x = 0, y = 0, size = 30, anchor = 'middle', weight = 700, o = 1 } = {}) {
+  const t = T(p, '', { x, y, size, weight, anchor, o });
+  for (const [s, c] of parts) { const ts = mk('tspan', { fill: c }, t); ts.textContent = s; }
+  return t;
+}
+const italic = e => { e.setAttribute('font-style', 'italic'); return e; };
+function tickMark(p, x, y, { s = 1, o = 0 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('circle', { r: 20, fill: PC.good, stroke: '#2f7a2f', 'stroke-width': 2.5 }, g);
+  path(g, 'M-9 0L-2 8L10 -8', { stroke: '#fff', 'stroke-width': 5 });
+  return g;
+}
+function crossMark(p, x, y, { s = 1, o = 0 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('circle', { r: 20, fill: '#d9534f', stroke: '#8f2a26', 'stroke-width': 2.5 }, g);
+  path(g, 'M-8 -8L8 8M8 -8L-8 8', { stroke: '#fff', 'stroke-width': 5 });
+  return g;
+}
+// an arrow drawn on from (x1, y1) to (x2, y2): .set(k)
+function arrowLine(p, [x1, y1], [x2, y2], { color = COL.chalk, w = 6, head = 18 } = {}) {
+  const g = G(p), L = Math.hypot(x2 - x1, y2 - y1) || 1, ux = (x2 - x1) / L, uy = (y2 - y1) / L;
+  const ln = path(g, 'M0 0', { stroke: color, 'stroke-width': w });
+  const hd = G(g, { o: 0 });
+  path(hd, `M${-head} ${-head * .7}L0 0L${-head} ${head * .7}Z`, { fill: color, stroke: color, 'stroke-width': 2 });
+  const ang = Math.atan2(uy, ux) * 180 / Math.PI;
+  return Object.assign(g, {
+    set(k) {
+      const e = mClamp(k), ex = x1 + (x2 - x1) * e, ey = y1 + (y2 - y1) * e;
+      mD(ln, `M${f1(x1)} ${f1(y1)}L${f1(ex - ux * head * .6 * Math.min(1, e * 6))} ${f1(ey - uy * head * .6 * Math.min(1, e * 6))}`);
+      mO(ln, e > 0 ? 1 : 0);
+      pose(hd, { x: ex, y: ey, r: ang, o: e > 0 ? 1 : 0 });
+      return g;
+    },
+  }).set(0);
+}
+
+/* ---------- the egg in the pan (intro) ---------- */
+const PAN = { x: 560, y: 470, R: 270 };
+function panEgg(p) {
+  const g = G(p, { x: PAN.x, y: PAN.y });
+  box5(g, -PAN.x - 20, -PAN.y - 20, 1640, 940, { fill: '#232a33', stroke: '#2f3843', sw: 4, rx: 0 });   // the stove top
+  path(g, 'M-190 190L-420 400', { stroke: '#3a3f47', 'stroke-width': 54 });             // the handle
+  path(g, 'M-190 190L-420 400', { stroke: '#4a515c', 'stroke-width': 36 });
+  const flames = [];
+  for (let i = 0; i < 20; i++) {
+    const a = i * 18 + 9, fg = G(g, { x: f1(292 * Math.cos(dg(a))), y: f1(292 * Math.sin(dg(a))), r: a + 90 });
+    const fl = G(fg);
+    path(fl, 'M-10 0Q-12 -20 0 -38Q12 -20 10 0Q0 8 -10 0Z', { fill: '#f39a2b', stroke: '#c96a12', 'stroke-width': 2 });
+    path(fl, 'M-5 -2Q-6 -13 0 -22Q6 -13 5 -2Q0 3 -5 -2Z', { fill: '#ffd27a' });
+    flames.push(fl);
+  }
+  mk('circle', { r: PAN.R, fill: '#2b2f36', stroke: '#5a616c', 'stroke-width': 14 }, g);
+  mk('circle', { r: PAN.R - 30, fill: '#1c1f24' }, g);
+  const white = path(g, blob(175, 145, 2.2, .08, 40, -20, 10), { fill: '#a9cfe0', 'fill-opacity': .25, stroke: '#cfe6f2', 'stroke-width': 3, 'stroke-opacity': .6 });
+  mk('circle', { cx: 20, cy: -20, r: 55, fill: '#f3b630', stroke: '#c98a16', 'stroke-width': 4 }, g);
+  mk('ellipse', { cx: 2, cy: -40, rx: 16, ry: 9, fill: '#fff', 'fill-opacity': .45 }, g);
+  return Object.assign(g, {
+    set(t, k, on) {
+      const c = mix('#a9cfe0', '#f6f2e6', k);
+      attr(white, 'fill', c); attr(white, 'fill-opacity', (.25 + .75 * k).toFixed(3)); attr(white, 'stroke', mix('#cfe6f2', '#e8e2d0', k));
+      flames.forEach((fl, i) => pose(fl, { s: on * (.85 + .15 * Math.sin(t * 11 + i * 1.7)), o: on }));
+      return g;
+    },
+  });
+}
+
+/* ---------- the six causes ---------- */
+const CAUSES = [
+  ['heat', 'high temperature', 0], ['press', 'high pressure', 0], ['shake', 'vigorous shaking', 1],
+  ['acid', 'strong acids and alkalis', 2], ['uv', 'UV light, irradiation', 3], ['xray', 'X-rays', 3],
+];
+const GROUPS = [['heat and pressure', '#f39a2b', '1 · 2'], ['shaking', '#7fd1b9', '3'], ['chemicals', '#ff7aa8', '4'], ['radiation', '#9a6cd0', '5 · 6']];
+// one cause as an icon about 120 px across, origin at its centre; .set(t, k): k 0 at rest, 1 acting
+function causeIcon(p, kind, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  let set = () => g;
+  if (kind === 'heat') {
+    path(g, 'M-56 44H56', { stroke: '#7a828e', 'stroke-width': 10 });
+    path(g, 'M-56 44L-92 36', { stroke: '#5a616c', 'stroke-width': 8 });
+    const fl = G(g, { y: 30 });
+    path(fl, 'M-26 0Q-34 -38 0 -84Q34 -38 26 0Q0 12 -26 0Z', { fill: '#f39a2b', stroke: '#c96a12', 'stroke-width': 3 });
+    path(fl, 'M-12 -2Q-16 -24 0 -48Q16 -24 12 -2Q0 5 -12 -2Z', { fill: '#ffd27a' });
+    set = (t, k) => pose(fl, { s: .7 + .3 * k + .07 * k * Math.sin(t * 13) });
+  } else if (kind === 'press') {
+    mk('circle', { r: 54, fill: '#0b1626', stroke: COL.chalk, 'stroke-width': 4 }, g);
+    path(g, `M${f1(42 * Math.cos(dg(-30)))} ${f1(42 * Math.sin(dg(-30)))}A42 42 0 0 1 ${f1(42 * Math.cos(dg(40)))} ${f1(42 * Math.sin(dg(40)))}`, { stroke: '#d9534f', 'stroke-width': 8 });
+    for (let i = 0; i <= 6; i++) { const a = dg(-210 + i * 40); path(g, `M${f1(36 * Math.cos(a))} ${f1(36 * Math.sin(a))}L${f1(46 * Math.cos(a))} ${f1(46 * Math.sin(a))}`, { stroke: COL.dim, 'stroke-width': 3 }); }
+    const nd = G(g);
+    path(nd, 'M0 0L38 0', { stroke: '#ffd27a', 'stroke-width': 5 });
+    mk('circle', { r: 7, fill: '#ffd27a' }, g);
+    set = (t, k) => pose(nd, { r: -200 + 200 * k + 3 * k * Math.sin(t * 23) });
+  } else if (kind === 'shake') {
+    const fr = path(g, 'M-50 10Q-38 -10 -28 6Q-16 -22 -4 4Q8 -26 20 4Q32 -14 50 10Z', { fill: '#f6f2e6', stroke: '#e8e2d0', 'stroke-width': 2 });
+    path(g, 'M-62 8A62 50 0 0 0 62 8Z', { fill: '#3a5578', stroke: '#a9c2df', 'stroke-width': 4 });
+    const wk = G(g, { y: 10 });
+    path(wk, 'M0 0L0 -86', { stroke: '#cfd3d8', 'stroke-width': 7 });
+    [12, 22].forEach(rx => mk('ellipse', { cx: 0, cy: 10, rx, ry: 30, fill: 'none', stroke: '#cfd3d8', 'stroke-width': 3 }, wk));
+    set = (t, k) => { pose(wk, { r: 24 * k * Math.sin(t * 14) }); pose(fr, { o: k, s: .6 + .4 * k }); };
+  } else if (kind === 'acid') {
+    const bA = beaker(g, { x: -32, y: 52, w: 56, h: 88, fill: '#c24a7a', level: .72 }), bB = beaker(g, { x: 34, y: 52, w: 56, h: 88, fill: '#3d56b8', level: .72 });
+    wChem(g, 'H^+', { x: -32, y: 24, size: 22, fill: '#fff', weight: 800, o: 1 });
+    wChem(g, 'OH^−', { x: 34, y: 24, size: 20, fill: '#fff', weight: 800, o: 1 });
+    const bub = [0, 1, 2, 3].map(i => mk('circle', { cx: i < 2 ? -40 + i * 16 : 26 + (i - 2) * 16, r: 4, fill: '#fff', 'fill-opacity': .6 }, g));
+    const curd = G(g, { o: 0 });
+    [[-42, -2, 7], [-26, 4, 6], [-34, 10, 5]].forEach(([cx, cy, r]) => mk('circle', { cx, cy, r, fill: '#f6f2e6' }, curd));
+    void bA; void bB;
+    set = (t, k, k2 = 0) => { bub.forEach((b, i) => { const u = ((t * .7 + i * .29) % 1 + 1) % 1; attr(b, 'cy', f1(42 - 50 * u)); attr(b, 'opacity', (k * (1 - u)).toFixed(2)); }); pose(curd, { o: k2 }); };
+  } else if (kind === 'uv') {
+    path(g, 'M-46 -58H46', { stroke: '#bba8ee', 'stroke-width': 18 });
+    wLabel(g, 'UV', { y: -51, size: 16, fill: '#2a1a4a', weight: 800, o: 1 });
+    const rays = [-30, 0, 30].map(x => path(g, `M${x} -44l10 14l-14 14l14 14l-14 14l10 14l-6 12`, { stroke: '#9a6cd0', 'stroke-width': 5 }));
+    set = (t, k) => rays.forEach((r, i) => pose(r, { o: .25 + .75 * k * (.6 + .4 * Math.sin(t * 9 + i * 2)) }));
+  } else if (kind === 'xray') {
+    let d = ''; for (let i = 0; i < 16; i++) { const a = dg(i * 22.5 - 90), r = i % 2 ? 24 : 56; d += (i ? 'L' : 'M') + f1(r * Math.cos(a)) + ' ' + f1(r * Math.sin(a)); }
+    const burst = G(g);
+    path(burst, d + 'Z', { fill: '#cfd8e0', 'fill-opacity': .25, stroke: '#e8eef4', 'stroke-width': 3 });
+    wLabel(g, 'X', { y: 13, size: 38, fill: '#e8eef4', weight: 900, o: 1 });
+    set = (t, k) => pose(burst, { s: .8 + .2 * k + .06 * k * Math.sin(t * 8), o: .5 + .5 * k });
+  }
+  return Object.assign(g, { set(t, k, k2) { set(t, k, k2); return g; } });
+}
+// a tile for one cause: number, icon, a mini protein that unfolds, its name; origin at the top left, 380 × 260
+const TW_ = 380, TH_ = 260;
+function causeTile(p, i, x0, y0, { s = 1 } = {}) {
+  const [kind, name] = CAUSES[i];
+  const g = G(p, { x: x0, y: y0, s });
+  const frame = box5(g, 0, 0, TW_, TH_, { stroke: COL.faint, sw: 4 });
+  const badge = G(g, { x: 30, y: 32 });
+  mk('circle', { r: 19, fill: '#2a3a52', stroke: COL.chalk, 'stroke-width': 2.5 }, badge);
+  wLabel(badge, String(i + 1), { y: 8, size: 22, weight: 800, o: 1 });
+  const ic = causeIcon(g, kind, { x: 110, y: 112 });
+  const gl = globule(g, { x: 280, y: 112, R: 40, mini: true, seed: i + 1.3 });
+  wLabel(g, name, { x: TW_ / 2, y: 228, size: 26, weight: 700, o: 1 });
+  return Object.assign(g, { frame, ic, gl });
+}
+
+/* ---------- the five effects ---------- */
+// the enzyme: a green pac-man whose active site closes; the substrate (gold) bounces off
+function iconEnz(p, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  const body = path(g, 'M0 0', { fill: '#8fd6b0', stroke: '#4f9a78', 'stroke-width': 3 });
+  const sub = G(g);
+  mk('polygon', { points: [0, 1, 2, 3, 4, 5].map(i => `${f1(13 * Math.cos(dg(i * 60)))},${f1(13 * Math.sin(dg(i * 60)))}`).join(' '), fill: '#f3c95c', stroke: '#b8902e', 'stroke-width': 2.5 }, sub);
+  return Object.assign(g, {
+    set(u) {
+      const a = 36 * (1 - mRamp(u, 0, .35)), wb = mRamp(u, 0, .35), cx = -24;
+      const pts = []; for (let i = 0; i <= 28; i++) { const th = dg(a + (360 - 2 * a) * i / 28), r = 40 * (1 + .08 * wb * Math.sin(i * 1.9)); pts.push([cx + r * Math.cos(th), r * Math.sin(th)]); }
+      mD(body, `M${cx + 12} 0L` + pts.map(q => `${f1(q[0])} ${f1(q[1])}`).join('L') + 'Z');
+      const [sx] = keyAt(u, [[.3, 62], [.55, 28], [.68, 34], [.9, 70]]);
+      pose(sub, { x: sx, y: 0 });
+      return g;
+    },
+  }).set(0);
+}
+// the hormone: a key that fits its receptor's slot; unfolded, it is a blob that bounces off
+function iconHor(p, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  path(g, 'M-66 -40H-30V-14H-14V14H-30V40H-66Z', { fill: '#bba8ee', stroke: '#8a74cf', 'stroke-width': 3 });
+  const key = [[-14, -14], [6, -14], [6, -24], [36, -24], [36, 24], [6, 24], [6, 14], [-14, 14]];
+  const bl = key.map((_, i) => { const a = dg(180 + i * 45); return [11 + 26 * Math.cos(a) * (1 + .25 * Math.sin(i * 2.3)), 26 * Math.sin(a) * (1 + .25 * Math.cos(i * 1.7))]; });
+  const hm = path(g, 'M0 0', { fill: '#f3c95c', stroke: '#b8902e', 'stroke-width': 3 });
+  return Object.assign(g, {
+    set(u) {
+      const k = io(mRamp(u, 0, .35)), [dx] = keyAt(u, [[.3, 40], [.55, 14], [.68, 20], [.9, 50]]);
+      mD(hm, smooth(key.map((q, i) => [dx + q[0] + (bl[i][0] - q[0]) * k, q[1] + (bl[i][1] - q[1]) * k]), true));
+      return g;
+    },
+  }).set(0);
+}
+// solubility: dissolved chains (dots) in water gather into one clump
+function iconSol(p, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  beaker(g, { y: 52, w: 120, h: 104, fill: '#1b4a78', level: .82 });
+  const far = [[-38, -22], [-10, -14], [24, -26], [40, 2], [-30, 16], [4, 10], [30, 30], [-6, 34]], near = [[-6, 22], [6, 22], [0, 30], [-12, 30], [12, 30], [0, 14], [-8, 38], [8, 38]];
+  const dots = far.map(() => mk('circle', { r: 6, fill: '#8fd6b0', stroke: '#4f9a78', 'stroke-width': 1.5 }, g));
+  return Object.assign(g, { set(k) { dots.forEach((d, i) => { attr(d, 'cx', f1(mLerp(far[i][0], near[i][0], k))); attr(d, 'cy', f1(mLerp(far[i][1], near[i][1], k))); attr(d, 'fill', k > .95 ? '#a89a78' : '#8fd6b0'); }); return g; } }).set(0);
+}
+// viscosity: a dropper whose drop hangs on a long, thick thread
+function iconVis(p, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  path(g, 'M-8 -54H8V-32L3 -22H-3L-8 -32Z', { fill: '#a9c2df', 'fill-opacity': .35, stroke: '#a9c2df', 'stroke-width': 3 });
+  mk('ellipse', { cy: -58, rx: 13, ry: 10, fill: '#d9534f' }, g);
+  const dr = path(g, 'M0 0', { fill: '#e9c46a', stroke: '#a8862c', 'stroke-width': 2 });
+  path(g, 'M-40 56H40', { stroke: COL.dim, 'stroke-width': 3 });
+  return Object.assign(g, {
+    set(k) {
+      const L = 6 + 36 * k, r = 9 + 4 * k, n = 2 + 3 * k, y0 = -22;
+      mD(dr, `M${f1(-3)} ${y0}C${f1(-n)} ${f1(y0 + L * .5)} ${f1(-r)} ${f1(y0 + L)} ${f1(-r)} ${f1(y0 + L + r)}A${f1(r)} ${f1(r)} 0 0 0 ${f1(r)} ${f1(y0 + L + r)}C${f1(r)} ${f1(y0 + L)} ${f1(n)} ${f1(y0 + L * .5)} 3 ${y0}Z`);
+      return g;
+    },
+  }).set(0);
+}
+// digestibility: a short unfolded chain, cut at two peptide bonds
+function iconDig(p, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  const ch = beadChain(g, { x: -30, n: 5, r: 10, sp: 26, chips: false, ends: false, endText: false, wave: 6 });
+  return Object.assign(g, { ch, set(k) { ch.cut(1, k).cut(3, mRamp(k, .3, 1)); return g; } }).set(0);
+}
+const EFFECTS = [
+  ['enz', 'enzymes lose catalytic activity', 'the active site needs the folded shape', 'lost'],
+  ['hor', 'hormones lose their function', 'they need their shape too', 'lost'],
+  ['sol', 'solubility falls', 'unfolded chains stick and clump', 'down'],
+  ['vis', 'viscosity rises', 'the liquid thickens', 'up'],
+  ['dig', 'digestibility rises', 'enzymes reach the peptide bonds', 'up'],
+];
+const effectIcon = (p, kind, o) => ({ enz: iconEnz, hor: iconHor, sol: iconSol, vis: iconVis, dig: iconDig })[kind](p, o);
+
+/* ---------- enzymes that cut (cooking) ---------- */
+function chomper(p, { r = 22 } = {}) {
+  const g = G(p, { o: 0 });
+  const b = path(g, 'M0 0', { fill: '#8fd6b0', stroke: '#4f9a78', 'stroke-width': 2.5 });
+  return Object.assign(g, {
+    set(t, x, y, o, open = 1) {
+      const a = (8 + 26 * open * (.5 + .5 * Math.sin(t * 9)));
+      mD(b, `M0 0L${f1(r * Math.cos(dg(-a)))} ${f1(r * Math.sin(dg(-a)))}A${r} ${r} 0 1 0 ${f1(r * Math.cos(dg(a)))} ${f1(r * Math.sin(dg(a)))}Z`);
+      pose(g, { x, y, o });
+      return g;
+    },
+  });
+}
+function friedEgg(p, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  path(g, blob(78, 62, 1.4, .1, 30), { fill: '#f6f2e6', stroke: '#e8e2d0', 'stroke-width': 3 });
+  mk('circle', { cx: 6, cy: -4, r: 26, fill: '#f3b630', stroke: '#c98a16', 'stroke-width': 3 }, g);
+  return g;
+}
+function meatSlice(p, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  path(g, blob(80, 54, 3.1, .1, 30), { fill: '#9a4a3c', stroke: '#e8d2c4', 'stroke-width': 7 });
+  path(g, 'M-40 -14C-10 -24 20 0 46 -10M-30 18C0 8 20 26 40 16', { stroke: '#e8d2c4', 'stroke-width': 4, 'stroke-opacity': .7 });
+  return g;
+}
+
+/* ---------- the brain (side view) and its nerve cells ---------- */
+const SPOTS = [[-180, -40, 16], [-90, -112, 18], [40, -130, 15], [150, -64, 19], [-20, -24, 14], [96, 24, 16], [-128, 40, 13], [210, -8, 14]];
+function brain(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  const ink = '#f2efe6';
+  path(g, 'M86 90C96 150 104 190 112 232', { stroke: ink, 'stroke-width': 50 });
+  path(g, 'M86 90C96 150 104 190 112 232', { stroke: '#3a3242', 'stroke-width': 40 });
+  mk('ellipse', { cx: 178, cy: 118, rx: 82, ry: 54, fill: '#3a3242', stroke: ink, 'stroke-width': 5 }, g);
+  path(g, 'M110 104C150 96 200 100 246 112M106 126C150 120 200 126 252 132M118 146C150 144 190 150 230 152', { stroke: ink, 'stroke-width': 3, 'stroke-opacity': .5 });
+  const pts = [];
+  for (let i = 0; i < 64; i++) { const a = i / 64 * 2 * Math.PI, k = 1 + .028 * Math.sin(17 * a); pts.push([290 * k * Math.cos(a), 188 * k * Math.sin(a) * (Math.sin(a) > 0 ? .62 : 1)]); }
+  path(g, smooth(pts, true), { fill: '#4a3a4e', stroke: ink, 'stroke-width': 5 });
+  path(g, 'M-176 40C-96 8 0 32 112 -8M30 -180C8 -112 52 -62 20 -12M-206 -60C-150 -92 -100 -62 -60 -104M-128 -158C-96 -112 -136 -62 -92 -28M122 -150C92 -94 152 -62 122 -22M186 -96C226 -48 204 -6 246 26M-238 -6C-206 26 -164 18 -134 58M-60 74C-20 92 40 84 84 80',
+    { stroke: ink, 'stroke-width': 3.5, 'stroke-opacity': .55 });
+  const spots = G(g, { o: 0 });
+  SPOTS.forEach(([sx, sy, r], i) => path(spots, blob(r, r * .85, i + .5, .14, 14, sx, sy), { fill: '#7a5410', stroke: '#c98a2a', 'stroke-width': 2.5 }));
+  return Object.assign(g, { spots });
+}
+function neurone(p, x, y, { axis = 0, seed = 1 } = {}) {
+  const w = G(p, { x, y }), g = G(w, { r: axis });
+  const c = '#e8c9a0';
+  let d = '';
+  for (let i = 0; i < 5; i++) {
+    const a = dg(100 + i * 40 + seed * 7), x1 = 52 * Math.cos(a), y1 = 52 * Math.sin(a);
+    d += `M0 0L${f1(x1)} ${f1(y1)}M${f1(x1 * .6)} ${f1(y1 * .6)}L${f1(x1 * .6 + 18 * Math.cos(a + .7))} ${f1(y1 * .6 + 18 * Math.sin(a + .7))}`;
+  }
+  path(g, d, { stroke: c, 'stroke-width': 5 });
+  path(g, 'M0 0C40 12 70 -12 112 4M112 4L128 -8M112 4L130 12', { stroke: c, 'stroke-width': 5 });
+  mk('circle', { r: 24, fill: c, stroke: '#a8865a', 'stroke-width': 3 }, g);
+  mk('circle', { r: 8, fill: '#a8865a' }, g);
+  return Object.assign(w, { body: g });
+}
+
+/* ---------- the case card (slide 23), used by case, q1, cause, q2, solve ---------- */
+const CX0 = 84;
+function caseCard(p) {
+  const g = G(p);
+  box5(g, 50, 46, 590, 808, { stroke: COL.dim });
+  wLabel(g, 'Clinical case', { x: CX0, y: 106, size: 36, weight: 800, anchor: 'start', o: 1 });
+  const badges = G(g, { o: 0 });
+  const b1 = pill(badges, '72-year-old man', { x: 0, y: 162, size: 24, edge: '#f0b45a', fill: '#f0b45a' }); pose(b1, { x: CX0 + b1.w / 2 });
+  const b2 = pill(badges, '2 years of symptoms', { x: 0, y: 162, size: 24, edge: '#f0b45a', fill: '#f0b45a' }); pose(b2, { x: CX0 + b1.w + 14 + b2.w / 2 });
+  const L = [[236, ['for two years: forgets recent', 'events and conversations']], [330, ['recently: does not recognize', 'his close relatives']], [424, ['severe memory impairment']], [478, ['cannot carry out everyday tasks']]];
+  const lines = L.map(([y, ss]) => {
+    const lg = G(g, { o: 0 });
+    mk('circle', { cx: CX0 + 6, cy: y - 9, r: 6, fill: '#f0b45a' }, lg);
+    ss.forEach((s, i) => wLabel(lg, s, { x: CX0 + 24, y: y + i * 36, size: 26, anchor: 'start', o: 1 }));
+    return lg;
+  });
+  path(g, 'M80 526H610', { stroke: COL.faint, 'stroke-width': 2.5 });
+  const hi1 = mk('rect', { x: 70, y: 546, width: 550, height: 92, rx: 14, fill: '#f3c95c', 'fill-opacity': .12, stroke: '#f3c95c', 'stroke-width': 3 }, g); put(hi1, { o: 0 });
+  const hi2 = mk('rect', { x: 70, y: 652, width: 550, height: 184, rx: 14, fill: '#f3c95c', 'fill-opacity': .12, stroke: '#f3c95c', 'stroke-width': 3 }, g); put(hi2, { o: 0 });
+  wLabel(g, '1. What is the diagnosis?', { x: CX0 + 4, y: 584, size: 27, weight: 700, anchor: 'start', o: 1 });
+  wLabel(g, '2. Mention the possible cause', { x: CX0 + 4, y: 690, size: 27, weight: 700, anchor: 'start', o: 1 });
+  wLabel(g, 'of this disease.', { x: CX0 + 28, y: 724, size: 27, weight: 700, anchor: 'start', o: 1 });
+  const tick1 = tickMark(g, 592, 576), tick2 = tickMark(g, 592, 682);
+  const ans1 = wLabel(g, 'Alzheimer’s disease', { x: CX0 + 28, y: 622, size: 27, weight: 800, fill: COL.good, anchor: 'start', o: 0 });
+  const ans2 = G(g, { o: 0 });
+  wChem(ans2, 'misfolding of amyloid β protein,', { x: CX0 + 28, y: 772, size: 26, weight: 800, fill: COL.good, anchor: 'start', o: 1 });
+  wLabel(ans2, 'which clumps into plaques', { x: CX0 + 28, y: 808, size: 24, weight: 600, fill: COL.good, anchor: 'start', o: 1 });
+  return Object.assign(g, { badges, lines, hi1, hi2, tick1, tick2, ans1, ans2 });
+}
+// the case card with every line shown (the quick-check beats)
+function caseStill(p, { q1 = 0, q2 = 0, t1 = 0, a1 = 0 } = {}) {
+  const c = caseCard(p);
+  put(c.badges, { o: 1 }); c.lines.forEach(l => put(l, { o: 1 }));
+  put(c.hi1, { o: q1 }); put(c.hi2, { o: q2 }); put(c.tick1, { o: t1 }); put(c.ans1, { o: a1 });
+  return c;
+}
+
+/* ---------- denatured vs misfolded: two mini rows (misfold beat, practice) ---------- */
+// .set(t, k1, k2): k1 the denatured row acts, k2 the misfolded row
+function vsRows(p, { x = 0, y = 0, s = 1, names = true } = {}) {
+  const g = G(p, { x, y, s });
+  const r1 = G(g, { o: 0 }), r2 = G(g, { o: 0 });
+  if (names) {
+    wLabel(r1, 'denatured', { x: -330, y: 10, size: 30, weight: 800, fill: '#f39a2b', anchor: 'start', o: 1 });
+    wLabel(r2, 'misfolded', { x: -330, y: 140, size: 30, weight: 800, fill: '#c9a27a', anchor: 'start', o: 1 });
+  }
+  const gA = globule(r1, { x: 0, y: 0, R: 46, mini: true, seed: 2.4 });
+  const gB = globule(r1, { x: 300, y: 0, R: 46, mini: true, seed: 2.4 });
+  const aA = arrowLine(r1, [70, 0], [190, 0], { color: '#f39a2b', w: 5, head: 16 });
+  wLabel(r1, 'heat', { x: 130, y: -16, size: 22, fill: '#f39a2b', weight: 700, o: 1 });
+  wLabel(r1, 'was folded; something unfolded it', { x: 150, y: 70, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  const mc = misfoldedChain(r2, { x: 0, y: 130, R: 26, seed: 5 });
+  const aB = arrowLine(r2, [70, 130], [190, 130], { color: '#c9a27a', w: 5, head: 16 });
+  const ag = aggregate(r2, { x: 300, y: 130, n: 4, R: 22, spread: 70, seed: 4 });
+  wLabel(r2, 'never reached a stable fold; it clumps', { x: 150, y: 196, size: 22, fill: COL.dim, weight: 600, o: 1 });
+  return Object.assign(g, {
+    r1, r2,
+    set(k1, k2) {
+      gB.tangle(io(mRamp(k1, .45, 1))); aA.set(mRamp(k1, .1, .45));
+      mc.set(.2 + .8 * mRamp(k2, 0, .4)); aB.set(mRamp(k2, .3, .6)); ag.clump(io(mRamp(k2, .55, 1)));
+      void gA;
+      return g;
+    },
+  }).set(0, 0);
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'An egg in a hot pan, and the four-levels strip', (m, D) => {
+  const p = panel(0), tE = m('egg'), tA = m('ask'), tM = m('map'), tL = m('lit');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W, { o: 0 }); show(back, .1, .6);
+  const pan = panEgg(back);
+  // the zoom bubble: three folded proteins in the white, which lose their shape
+  const BX = PAN.x - 120, BY = PAN.y + 75;
+  const bub = G(back, { x: BX, y: BY, o: 0 }); show(bub, tA + 1.1, .6);
+  mk('circle', { r: 50, fill: '#13233a', stroke: '#f6f2e6', 'stroke-width': 2.5 }, bub);
+  const globs = [[-22, -14, 1.2], [20, -16, 2.7], [0, 22, 4.1]].map(([x, y, sd]) => globule(bub, { x, y, s: .26, R: 60, mini: true, seed: sd }));
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOCHEMISTRY · CHAPTER 3 · LESSON 4', { x: 1260, y: 250, size: 24, fill: COL.dim, o: 1 });
+  ['Denaturation', 'and misfolding'].forEach((s, i) => wLabel(ttl, s, { x: 1260, y: 340 + i * 66, size: 54, o: 1 }));
+  wLabel(ttl, 'Protein structure and folding', { x: 1260, y: 500, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tA - .4, .5);
+  const q = G(p, { o: 0 }); show(q, tA, .3); hide(q, tA + 1.6, .4);
+  wLabel(q, '?', { x: 970, y: 330, size: 120, weight: 800, fill: '#f0b45a', o: 1 });
+  wLabel(q, 'what changed?', { x: 970, y: 390, size: 32, weight: 700, o: 1 });
+  cam.to({ x: BX, y: BY, z: 3.6 }, tA + 1.2, 2.6);
+  hide(cam.el, tM - .3, .4);
+  // map: the strip, built in lessons one to three; lit: each level in turn, then the arrow backwards
+  const sg = G(p, { o: 0 }); show(sg, tM, .5);
+  const ls = levelsStrip(sg, { x: 800, y: 440 });
+  const up = arrowLine(sg, [150, 660], [1450, 660], { color: COL.dim, w: 5 });
+  const upL = say(sg, 'built up in lessons one to three', 800, 712, tL + .2, { size: 26, fill: COL.dim });
+  const bk = arrowLine(sg, [1450, 225], [150, 225], { color: '#f39a2b', w: 7, head: 22 });
+  say(sg, 'today: run it backwards', 800, 196, tL + 2.6, { size: 30, fill: '#f39a2b' });
+  void upL;
+  clockRun(t => {
+    pan.set(t, io(mRamp(t, tE + 1.9, tE + 5.6)), mRamp(t, .2, 1) * (1 - mRamp(t, tM - .4, tM)));
+    globs.forEach((gl, i) => gl.tangle(io(mRamp(t, tA + 1.6 + .3 * i, tA + 3.4 + .3 * i))));
+    ls.build(mRamp(t, tM + .2, tM + 3.2));
+    [1, 2, 3, 4].forEach(i => ls.glow(i, mBump(t, tL + .1 + .5 * (i - 1), tL + 1.3 + .5 * (i - 1))));
+    up.set(mRamp(t, tL, tL + 2.2)); bk.set(mRamp(t, tL + 2.4, tL + 4));
+  }, D);
+}],
+
+/* ---------- unfold ---------- */
+['unfold', 'Denaturation means unfolding', (m, D) => {
+  const p = panel(0), tF = m('fold'), tH = m('heat'), tO = m('open'), tD = m('def'), t1 = m('one');
+  const LX = 330, LY = 410, RX = 1150;
+  const wL = G(p, { x: LX, y: LY, o: 0 }); show(wL, tF, .6);
+  const gL = globule(wL, { R: 140, seed: 3, beads: 10 });
+  say(p, 'Folded protein', LX, 222, tF + .4, { size: 32, fill: PC.globule });
+  const heats = [250, 330, 410].map((x, i) => heatArrow(p, [x, 720], [x, 598], { label: i === 2 ? 'heat' : '', side: 1, size: 26 }).in(tH + .1 * i, .6));
+  heats.forEach(h => hide(h, tO + 3, .5));
+  // the same chain, carried to the right as it unfolds
+  const wR = G(p, { x: LX, y: LY, o: 0 });
+  const trG = G(wR);
+  const gR = globule(wR, { R: 140, seed: 3, beads: 10 });
+  gR.tangle(1); const tr = Array.from({ length: gR.m }, (_, i) => gR.chainPt(i)); gR.tangle(0);
+  const trace = path(trG, smooth(tr), { stroke: PC.primary, 'stroke-width': 22, 'stroke-opacity': .55 }, { d: 0 }); draw(trace, t1 + .3, 2.2);
+  const ends = G(wR, { o: 0 }); show(ends, t1 + .3, .4);
+  [[tr[0], 'N', PC.nTerm], [tr[tr.length - 1], 'C', PC.cTerm]].forEach(([q, s, c]) => { const e = G(ends, { x: q[0], y: q[1] }); mk('circle', { r: 15, fill: c, stroke: PC.ink, 'stroke-width': 2.5 }, e); wLabel(e, s, { y: 7, size: 18, fill: PC.ink, weight: 900, o: 1 }); });
+  const ar = arrowLine(p, [540, LY], [800, LY], { color: COL.chalk, w: 8, head: 24 });
+  say(p, 'DENATURATION', 668, LY - 30, tO + 1, { size: 28, weight: 800 });
+  say(p, 'Unfolded protein', RX, 222, tO + 2.8, { size: 32, fill: PC.globule });
+  const def = G(p, { o: 0 }); show(def, tD + .3, .5);
+  const sweepG = G(def);
+  const DEF = [['destroys the ', COL.chalk], ['secondary', PC.secondary], [', ', COL.chalk], ['tertiary', PC.tertiary], [' and ', COL.chalk], ['quaternary', PC.quaternary], [' structure', COL.chalk]];
+  const dt = colText(def, DEF, { x: 800, y: 735, size: 32 });
+  // a slow glow sweeps over the three destroyed levels, in turn, while the definition is read
+  let ci = 0; const full = dt.getComputedTextLength(), x0 = 800 - full / 2, sweeps = [];
+  DEF.forEach(([str, col], j) => {
+    if (j % 2) { const xa = x0 + dt.getSubStringLength(0, ci), w = dt.getSubStringLength(ci, str.length); const r = mk('rect', { x: f1(xa - 3), y: 701, width: f1(w + 6), height: 46, rx: 12, fill: col, 'fill-opacity': .22, stroke: col, 'stroke-width': 3 }, sweepG); put(r, { o: 0 }); sweeps.push(r); }
+    ci += str.length;
+  });
+  italic(say(p, '“denaturation means unfolding”', 800, 815, tD + 6.6, { size: 38, fill: '#ffd27a' }));
+  say(p, 'still one chain · nothing cut', RX, 640, t1 + .6, { size: 28, fill: PC.primary });
+  clockRun(t => {
+    const jit = 4 * Math.sin(t * 47) * mRamp(t, tH, tH + .4) * (1 - mRamp(t, tO + .6, tO + 1));
+    pose(wL, { x: LX + jit });
+    const mv = io(mRamp(t, tO, tO + 3.4));
+    pose(wR, { x: mLerp(LX, RX, mv) + jit * (1 - mv), o: mRamp(t, tO - .05, tO) });
+    gL.labels(mRamp(t, tF + 1.6, tF + 2.2) * (1 - mRamp(t, tH - .4, tH)));
+    gR.tangle(io(mRamp(t, tO + .2, tO + 3.8)));
+    ar.set(mRamp(t, tO + .4, tO + 1.2));
+    sweeps.forEach((r, j) => mO(r, Math.max(...[0, 1, 2].map(c => mBump(t, tD + 1 + 3 * c + .9 * j, tD + 2.8 + 3 * c + .9 * j)))));
+  }, D);
+}],
+
+/* ---------- strip ---------- */
+['strip', 'The strip, run backwards', (m, D) => {
+  const p = panel(0), tQ = m('quat'), tT = m('tert'), tS = m('sec'), tP = m('prim'), tK = m('keep');
+  const ls = levelsStrip(p, { x: 470, y: 450, vertical: true });
+  const down = arrowLine(p, [118, 70], [118, 860], { color: '#f39a2b', w: 6 });
+  const Y = { quaternary: 128, tertiary: 343, secondary: 557, primary: 772 };
+  const note = (lv, head, sub, t0) => { const g = G(p, { o: 0 }); show(g, t0, .5); wLabel(g, head, { x: 850, y: Y[lv] - 4, size: 30, weight: 800, fill: PC[lv], anchor: 'start', o: 1 }); wLabel(g, sub, { x: 850, y: Y[lv] + 32, size: 22, weight: 600, fill: COL.dim, anchor: 'start', o: 1 }); return g; };
+  const nQ = note('quaternary', 'the subunits come apart', 'the bonds between them break', tQ + 2.8);
+  const nT = note('tertiary', 'the globule opens', 'its side-chain bonds break', tT + .6);
+  const nS = note('secondary', 'helix and sheet unwind', 'their hydrogen bonds break', tS + .8);
+  note('primary', 'the primary structure stays', 'same beads · same order · same peptide bonds', tP + 1);
+  [nQ, nT, nS].forEach(n => hide(n, tK + 1, .5));
+  // keep: weak bonds break, peptide bonds stay; not hydrolysis; chapter two's primary derivatives
+  say(p, 'denaturation breaks the weak bonds', 1200, 100, tK + 1.5, { size: 30, fill: PC.hbond });
+  say(p, 'the strong peptide bonds stay', 1200, 146, tK + 4.6, { size: 30, fill: PC.peptide });
+  const cards = G(p, { o: 0 }); show(cards, tK + 6.7, .5);
+  box5(cards, 860, 200, 330, 300, { stroke: PC.primary, sw: 3 });
+  box5(cards, 1230, 200, 330, 300, { stroke: '#f0b45a', sw: 3 });
+  wLabel(cards, 'denaturation', { x: 1025, y: 244, size: 28, weight: 800, fill: PC.primary, o: 1 });
+  wLabel(cards, 'hydrolysis', { x: 1395, y: 244, size: 28, weight: 800, fill: '#f0b45a', o: 1 });
+  const cA = beadChain(cards, { x: 1025, y: 340, n: 5, r: 14, sp: 44, chips: false, endText: false, wave: 8 });
+  const cB = beadChain(cards, { x: 1370, y: 340, n: 5, r: 14, sp: 44, chips: false, endText: false, wave: 8 });
+  wLabel(cards, 'weak bonds break', { x: 1025, y: 432, size: 22, weight: 600, o: 1 });
+  wLabel(cards, 'no water · chain intact', { x: 1025, y: 464, size: 22, weight: 600, fill: COL.dim, o: 1 });
+  wLabel(cards, 'water splits peptide bonds', { x: 1395, y: 432, size: 22, weight: 600, o: 1 });
+  wLabel(cards, 'amino acids set free', { x: 1395, y: 464, size: 22, weight: 600, fill: COL.dim, o: 1 });
+  wLabel(cards, '≠', { x: 1210, y: 362, size: 44, weight: 800, o: 1 });
+  const tag = pill(p, 'chapter two · primary derivative: coagulated albumin', { x: 1210, y: 580, size: 24, fill: '#f0b45a', edge: '#f0b45a', o: 0 });
+  show(tag, tK + 11, .5);
+  clockRun(t => {
+    down.set(mRamp(t, .3, 2.2));
+    ls.unfold(4, io(mRamp(t, tQ + 2.7, tQ + 5.3))).unfold(3, io(mRamp(t, tT + .4, tT + 3.6))).unfold(2, io(mRamp(t, tS + .6, tS + 4.6)));
+    ls.quat.subs.forEach((sb, i) => sb.tangle(.55 * io(mRamp(t, tT + .4 + .2 * i, tT + 3.6 + .2 * i))));   // each subunit loses its fold too
+    ls.glow(4, mBump(t, tQ + 2.4, tQ + 5.6)).glow(3, mBump(t, tT, tT + 3.8)).glow(2, mBump(t, tS, tS + 5)).glow(1, mBump(t, tP, tP + 6));
+    ls.focus('primary', mRamp(t, tP, tP + .8));
+    ls.chain.glow('all', .8 * mBump(t, tP + 1, tP + 6));
+    const pb = .9 * mRamp(t, tK + 4.6, tK + 5.2) * (.55 + .45 * Math.sin((t - tK) * 3));
+    for (let i = 0; i < 6; i++) ls.chain.bond(i, pb);
+    cB.cut(1, mRamp(t, tK + 7.4, tK + 9.6));
+    cA.tangle(.35);
+  }, D);
+}],
+
+/* ---------- causes ---------- */
+['causes', 'Six causes of denaturation', (m, D) => {
+  const p = panel(0), tG = m('group');
+  const T6 = ['heat', 'press', 'shake', 'acid', 'uv', 'xray'].map(k => m(k));
+  say(p, 'Six causes of denaturation', 800, 70, .2, { size: 36 });
+  const tiles = CAUSES.map((_, i) => causeTile(p, i, 190 + (i % 3) * 420, 110 + Math.floor(i / 3) * 290));
+  const leg = GROUPS.map(([name, col, nums], j) => { const pl = pill(p, `${nums}   ${name}`, { x: [330, 662, 942, 1272][j], y: 756, size: 26, fill: col, edge: col, o: 0 }); show(pl, tG + [.3, 1.9, 2.9, 3.9][j], .4); return pl; });
+  void leg;
+  clockRun(t => {
+    tiles.forEach((tl, i) => {
+      const lk = mRamp(t, T6[i], T6[i] + .4), gk = mRamp(t, tG + [.3, .3, 1.9, 2.9, 3.9, 3.9][i], tG + [.7, .7, 2.3, 3.3, 4.3, 4.3][i]);
+      mO(tl, .4 * mRamp(t, .3 + .12 * i, .7 + .12 * i) + .6 * lk);
+      attr(tl.frame, 'stroke', gk > 0 ? mix('#f2efe6', GROUPS[CAUSES[i][2]][1], gk) : (lk > 0 ? mix('#5d7068', '#f2efe6', lk) : '#5d7068'));
+      tl.ic.set(t, lk, i === 3 ? mRamp(t, T6[3] + 3, T6[3] + 3.6) : 0);
+      tl.gl.tangle(io(mRamp(t, T6[i] + .5, T6[i] + 2.2)));
+    });
+  }, D);
+}],
+
+/* ---------- effects ---------- */
+['effects', 'Five effects of denaturation', (m, D) => {
+  const p = panel(0), tE = m('enz'), tH = m('hor'), tS = m('sol'), tV = m('vis'), tG = m('dig'), tC = m('cook'), t2 = m('egg2');
+  const TM = [tE, tH, tS, tV, tG];
+  say(p, 'Five effects of denaturation', 1040, 54, .2, { size: 34 });
+  // left: the denatured protein; from cook, an egg and meat, cooked, and enzymes cutting an unfolded chain
+  const left = G(p, { o: 0 }); show(left, .2, .5); hide(left, tC - .3, .4);
+  wLabel(left, 'denatured protein', { x: 260, y: 200, size: 28, weight: 700, fill: PC.globule, o: 1 });
+  const gp = globule(left, { x: 260, y: 420, R: 100, seed: 5, beads: 8 });
+  const cook = G(p, { o: 0 }); show(cook, tC, .5);
+  wLabel(cook, 'cooked', { x: 260, y: 156, size: 28, weight: 700, fill: '#f39a2b', o: 1 });
+  friedEgg(cook, { x: 160, y: 262 }); meatSlice(cook, { x: 362, y: 262 });
+  const ch = beadChain(cook, { x: 230, y: 500, n: 6, r: 14, sp: 42, chips: false, endText: false, wave: 16 });
+  const ens = [chomper(cook), chomper(cook)];
+  wLabel(cook, 'digestive enzymes', { x: 260, y: 616, size: 24, weight: 700, fill: '#8fd6b0', o: 1 });
+  wLabel(cook, 'reach the peptide bonds', { x: 260, y: 646, size: 24, weight: 700, fill: '#8fd6b0', o: 1 });
+  const alb = pill(p, 'chapter two: coagulated albumin', { x: 260, y: 790, size: 22, fill: '#f0b45a', edge: '#f0b45a', o: 0 }); show(alb, t2 + .3, .5);
+  // the five rows
+  const RY = [150, 290, 430, 570, 710];
+  const rows = EFFECTS.map(([kind, head, sub, dir], i) => {
+    const y = RY[i], g = G(p, { o: 0 }); show(g, .5 + .25 * i, .4);
+    box5(g, 520, y - 62, 1040, 124, { stroke: COL.faint, sw: 2.5, rx: 18 });
+    const nb = G(g, { x: 548, y }); mk('circle', { r: 18, fill: '#2a3a52', stroke: COL.dim, 'stroke-width': 2 }, nb); wLabel(nb, String(i + 1), { y: 8, size: 20, weight: 800, o: 1 });
+    const ic = effectIcon(g, kind, { x: 680, y, s: kind === 'sol' || kind === 'vis' ? .85 : 1 });
+    const tx = G(g, { o: 0 }); show(tx, TM[i] + .1, .4);
+    wLabel(tx, head, { x: 790, y: y - 6, size: 30, weight: 700, anchor: 'start', o: 1 });
+    wLabel(tx, sub, { x: 790, y: y + 28, size: 22, weight: 600, fill: COL.dim, anchor: 'start', o: 1 });
+    const ind = G(g, { o: 0 }); show(ind, TM[i] + 1.2, .4);
+    if (dir === 'lost') pill(ind, 'lost', { x: 1490, y, size: 24, fill: '#f08c7a', edge: '#f08c7a' });
+    else mArrow(ind, [1490, dir === 'up' ? y + 34 : y - 34], [1490, dir === 'up' ? y - 34 : y + 34], { color: dir === 'up' ? '#8fd6b0' : '#f08c7a', w: 7, head: 20 });
+    return { ic, kind };
+  });
+  [2, 3].forEach(i => italic(say(p, 'typical, not for every protein', 1440, RY[i] - 6, t2 + 3.4, { size: 20, fill: '#f0b45a', anchor: 'end', weight: 600 })));
+  clockRun(t => {
+    gp.tangle(io(mRamp(t, .4, 2.2)));
+    rows[0].ic.set(mRamp(t, tE + .4, tE + 5));
+    rows[1].ic.set(mRamp(t, tH + .3, tH + 3.6));
+    rows[2].ic.set(io(mRamp(t, tS + 2.4, tS + 4.4)));
+    rows[3].ic.set(io(mRamp(t, tV + .4, tV + 3.2)));
+    rows[4].ic.set(mRamp(t, tG + .5, tG + 2.6));
+    // cooking: the chain is unfolded; the enzymes come in, bite at links 1 and 3, and the pieces part
+    const ck = [mRamp(t, tC + 5.2, tC + 6.8), mRamp(t, tC + 5.6, tC + 7.2)];
+    ch.cut(1, ck[0]).cut(3, ck[1]);
+    [1, 3].forEach((li, j) => {
+      const [lx, ly] = ch.linkPt(li), side = j ? 1 : -1;
+      const [x, y] = keyAt(t, [[tC + 2.6, lx + side * 110, ly + 120], [tC + 4.8, lx, ly + 34]]);
+      ens[j].set(t, x, y, mRamp(t, tC + 2.4, tC + 2.8), 1 - .6 * mRamp(t, tC + 7, tC + 7.4));
+    });
+  }, D);
+}],
+
+/* ---------- misfold ---------- */
+['misfold', 'Misfolding and aggregates', (m, D) => {
+  const p = panel(0), tM = m('mis'), tGd = m('good'), tB = m('bad'), tA = m('agg'), tL = m('lose'), tV = m('vs');
+  say(p, 'Misfolding', 800, 62, tM + .1, { size: 40 });
+  say(p, 'healthy folding', 400, 130, tGd, { size: 30, fill: PC.globule });
+  const gd = globule(p, { x: 400, y: 330, R: 110, seed: 1.7, beads: 8 });
+  put(gd, { o: 0 }); show(gd, tGd + .1, .4);
+  const tk = tickMark(p, 560, 210); show(tk, tGd + 3.4, .3);
+  say(p, 'a stable 3D shape', 400, 520, tGd + 3.4, { size: 26, fill: COL.chalk });
+  say(p, 'misfolded', 1150, 130, tB, { size: 30, fill: '#c9a27a' });
+  const one = misfoldedChain(p, { x: 1150, y: 330, R: 60, seed: 3 }); put(one, { o: 0 });
+  const cx = crossMark(p, 1300, 210); show(cx, tB + 1.6, .3);
+  const ag = aggregate(p, { x: 1150, y: 330, n: 6, R: 45, spread: 230, seed: 3 }); put(ag, { o: 0 });
+  say(p, 'aggregate: large, insoluble', 1150, 500, tA + 3, { size: 28, fill: '#c9a27a' });
+  say(p, 'loses its structure and function', 1150, 544, tL + .3, { size: 26, fill: '#f08c7a' });
+  const line = path(p, 'M90 600H1510', { stroke: COL.faint, 'stroke-width': 2.5 }, { o: 0 }); show(line, tV, .4);
+  const vs = vsRows(p, { x: 520, y: 661 });
+  show(vs.r1, tV + 1.1, .4); show(vs.r2, tV + 6, .4);
+  clockRun(t => {
+    gd.fold(io(mRamp(t, tGd + .3, tGd + 3.2)));
+    mO(one, mRamp(t, tB, tB + .3) * (1 - mRamp(t, tA + .2, tA + .8)));
+    one.set(io(mRamp(t, tB + .2, tB + 1.8)));
+    mO(ag, mRamp(t, tA, tA + .6) * (1 - .35 * mRamp(t, tL, tL + .8)));
+    ag.clump(io(mRamp(t, tA + 1, tA + 4.6)));
+    vs.set(mRamp(t, tV + 1.6, tV + 4.6), mRamp(t, tV + 6.4, tV + 9.6));
+  }, D);
+}],
+
+/* ---------- alz ---------- */
+['alz', 'Alzheimer’s disease', (m, D) => {
+  const p = panel(0), tB = m('brain'), tA = m('amy'), tP = m('plaque'), tT = m('tau'), tN = m('neuro'), tS = m('sym'), tH = m('hedge');
+  const CX = 1130, CY = 450, CR = 260;
+  say(p, 'Alzheimer’s disease', 440, 150, tB + .2, { size: 40 });
+  const br = brain(p, { x: 440, y: 440, o: 0 }); show(br, tB + .2, .6);
+  // the close-up of brain tissue
+  const cu = G(p, { o: 0 }); show(cu, tB + 1, .6);
+  path(cu, `M590 380L${f1(CX + CR * Math.cos(dg(200)))} ${f1(CY + CR * Math.sin(dg(200)))}M590 380L${f1(CX + CR * Math.cos(dg(160)))} ${f1(CY + CR * Math.sin(dg(160)))}`, { stroke: COL.dim, 'stroke-width': 2.5, 'stroke-dasharray': '8 8' });
+  mk('circle', { cx: 590, cy: 380, r: 22, fill: 'none', stroke: COL.dim, 'stroke-width': 3 }, cu);
+  mk('circle', { cx: CX, cy: CY, r: CR, fill: '#1a2436', stroke: COL.chalk, 'stroke-width': 4 }, cu);
+  const ns = [neurone(cu, 1000, 300, { axis: 30, seed: 1 }), neurone(cu, 1255, 290, { axis: 150, seed: 2 }), neurone(cu, 1130, 640, { axis: 0, seed: 3 })];
+  const tau = G(ns[1].body, { s: .5, o: 0 }); misfoldedChain(tau, { R: 26, m: 16, seed: 2, color: '#3a3f4a' });
+  const ag = aggregate(cu, { x: CX, y: 466, n: 6, R: 34, spread: 135, seed: 3 }); put(ag, { o: 0 });
+  const lab = (str, y, lx, ly, t0, col) => { const g = G(p, { o: 0 }); show(g, t0, .4); path(g, `M1404 ${y - 8}L${lx} ${ly}`, { stroke: col, 'stroke-width': 2.5 }); wChem(g, str, { x: 1410, y, size: 28, weight: 800, fill: col, anchor: 'start', o: 1 }); return g; };
+  lab('amyloid β', 410, 1206, 442, tA + .4, '#f0b45a');
+  lab('plaque', 520, 1215, 500, tP + 2.6, '#c98a2a');
+  lab('tau', 250, 1282, 286, tT + 1.2, '#9aa3ad');
+  const nd = say(p, 'neurodegeneration', CX, 160, tN + 2.2, { size: 32, fill: '#f08c7a' });
+  void nd;
+  ['memory loss', 'dementia', 'lack of recognition'].forEach((s, i) => { const pl = pill(p, s, { x: [420, 760, 1140][i], y: 800, size: 28, fill: '#f08c7a', edge: '#f08c7a', o: 0 }); show(pl, tS + [.9, 1.9, 2.7][i], .4); });
+  const star = G(p, { x: 1230, y: 400, o: 0 }); classIcon(star, 'star', { size: 54 }); show(star, tH + .3, .4);
+  pulse(star, tH + 1, 1.35); pulse(star, tH + 3.4, 1.25);
+  const plG = G(p, { o: 0 }); mk('circle', { cx: CX, cy: 466, r: 112, fill: 'none', stroke: '#ffd27a', 'stroke-width': 4 }, plG);
+  say(p, 'the hallmark of the disease, and the leading explanation for its cause', 800, 870, tH + .6, { size: 24, fill: '#ffd27a', weight: 600 });
+  clockRun(t => {
+    mO(ag, mRamp(t, tA, tA + .4));
+    ag.chains.forEach((c, i) => c.set(io(mRamp(t, tA + .3 + .15 * i, tA + 2.3 + .15 * i))));
+    ag.clump(io(mRamp(t, tP + .3, tP + 3))).plaque(mRamp(t, tP + 2.2, tP + 3.6));
+    mO(br.spots, mRamp(t, tP + 1.6, tP + 3));
+    mO(tau, mRamp(t, tT + .4, tT + 1.2));
+    const k = io(mRamp(t, tN, tN + 3));
+    ns.forEach(n => { pose(n.body, { s: 1 - .25 * k }); mO(n, 1 - .55 * k); });
+    mO(plG, .8 * (mBump(t, tH + .6, tH + 2.6) + mBump(t, tH + 3, tH + 5)));   // the hallmark: the plaque glows while it is named
+  }, D);
+}],
+
+/* ---------- case ---------- */
+['case', 'A clinical case', (m, D) => {
+  const p = panel(0), tC = m('card'), tN = m('now'), tA = m('ask');
+  const c = caseCard(p); put(c, { o: 0 }); show(c, tC, .5);
+  show(c.badges, tC + 1.3, .4);
+  [tC + 1.4, tN + .1, tN + 3.2, tN + 5.6].forEach((t0, i) => show(c.lines[i], t0, .4));
+  show(c.hi1, tA + 1.6, .4);
+  const br = brain(p, { x: 1110, y: 420, s: .8, o: 0 }); show(br, tC + .6, .6);
+  const q = say(p, '?', 1090, 460, tA + .2, { size: 150, fill: '#f0b45a', weight: 800 });
+  void q;
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', () => {
+  const p = panel(0);
+  caseStill(p, { q1: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'd-diag', prompt: ['What is the diagnosis?'],
+  build: choice([['sickle-cell disease'], ['Alzheimer’s disease'], ['a high fever'], ['scurvy']], 1,
+    'Right. Two years of worsening memory, failing to recognize relatives and losing everyday skills: the picture of Alzheimer’s disease.',
+    ['Sickle-cell disease comes from one changed amino acid in hemoglobin’s primary structure. It affects red blood cells, not memory.', null,
+      'A fever would have to denature much of the body’s protein, and it does not build up over two years.',
+      'Scurvy is a vitamin C shortage: gums and skin, not memory and recognition.']),
+}], done) }],
+
+/* ---------- cause ---------- */
+['cause', 'The second question', (m, D) => {
+  const p = panel(0), tL = m('link');
+  // the voice gives question one's answer here: it is written under the question (no tick: the learner may have missed it)
+  const c = caseStill(p);
+  show(c.ans1, tL + .3, .4); show(c.hi2, tL + 3, .4);
+  const br = brain(p, { x: 1110, y: 420, s: .8 });
+  void br;
+  wLabel(p, '?', { x: 1090, y: 460, size: 150, fill: '#f0b45a', weight: 800, o: 1 });
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', () => {
+  const p = panel(0);
+  caseStill(p, { q2: 1, a1: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'd-cause', prompt: ['What is the possible cause of this disease?'],
+  build: choice([['heat denaturing the brain’s proteins'], ['hydrolysis of peptide bonds in the brain'], ['too many essential amino acids in the diet'], ['misfolding of amyloid β protein, which clumps into plaques']], 3,
+    'Right. Misfolded amyloid β aggregates into dense, fibrous plaques in the brain: the hallmark, and the leading explanation for the cause.',
+    ['Body heat does not denature brain proteins, and the disease builds up slowly over years.',
+      'Misfolding keeps the peptide bonds: the chain is whole, it is just folded wrongly and clumps.',
+      'This is not a diet disease. The trouble is a protein that cannot reach a stable shape.', null]),
+}], done) }],
+
+/* ---------- solve ---------- */
+['solve', 'The answers', (m, D) => {
+  const p = panel(0), tD = m('dx'), tX = m('cx');
+  const c = caseStill(p, { a1: 1 });
+  pulse(c.ans1, tD + .3, 1.06); show(c.ans2, tX + .5, .4);
+  const br = brain(p, { x: 1110, y: 420, s: .8 });
+  show(br.spots, tX + 3, .8);
+  say(p, 'Alzheimer’s disease', 1110, 170, tD + .3, { size: 36, fill: COL.good });
+  const mc = misfoldedChain(p, { x: 1250, y: 720, R: 44, seed: 6 });
+  const ag = aggregate(p, { x: 1250, y: 720, n: 5, R: 30, spread: 110, seed: 5 }); put(ag, { o: 0 });
+  say(p, 'amyloid β misfolds → plaque', 1250, 830, tX + 2.4, { size: 26, fill: '#c98a2a' });
+  clockRun(t => {
+    mc.set(io(mRamp(t, tX + .4, tX + 2)));
+    mO(mc, mRamp(t, tX + .2, tX + .5) * (1 - mRamp(t, tX + 2.2, tX + 2.6)));
+    mO(ag, mRamp(t, tX + 2.2, tX + 2.6));
+    ag.clump(io(mRamp(t, tX + 2.4, tX + 4.6))).plaque(mRamp(t, tX + 4, tX + 5.4));
+  }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary and the chapter close', (m, D) => {
+  const p = panel(0), tC = m('chap'), tE = m('end');
+  const rowsG = G(p);
+  wLabel(rowsG, 'Summary: denaturation and misfolding', { x: 800, y: 62, size: 34, weight: 700, o: 1 });
+  const ROWS = [
+    ['s1', 'Denaturation means unfolding', 'secondary, tertiary and quaternary structure destroyed', 'the primary structure and its peptide bonds stay', PC.primary],
+    ['s2', '6 causes, 5 effects', 'heat, pressure, shaking, acids and alkalis, UV, X-rays', 'enzymes and hormones fail · solubility ↓ · viscosity ↑ · digestibility ↑', '#f39a2b'],
+    ['s3', 'Misfolding: no stable shape', 'misfolded chains clump into insoluble aggregates', 'Alzheimer’s disease: amyloid β plaques in the brain', '#c9a27a'],
+  ];
+  // per-frame work is kept small: each live setter runs only when its rounded input changes (the kit setters keep
+  // their state), the cause icons are posed once, and the strip's setters run only on a change
+  const memo = {}, once = (key, v, f) => { const r = Math.round(v * 500) / 500; if (memo[key] !== r) { memo[key] = r; f(r); } };
+  const live = [];
+  ROWS.forEach(([k, a, b, c, col], i) => {
+    const y = 240 + i * 235, g = G(rowsG, { o: 0 }); show(g, m(k) + .1, .5);
+    box5(g, 100, y - 95, 1400, 190);
+    wLabel(g, a, { x: 560, y: y - 26, size: 34, weight: 700, fill: col, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 560, y: y + 18, size: 24, weight: 600, anchor: 'start', o: 1 });
+    wChem(g, c, { x: 560, y: y + 54, size: 24, weight: 600, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i === 0) {
+      const ch = beadChain(g, { x: 310, y, n: 7, r: 15, sp: 40, chips: false, endText: false, wave: 16 });
+      live.push(t => once('ch', .6 * mRamp(t, m('s1') + 2.4, m('s1') + 3.4) + .4 * mBump(t, m('s1') + 4, m('s1') + 7), v => ch.glow('all', v)));
+    }
+    if (i === 1) {
+      const ics = CAUSES.map(([kind], j) => causeIcon(g, kind, { x: 200 + (j % 3) * 120, y: y - 40 + Math.floor(j / 3) * 86, s: .5 }));
+      ics.forEach(ic => ic.set(0, 1));
+    }
+    if (i === 2) {
+      const b2 = brain(g, { x: 250, y: y - 6, s: .36 }); put(b2.spots, { o: 1 });
+      aggregate(g, { x: 440, y, s: .55, n: 5, R: 40, seed: 2 }).clump(1).plaque(1);
+    }
+  });
+  tw(rowsG, { o: 0 }, tC - .4, .5);
+  // the chapter close: the strip with all four levels and the bonds of lesson one
+  const sg = G(p, { o: 0 }); show(sg, tC + .1, .6);
+  wLabel(sg, 'Chapter 3: protein structure and folding', { x: 800, y: 72, size: 34, weight: 700, o: 1 });
+  const ls = levelsStrip(sg, { x: 800, y: 300 });
+  const chips = G(p, { o: 0 }); show(chips, tC + 2.2, .5); hide(chips, tE - .4, .4);
+  const BK = ['peptide', 'disulfide', 'hydrogen', 'salt', 'hydrophobic'];
+  const bc = BK.map((k, i) => bondChip(chips, k, { x: 400 + i * 200, y: 640, lock: i < 2 }));
+  wLabel(chips, 'the bonds that hold a fold (lesson one)', { x: 800, y: 760, size: 24, weight: 600, fill: COL.dim, o: 1 });
+  tw(sg, { o: .3 }, tE, .6);
+  say(p, 'Shape is function.', 800, 650, tE + .1, { size: 60, fill: '#ffd27a', weight: 800 });
+  say(p, 'Now try the practice.', 800, 750, tE + 1.4, { size: 30, fill: PC.hbond });
+  clockRun(t => {
+    live.forEach(f => f(t));
+    once('tags', mRamp(t, tC + 1.6, tC + 2.4), v => ls.tags(v));
+    const gl = [mBump(t, tC + 5.2, tC + 7.6), mBump(t, tC + 5.8, tC + 8), mBump(t, tC + 7.4, tC + 9.4), mBump(t, tC + 7.9, tC + 9.8)];
+    [1, 2, 3, 4].forEach(i => once('g' + i, Math.max(gl[i - 1], mBump(t, tC + 9.4 + (4 - i) * .45, tC + 10.6 + (4 - i) * .45)), v => ls.glow(i, v)));
+    bc.forEach((c, i) => once('b' + i, mBump(t, tC + 2.4 + .35 * i, tC + 3.4 + .35 * i), v => c.lit(v)));
+  }, D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const frame = g => box5(g, 980, 90, 580, 720);
+  at('keep', g => {
+    frame(g);
+    levelsStrip(g, { x: 1270, y: 420, s: .64, vertical: true });
+    wLabel(g, 'after denaturation, what is left?', { x: 1270, y: 770, size: 26, weight: 700, o: 1 });
+  });
+  at('sort', g => {
+    frame(g);
+    [0, 1, 2, 3, 4, 5].forEach(i => { const tl = causeTile(g, i, 1012 + (i % 2) * 266, 116 + Math.floor(i / 2) * 192, { s: .62 }); tl.ic.set(0, 1); put(tl, { o: [1, 2, 3].includes(i) ? 1 : .3 }); });
+    wLabel(g, 'physical or chemical?', { x: 1270, y: 770, size: 26, weight: 700, o: 1 });
+  });
+  at('effect', g => {
+    frame(g);
+    [['sol', 'solubility'], ['vis', 'viscosity'], ['dig', 'digestibility'], ['enz', 'enzyme activity']].forEach(([k, name], i) => {
+      const y = 180 + i * 140;
+      effectIcon(g, k, { x: 1080, y, s: .85 });
+      wLabel(g, name, { x: 1170, y: y + 10, size: 28, weight: 700, anchor: 'start', o: 1 });
+      wLabel(g, '?', { x: 1500, y: y + 14, size: 40, weight: 800, fill: '#ffd27a', o: 1 });
+    });
+    wLabel(g, 'falls or rises?', { x: 1270, y: 770, size: 26, weight: 700, o: 1 });
+  });
+  at('egg', g => {
+    frame(g);
+    friedEgg(g, { x: 1150, y: 250 }); meatSlice(g, { x: 1390, y: 250 });
+    wLabel(g, 'cooked', { x: 1270, y: 150, size: 26, weight: 700, fill: '#f39a2b', o: 1 });
+    const ch = beadChain(g, { x: 1270, y: 480, n: 6, r: 15, sp: 64, chips: false, endText: false, wave: 18 });
+    wLabel(g, 'unfolded chain', { x: 1270, y: 420, size: 22, weight: 600, fill: COL.dim, o: 1 });
+    [1, 3].forEach(li => { const [lx, ly] = ch.linkPt(li); chomper(g).set(0, lx, ly + 62, 1); });
+    wLabel(g, 'why easier to digest?', { x: 1270, y: 770, size: 26, weight: 700, o: 1 });
+  });
+  at('vs', g => {
+    frame(g);
+    wLabel(g, 'denatured', { x: 1270, y: 180, size: 28, weight: 800, fill: '#f39a2b', o: 1 });
+    wLabel(g, 'misfolded', { x: 1270, y: 480, size: 28, weight: 800, fill: '#c9a27a', o: 1 });
+    const v = vsRows(g, { x: 1140, y: 280, s: .9, names: false }); put(v.r1, { o: 1 }); put(v.r2, { o: 1 }); v.set(1, 1);
+    put(v.r2, { y: 165 });
+    wLabel(g, 'how do they differ?', { x: 1270, y: 770, size: 26, weight: 700, o: 1 });
+  });
+  at('levels', g => {
+    frame(g);
+    levelsStrip(g, { x: 1225, y: 420, s: .64, vertical: true });
+    path(g, 'M1445 162H1462V505H1445M1445 560H1462V694H1445', { stroke: '#ffd27a', 'stroke-width': 4 });
+    wLabel(g, '?', { x: 1500, y: 350, size: 40, weight: 800, fill: '#ffd27a', o: 1 });
+    wLabel(g, '?', { x: 1500, y: 642, size: 40, weight: 800, fill: '#ffd27a', o: 1 });
+    wLabel(g, 'count the levels', { x: 1270, y: 770, size: 26, weight: 700, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('keep');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-keep', prompt: ['Which structure survives denaturation?'],
+    build: withPic('keep', choice([['the α-helices and β-sheets'], ['the primary structure: the sequence and its peptide bonds'], ['the folded globule'], ['the packing of the subunits']], 1,
+      'Right. Denaturation breaks the weak bonds of the fold. The sequence and its peptide bonds stay.',
+      ['Helices and sheets are the secondary structure. Their hydrogen bonds break, and they unwind.', null,
+        'The folded globule is the tertiary structure, held by weak side-chain bonds. It opens.',
+        'Packed subunits are the quaternary structure. They are the first to come apart.'])) },
+  { id: 'p-sort', prompt: ['Which kind of cause is each?'],
+    build: withPic('sort', grid([
+      { parts: ['whisking egg white'], ans: ['p'], why: 'Physical: shaking.' },
+      { parts: ['curdling milk with acid'], ans: ['c'], why: 'Chemical: an acid.' },
+      { parts: ['a pressure cooker'], ans: ['p'], why: 'Physical: pressure.' },
+      { parts: ['strong alkali on egg white'], ans: ['c'], why: 'Chemical: an alkali.' },
+    ], [['p', 'physical', null, 'P'], ['c', 'chemical', null, 'C']], { multi: false, text: true })) },
+  { id: 'p-effect', prompt: ['On denaturation, does each fall or rise?'],
+    build: withPic('effect', grid([
+      { parts: ['solubility'], ans: ['f'], why: 'Falls: the chains clump.' },
+      { parts: ['viscosity'], ans: ['r'], why: 'Rises: it thickens.' },
+      { parts: ['digestibility'], ans: ['r'], why: 'Rises: the chain is open.' },
+      { parts: ['enzyme activity'], ans: ['f'], why: 'Falls: the shape is lost.' },
+    ], [['f', 'falls', null, 'F'], ['r', 'rises', null, 'R']], { multi: false, text: true })) },
+  { id: 'p-egg', prompt: ['Why is a boiled egg easier to digest than a raw one?'],
+    build: withPic('egg', choice([['heat unfolds the protein, so enzymes reach its peptide bonds'], ['heat breaks every peptide bond already'], ['heat adds amino acids to the protein'], ['heat folds the protein into a tighter shape']], 0,
+      'Right. The unfolded chain lies open, and digestive enzymes can reach its peptide bonds.',
+      [null, 'Heat breaks weak bonds, not peptide bonds: the chain stays whole. Digestion still has to cut it.',
+        'Nothing is added: denaturation changes the shape, not the sequence.',
+        'Heat does the opposite: it unfolds the protein.'])) },
+  { id: 'p-vs', prompt: ['How does a misfolded protein differ from a denatured one?'],
+    build: withPic('vs', choice([['its peptide bonds are broken'], ['its amino acid sequence must be different'], ['it never reached a stable fold, and it clumps into insoluble aggregates'], ['there is no difference']], 2,
+      'Right. A denatured protein was folded until something unfolded it; a misfolded one never reached a stable fold, and it aggregates.',
+      ['Neither breaks peptide bonds: both keep their chain whole.',
+        'A misfolded protein need not have a different sequence. The problem is the fold it fails to reach.', null,
+        'They differ: one was folded and then unfolded, the other never folded well and clumps.'])) },
+  { id: 'p-levels', prompt: ['Count the levels of structure:'],
+    build: withPic('levels', blanks([
+      { parts: ['denaturation destroys ', { box: '3' }, ' of the four levels'], why: 'Secondary, tertiary and quaternary.', hint: 'Count the levels held by weak bonds.' },
+      { parts: ['and keeps ', { box: '1' }, ', the primary structure'], why: 'The sequence and its peptide bonds stay.', hint: 'Only one level survives.' },
+    ])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

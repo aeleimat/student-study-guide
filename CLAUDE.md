@@ -12,7 +12,7 @@ This project builds an animated, narrated study guide with the vendored **Paperm
 
 ## The Biology book
 
-There is one lesson book, **Biology** (`books/biology/`, `content/biology/`, `site/biology/`), at tier 2 (illustrated scenes). Each PDF the user brings is one textbook chapter, made from lecture slides after Campbell Biology 12e.
+There are two lesson books, Biology and Biochemistry (next section). The first is **Biology** (`books/biology/`, `content/biology/`, `site/biology/`), at tier 2 (illustrated scenes). Each PDF the user brings is one textbook chapter, made from lecture slides after Campbell Biology 12e.
 
 - Each chapter becomes a **unit** in `Contents.book` in `site/biology/index.html`, numbered by the textbook's chapter number.
 - **Lessons are nested, `chapter-NN/lesson-NN/`, not `chNN/`** (the user's choice). This applies in `site/biology/`, `content/biology/`, `books/biology/chapters/` (as `chapter-NN/lesson-NN.md`), `books/biology/pages/`, `books/biology/review/` and `tools/biology/`. The engine assumes flat `chNN` folders, so the book works around it without editing the engine:
@@ -31,8 +31,18 @@ There is one lesson book, **Biology** (`books/biology/`, `content/biology/`, `si
 - In the contents, each lesson in a later unit gives its shown number, for example `['Title', 7, { chapter: 1 }]`. Otherwise the cards would count on from Chapter 3. The last lesson of the previous chapter gets `next: '../../chapter-NN/lesson-01/'`. Add a sketch for the unit to `unit-art.js`. The library front page (`site/index.html`) reads the chapter list by itself.
 - `split_pages.py` refuses folder names with a slash, so split a new chapter with a temporary sections file whose folders are `lesson-NN`, using `--out books/biology/pages/chapter-NN`.
 - Tooling: `ffprobe`/`ffmpeg` are not on PATH. Prepend `C:\Users\User\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.1-full_build\bin` for `tts.py` and `check.py`. Edge TTS returns no audio for short letter strings such as "A for T", so write base names out as words in narration.
-- A new PDF never starts a new book. It reuses `books/biology/style.json` and adds its unit there.
+- A new Biology PDF never starts a new book. It reuses `books/biology/style.json` and adds its unit there. A biochemistry lecture goes to the Biochemistry book.
 - The scripts only find `chNN` folders on their own, so always name the lesson. Examples: `lint.py site/biology chapter-03/lesson-02 --content content/biology/chapter-03 --brief books/biology`; `check_blank.py site/biology chapter-03/lesson-02 --url http://localhost:8765/biology/`; `URL=http://localhost:8765/biology/chapter-03/lesson-02/ BROWSER=firefox uv run --with playwright python tools/biology/chapter-03/e2e_lesson-02.py`.
+
+## The Biochemistry book
+
+The second book, **Biochemistry** (`books/biochemistry/`, `content/biochemistry/`, `site/biochemistry/`), started on 2026-11-27 from three medical-biochemistry lecture PDFs (no textbook chapter numbers). The user called it a new subject and chose a separate book titled Biochemistry. It has Biology's look, voice and models, and everything in the Biology section above applies with `biochemistry` in place of `biology`: the nested `chapter-NN/lesson-NN/` layout, CHAPTER.number = chapter × 100 + lesson, the relinking in `index.html`, the progress key `animebook:progress:biochemistry`, the chapter redirects, and the workflow, length and practice rules.
+
+- Chapters are numbered in teaching order: 1 Amino Acid Classifications (4 lessons), 2 Protein Types (3), 3 Protein Structure and Folding (4). A new lecture PDF for this subject becomes chapter 4 here, not a Biology unit. Status is in `books/biochemistry/chapters.md`.
+- The team brief for the whole book, `books/biochemistry/chapters/BRIEF.md` (with its Kit notes), is the template for the next chapter. Each chapter has a thread picture that later lessons open on: the amino acid card with four tabs, the protein family tree, the four-levels strip.
+- The book's shared kit is `site/biochemistry/lib/protein.js` (API in its header; sheet and replay suite in `tools/biochemistry/kit/`). `water.js`, `macro.js` and `metab.js` are copies of Biology's. `metab.js` needs `cell.js`, `cyto.js` and `membrane.js` (also copied) loaded before it, so most pages draw their own enzyme rather than load four kits. Never load files from `site/biology/`.
+- The lecture slides carry stock photos (ch1 slide 13, ch2 slide 14, ch3 slide 24) and a real patient's photo (ch3 slide 23): none are used, and the clinical case is a text card.
+- On a loaded machine, Chromium often starts playback after more than 2.5 s, so each e2e's "lesson plays" check retries for up to 10 s. Run Chromium and Firefox e2e one after the other, not at once.
 
 ## Project layout once books exist
 

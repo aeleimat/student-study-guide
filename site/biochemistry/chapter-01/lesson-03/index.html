@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 1, Lesson 3: Chemical and Nutritional Classification — Biochemistry</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid.text .opts { gap: 4px; } .screen .grid.text .opt { padding: 2px 9px; font-size: 17px; min-height: 36px; } .screen .grid.text .opt kbd { display: none; }
+.screen .grid.text .row { padding: 4px 0 4px 12px; row-gap: 0; } .screen .grid.text .why { font-size: 18px; line-height: 1.25; }</style><!-- all rows wrong: the rows and their why lines fit above Check -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/protein.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biochemistry, Chapter 1 (Amino Acids), lesson 3: a supermarket shelf, then the amino acid card with its Chemical and
+// Nutritional tabs lit; the chemical classification by counting amino and carboxyl groups (alanine neutral and the
+// lecture's twelve, cystine as two cysteines, methionine and proline also neutral; aspartic acid acidic and negative
+// at body pH, glutamic acid; lysine basic and positive, A H L, arginine's and histidine's extra basic groups, histidine's
+// two labels); a three-bin sort; the nutritional classification (essential from the diet, non-essential made in the
+// body, a missing essential one stalls the chain); Try This VIP Mall; arginine and histidine semi-essential; the rest,
+// tyrosine from phenylalanine, asparagine and glutamine, foods that complete each other; the card filled; practice.
+// Plan, errata and beats: books/biochemistry/chapters/chapter-01/lesson-03.md.
+const CHAPTER = { number: 103, label: '1, lesson 3', title: 'Chemical and Nutritional Classification', minutes: 8, language: 'en', lead: false, next: '../lesson-04/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, weight: 700, ...o, o: 0 }); show(e, t0, .4); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const box5 = (g, x, y, w, h, { fill = '#0b1626', stroke = COL.faint, sw = 3, rx = 22, fo = 1 } = {}) => mk('rect', { x, y, width: w, height: h, rx, fill, 'fill-opacity': fo, stroke, 'stroke-width': sw }, g);
+// keyframes [[t, a, b, …], …]: eased (soft) between keys, held before the first and after the last
+function keyAt(t, K) {
+  if (t <= K[0][0]) return K[0].slice(1);
+  for (let i = 1; i < K.length; i++) if (t < K[i][0]) { const a = K[i - 1], b = K[i], f = soft((t - a[0]) / (b[0] - a[0])); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * f); }
+  return K[K.length - 1].slice(1);
+}
+// one text whose words change at given times [[t, str], …]: it fades out before each change and back in after, so two
+// words never share one spot; before the first time it is hidden
+function stepText(p, steps, { x = 0, y = 0, size = 28, fill = COL.chalk, anchor = 'middle', weight = 700 } = {}) {
+  const e = wChem(p, steps[0][1], { x, y, size, fill, anchor, weight, o: 0 });
+  return Object.assign(e, {
+    set(t) {
+      let i = -1; for (let j = 0; j < steps.length; j++) if (t >= steps[j][0]) i = j;
+      wChemSet(e, steps[Math.max(0, i)][1]);
+      const nx = steps[i + 1] ? steps[i + 1][0] : null;
+      mO(e, i < 0 ? 0 : mRamp(t, steps[i][0], steps[i][0] + .3) * (nx == null ? 1 : 1 - mRamp(t, nx - .3, nx)));
+      return e;
+    },
+  });
+}
+// the moments a spoken list reaches each name: [t0, t1] shared out by the names' lengths
+const spread = (names, t0, t1) => { const L = names.map(n => n.length + 4), tot = L.reduce((a, b) => a + b, 0); let acc = 0; return L.map(l => { const t = t0 + (t1 - t0) * acc / tot; acc += l; return t; }); };
+// a hold window: 0 before a, up over .4 s, 1 until b, down over .4 s
+const setS = (e, s) => { const v = Math.round(s * 1000) / 1000; if (st(e).s !== v) put(e, { s: v }); return e; };
+const hold = (t, a, b, f = .4) => mRamp(t, a, a + f) * (1 - mRamp(t, b - f, b));
+// a white hydrogen atom (with a small "+" for a hydrogen ion), origin at its centre, o 0
+function hAtom(p, plus = false, r = 15) {
+  const g = G(p, { x: 1, y: 1, o: 0 });
+  mk('circle', { r, fill: PC.h, stroke: PC.hEdge, 'stroke-width': 2.5 }, g);
+  wLabel(g, 'H', { y: r * .4, size: r * 1.1, fill: PC.ink, weight: 800, o: 1 });
+  if (plus) wLabel(g, '+', { x: r + 8, y: -r * .3, size: 24, fill: PC.h, weight: 800, o: 1 });
+  return g;
+}
+const redCross = (p, x, y, r = 16) => { const g = G(p, { x, y, o: 0 }); path(g, `M${-r} ${-r}L${r} ${r}M${r} ${-r}L${-r} ${r}`, { stroke: '#e5533d', 'stroke-width': 7 }); return g; };
+// a counter: a label over a big number that changes at given times
+function counterBox(p, { x, y, label, color, steps }) {
+  const g = G(p, { x, y, o: 0 });
+  box5(g, -110, -80, 220, 160, { stroke: color, sw: 3 });
+  wChem(g, label, { y: -42, size: 24, fill: color, weight: 700, o: 1 });
+  const n = stepText(g, steps, { y: 52, size: 68, fill: color, weight: 800 });
+  return Object.assign(g, { n });
+}
+// a small green pentagon (heterocyclic ring) badge
+function pentaBadge(p, x, y, r = 13) {
+  const g = G(p, { x, y, o: 0 });
+  const pts = [0, 1, 2, 3, 4].map(i => { const a = (-90 + 72 * i) * Math.PI / 180; return `${(r * Math.cos(a)).toFixed(1)} ${(r * Math.sin(a)).toFixed(1)}`; });
+  mk('circle', { r: r + 5, fill: PC.ink, stroke: PC.hetero, 'stroke-width': 2 }, g);
+  path(g, 'M' + pts.join('L') + 'Z', { fill: PC.hetero, 'fill-opacity': .35, stroke: PC.hetero, 'stroke-width': 3 });
+  return g;
+}
+
+/* ---------- everyday things: foods, a shelf, a sprout and a tree ---------- */
+function food(p, kind, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o }), E = a => mk('ellipse', a, g), R = a => mk('rect', a, g);
+  if (kind === 'egg') {
+    R({ x: -72, y: 2, width: 144, height: 44, rx: 8, fill: '#c9a26b', stroke: '#8a6a3a', 'stroke-width': 3 });
+    [-46, 0, 46].forEach(cx => E({ cx, cy: -16, rx: 21, ry: 28, fill: '#f6eedc', stroke: '#bfb39a', 'stroke-width': 2.5 }));
+    R({ x: -72, y: 2, width: 144, height: 14, rx: 6, fill: '#d8b47c', stroke: '#8a6a3a', 'stroke-width': 3 });
+  } else if (kind === 'milk') {
+    const body = 'M-34 52V-18L-18 -38V-58H18V-38L34 -18V52Z';
+    path(g, body, { fill: '#f4f4f0' });
+    R({ x: -34, y: 2, width: 68, height: 30, fill: '#6c8cff' });
+    path(g, body, { stroke: '#b9b9b0', 'stroke-width': 3 });
+    R({ x: -20, y: -70, width: 40, height: 16, rx: 4, fill: '#6c8cff', stroke: '#3d56b8', 'stroke-width': 2.5 });
+  } else if (kind === 'beans') {
+    R({ x: -42, y: -50, width: 84, height: 102, rx: 8, fill: '#b8c0c8', stroke: '#6f7882', 'stroke-width': 3 });
+    R({ x: -42, y: -24, width: 84, height: 50, fill: '#d9534f' });
+    [[-18, -2], [0, 8], [18, -4], [-4, -12]].forEach(([cx, cy]) => E({ cx, cy, rx: 10, ry: 7, fill: '#8a4a2a', stroke: '#5a2a14', 'stroke-width': 1.5 }));
+    path(g, 'M-42 -38H42M-42 40H42', { stroke: '#6f7882', 'stroke-width': 3 });
+  } else if (kind === 'rice') {
+    path(g, 'M-46 52Q-58 0 -34 -36L-22 -48H22L34 -36Q58 0 46 52Z', { fill: '#e9dcc0', stroke: '#a89a78', 'stroke-width': 3 });
+    path(g, 'M-26 -48L-34 -64M26 -48L34 -64M-6 -48L-8 -66M8 -48L10 -66', { stroke: '#a89a78', 'stroke-width': 3 });
+    path(g, 'M-24 -40H24', { stroke: '#8a6a48', 'stroke-width': 6 });
+    [[-14, 10], [6, 20], [16, 0], [-4, -6], [-20, 28], [20, 32]].forEach(([cx, cy]) => E({ cx, cy, rx: 6, ry: 3.5, fill: '#fffaf0', stroke: '#c8bca0', 'stroke-width': 1 }));
+  } else if (kind === 'meat') {
+    E({ cx: 0, cy: 34, rx: 66, ry: 16, fill: '#cfd3d8', stroke: '#8f969e', 'stroke-width': 3 });
+    path(g, 'M-52 20Q-62 -20 -24 -34Q10 -46 40 -26Q64 -8 50 16Q30 34 -10 32Q-40 32 -52 20Z', { fill: '#f2d6c9', stroke: '#b88a7a', 'stroke-width': 3 });
+    path(g, 'M-42 14Q-50 -16 -20 -26Q8 -36 32 -20Q50 -6 40 10Q24 24 -8 24Q-32 24 -42 14Z', { fill: '#c8505a' });
+  }
+  return g;
+}
+function shelfBack(p, { x = 80, y = 120, w = 920, h = 710, boards = [450, 790] } = {}) {
+  const g = G(p);
+  mk('rect', { x, y, width: w, height: h, rx: 14, fill: '#1a2c47', stroke: '#2c4568', 'stroke-width': 4 }, g);
+  boards.forEach(by => mk('rect', { x: x - 10, y: by, width: w + 20, height: 22, rx: 5, fill: '#8a6a48', stroke: '#5e4630', 'stroke-width': 3 }, g));
+  return g;
+}
+const priceTag = (p, x, y) => mk('rect', { x: x - 22, y: y + 4, width: 44, height: 14, rx: 3, fill: '#f2efe6', stroke: '#a8a498', 'stroke-width': 1.5 }, p);
+function sprout(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('ellipse', { cy: 40, rx: 52, ry: 14, fill: '#6a4a30', stroke: '#4a3220', 'stroke-width': 3 }, g);
+  path(g, 'M0 40V-6', { stroke: '#5bbf5b', 'stroke-width': 7 });
+  path(g, 'M0 -2Q-34 -34 -52 -10Q-28 6 0 -2Z', { fill: '#7fd17f', stroke: '#3f8f3f', 'stroke-width': 3 });
+  path(g, 'M0 -10Q30 -46 50 -22Q28 -2 0 -10Z', { fill: '#7fd17f', stroke: '#3f8f3f', 'stroke-width': 3 });
+  return g;
+}
+function tree(p, { x = 0, y = 0, s = 1, o = 1 } = {}) {
+  const g = G(p, { x, y, s, o });
+  mk('rect', { x: -12, y: -6, width: 24, height: 56, rx: 4, fill: '#8a6a48', stroke: '#5e4630', 'stroke-width': 3 }, g);
+  [[-26, -22, 30], [24, -22, 30], [0, -48, 36]].forEach(([cx, cy, r]) => mk('circle', { cx, cy, r, fill: '#4f9a5a', stroke: '#2f6a3c', 'stroke-width': 3 }, g));
+  mk('ellipse', { cy: 50, rx: 50, ry: 10, fill: '#2f4a2a' }, g);
+  return g;
+}
+// ten nutrition dots in two rows (one set per food); gaps are dashed empty dots; .dot(i) the element
+function dotSet(p, { x, y, gaps = [], r = 9, sp = 24 } = {}) {
+  const g = G(p, { x, y, o: 0 }), dots = [];
+  for (let i = 0; i < 10; i++) {
+    const cx = (i % 5 - 2) * sp, cy = Math.floor(i / 5) * sp;
+    dots.push(gaps.includes(i) ? mk('circle', { cx, cy, r, fill: 'none', stroke: COL.dim, 'stroke-width': 2, 'stroke-dasharray': '4 4' }, g)
+      : mk('circle', { cx, cy, r, fill: PC.essential, stroke: '#b8902e', 'stroke-width': 2 }, g));
+  }
+  return Object.assign(g, { dots });
+}
+
+/* ---------- the ten essential names on a shelf (mnem, semi) ---------- */
+const TEN = [['Try', 230, [['Try', 'tryptophan']]], ['This', 590, [['Th', 'threonine'], ['H', 'histidine']]],
+  ['VIP', 960, [['V', 'valine'], ['I', 'isoleucine'], ['P', 'phenylalanine']]],
+  ['Mall', 1330, [['M', 'methionine'], ['A', 'arginine'], ['L', 'leucine'], ['L', 'lysine']]]];
+function tenShelf(p) {
+  const g = G(p);
+  mk('rect', { x: 70, y: 180, width: 1460, height: 420, rx: 16, fill: '#1a2c47', stroke: '#2c4568', 'stroke-width': 4 }, g);
+  mk('rect', { x: 60, y: 600, width: 1480, height: 22, rx: 5, fill: '#8a6a48', stroke: '#5e4630', 'stroke-width': 3 }, g);
+  const words = [], items = [];
+  TEN.forEach(([w, x, list], ci) => {
+    words.push(wLabel(g, w, { x, y: 262, size: 64, fill: PC.essential, weight: 800, o: 1 }));
+    list.forEach(([l, name], i) => {
+      const y = 350 + i * 64, ig = G(g, { o: 1 });
+      const c = aaChip(ig, name, { x, y, code: 'name', size: 24, color: PC.essential });
+      wLabel(ig, l, { x: x - c.w / 2 - 14, y: y + 9, size: 26, fill: PC.essential, weight: 800, anchor: 'end', o: 1 });
+      const sx = x + c.w / 2 - 2, sy = y - c.h / 2 + 2;
+      const star = classIcon(ig, 'star', { x: sx, y: sy, size: 30 }), half = classIcon(ig, 'halfStar', { x: sx, y: sy, size: 30, o: 0 });
+      items.push({ ci, i, name, g: ig, c, star, half });
+    });
+  });
+  const by = n => items.find(it => it.name === n);
+  return { g, words, items, by };
+}
+
+/* ---------- the three chemical bins (sort; practice) ---------- */
+const BINS = [['neutral', PC.neutral, 'NH_2 = COOH', ''], ['acidic', PC.acidic, 'COOH > NH_2', '−'], ['basic', PC.basic, 'NH_2 > COOH', '+']];
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A supermarket shelf and the amino acid card', (m, D) => {
+  const p = panel(0), tS = m('shelf'), tC = m('card'), tT = m('tabs');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W, { o: 0 }); show(back, .2, .6);
+  shelfBack(back);
+  // bottom shelf stocked from the start; the top shelf's four foods arrive as they are named
+  [['meat', 210], ['beans', 420], ['rice', 620], ['egg', 840]].forEach(([k, x]) => { food(back, k, { x, y: 735 }); priceTag(back, x, 790); });
+  const TOP = [['egg', 210], ['milk', 420], ['beans', 620], ['rice', 840]], tops = TOP.map(([k, x], i) => { priceTag(back, x, 450); return { e: food(back, k, { x, y: 395, o: 0 }), x, t0: tS + 2.1 + .65 * i }; });
+  // every food is protein, and protein is a chain of amino acids
+  const chain = beadChain(W, { x: 525, y: 215, n: 7, sp: 58, r: 21, o: 0 }); show(chain, tS + 7.6, .4);
+  const pl = say(W, 'protein = a chain of amino acids', 525, 300, tS + 8.4, { size: 26, fill: COL.dim, weight: 600 }); hide(pl, tC + .3, .4);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOCHEMISTRY · CHAPTER 1 · LESSON 3', { x: 1290, y: 250, size: 22, fill: COL.dim, o: 1 });
+  ['Chemical and', 'nutritional', 'classification'].forEach((s, i) => wLabel(ttl, s, { x: 1290, y: 335 + i * 64, size: 50, o: 1 }));
+  wLabel(ttl, 'Amino acids', { x: 1290, y: 540, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tC - .6, .5);
+  // push into one bead of the chain: the amino acid card
+  cam.to({ x: 525, y: 215, z: 3 }, tC - .2, 1.6);
+  hide(back, tC + .5, .6); hide(chain, tC + .8, .5);
+  const cw = G(p, { x: 800, y: 470, s: .8, o: 0 }); tw(cw, { s: .95, o: 1 }, tC + .4, 1.2, out);
+  const card = aminoCard(cw, { x: 0, y: 0 });
+  clockRun(t => {
+    tops.forEach(({ e, x, t0 }) => mPose(e, x, 395 - 34 * (1 - out(mRamp(t, t0, t0 + .45))) - 10 * mBump(t, t0 + .45, t0 + .95), mRamp(t, t0, t0 + .3)));
+    chain.reveal(mRamp(t, tS + 7.6, tS + 9.6));
+    card.build(mRamp(t, tC + .5, tC + 3.7));
+    card.focus(['chemical', 'nutritional'], io(mRamp(t, tT, tT + .8)));
+    card.glow('chemical', hold(t, tT + 1.9, tT + 5.2));
+    card.glow('nutritional', mRamp(t, tT + 5.3, tT + 5.7));
+  }, D);
+}],
+
+/* ---------- count ---------- */
+['count', 'Chemical classification: count the groups', (m, D) => {
+  const p = panel(0), tA = m('ala'), tW = m('twelve'), tC = m('cystine'), tM = m('more');
+  // the card shrinks to the corner
+  const cw = G(p, { x: 800, y: 470, s: .95 }); tw(cw, { x: 190, y: 118, s: .22 }, .1, 1.2);
+  const card = aminoCard(cw, { x: 0, y: 0 });
+  card.build(1).focus(['chemical', 'nutritional'], 1).glow('nutritional', 1);
+  say(p, 'Chemical classification: count the groups', 880, 70, 1.2, { size: 34 });
+  // the counting picture: alanine, two counters, the verdict
+  const A = G(p); hide(A, tC - .4, .4);
+  const ala = aaFormula(A, 'alanine', { x: 460, y: 410 });
+  const cA = counterBox(A, { x: 960, y: 320, label: 'amino · NH_2', color: PC.amino, steps: [[2.4, '0'], [tA + 1.4, '1']] });
+  const cC = counterBox(A, { x: 1350, y: 320, label: 'carboxyl · COOH', color: PC.carboxyl, steps: [[2.4, '0'], [tA + 2.7, '1']] });
+  show(cA, 2.2, .4); show(cC, 2.2, .4);
+  const sg = stepText(A, [[tA + 3.9, '=']], { x: 1155, y: 345, size: 64, fill: PC.neutral });
+  say(A, 'equal → neutral', 1155, 470, tA + 4.1, { size: 36, fill: PC.neutral, weight: 800 });
+  const rl = say(A, 'check the side chain too', 570, 285, 10.2, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' }); hide(rl, tA + .2, .3);
+  // the neutral bin and the twelve names
+  const bin = G(p, { o: 0 }); show(bin, tW + .2, .5);
+  box5(bin, 110, 600, 1380, 262, { stroke: PC.neutral, sw: 3 });
+  wLabel(bin, 'neutral', { x: 140, y: 646, size: 30, fill: PC.neutral, weight: 800, anchor: 'start', o: 1 });
+  wChem(bin, 'NH_2 = COOH: one of each', { x: 285, y: 644, size: 24, fill: COL.dim, weight: 600, anchor: 'start', o: 1 });
+  const X = [250, 470, 690, 910, 1130, 1350], RY = [700, 756, 812];
+  const NAMES = ['glycine', 'alanine', 'serine', 'threonine', 'cysteine', 'cystine', 'valine', 'leucine', 'isoleucine', 'phenylalanine', 'tyrosine', 'tryptophan'];
+  const TT = spread(NAMES, tW + 3.8, tC - .9);
+  const chips = NAMES.map((n, i) => ({ c: aaChip(bin, n, { code: 'name', size: 22, color: PC.neutral, o: 0 }), x: X[i % 6], y: RY[Math.floor(i / 6)], t0: TT[i] }));
+  const more = [['methionine', tM + 1.0], ['proline', tM + 1.8]].map(([n, t0], i) => ({ c: aaChip(bin, n, { code: 'name', size: 22, color: PC.neutral, dashed: true, o: 0 }), x: X[i], y: RY[2], t0 }));
+  say(bin, 'also neutral (not on the slide’s list)', 590, 820, tM + 2.4, { size: 24, fill: COL.dim, weight: 600, anchor: 'start' });
+  say(bin, 'one NH_2, one COOH', 1180, 820, tM + 4.9, { size: 24, fill: PC.neutral, anchor: 'start' });
+  // methionine and proline: one of each too
+  const MP = G(p, { o: 0 }); show(MP, tM + .6, .5);
+  aaFormula(MP, 'methionine', { x: 560, y: 470, s: .7 }).counts(1);
+  aaFormula(MP, 'proline', { x: 1060, y: 470, s: .7 }).counts(1);
+  // cystine: two cysteines joined by a disulfide bridge
+  const Cy = G(p, { o: 0 }); show(Cy, tC + .2, .4); hide(Cy, tM - .5, .4);
+  aaChip(Cy, 'cysteine', { x: 520, y: 330, code: 'name', size: 30, color: PC.neutral });
+  aaChip(Cy, 'cysteine', { x: 1080, y: 330, code: 'name', size: 30, color: PC.neutral });
+  const ss = disulfideMark(Cy);
+  say(Cy, 'cystine = two cysteines joined by S–S', 800, 440, tC + 2.4, { size: 32 });
+  say(Cy, 'the oxidized form of cysteine', 800, 490, tC + 4.6, { size: 26, fill: COL.dim, weight: 600 });
+  clockRun(t => {
+    ala.parts({ ca: mRamp(t, .4, .9), amino: mRamp(t, .7, 1.3), carboxyl: mRamp(t, 1, 1.6), h: mRamp(t, 1.3, 1.8), r: mRamp(t, 1.6, 2.2) });
+    ala.name(mRamp(t, tA, tA + .4)).counts(mRamp(t, tA + 1.1, tA + 1.5));
+    ala.glow('amino', hold(t, 5.2, 9.8)).glow('carboxyl', hold(t, 5.2, 9.8)).glow('r', hold(t, 10.2, tA));
+    cA.n.set(t); cC.n.set(t); sg.set(t);
+    chips.forEach(({ c, x, y, t0 }) => { const k = out(mRamp(t, t0, t0 + .4)); mPose(c, x, y - 44 * (1 - k), mRamp(t, t0, t0 + .25)); });
+    chips[5].c.glow(hold(t, tC + .2, tM - .4));
+    more.forEach(({ c, x, y, t0 }) => { const k = out(mRamp(t, t0, t0 + .4)); mPose(c, x, y - 44 * (1 - k), mRamp(t, t0, t0 + .25)); });
+    ss.set([640, 330], [960, 330], io(mRamp(t, tC + 1.2, tC + 2.4)));
+  }, D);
+}],
+
+/* ---------- acid ---------- */
+['acid', 'Acidic: more carboxyl groups', (m, D) => {
+  const p = panel(0), tA = m('acid'), tM = m('minus'), tG = m('glu');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const fg = G(W, { x: 470, y: 540 }); tw(fg, { x: 330, s: .85 }, tG + .2, 1);
+  const asp = aaFormula(fg, 'aspartic acid');
+  const sideLab = say(W, 'a second carboxyl group', 520, 318, 6, { size: 26, fill: PC.acidic }); hide(sideLab, 9.6, .4);
+  // look closer at the side chain while the voice points to it
+  cam.to({ x: 560, y: 420, z: 1.4 }, 5.5, 1.3); cam.to({ x: 800, y: 450, z: 1 }, 9.5, 1.3);
+  const A = G(W);
+  const cA = counterBox(A, { x: 960, y: 300, label: 'amino · NH_2', color: PC.amino, steps: [[1.2, '0'], [10.4, '1']] });
+  const cC = counterBox(A, { x: 1350, y: 300, label: 'carboxyl · COOH', color: PC.carboxyl, steps: [[1.2, '0'], [11.2, '1'], [12.2, '2']] });
+  show(cA, 1, .4); show(cC, 1, .4);
+  const sg = stepText(A, [[tA + .3, '<']], { x: 1155, y: 325, size: 64, fill: PC.acidic });
+  say(A, 'COOH > NH_2 → acidic', 1155, 450, tA + .6, { size: 36, fill: PC.acidic, weight: 800 });
+  say(A, 'at body pH:', 1155, 530, tM + 1.6, { size: 28, fill: COL.dim });
+  say(A, 'COOH → COO^− + H^+', 1155, 575, tM + 2.4, { size: 30 });
+  say(A, 'net charge: negative (−)', 1155, 635, tM + 6.8, { size: 30, fill: PC.acidic, weight: 800 });
+  // the hydrogens: the main carboxyl's goes over to the amino group, the side chain's leaves as H⁺
+  const hMain = hAtom(W), hSide = hAtom(W, true);
+  // glutamic acid beside it, and the two into the acidic bin
+  const glu = aaFormula(W, 'glutamic acid', { x: 930, y: 540, s: .85 }); glu.ionise(1);
+  const bin = G(W, { o: 0 }); show(bin, tG + 1.6, .5);
+  box5(bin, 350, 700, 900, 165, { stroke: PC.acidic, sw: 3 });
+  wChem(bin, 'acidic · COOH > NH_2 · negative (−)', { x: 800, y: 742, size: 26, fill: PC.acidic, weight: 800, o: 1 });
+  const bc = [['aspartic acid', 330, 620, tG + 2.1], ['glutamic acid', 930, 980, tG + 3.0]].map(([n, x0, x1, t0]) => ({ c: aaChip(W, n, { code: 'name', size: 24, color: PC.acidic, badge: 'minus', o: 0 }), x0, x1, t0 }));
+  clockRun(t => {
+    mO(A, (1 - mRamp(t, 5.3, 5.7) + mRamp(t, 9.6, 10.1)) * (1 - mRamp(t, tG - .3, tG + .1)));
+    asp.parts({ ca: mRamp(t, .2, .7), amino: mRamp(t, .5, 1.1), carboxyl: mRamp(t, .8, 1.4), h: mRamp(t, 1.1, 1.6), r: mRamp(t, 1.4, 2.1) });
+    asp.name(mRamp(t, .4, .9)).counts(mRamp(t, 9.7, 10.1)).ionise(mRamp(t, tM + 2.2, tM + 4.2));
+    asp.glow('amino', hold(t, 1.7, 5.5)).glow('carboxyl', hold(t, 1.7, 5.5));
+    asp.side.hi('COOH', hold(t, 5.8, 9.8) + .9 * hold(t, tA + .2, tA + 3));
+    cA.n.set(t); cC.n.set(t); sg.set(t);
+    const [ax, ay, ao] = keyAt(t, [[tM + 1.5, 690, 525, 0], [tM + 1.7, 690, 525, 1], [tM + 2.6, 560, 640, 1], [tM + 3.4, 300, 590, 1], [tM + 3.8, 300, 590, 0]]);
+    mPose(hMain, ax, ay, ao);
+    const [bx, by, bo] = keyAt(t, [[tM + 1.5, 568, 350, 0], [tM + 1.7, 568, 350, 1], [tM + 3.4, 770, 200, 1], [tM + 6.4, 790, 190, 1], [tM + 7, 790, 190, 0]]);
+    mPose(hSide, bx, by, bo);
+    glu.parts({ ca: mRamp(t, tG + .6, tG + 1), amino: mRamp(t, tG + .8, tG + 1.2), carboxyl: mRamp(t, tG + .9, tG + 1.3), h: mRamp(t, tG + 1, tG + 1.3), r: mRamp(t, tG + 1.1, tG + 1.7) });
+    mO(glu, mRamp(t, tG + .5, tG + .9));
+    bc.forEach(({ c, x0, x1, t0 }) => { const k = io(mRamp(t, t0, t0 + .9)); mPose(c, mLerp(x0, x1, k), mLerp(668, 812, k), mRamp(t, t0, t0 + .25)); c.badge(mRamp(t, t0 + .9, t0 + 1.2)); });
+  }, D);
+}],
+
+/* ---------- basic ---------- */
+['basic', 'Basic: more amino groups', (m, D) => {
+  const p = panel(0), tB = m('basic'), tP = m('plus'), tH = m('ahl'), tR = m('ring'), tT = m('two');
+  const lys = aaFormula(p, 'lysine', { x: 470, y: 600 }); hide(lys, tR - .4, .4);
+  const A = G(p); hide(A, tH - .3, .4);
+  const cA = counterBox(A, { x: 960, y: 260, label: 'amino · NH_2', color: PC.amino, steps: [[1, '0'], [4.6, '1'], [6.6, '2']] });
+  const cC = counterBox(A, { x: 1350, y: 260, label: 'carboxyl · COOH', color: PC.carboxyl, steps: [[1, '0'], [2.7, '1']] });
+  show(cA, .8, .4); show(cC, .8, .4);
+  const sg = stepText(A, [[tB + .3, '>']], { x: 1155, y: 285, size: 64, fill: PC.basic });
+  say(A, 'NH_2 > COOH → basic', 1155, 410, tB + .6, { size: 36, fill: PC.basic, weight: 800 });
+  say(A, 'at body pH:', 1155, 490, tP + .6, { size: 28, fill: COL.dim });
+  say(A, 'NH_2 + H^+ → NH_3^+', 1155, 535, tP + 1.6, { size: 30 });
+  say(A, 'net charge: positive (+)', 1155, 595, tP + 5.2, { size: 30, fill: PC.basic, weight: 800 });
+  const farLab = say(p, 'the far end', 540, 278, 5.8, { size: 24, fill: PC.amino, anchor: 'start' }); hide(farLab, tB, .3);
+  const hMain = hAtom(p), hX = hAtom(p, true);
+  // A, H, L: the three basic amino acids
+  const H = G(p, { o: 0 }); show(H, tH + .3, .5);
+  box5(H, 900, 130, 640, 482, { stroke: PC.basic, sw: 3 });
+  wChem(H, 'basic · NH_2 > COOH', { x: 1220, y: 182, size: 28, fill: PC.basic, weight: 800, o: 1 });
+  const AX = [1010, 1220, 1430];
+  const letters = ['A', 'H', 'L'].map((l, i) => say(H, l, AX[i], 304, tH + 3.1 + .5 * i, { size: 88, fill: PC.basic, weight: 800 }));
+  void letters;
+  const bc = ['arginine', 'histidine', 'lysine'].map((n, i) => aaChip(H, n, { x: AX[i], y: 380, code: 'name', size: 26, color: PC.basic, badge: 'plus', o: 0 }));
+  const CT = [tH + 4.8, tH + 5.6, tH + 6.5];
+  say(H, 'positive (+) at body pH', 1220, 460, tH + 7.1, { size: 24, fill: COL.dim, weight: 600 });
+  const extra = say(H, 'count it as an extra basic group', 1220, 530, tR + 7, { size: 24, fill: COL.chalk }); hide(extra, tT - .3, .3);
+  const pb = pentaBadge(H, AX[1] - bc[1].w / 2 + 4, 380 - bc[1].h / 2 + 2); show(pb, tT + .6, .3); pulse(pb, tT + .9, 1.5);
+  say(H, 'histidine: heterocyclic by its shape,', 1220, 520, tT + .6, { size: 24, fill: PC.hetero });
+  say(H, 'basic by its charge', 1220, 558, tT + 3.6, { size: 24, fill: PC.basic });
+  say(p, 'two schemes, both right', 510, 860, tT + 6.6, { size: 30, weight: 800 });
+  // arginine's guanidino group and histidine's ring
+  const ag = G(p, { o: 0 });
+  const arg = aaFormula(ag, 'arginine', { x: 290, y: 650, s: .72 });
+  wLabel(ag, 'guanidino group', { x: 290, y: 352, size: 24, fill: PC.basic, weight: 700, o: 1 });
+  const hg = G(p, { o: 0 });
+  const his = aaFormula(hg, 'histidine', { x: 720, y: 650, s: .72 });
+  wLabel(hg, 'imidazole ring', { x: 720, y: 398, size: 24, fill: PC.basic, weight: 700, o: 1 });
+  clockRun(t => {
+    lys.parts({ ca: mRamp(t, .1, .5), amino: mRamp(t, .3, .8), carboxyl: mRamp(t, .5, 1), h: mRamp(t, .7, 1.1), r: mRamp(t, .9, 1.6) });
+    lys.counts(mRamp(t, 1.9, 2.3)).ionise(mRamp(t, tP + 1.2, tP + 3.2));
+    lys.glow('carboxyl', hold(t, 1.8, 4.2)).glow('amino', hold(t, 3.8, 6.2));
+    lys.side.hi('NH2', hold(t, 5.8, 9.2));
+    cA.n.set(t); cC.n.set(t); sg.set(t);
+    const [ax, ay, ao] = keyAt(t, [[tP + .8, 690, 590, 0], [tP + 1, 690, 590, 1], [tP + 1.8, 560, 690, 1], [tP + 2.6, 300, 640, 1], [tP + 3, 300, 640, 0]]);
+    mPose(hMain, ax, ay, ao);
+    const [bx, by, bo] = keyAt(t, [[tP + .8, 780, 190, 0], [tP + 1, 780, 190, 1], [tP + 2.6, 528, 272, 1], [tP + 3, 528, 272, 0]]);
+    mPose(hX, bx, by, bo);
+    bc.forEach((c, i) => {
+      if (i === 2) { const k = io(mRamp(t, CT[2], CT[2] + 1)); mPose(c, mLerp(470, AX[2], k), mLerp(752, 380, k), mRamp(t, CT[2], CT[2] + .3)); }
+      else mO(c, mRamp(t, CT[i], CT[i] + .4));
+      c.badge(mRamp(t, CT[i] + .5, CT[i] + .9)).glow(i === 1 ? hold(t, tT + .3, D + 1) : 0);
+    });
+    mO(ag, mRamp(t, tR + .2, tR + .7) * (1 - .7 * mRamp(t, tT, tT + .6)));
+    mO(hg, mRamp(t, tR + .2, tR + .7));
+    const k1 = mRamp(t, tR + 1.8, tR + 2.3), k2 = mRamp(t, tR + 3.2, tR + 3.7);
+    arg.side.hi('NH2', k1).hi('N', k1);
+    his.side.hi('ring', k2).hi('N', k2);
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'count the groups', { x: 320, y: 150, size: 32, weight: 800, fill: COL.chalk, o: 1 });
+  aaFormula(p, 'lysine', { x: 330, y: 600, s: .8 }).counts(1);
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-lys', prompt: ['Lysine has two amino groups and one carboxyl group. Which chemical class is it?'],
+  build: choice([['neutral'], ['acidic'], ['basic'], ['essential']], 2,
+    'Right. Two amino groups and one carboxyl group: the amino groups outnumber, so lysine is basic, and positive at body pH.',
+    ['Neutral needs equal counts, one and one. Lysine has two amino groups and only one carboxyl group.',
+      'Acidic needs extra carboxyl groups, like aspartic acid. Lysine’s extra group is an amino group.', null,
+      'Essential is a nutritional label (lysine is essential), but the question asks for the chemical class: count the groups.']),
+}], done) }],
+
+/* ---------- sort ---------- */
+['sort', 'Three bins', (m, D) => {
+  const p = panel(0), tN = m('n'), tA = m('a'), tB = m('b'), tT = m('tip');
+  say(p, 'Sort by counting the groups', 800, 90, .3, { size: 34 });
+  const BX = [290, 800, 1310], TB = [tN, tA, tB];
+  const FILL = [['glycine', 'alanine', 'valine', 'leucine', 'serine', 'phenylalanine'], ['aspartic acid', 'glutamic acid'], ['arginine', 'histidine', 'lysine']];
+  const glows = BINS.map(([name, col, rule, sign], i) => {
+    const g = G(p, { o: 0 }); show(g, .3 + .4 * i, .5);
+    const gl = mk('rect', { x: BX[i] - 236, y: 174, width: 472, height: 492, rx: 28, fill: col, 'fill-opacity': .12, stroke: col, 'stroke-width': 5 }, g); put(gl, { o: 0 });
+    box5(g, BX[i] - 220, 190, 440, 460, { stroke: col, sw: 4 });
+    wLabel(g, name + (sign ? '  ' + sign : ''), { x: BX[i], y: 250, size: 38, fill: col, weight: 800, o: 1 });
+    FILL[i].forEach((n, j) => {
+      const two = FILL[i].length > 3, x = two ? BX[i] + (j % 2 ? 105 : -105) : BX[i], y = two ? 330 + Math.floor(j / 2) * 70 : 330 + j * 70;
+      aaChip(g, n, { x, y, code: 'name', size: 22, color: col });
+    });
+    wChem(g, rule, { x: BX[i], y: 700, size: 30, fill: col, weight: 800, o: 1 });
+    return gl;
+  });
+  say(p, 'gives H away → ends −', 800, 760, tT + 1.2, { size: 28, fill: PC.acidic });
+  say(p, 'takes H → ends +', 1310, 760, tT + 4.9, { size: 28, fill: PC.basic });
+  const h = hAtom(p, true, 18);
+  clockRun(t => {
+    glows.forEach((gl, i) => mO(gl, mBump(t, TB[i], TB[i] + 2.6)));
+    const [x, y, o] = keyAt(t, [[tT + .9, 800, 590, 0], [tT + 1.2, 800, 590, 1], [tT + 2.6, 950, 590, 1], [tT + 4.2, 1060, 560, 1], [tT + 4.9, 1250, 590, 1]]);
+    mPose(h, x, y, o);
+  }, D);
+}],
+
+/* ---------- diet ---------- */
+['diet', 'Nutritional classification', (m, D) => {
+  const p = panel(0), tE = m('ess'), tN = m('non'), tX = m('miss');
+  classIcon(p, 'plate', { x: 410, y: 66, size: 54 });
+  say(p, 'Nutritional classification: must we eat it?', 820, 80, .3, { size: 34 });
+  // essential: from the diet
+  const gp = G(p, { o: 0 }); show(gp, .6, .5);
+  box5(gp, 80, 130, 690, 480, { stroke: PC.essential, sw: 3 });
+  wLabel(gp, 'essential', { x: 425, y: 192, size: 42, fill: PC.essential, weight: 800, o: 1 });
+  classIcon(gp, 'star', { x: 600, y: 178, size: 40 });
+  say(gp, 'not synthesized in the body', 425, 245, tE + .2, { size: 26 });
+  say(gp, 'must come in the diet', 425, 285, tE + 3.7, { size: 26, fill: PC.essential });
+  const FD = [['egg', 185], ['milk', 335], ['meat', 490], ['beans', 660]];
+  const foods = FD.map(([k, x], i) => ({ e: food(gp, k, { x, y: 450, o: 0 }), x, t0: tE + 5.8 + .5 * i }));
+  const stars = FD.map(([, x]) => classIcon(gp, 'star', { x, y: 360, size: 30, o: 0 }));
+  // non-essential: made in the body
+  const mp = G(p, { o: 0 }); show(mp, tN, .5);
+  box5(mp, 830, 130, 690, 480, { stroke: PC.nonEssential, sw: 3 });
+  wLabel(mp, 'non-essential', { x: 1175, y: 192, size: 42, fill: PC.nonEssential, weight: 800, o: 1 });
+  say(mp, 'synthesized in the body', 1175, 245, tN + .4, { size: 26 });
+  say(mp, 'not needed in the diet', 1175, 285, tN + 2.6, { size: 26, fill: PC.nonEssential });
+  const cell = classIcon(mp, 'cell', { x: 985, y: 425, size: 150 });
+  const MX = [[1220, 380], [1400, 380], [1220, 450], [1400, 450]];
+  const made = ['Gly', 'Ala', 'Ser', 'Pro'].map((n, i) => ({ c: aaChip(mp, n, { size: 24, color: PC.nonEssential, o: 0 }), to: MX[i], t0: tN + 1.6 + .5 * i }));
+  say(mp, 'non-essential ≠ unimportant', 1175, 545, tN + 5.3, { size: 28 });
+  say(mp, 'the body needs them: it makes them itself', 1175, 585, tN + 9.2, { size: 22, fill: COL.dim, weight: 600 });
+  // a missing essential one: the chain stalls
+  const ms = G(p, { o: 0 }); show(ms, tX + .2, .4);
+  const chain = beadChain(ms, { x: 500, y: 760, aa: ['Gly', 'Leu', 'Ser', 'Lys', 'Ala', 'Met', 'Val', 'Glu', 'Thr'], labels: ['Gly', 'Leu', 'Ser', 'Lys', 'Ala', '', 'Val', 'Glu', 'Thr'], gap: [5], sp: 72, r: 26 });
+  const gx = 500 + 72;
+  const gs = classIcon(ms, 'star', { x: gx, y: 708, size: 28, o: 0 });
+  const rc = redCross(ms, gx, 760, 14);
+  say(ms, 'an essential one is missing:', 880, 745, tX + 3.2, { size: 28, anchor: 'start' });
+  say(ms, 'protein building stalls', 880, 790, tX + 4.6, { size: 28, fill: PC.heat, anchor: 'start' });
+  clockRun(t => {
+    foods.forEach(({ e, x, t0 }) => mPose(e, x - 60 * (1 - out(mRamp(t, t0, t0 + .5))), 450, mRamp(t, t0, t0 + .3)));
+    stars.forEach((s, i) => { const t0 = foods[i].t0 + .7; mPose(s, FD[i][1], 382 - 22 * out(mRamp(t, t0, t0 + .6)), mRamp(t, t0, t0 + .3)); });
+    made.forEach(({ c, to, t0 }) => { const k = io(mRamp(t, t0, t0 + .8)); mPose(c, mLerp(1000, to[0], k), mLerp(425, to[1], k), mRamp(t, t0, t0 + .2)); });
+    setS(cell, 1 + .06 * mBump(t, tN + 1.4, tN + 3.8));
+    chain.reveal(mRamp(t, tX + .4, tX + 2.4) * 6 / 9.6);
+    mO(rc, mRamp(t, tX + 2.5, tX + 2.8)); mO(gs, mRamp(t, tX + 2.6, tX + 2.9));
+  }, D);
+}],
+
+/* ---------- mnem ---------- */
+['mnem', 'Try This VIP Mall', (m, D) => {
+  const p = panel(0), tY = m('try'), tH = m('this'), tV = m('vip'), tM = m('mall'), tN = m('ten');
+  say(p, 'The essential amino acids: a memory trick', 800, 100, .3, { size: 34 });
+  const sh = tenShelf(p);
+  const WT = [3.5, 4.2, 4.9, 5.7];
+  sh.words.forEach((w, i) => { mO(w, 0); show(w, WT[i], .4); });
+  const GT = [tY, tH, tV, tM];
+  // each name of a group appears in turn as it is said
+  const IT = { 0: [tY + .4], 1: [tH + .5, tH + 1.4], 2: [tV + .7, tV + 1.6, tV + 2.6], 3: [tM + .7, tM + 1.7, tM + 2.5, tM + 3.2] };
+  say(p, 'that is 10 names', 800, 690, tN + .2, { size: 40, fill: PC.essential, weight: 800 });
+  clockRun(t => {
+    sh.items.forEach(({ ci, i, g, c }) => {
+      const t0 = IT[ci][i], k = out(mRamp(t, t0, t0 + .4));
+      mPose(g, 0, -30 * (1 - k), mRamp(t, t0, t0 + .25));
+      c.glow(Math.max(hold(t, GT[ci], GT[ci] + 1.9), hold(t, tN, tN + 1.4), mBump(t, tN + 1.6 + .5 * ci, tN + 2.6 + .5 * ci)));
+    });
+    sh.words.forEach((w, i) => setS(w, 1 + .12 * mBump(t, GT[i], GT[i] + .8)));
+  }, D);
+}],
+
+/* ---------- semi ---------- */
+['semi', 'Semi-essential: arginine and histidine', (m, D) => {
+  const p = panel(0), tK = m('kids'), tE = m('eight');
+  say(p, 'Semi-essential: arginine and histidine', 800, 100, .3, { size: 34 });
+  const sh = tenShelf(p), semi = ['histidine', 'arginine'];
+  const cnt = stepText(p, [[0, 'that is 10 names'], [tE + .5, '8 strict essentials']], { x: 800, y: 690, size: 40, fill: PC.essential, weight: 800 });
+  const kids = G(p, { o: 0 }); show(kids, tK + .2, .5);
+  sprout(kids, { x: 330, y: 790 });
+  wLabel(kids, 'growing children', { x: 410, y: 780, size: 30, weight: 700, anchor: 'start', o: 1 });
+  wLabel(kids, 'need them in food', { x: 410, y: 820, size: 26, fill: PC.essential, weight: 700, anchor: 'start', o: 1 });
+  const ad = G(p, { o: 0 }); show(ad, tK + 4.6, .5);
+  tree(ad, { x: 1010, y: 790 });
+  wLabel(ad, 'adults', { x: 1090, y: 780, size: 30, weight: 700, anchor: 'start', o: 1 });
+  wLabel(ad, 'make enough', { x: 1090, y: 820, size: 26, fill: PC.nonEssential, weight: 700, anchor: 'start', o: 1 });
+  clockRun(t => {
+    cnt.set(t);
+    const hk = mRamp(t, 1.4, 2.2);
+    sh.items.forEach(({ name, c, star, half }) => {
+      const s = semi.includes(name);
+      c.half(s ? hk : 0).glow(s ? hold(t, 1.2, tK + 3) : mRamp(t, tE + .3, tE + 1));
+      mO(star, s ? 1 - mRamp(t, 1.4, 1.7) : 1); mO(half, s ? mRamp(t, 1.8, 2.1) : 0);
+    });
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'made in the body?', { x: 320, y: 150, size: 32, weight: 800, fill: PC.nonEssential, o: 1 });
+  classIcon(p, 'cell', { x: 320, y: 290, size: 150 });
+  ['leucine', 'glycine', 'lysine', 'tryptophan'].forEach((n, i) => aaChip(p, n, { x: 320, y: 450 + i * 70, code: 'name', size: 26, color: PC.neutral }));
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-make', prompt: ['Which of these can the body make for itself?'],
+  build: choice([['leucine'], ['glycine'], ['lysine'], ['tryptophan']], 1,
+    'Right. Glycine is non-essential: the body makes it. The other three are in Try This VIP Mall.',
+    ['Leucine is in Mall (methionine, arginine, leucine, lysine): it must come from food.', null,
+      'Lysine is in Mall too: essential, so it must come from food.',
+      'Tryptophan is the Try of Try This VIP Mall: essential.']),
+}], done) }],
+
+/* ---------- rest ---------- */
+['rest', 'Non-essential, and foods', (m, D) => {
+  const p = panel(0), tY = m('tyr'), t2 = m('two2'), tF = m('food');
+  classIcon(p, 'cell', { x: 470, y: 66, size: 54 });
+  say(p, 'Non-essential: made in the body', 820, 80, .3, { size: 34, fill: PC.nonEssential });
+  const X = [250, 470, 690, 910, 1130, 1350];
+  const NAMES = ['glycine', 'alanine', 'serine', 'tyrosine', 'cysteine', 'cystine', 'aspartic acid', 'glutamic acid', 'proline'];
+  const TT = spread(NAMES, 2.6, 10.4);
+  const chips = NAMES.map((n, i) => ({ c: aaChip(p, n, { code: 'name', size: 22, color: PC.nonEssential, o: 0 }), x: X[i % 6], y: i < 6 ? 150 : 215, t0: TT[i] }));
+  [['asparagine', t2 + 1.4], ['glutamine', t2 + 2.6]].forEach(([n, t0], i) => chips.push({ c: aaChip(p, n, { code: 'name', size: 22, color: PC.nonEssential, dashed: true, o: 0 }), x: X[3 + i], y: 215, t0 }));
+  const nl = say(p, 'not on the slide’s lists: also made in the body', 1020, 272, t2 + 3, { size: 22, fill: COL.dim, weight: 600 });
+  void nl;
+  // tyrosine is made from phenylalanine
+  const T = G(p, { o: 0 }); show(T, tY + .3, .5); hide(T, tF + .4, .5);
+  const phe = aaFormula(T, 'phenylalanine', { x: 430, y: 700, s: .75, name: false });
+  const tyr = aaFormula(T, 'tyrosine', { x: 1170, y: 700, s: .75, name: false });
+  wLabel(T, 'phenylalanine', { x: 430, y: 812, size: 28, fill: PC.essential, weight: 800, o: 1 });
+  wLabel(T, 'essential', { x: 430, y: 848, size: 22, fill: PC.essential, weight: 600, o: 1 });
+  wLabel(T, 'tyrosine', { x: 1170, y: 812, size: 28, fill: PC.nonEssential, weight: 800, o: 1 });
+  wLabel(T, 'non-essential', { x: 1170, y: 848, size: 22, fill: PC.nonEssential, weight: 600, o: 1 });
+  const ar = G(T, { o: 0 }); show(ar, tY + 1.6, .4);
+  mArrow(ar, [650, 520], [950, 520], { color: COL.chalk, w: 5, head: 18 });
+  classIcon(ar, 'cell', { x: 800, y: 440, size: 100 });
+  say(T, 'the body adds an OH', 800, 585, tY + 2.4, { size: 24 });
+  say(T, 'made from phenylalanine', 800, 622, tY + 3.2, { size: 24, fill: PC.nonEssential });
+  void phe;
+  // foods: complete and complementary
+  const F = G(p, { o: 0 }); show(F, tF, .5);
+  mk('rect', { x: 70, y: 590, width: 1460, height: 20, rx: 5, fill: '#8a6a48', stroke: '#5e4630', 'stroke-width': 3 }, F);
+  const full = [['egg', 200], ['milk', 400], ['meat', 600]].map(([k, x], i) => ({ f: food(F, k, { x, y: 525, o: 0 }), d: dotSet(F, { x, y: 655 }), t0: tF + .5 + .55 * i }));
+  say(F, 'all the essential ones', 400, 735, tF + 2.6, { size: 26, fill: PC.essential });
+  const plant = [['rice', 880, [9]], ['beans', 1120, [4]]].map(([k, x, gaps], i) => ({ f: food(F, k, { x, y: 525, o: 0 }), d: dotSet(F, { x, y: 655, gaps }), t0: tF + 4.6 + .6 * i }));
+  const plus = say(F, '+', 1000, 540, tF + 5.4, { size: 48 }); void plus;
+  say(F, 'each short of one', 1000, 735, tF + 5.6, { size: 24, fill: COL.dim, weight: 600 });
+  const eq = say(F, '=', 1250, 540, tF + 7.2, { size: 48 }); void eq;
+  const both = dotSet(F, { x: 1390, y: 655 });
+  const both2 = G(F, { o: 0 }); show(both2, tF + 7.4, .4);
+  food(both2, 'rice', { x: 1350, y: 525, s: .7 }); food(both2, 'beans', { x: 1440, y: 525, s: .7 });
+  say(F, 'together: all ten', 1390, 735, tF + 8.2, { size: 26, fill: PC.essential });
+  clockRun(t => {
+    chips.forEach(({ c, x, y, t0 }) => { const k = out(mRamp(t, t0, t0 + .4)); mPose(c, x, y - 34 * (1 - k), mRamp(t, t0, t0 + .25)); });
+    chips[3].c.glow(hold(t, tY + .2, t2 - .2));
+    tyr.side.hi('OH', hold(t, tY + 2.2, t2 - .4));
+    [...full, ...plant].forEach(({ f, d, t0 }) => { mO(f, mRamp(t, t0, t0 + .4)); mO(d, mRamp(t, t0 + .4, t0 + .8)); });
+    mO(both, mRamp(t, tF + 7.6, tF + 8));
+    setS(both, 1 + .08 * mBump(t, tF + 8, tF + 9));
+  }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), t1 = m('w1'), t2 = m('w2'), t3 = m('w3'), t4 = m('w4');
+  say(p, 'Summary: chemical and nutritional', 800, 52, .2, { size: 32 });
+  const cw = G(p, { x: 800, y: 395, s: .8 });
+  const card = aminoCard(cw, { x: 0, y: 0 });
+  // the bottom row: the three chemical rules, then the ten essential names, then the two labels of one amino acid
+  const rules = G(p); hide(rules, t2 - .4, .4);
+  const RX = [320, 800, 1280], RL = [['NH_2 = COOH → neutral', PC.neutral, t1 + 3.9], ['COOH > NH_2 → acidic (−)', PC.acidic, t1 + 5.35], ['NH_2 > COOH → basic (+)', PC.basic, t1 + 8.2]];
+  RL.forEach(([s, c, t0], i) => { const g = G(rules, { o: 0 }); show(g, t0, .4); box5(g, RX[i] - 220, 750, 440, 72, { stroke: c, sw: 3, rx: 36 }); wChem(g, s, { x: RX[i], y: 796, size: 26, fill: c, weight: 800, o: 1 }); });
+  const tenG = G(p); hide(tenG, t4 - .4, .4);
+  const TEN3 = ['Trp', 'Thr', 'His', 'Val', 'Ile', 'Phe', 'Met', 'Arg', 'Leu', 'Lys'];
+  const ten = TEN3.map((n, i) => ({ c: aaChip(tenG, n, { x: 440 + i * 80, y: 786, size: 22, color: PC.essential, o: 0 }), t0: t2 + .8 + .22 * i, semi: n === 'His' || n === 'Arg' }));
+  say(tenG, 'the rest: made in the body', 800, 850, t3 + 4.5, { size: 24, fill: PC.nonEssential });
+  const two = stepText(p, [[t4 + .6, 'lysine: basic and essential'], [t4 + 4.9, 'glutamic acid: acidic and non-essential']], { x: 800, y: 800, size: 34, weight: 800 });
+  const CH = [[t1 + 1.9, 'count the|groups', COL.chalk], [t4 + .6, 'basic (+)', PC.basic], [t4 + 4.9, 'acidic (−)', PC.acidic]];
+  const NU = [[t2 + .4, 'ten essential:|Try This VIP Mall', PC.essential], [t4 + .6, 'essential', PC.essential], [t4 + 4.9, 'non-essential', PC.nonEssential]];
+  const AA = [[t4 + .6, 'lysine'], [t4 + 4.9, 'glutamic acid']];
+  // the value shown at t from a list [[t, text, colour], …], with how far it is filled (out before each change)
+  const seg = (t, L) => { let i = -1; L.forEach((s, j) => { if (t >= s[0]) i = j; }); if (i < 0) return [0, L[0][1], L[0][2]]; const nx = L[i + 1]; return [mRamp(t, L[i][0], L[i][0] + .6) * (nx ? 1 - mRamp(t, nx[0] - .7, nx[0] - .1) : 1), L[i][1], L[i][2]]; };
+  let cur = null;
+  clockRun(t => {
+    card.focus(['chemical', 'nutritional'], 1);
+    card.glow('chemical', hold(t, t1 + .2, t2 - .2) + hold(t, t4 + .3, D + 1)).glow('nutritional', hold(t, t2 + .2, t4) + hold(t, t4 + .3, D + 1));
+    const [kc, sc, cc] = seg(t, CH), [kn, sn, cn] = seg(t, NU);
+    card.fill('chemical', kc, sc, cc).fill('nutritional', kn, sn, cn);
+    // the centre: a general amino acid, then lysine, then glutamic acid (it fades out and in round each change)
+    let o = 1, nm = null;
+    AA.forEach(([ts, n]) => { o *= t < ts ? 1 - mRamp(t, ts - .5, ts - .05) : mRamp(t, ts + .05, ts + .5); if (t >= ts) nm = n; });
+    if (nm && nm !== cur) { card.setAcid(nm); cur = nm; }
+    mO(card.aa, o);
+    ten.forEach(({ c, t0, semi }, i) => { const k = out(mRamp(t, t0, t0 + .35)); mPose(c, 440 + i * 80, 786 - 24 * (1 - k), mRamp(t, t0, t0 + .2)); c.half(semi ? mRamp(t, t3 + .3, t3 + .9) : 0).glow(semi ? hold(t, t3 + .3, t3 + 3.4) : 0); });
+    two.set(t);
+  }, D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const frame = g => box5(g, 980, 90, 580, 720);
+  const cap = (g, s, c = COL.chalk) => wChem(g, s, { x: 1270, y: 770, size: 26, weight: 700, fill: c, o: 1 });
+  at('count', g => {
+    frame(g);
+    aaFormula(g, 'glutamic acid', { x: 1270, y: 560, s: .75 }).counts(1);
+    cap(g, 'count the groups');
+  });
+  at('sort', g => {
+    frame(g);
+    [['Val', 1130], ['Asp', 1270], ['His', 1410]].forEach(([n, x]) => { aaChip(g, n, { x, y: 170, size: 26, color: COL.chalk }); wLabel(g, '?', { x, y: 232, size: 34, weight: 800, fill: PC.essential, o: 1 }); });
+    BINS.forEach(([name, col, rule, sign], i) => {
+      const x = 1100 + i * 170;
+      box5(g, x - 75, 280, 150, 330, { stroke: col, sw: 3 });
+      wLabel(g, name, { x, y: 330, size: 24, fill: col, weight: 800, o: 1 });
+      if (sign) wLabel(g, sign, { x, y: 380, size: 36, fill: col, weight: 800, o: 1 });
+      wChem(g, rule, { x, y: 650, size: 18, fill: col, weight: 700, o: 1 });
+    });
+    cap(g, 'which bin?');
+  });
+  at('charge', g => {
+    frame(g);
+    aminoAcid(g, { x: 1270, y: 440, s: .9 }).ionise(1);
+    wLabel(g, 'at body pH', { x: 1270, y: 190, size: 28, weight: 700, fill: COL.dim, o: 1 });
+    wChem(g, 'every amino acid: NH_3^+ and COO^−', { x: 1270, y: 640, size: 24, weight: 700, o: 1 });
+    cap(g, 'an extra group in R sets the charge', COL.dim);
+  });
+  at('mnem', g => {
+    frame(g);
+    wLabel(g, 'Try This VIP Mall', { x: 1270, y: 190, size: 40, weight: 800, fill: PC.essential, o: 1 });
+    aaFormula(g, 'phenylalanine', { x: 1135, y: 560, s: .5, name: false });
+    aaFormula(g, 'tyrosine', { x: 1405, y: 560, s: .5, name: false });
+    wLabel(g, 'phenylalanine', { x: 1135, y: 640, size: 22, weight: 700, o: 1 });
+    wLabel(g, 'tyrosine', { x: 1405, y: 640, size: 22, weight: 700, o: 1 });
+    cap(g, 'which one is not in the trick?');
+  });
+  at('diet', g => {
+    frame(g);
+    box5(g, 1005, 190, 250, 460, { stroke: PC.essential, sw: 3 });
+    box5(g, 1285, 190, 250, 460, { stroke: PC.nonEssential, sw: 3 });
+    classIcon(g, 'plate', { x: 1130, y: 330, size: 110 });
+    classIcon(g, 'cell', { x: 1410, y: 330, size: 110 });
+    wLabel(g, 'from the diet', { x: 1130, y: 470, size: 24, weight: 800, fill: PC.essential, o: 1 });
+    wLabel(g, 'made in', { x: 1410, y: 470, size: 24, weight: 800, fill: PC.nonEssential, o: 1 });
+    wLabel(g, 'the body', { x: 1410, y: 502, size: 24, weight: 800, fill: PC.nonEssential, o: 1 });
+    cap(g, 'diet or body?');
+  });
+  at('semi', g => {
+    frame(g);
+    ['arginine', 'histidine'].forEach((n, i) => { const c = aaChip(g, n, { x: 1270, y: 200 + i * 66, code: 'name', size: 28, color: PC.essential }); c.half(1); classIcon(g, 'halfStar', { x: 1270 + c.w / 2, y: 200 + i * 66 - c.h / 2, size: 32 }); });
+    sprout(g, { x: 1130, y: 500 }); tree(g, { x: 1410, y: 500 });
+    wLabel(g, 'growing', { x: 1130, y: 600, size: 24, weight: 700, o: 1 });
+    wLabel(g, 'adult', { x: 1410, y: 600, size: 24, weight: 700, o: 1 });
+    cap(g, 'who needs them in food?');
+  });
+  at('why', g => {
+    frame(g);
+    const ch = beadChain(g, { x: 1270, y: 300, aa: ['Gly', 'Leu', 'Ser', 'Lys', 'Ala', 'Val'], labels: ['Gly', 'Leu', 'Ser', 'Lys', '', 'Val'], gap: [4], sp: 70, r: 25 });
+    ch.reveal(5 / 6.6);
+    put(redCross(g, 1270 + 70 * 1.5, 300, 13), { o: 1 });
+    classIcon(g, 'cell', { x: 1270, y: 500, size: 130 });
+    put(redCross(g, 1330, 460, 16), { o: 1 });
+    cap(g, 'why must they come from food?');
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('count');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-count', prompt: ['Glutamic acid has one amino group and two carboxyl groups. Which chemical class is it?'],
+    build: withPic('count', choice([['neutral'], ['acidic'], ['basic'], ['essential']], 1,
+      'Right. More carboxyl groups than amino groups: acidic, and negative at body pH.',
+      ['Neutral needs one of each. Glutamic acid has an extra carboxyl group.', null,
+        'Basic needs extra amino groups, like lysine. Here the extra group is a carboxyl group.',
+        'Essential is a nutritional label (and glutamic acid is non-essential). The question asks for the chemical class.'])) },
+  { id: 'p-sort', prompt: ['Sort each amino acid by its groups.'],
+    build: withPic('sort', grid([
+      { parts: ['valine'], ans: ['n'], why: 'One NH₂, one COOH.' },
+      { parts: ['aspartic acid'], ans: ['a'], why: 'An extra COOH.' },
+      { parts: ['histidine'], ans: ['b'], why: 'Basic: A H L.' },
+    ], [['n', 'neutral', null, 'N'], ['a', 'acidic', null, 'A'], ['b', 'basic', null, 'B']], { multi: false, text: true })) },
+  { id: 'p-charge', prompt: ['At body pH, which of these carries a positive charge?'],
+    build: withPic('charge', choice([['glutamic acid'], ['alanine'], ['lysine'], ['aspartic acid']], 2,
+      'Right. Lysine’s extra amino group picks up a hydrogen and turns positive: it is basic.',
+      ['Glutamic acid is acidic: its extra carboxyl group gives away a hydrogen, so it is negative.',
+        'Alanine is neutral: one amino group and one carboxyl group, no net charge.', null,
+        'Aspartic acid is acidic, so it carries a negative charge, not a positive one.'])) },
+  { id: 'p-mnem', prompt: ['Which of these is NOT one of the ten in “Try This VIP Mall”?'],
+    build: withPic('mnem', choice([['tyrosine'], ['threonine'], ['methionine'], ['phenylalanine']], 0,
+      'Right. Tyrosine is non-essential: the body makes it from phenylalanine.',
+      [null, 'Threonine is in This: threonine and histidine.',
+        'Methionine is the M of Mall.',
+        'Phenylalanine is the P of VIP. The body makes tyrosine from it, not the other way round.'])) },
+  { id: 'p-diet', prompt: ['Must it come from the diet, or does the body make it?'],
+    build: withPic('diet', grid([
+      { parts: ['tryptophan'], ans: ['e'], why: 'Try: must eat it.' },
+      { parts: ['glycine'], ans: ['n'], why: 'The body makes it.' },
+      { parts: ['leucine'], ans: ['e'], why: 'Mall: must eat it.' },
+      { parts: ['serine'], ans: ['n'], why: 'The body makes it.' },
+    ], [['e', 'essential (diet)', null, 'E'], ['n', 'non-essential', null, 'N']], { multi: false, text: true })) },
+  { id: 'p-semi', prompt: ['Who must get arginine and histidine from food?'],
+    build: withPic('semi', choice([['adults only'], ['growing children'], ['nobody: the body always makes enough'], ['everyone, at every age']], 1,
+      'Right. They are semi-essential: a growing body cannot make enough, an adult can.',
+      ['It is the other way round: adults make enough, growing children do not.', null,
+        'A growing child cannot make enough, so children need them in food.',
+        'That describes the eight strict essentials. Adults make enough arginine and histidine.'])) },
+  { id: 'p-why', prompt: ['Why must essential amino acids come in the diet?'],
+    build: withPic('why', choice([['they are the only amino acids that build proteins'], ['they are the acidic amino acids'], ['cooking destroys them'], ['the body cannot synthesize them']], 3,
+      'Right. The body cannot make them, so a missing one stalls protein building.',
+      ['All twenty amino acids build proteins, essential or not.',
+        'Acidic is the chemical scheme (aspartic and glutamic acid, both non-essential).',
+        'Cooking is not the reason: the body simply cannot make them.', null])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

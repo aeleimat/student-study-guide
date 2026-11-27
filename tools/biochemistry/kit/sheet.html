@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>protein.js kit sheet</title>
+<link rel="stylesheet" href="../../../site/biochemistry/lib/engine.css">
+<style>
+  body { background: #0b1626; margin: 0; overflow: auto !important; height: auto !important; }
+  .panel { width: 1600px; height: 900px; position: relative; margin: 0 0 8px; }
+  .panel svg { width: 1600px; height: 900px; display: block; background: #0f1e33; }
+  .panel h2 { position: absolute; left: 10px; top: 4px; margin: 0; font: 600 18px sans-serif; color: #889; }
+</style>
+</head>
+<body>
+<script src="../../../site/biochemistry/lib/engine.js"></script>
+<script src="../../../site/biochemistry/lib/water.js"></script>
+<script src="../../../site/biochemistry/lib/macro.js"></script>
+<script src="../../../site/biochemistry/lib/protein.js"></script>
+<script>
+'use strict';
+const NSV = 'http://www.w3.org/2000/svg';
+function newPanel(title) {
+  const d = document.createElement('div'); d.className = 'panel'; d.id = 'p-' + title.replace(/\W+/g, '-');
+  const svg = document.createElementNS(NSV, 'svg'); svg.setAttribute('viewBox', '0 0 1600 900'); d.append(svg);
+  const h2 = document.createElement('h2'); h2.textContent = title; d.append(h2);
+  document.body.append(d); return G(svg);
+}
+const SHEET = [
+  ['amino-acid', r => {
+    aminoAcid(r, { x: 300, y: 300, name: true }).labels(1);
+    aminoAcid(r, { x: 800, y: 300, aa: 'glycine', name: true }).ionise(1).counts(1);
+    aminoAcid(r, { x: 1300, y: 300, aa: 'lysine', name: true }).rSwap('(CH_2)_4NH_2', 'CH_3', .5, 'basic', 'simple').glow('amino', 1);
+    aminoAcid(r, { x: 300, y: 700, aa: 'serine' }).parts({ amino: .5, h: .3, r: 0 }).focus('ca', 1);
+    aminoAcid(r, { x: 800, y: 720, aa: 'cysteine', down: true, name: true });
+    aminoAcid(r, { x: 1300, y: 700, aa: 'alanine' }).ionise(.5);
+  }],
+  ['formulas-1', r => {
+    aaFormula(r, 'lysine', { x: 250, y: 560, s: .8 }).counts(1).ionise(1);
+    aaFormula(r, 'aspartic acid', { x: 650, y: 560, s: .8 }).counts(1);
+    aaFormula(r, 'arginine', { x: 1050, y: 560, s: .8 }).ionise(1);
+    aaFormula(r, 'proline', { x: 1400, y: 560, s: .8 });
+  }],
+  ['side-chains', r => {
+    P_STANDARD.forEach((nm, i) => {
+      const cx = 90 + (i % 10) * 150, cy = 330 + Math.floor(i / 10) * 420;
+      sideChain(r, nm, { x: cx, y: cy });
+      mk('circle', { cx, cy: cy + 12, r: 10, fill: '#9aa3ad' }, r);
+      wLabel(r, pAA(nm).three, { x: cx, y: cy + 50, size: 22, o: 1 });
+    });
+  }],
+  ['side-chains-hi-ion', r => {
+    sideChain(r, 'histidine', { x: 200, y: 400 }).ion(1).hi('N', 1);
+    sideChain(r, 'tyrosine', { x: 450, y: 400 }).hi('OH', 1).hi('ring', 1);
+    sideChain(r, 'proline', { x: 700, y: 400 }).mark(1);
+    sideChain(r, 'glutamic acid', { x: 950, y: 400 }).ion(1).hi('COOH', 1);
+    sideChain(r, 'selenocysteine', { x: 1150, y: 400 });
+    sideChain(r, 'methionine', { x: 1350, y: 400, down: true }).hi('S', 1);
+    ['benzene', 'indole', 'imidazole', 'pyrrolidine'].forEach((k, i) => ring(r, k, { x: 220 + i * 380, y: 680, b: 50, label: k, sub: 'ring' }).labels(1).nHi(i === 2 ? 1 : 0));
+  }],
+  ['chips-icons', r => {
+    ['Gly', 'Lys', 'Asp', 'Trp', 'Phe', 'Pro', 'Cys', 'Leu'].forEach((n, i) => aaChip(r, n, { x: 120 + i * 140, y: 120, dots: true }));
+    aaChip(r, 'phenylalanine', { x: 200, y: 240, code: 'name', badge: 'star' }).badge(1).split(1);
+    aaChip(r, 'arginine', { x: 480, y: 240, code: 'name', badge: 'halfStar' }).badge(1).half(1);
+    aaChip(r, 'selenocysteine', { x: 760, y: 240, code: 'name' }).edge('#ffd27a');
+    aaChip(r, 'Trp', { x: 980, y: 240, dashed: true, badge: 'cell' }).badge(1).glow(1);
+    aaChip(r, 'histones', { x: 1180, y: 240, cls: 'basic', badge: 'plus' }).badge(1);
+    ['ring', 'charge', 'plus', 'minus', 'neutral', 'plate', 'star', 'halfStar', 'cell', 'glucose', 'ketone', 'fork'].forEach((k, i) => { classIcon(r, k, { x: 100 + i * 120, y: 400 }); wLabel(r, k, { x: 100 + i * 120, y: 460, size: 18, o: 1 }); });
+    ['peptide', 'disulfide', 'hydrogen', 'salt', 'hydrophobic'].forEach((k, i) => bondChip(r, k, { x: 200 + i * 240, y: 640, lock: i < 2 }).lit(i === 2 ? 1 : 0));
+  }],
+  ['card', r => { aminoCard(r, { aa: 'lysine' }).focus('chemical', 1).fill('structural', 1, 'aliphatic|basic', PC.basic).fill('chemical', .7, 'basic (+)', PC.basic).fill('metabolic', 1, 'ketogenic', PC.keto); }],
+  ['card-building', r => { const c = aminoCard(r, { s: .55, x: 420, y: 250 }); c.build(.62); aminoCard(r, { s: .55, x: 1180, y: 250 }).build(1).focus(['nutritional'], 1).glow('nutritional', 1); aminoCard(r, { s: .55, x: 800, y: 680, aa: 'glycine' }).fill('nutritional', 1, 'non-essential', PC.nonEssential); }],
+  ['peptide-bond', r => { peptideBond(r, { x: 800, y: 180, s: .8 }); peptideBond(r, { x: 800, y: 460, s: .8 }).form(.6); peptideBond(r, { x: 800, y: 720, s: .8 }).form(1); }],
+  ['bead-chain', r => {
+    beadChain(r, { x: 800, y: 110, aa: ['Val', 'His', 'Leu', 'Thr', 'Pro', 'Glu', 'Glu', 'Lys'] }).swap(5, 'branched', .8, 'Val').glow(5, 1);
+    beadChain(r, { x: 800, y: 280, n: 20, sp: 66, r: 20, chips: false, numbers: [1, 5, 10, 15, 20] }).numbers(1).readArrow(1).bond(3, 1);
+    beadChain(r, { x: 400, y: 520, n: 8, endText: 'ionised', gap: [3], marks: { 1: '+', 5: 'star' } }).cut(5, .5);
+    beadChain(r, { x: 1200, y: 520, n: 8 }).cut(2, 1).lift(6, 1).focus([0, 1, 2], 1);
+    beadChain(r, { x: 400, y: 760, n: 12, sp: 46, r: 18 }).curl(1);
+    beadChain(r, { x: 1200, y: 760, n: 12, sp: 46, r: 18 }).tangle(1);
+  }],
+  ['backbone', r => {
+    backbone(r, { x: 800, y: 160, units: 6 }).atoms(1).ends(1);
+    backbone(r, { x: 420, y: 560, units: 4, strands: 2 }).hbonds(1).deltas(1).ends(1).rDim(1);
+    backbone(r, { x: 1200, y: 560, units: 4, strands: 2, mode: 'parallel' }).hbonds(.6).ends(1).rDim(1);
+  }],
+  ['bonds', r => {
+    hBondMark(r).set(100, 150, 300, 150).deltas(1);
+    saltBridge(r).set([400, 150], [640, 150], 1);
+    disulfideMark(r).set([750, 150], [900, 150], .7);
+    cysPair(r, { x: 300, y: 520, s: .75 }).bridge(1).name(1);
+    cysPair(r, { x: 750, y: 520, s: .75 }).bridge(.45).near(.6);
+    cysPair(r, { x: 1150, y: 520, s: .75, mode: 'chain' }).bridge(1);
+    hydrophobicCore(r, { x: 1400, y: 230, s: .6 }).fold(1);
+    hydrophobicCore(r, { x: 1400, y: 680, s: .6 });
+  }],
+  ['helix', r => {
+    alphaHelix(r, { x: 420, y: 450 }).bonds(1).turnBracket(1);
+    alphaHelix(r, { x: 760, y: 450 }).bond(0, 1).bond(1, 1).glow(0, 1).glow(4, 1);
+    alphaHelix(r, { x: 1000, y: 450 }).tilt(90).bonds(1);
+    alphaHelix(r, { x: 1300, y: 450 }).draw(.6);
+    alphaHelix(r, { x: 1450, y: 450, r: 40, rise: 20 }).unwind(.7);
+  }],
+  ['helix-horizontal', r => { alphaHelix(r, { x: 800, y: 300, axis: 0, n: 22 }).bonds(.5).turnBracket(1, 2); alphaHelix(r, { x: 800, y: 680, axis: 0, n: 18 }).tilt(40); }],
+  ['sheet', r => {
+    betaSheet(r, { x: 380, y: 300 }).hbonds(1);
+    betaSheet(r, { x: 1100, y: 300, dir: 'anti' }).hbonds(1).hairpin(1);
+    betaSheet(r, { x: 380, y: 720, strands: 3 }).anti(.5).strands(.8);
+    pleatSide(r, { x: 1100, y: 640 }); pleatSide(r, { x: 1100, y: 800, s: .6, strands: 2 }).hbonds(1);
+  }],
+  ['globule', r => {
+    globule(r, { x: 250, y: 260, pocket: true, beads: 10 }).pocket(1).partner(1).labels(1);
+    globule(r, { x: 700, y: 260 }).bonds({ peptide: 1, ss: 1, h: 1, salt: 1, core: 1 });
+    globule(r, { x: 1150, y: 260, beads: 10 }).lobe(0, 1).tint(PC.conjugated);
+    globule(r, { x: 800, y: 660, beads: 12 }).fold(0).labels(1);
+    globule(r, { x: 200, y: 800, beads: 10, R: 90 }).tangle(1);
+    globule(r, { x: 1400, y: 660, R: 100 }).fold(.5);
+  }],
+  ['complexes', r => {
+    subunitComplex(r, { x: 250, y: 260, n: 2, labels: ['A', 'B'] }).labels(1).contacts(1);
+    subunitComplex(r, { x: 700, y: 260, n: 4 }).contacts(1);
+    hemoglobin(r, { x: 1200, y: 260 });
+    subunitComplex(r, { x: 300, y: 680, n: 4 }).pack(.3);
+    hemoglobin(r, { x: 800, y: 680 }).apart(.5).focus([0], 1);
+    misfoldedChain(r, { x: 1150, y: 600 }); misfoldedChain(r, { x: 1150, y: 800 }).set(.3);
+    aggregate(r, { x: 1420, y: 700, s: .6 }).clump(1).plaque(1);
+  }],
+  ['aggregate', r => { aggregate(r, { x: 400, y: 450 }); aggregate(r, { x: 1100, y: 450 }).clump(1); }],
+  ['levels-strip', r => { levelsStrip(r, { y: 230 }).tags(1).tick(1, 1); levelsStrip(r, { y: 660 }).focus([3, 4], 1).glow(3, 1); }],
+  ['levels-strip-unfold', r => { levelsStrip(r, { y: 230 }).unfold(4, 1).unfold(3, 1).unfold(2, .7); levelsStrip(r, { y: 660 }).build(.6); }],
+  ['levels-vertical', r => { levelsStrip(r, { vertical: true, x: 450 }).unfold(4, .5); levelsStrip(r, { vertical: true, x: 1150 }).contents(0); }],
+  ['tree', r => { const t = proteinTree(r, { y: 470 }); t.leaves('all', 1).focus('conjugated', 1).tick('simple', 1).leafGlow('conjugated', 1, 1); }],
+  ['tree-growing', r => { proteinTree(r, { x: 440, y: 470, s: .52 }).grow(.55); proteinTree(r, { x: 1180, y: 470, s: .52 }).leaves('simple', .6).focus(['simple'], 1); }],
+  ['prosthetic', r => {
+    const gl = globule(r, { x: 600, y: 450, R: 160, color: PC.conjugated });
+    ['sugar', 'lipid', 'phosphate', 'metal', 'heme', 'flavin', 'nucleic'].forEach((k, i) => prosthetic(r, k, { x: 120 + i * 200, y: 120, symbol: 'Cu' }).label(1));
+    prosthetic(r, 'heme', { x: 1000, y: 700 }).toward(gl.slotPt(1), 1);
+    prosthetic(r, 'sugar', { x: 300, y: 800 }).toward(gl.slotPt(2), .5);
+    lipoprotein(r, { x: 1300, y: 450, label: 'LDL' }).shell(1);
+    collagenRope(r, { x: 1250, y: 720, len: 500 }); collagenRope(r, { x: 1250, y: 840, len: 500 }).loosen(1);
+  }],
+];
+window.KIT_CASES = [
+  ['aminoAcid', r => aminoAcid(r, { aa: 'lysine', shape: true }), (m, t) => m.parts({ ca: t / 2, amino: t / 3, r: t / 4 }).ionise(t / 4).focus(t > 2 ? ['amino'] : [], t / 5).glow('carboxyl', t / 3).labels(t / 3).counts(t / 5).hi('amino', t / 4)],
+  ['aminoAcid-badge', r => aminoAcid(r, { aa: 'glycine' }), (m, t) => m.rSwap('H', 'CH_3', t / 4, 'simple', 'hydroxy').ionise(t / 3).name(t / 2)],
+  ['sideChain', r => sideChain(r, 'histidine'), (m, t) => m.ion(t / 3).hi('ring', t / 4)],
+  ['aaChip', r => aaChip(r, 'Phe', { badge: 'star' }), (m, t) => m.badge(t / 2).split(t / 3).half(t / 4).dash(t / 5).glow(t / 3)],
+  ['aminoCard', r => aminoCard(r, { aa: 'lysine' }), (m, t) => m.build(t / 3).focus(t > 2 ? 'chemical' : null, t / 4).fill('structural', t / 4, 'aliphatic|basic', PC.basic).glow('metabolic', t / 5)],
+  ['peptideBond', r => peptideBond(r), (m, t) => m.form(t / 5)],
+  ['beadChain', r => beadChain(r, { n: 10, numbers: true, marks: { 2: '+' } }), (m, t) => m.reveal(t / 3).numbers(t / 4).curl(t / 6).cut(4, t / 5).swap(2, 'acidic', t / 4, 'Glu').glow(1, t / 3).lift(7, t / 5).readArrow(t / 4).focus(t > 3 ? [1, 2] : [], t / 6)],
+  ['beadChain-tangle', r => beadChain(r, { n: 10 }), (m, t) => m.tangle(t / 4).straighten(t / 6).cut(2, t / 3).cut(6, t / 4)],
+  ['backbone', r => backbone(r, { strands: 2, units: 4 }), (m, t) => m.draw(t / 2).atoms(t / 3).hbonds(t / 4).deltas(t / 5).rDim(t / 3).ends(t / 2)],
+  ['cysPair', r => cysPair(r), (m, t) => m.near(t / 3).bridge(t / 5).name(t / 4).glow(t / 5)],
+  ['hydrophobicCore', r => hydrophobicCore(r), (m, t) => m.fold(t / 4)],
+  ['alphaHelix', r => alphaHelix(r), (m, t) => m.draw(t / 2).bonds(t / 4).turnBracket(t / 3).tilt(t * 15).unwind(t > 4 ? t - 4 : 0).glow(2, t / 3)],
+  ['betaSheet', r => betaSheet(r), (m, t) => m.strands(t / 2).hbonds(t / 3).anti(t / 4).hairpin(t / 5).tags(t / 3)],
+  ['pleatSide', r => pleatSide(r), (m, t) => m.draw(t / 2).hbonds(t / 4)],
+  ['globule', r => globule(r, { pocket: true, beads: 8 }), (m, t) => m.fold(t / 3).tangle(t > 3 ? (t - 3) / 2 : 0).pocket(t / 4).partner(t / 5).lobe(1, t / 4).bonds({ peptide: t / 3, ss: t / 4, h: t / 5, salt: t / 5, core: t / 4 }).labels(t / 3)],
+  ['subunitComplex', r => subunitComplex(r, { n: 4, labels: ['1', '2', '3', '4'] }), (m, t) => m.pack(t / 3).contacts(t / 4).labels(t / 2).focus(t > 3 ? [1] : [], t / 5)],
+  ['hemoglobin', r => hemoglobin(r), (m, t) => m.apart(Math.abs(Math.sin(t))).hemes(t / 3)],
+  ['aggregate', r => aggregate(r), (m, t) => m.clump(t / 3).plaque(t / 5)],
+  ['levelsStrip', r => levelsStrip(r), (m, t) => m.build(t / 3).focus(t > 2 ? ['tertiary'] : [], t / 5).tags(t / 4).tick(2, t / 5).unfold(4, t / 4).unfold(3, t / 5).unfold(2, t / 5).glow(1, t / 4)],
+  ['levelsStrip-v', r => levelsStrip(r, { vertical: true }), (m, t) => m.build(t / 2).contents(t / 3).unfold('secondary', t / 5)],
+  ['proteinTree', r => proteinTree(r), (m, t) => m.grow(t / 3).leaves('conjugated', t / 4).leaves('simple', t / 5).focus(t > 2 ? 'derived' : null, t / 5).tick('simple', t / 4).glow('derived', t / 5).leafGlow('simple', 2, t / 3)],
+  ['prosthetic', r => prosthetic(r, 'heme'), (m, t) => m.toward([300, 100], t / 4).label(t / 3).glow(t / 5)],
+  ['collagenRope', r => collagenRope(r), (m, t) => m.draw(t / 2).loosen(t / 5)],
+  ['misfoldedChain', r => misfoldedChain(r), (m, t) => m.set(t / 3)],
+];
+window.replayCheck = () => {
+  const box = document.createElementNS(NSV, 'svg'), out = [];
+  document.body.append(box);
+  for (const [name, make, pose] of KIT_CASES) {
+    for (const [t1, t2] of [[.7, 2.2], [3.1, 1.4], [4.6, 4.9], [0, 5.5], [2.37, 2.37]]) {
+      const a = G(box), pa = make(a); pose(pa, t1); pose(pa, t2);
+      const b = G(box), pb = make(b); pose(pb, t2);
+      const c = G(box), pc = make(c); for (let u = 0; u < t2; u += 1 / 60) pose(pc, u); pose(pc, t2);
+      const A = a.innerHTML, B = b.innerHTML, C = c.innerHTML;
+      if (A !== B || C !== B) {
+        let i = 0; const X2 = A !== B ? A : C; while (i < B.length && X2[i] === B[i]) i++;
+        out.push(`${name} ${t1}→${t2} (${A !== B ? 't1,t2 vs t2' : 'stepped vs t2'}): …${B.slice(Math.max(0, i - 160), i + 80)} ≠ …${X2.slice(Math.max(0, i - 160), i + 80)}`);
+      }
+      a.remove(); b.remove(); c.remove();
+    }
+  }
+  box.remove();
+  return out;
+};
+const ONLY = new URLSearchParams(location.search).get('only');
+for (const [title, f] of SHEET) if (!ONLY || title === ONLY) { try { f(newPanel(title)); } catch (e) { console.error(title, e.stack); document.title = 'ERR ' + title + ': ' + e.message; } }
+</script>
+</body>
+</html>

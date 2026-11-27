@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 1, Lesson 2: Structural Classification: the Side Chains — Biochemistry</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid.text .opts { gap: 4px; } .screen .grid.text .opt { padding: 2px 9px; font-size: 17px; min-height: 36px; } .screen .grid.text .opt kbd { display: none; }
+.screen .grid.text .row { padding: 4px 0 4px 12px; row-gap: 0; } .screen .grid.text .why { font-size: 18px; line-height: 1.25; }</style><!-- all rows wrong: four rows and their why lines fit above Check -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/protein.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biochemistry, Chapter 1 (Amino Acids), lesson 2: structural classification by the side chain R. A box of building
+// bricks (same base, different tops) becomes the chapter's amino acid card with its Structural tab lit; one question
+// (an open chain or a ring?) splits the four families; the six aliphatic subgroups one by one (simple, hydroxy, sulfur
+// with cystine built from two cysteines, branched, acidic, basic); the rings (benzene, indole, imidazole, pyrrolidine);
+// a five-clue sort; the summary with the card's Structural tab filled; practice.
+// Plan, errata and beats: books/biochemistry/chapters/chapter-01/lesson-02.md.
+const CHAPTER = { number: 102, label: '1, lesson 2', title: 'Structural Classification: the Side Chains', minutes: 8, language: 'en', lead: false, next: '../lesson-03/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, weight: 700, ...o, o: 0 }); show(e, t0, .4); return e; };
+const italic = e => { e.setAttribute('font-style', 'italic'); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const frameBox = (g, x, y, w, h, { fill = '#0b1626', stroke = COL.faint, sw = 3, rx = 22, fo = 1 } = {}) => mk('rect', { x, y, width: w, height: h, rx, fill, 'fill-opacity': fo, stroke, 'stroke-width': sw }, g);
+// keyframes [[t, a, b, …], …]: eased (soft) between keys, held before the first and after the last
+function keyAt(t, K) {
+  if (t <= K[0][0]) return K[0].slice(1);
+  for (let i = 1; i < K.length; i++) if (t < K[i][0]) { const a = K[i - 1], b = K[i], f = soft((t - a[0]) / (b[0] - a[0])); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * f); }
+  return K[K.length - 1].slice(1);
+}
+// one text whose words change at given times [[t, str], …]: it fades out before each change and back in after, so two
+// words never share one spot; before the first time it is hidden
+function stepText(p, steps, { x = 0, y = 0, size = 28, fill = COL.chalk, anchor = 'middle', weight = 700 } = {}) {
+  const e = wChem(p, steps[0][1], { x, y, size, fill, anchor, weight, o: 0 });
+  return Object.assign(e, {
+    set(t) {
+      let i = -1; for (let j = 0; j < steps.length; j++) if (t >= steps[j][0]) i = j;
+      wChemSet(e, steps[Math.max(0, i)][1]);
+      const nx = steps[i + 1] ? steps[i + 1][0] : null;
+      mO(e, i < 0 ? 0 : mRamp(t, steps[i][0], steps[i][0] + .3) * (nx == null ? 1 : 1 - mRamp(t, nx - .3, nx)));
+      return e;
+    },
+  });
+}
+// a dark pill with text, origin at its centre
+function pill(p, str, { x = 0, y = 0, size = 26, fill = COL.chalk, edge = COL.chalk, o = 1 } = {}) {
+  const g = G(p, { x, y, o }), ww = Math.round(uiW(str.replace(/[_^]/g, ''), size) * 1.1 + 34), hh = size + 20;
+  mk('rect', { x: -ww / 2, y: -hh / 2, width: ww, height: hh, rx: hh / 2, fill: '#0b1626', stroke: edge, 'stroke-width': 3 }, g);
+  wChem(g, str, { y: size * .36, size, fill, weight: 700, o: 1 });
+  return Object.assign(g, { w: ww });
+}
+// the four structural families as filled chips (the kit's chip with a plain label)
+const FAM = { aliphatic: ['#f2efe6', 'aliphatic'], aromatic: [PC.aromatic, 'aromatic'], hetero: [PC.hetero, 'heterocyclic'], imino: [PC.imino, 'imino'] };
+const famChip = (p, key, { x = 0, y = 0, size = 26, o = 1 } = {}) => aaChip(p, FAM[key][1], { x, y, size, color: FAM[key][0], o });
+// the six aliphatic subgroups, a to f, as lettered dots in their class colours
+const SUBS = [['a', 'simple'], ['b', 'hydroxy'], ['c', 'sulfur'], ['d', 'branched'], ['e', 'acidic'], ['f', 'basic']];
+function subDot(p, i, { x = 0, y = 0, r = 22, name = false, nameSize = 22, o = 1 } = {}) {
+  const [l, cls] = SUBS[i], g = G(p, { x, y, o });
+  const glow = mk('circle', { r: r + 10, fill: PC.glow, 'fill-opacity': .3 }, g); put(glow, { o: 0 });
+  mk('circle', { r, fill: PC[cls], stroke: PC.ink, 'stroke-width': 2.5 }, g);
+  wLabel(g, l, { y: r * .36, size: Math.round(r * 1.05), fill: PC.ink, weight: 800, o: 1 });
+  if (name) wLabel(g, cls, { y: r + nameSize + 6, size: nameSize, fill: PC[cls], weight: 700, o: 1 });
+  return Object.assign(g, { glow });
+}
+// an amino acid drawn as atoms (the kit's aminoAcid, shape mode) with its name under it, in a wrapper G at (x, y)
+function acid(p, name, x, y, { s = .75, nameSize = 26, o = 0, label = true } = {}) {
+  const g = G(p, { x, y, o });
+  const a = aminoAcid(g, { aa: name, shape: true, s });
+  if (label) wLabel(g, pAA(name).name, { y: 125 * s + 26, size: nameSize, weight: 700, o: 1 });
+  return Object.assign(g, { a });
+}
+// a point of an amino acid's side chain (bond units [ux, uy] from the kit's layout) in its wrapper's frame
+const scPt = (s, [ux, uy], b = 56) => [ux * b * s, (uy * b - 62) * s];
+// a small charge badge
+function chargeBadge(p, sign, x, y, { r = 14, o = 0 } = {}) {
+  const g = G(p, { x, y, o });
+  mk('circle', { r, fill: sign === '+' ? PC.basic : PC.acidic, stroke: PC.ink, 'stroke-width': 2.5 }, g);
+  path(g, sign === '+' ? `M${-r * .55} 0H${r * .55}M0 ${-r * .55}V${r * .55}` : `M${-r * .55} 0H${r * .55}`, { stroke: PC.ink, 'stroke-width': 3.5 });
+  return g;
+}
+// a ring round a branch point (the fork), origin at the point
+function forkMark(p, x, y, { r = 24, color = PC.branched } = {}) {
+  const g = G(p, { x, y, o: 0 });
+  mk('circle', { r, fill: color, 'fill-opacity': .15, stroke: color, 'stroke-width': 4 }, g);
+  return g;
+}
+// a heading over one or two amino acids: the subgroup's name and a bar under it from x1 to x2
+function groupHead(p, str, color, x1, x2, y, t0) {
+  const g = G(p, { o: 0 }); show(g, t0, .4);
+  wLabel(g, str, { x: (x1 + x2) / 2, y, size: 34, fill: color, weight: 800, o: 1 });
+  path(g, `M${x1} ${y + 22}H${x2}`, { stroke: color, 'stroke-width': 4, 'stroke-opacity': .6 });
+  return g;
+}
+// the big benzene ring of the rings beat: a hexagon of carbons with its three double bonds drawn on (alternating)
+function benzeneBig(p, x, y, R = 72) {
+  const g = G(p, { x, y }), f = v => v.toFixed(1);
+  const V = [0, 1, 2, 3, 4, 5].map(i => { const a = (-90 + 60 * i) * Math.PI / 180; return [R * Math.cos(a), R * Math.sin(a)]; });
+  const hex = path(g, 'M' + V.map(q => f(q[0]) + ' ' + f(q[1])).join('L') + 'Z', { fill: PC.aromatic, 'fill-opacity': .15, stroke: PC.aromatic, 'stroke-width': 6 }, { d: 0 });
+  let dd = '';
+  [0, 2, 4].forEach(i => {
+    const a = V[i], b = V[(i + 1) % 6], k = .76, A = [a[0] * k, a[1] * k], B = [b[0] * k, b[1] * k];
+    const at = u => [A[0] + (B[0] - A[0]) * u, A[1] + (B[1] - A[1]) * u], P1 = at(.12), P2 = at(.88);
+    dd += `M${f(P1[0])} ${f(P1[1])}L${f(P2[0])} ${f(P2[1])}`;
+  });
+  const dbl = path(g, dd, { stroke: PC.aromatic, 'stroke-width': 5 }, { d: 0 });
+  const balls = G(g, { o: 0 });
+  V.forEach(q => mk('circle', { cx: f(q[0]), cy: f(q[1]), r: 10, fill: PC.C, stroke: PC.CEdge, 'stroke-width': 2 }, balls));
+  return Object.assign(g, { hex, dbl, balls });
+}
+// an open zigzag chain of carbons (no ring), centred on (x, y)
+function zigzag(p, x, y, { n = 6, sp = 46, h = 26 } = {}) {
+  const g = G(p, { x, y }), pts = Array.from({ length: n }, (_, i) => [(i - (n - 1) / 2) * sp, (i % 2 ? -1 : 1) * h / 2]);
+  path(g, 'M' + pts.map(q => q[0] + ' ' + q[1]).join('L'), { stroke: PC.stick, 'stroke-width': 6 });
+  pts.forEach(q => mk('circle', { cx: q[0], cy: q[1], r: 12, fill: PC.C, stroke: PC.CEdge, 'stroke-width': 2 }, g));
+  return g;
+}
+
+/* ---------- intro backdrop: a box of building bricks ---------- */
+const BRICK_TOPS = ['simple', 'hydroxy', 'sulfur', 'branched', 'aromatic', 'imino'];
+// one brick: the same base and studs underneath; a top shape in a class colour (o 0 until it pops). Origin = base top centre.
+function brick(p, kind, x, y) {
+  const g = G(p, { x, y });
+  [-52, 0, 52].forEach(dx => mk('rect', { x: dx - 17, y: 66, width: 34, height: 16, rx: 5, fill: '#8796ad', stroke: '#33415a', 'stroke-width': 2.5 }, g));
+  const studGlow = mk('rect', { x: -80, y: 58, width: 160, height: 32, rx: 12, fill: 'none', stroke: PC.glow, 'stroke-width': 3.5 }, g); put(studGlow, { o: 0 });
+  mk('rect', { x: -85, y: 0, width: 170, height: 72, rx: 10, fill: '#6b7d99', stroke: '#33415a', 'stroke-width': 3 }, g);
+  mk('rect', { x: -74, y: 9, width: 148, height: 9, rx: 4.5, fill: '#ffffff', 'fill-opacity': .18 }, g);
+  const top = G(g, { o: 0, s: .2 }), c = PC[kind], e = { stroke: PC.ink, 'stroke-width': 3 };
+  if (kind === 'simple') { mk('rect', { x: -10, y: -16, width: 20, height: 16, fill: c, ...e }, top); mk('circle', { cy: -40, r: 26, fill: c, ...e }, top); }
+  else if (kind === 'hydroxy') { mk('rect', { x: -15, y: -46, width: 30, height: 46, rx: 4, fill: c, ...e }, top); mk('circle', { cy: -58, r: 15, fill: PC.O, ...e }, top); }
+  else if (kind === 'sulfur') path(top, 'M-36 0L0 -62L36 0Z', { fill: c, ...e });
+  else if (kind === 'branched') { path(top, 'M0 0V-30L-28 -60M0 -30L28 -60', { stroke: PC.ink, 'stroke-width': 18 }); path(top, 'M0 0V-30L-28 -60M0 -30L28 -60', { stroke: c, 'stroke-width': 12 }); }
+  else if (kind === 'aromatic') { const V = [0, 1, 2, 3, 4, 5].map(i => { const a = (-90 + 60 * i) * Math.PI / 180; return [(30 * Math.cos(a)).toFixed(1), (-32 + 30 * Math.sin(a)).toFixed(1)]; }); path(top, 'M' + V.map(q => q.join(' ')).join('L') + 'Z', { fill: c, ...e }); }
+  else { const V = [0, 1, 2, 3, 4].map(i => { const a = (-90 + 72 * i) * Math.PI / 180; return [(31 * Math.cos(a)).toFixed(1), (-29 + 31 * Math.sin(a)).toFixed(1)]; }); path(top, 'M' + V.map(q => q.join(' ')).join('L') + 'Z', { fill: c, ...e }); }
+  return Object.assign(g, { top, studGlow });
+}
+function brickBox(p) {
+  const g = G(p);
+  frameBox(g, 110, 300, 780, 490, { fill: '#6e5034', stroke: '#3e2b19', sw: 5, rx: 16 });
+  frameBox(g, 132, 322, 736, 446, { fill: '#4a3522', stroke: '#3e2b19', sw: 3, rx: 10 });
+  const bricks = BRICK_TOPS.map((k, i) => brick(g, k, 240 + (i % 3) * 260, 420 + Math.floor(i / 3) * 220));
+  frameBox(g, 110, 730, 780, 60, { fill: '#8a6845', stroke: '#3e2b19', sw: 5, rx: 10 });
+  return { g, bricks };
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'Bricks: the same base, different tops', (m, D) => {
+  const p = panel(0), tB = m('bricks'), tT = m('top'), tC = m('card'), tF = m('four');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  // the box of bricks tilts into view
+  const bx = G(W, { x: 500, y: 545, o: 0, s: .88, r: -7 }), inner = G(bx, { x: -500, y: -545 });
+  tw(bx, { o: 1, s: 1, r: 0 }, tB - .2, 1.3, out);
+  const { bricks } = brickBox(inner);
+  bricks.forEach((b, i) => { put(b.top, { s: .2, o: 0 }); pop(b.top, 12.7 + i * .28); });
+  // title
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOCHEMISTRY · CHAPTER 1 · LESSON 2', { x: 1250, y: 250, size: 24, fill: COL.dim, o: 1 });
+  ['Structural', 'classification:', 'the side chains'].forEach((s, i) => wLabel(ttl, s, { x: 1250, y: 335 + i * 64, size: 50, o: 1 }));
+  wLabel(ttl, 'Amino acids', { x: 1250, y: 560, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tT - .6, .5);
+  // top: one brick lifts out and grows; the others dim
+  const b0 = bricks[0];
+  tw(b0, { x: 1200, y: 470, s: 1.7 }, tT + .1, 1.6);
+  bricks.slice(1).forEach(b => tw(b, { o: .35 }, tT + .3, .6));
+  const lb = G(W, { o: 0 }); show(lb, tT + 2.2, .5);
+  wLabel(lb, 'backbone: the same', { x: 1200, y: 660, size: 32, weight: 800, o: 1 });
+  const lb2 = G(W, { o: 0 }); show(lb2, tT + 3.4, .5);
+  wChem(lb2, 'NH_2 · Cα · H · COOH', { x: 1200, y: 702, size: 26, fill: COL.dim, weight: 700, o: 1 });
+  const lt = G(W, { o: 0 }); show(lt, tT + 8.8, .5);
+  wLabel(lt, 'side chain R: different', { x: 1200, y: 330, size: 32, fill: PC.simple, weight: 800, o: 1 });
+  // card: the camera pushes into the brick, which becomes the amino acid card
+  cam.to({ x: 1200, y: 480, z: 2.4 }, tC - .4, 1.4);
+  hide(cam.el, tC + .4, .6);
+  const cw = G(p, { x: 800, y: 480, s: .66 }), card = aminoCard(cw, { x: 0, y: 0 });
+  // four: the four family chips slide out of the Structural tab to a row above it
+  const FX = [380, 650, 950, 1230], tab = [800, 480 - 351 * .66 - 8];   // start at the Structural tab's top edge
+  const fams = ['aliphatic', 'aromatic', 'hetero', 'imino'].map(k => famChip(p, k, { x: tab[0], y: tab[1], size: 28, o: 0 }));
+  const sub = G(p, { o: 0 }); show(sub, tF + 5.5, .4);   // after the chips have passed it
+  wLabel(sub, 'four families, by the shape of R', { x: 800, y: 168, size: 24, fill: COL.dim, weight: 600, o: 1 });
+  clockRun(t => {
+    bricks.forEach(b => mO(b.studGlow, mBump(t, 7.4, 12.4)));
+    card.build(mRamp(t, tC + .6, tC + 3.2));
+    card.focus(['structural'], io(mRamp(t, tC + 2.8, tC + 3.6)));
+    card.glow('structural', mBump(t, tC + 2.8, tC + 6.4));
+    card.aa.glow('r', mBump(t, tC + 5.2, tC + 7.8));
+    fams.forEach((c, i) => {
+      const t0 = tF + 2.4 + i * .75, k = io(mRamp(t, t0, t0 + .8));
+      mPose(c, mLerp(tab[0], FX[i], k), mLerp(tab[1], 110, k), mRamp(t, t0, t0 + .25));
+    });
+  }, D);
+}],
+
+/* ---------- families ---------- */
+['families', 'One question: an open chain or a ring?', (m, D) => {
+  const p = panel(0), tO = m('open'), tA = m('ali'), tR = m('aro'), tH = m('het'), tI = m('imi');
+  const cw = G(p, { x: 300, y: 470, s: .36 }), card = aminoCard(cw, { x: 0, y: 0 });
+  say(p, 'an open chain, or a ring?', 1080, 110, tO + 2.2, { size: 38 });
+  const root = pill(p, 'side chain R', { x: 700, y: 450, size: 28, edge: PC.simple, o: 0 }); show(root, tO, .4);
+  const up = path(p, 'M800 450C880 450 860 250 950 250', { stroke: COL.chalk, 'stroke-width': 4 }, { d: 0 }); draw(up, tO + .4, .9);
+  const dn = path(p, 'M800 450C880 450 880 660 960 660', { stroke: COL.chalk, 'stroke-width': 4 }, { d: 0 }); draw(dn, tO + .4, .9);
+  say(p, 'no ring', 846, 318, tO + 3, { size: 26, anchor: 'end' });
+  say(p, 'ring', 856, 640, tO + 3.6, { size: 26, anchor: 'end' });
+  const trunk = path(p, 'M960 520V800M960 520H985M960 660H985M960 800H985', { stroke: COL.chalk, 'stroke-width': 4 }, { d: 0 }); draw(trunk, tR - .4, .6);
+  // aliphatic: an open chain, six subgroups
+  const ali = famChip(p, 'aliphatic', { x: 1045, y: 250, size: 28, o: 0 }); show(ali, tA, .4);
+  say(p, 'open chain', 1045, 306, tA + .5, { size: 22, fill: COL.dim, weight: 600 });
+  const dots = SUBS.map((_, i) => { const d = subDot(p, i, { x: 1195 + i * 62, y: 250, r: 23, o: 0 }); show(d, tA + 3.1 + i * .12, .3); return d; });
+  void dots;
+  say(p, 'six subgroups, a to f', 1350, 312, tA + 3.4, { size: 22, fill: COL.dim, weight: 600 });
+  // the rings
+  const leaf = (kind, fam, cx, y, str, t0) => {
+    const r = ring(p, kind, { x: 1030, y, b: 24, o: 0 }); show(r, t0, .4);
+    const c = famChip(p, fam, { x: cx, y, size: 26, o: 0 }); show(c, t0 + .2, .4);
+    say(p, str, cx + c.w / 2 + 18, y + 8, t0 + .6, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+    return { r, c };
+  };
+  leaf('benzene', 'aromatic', 1160, 520, 'benzene ring', tR);
+  const het = leaf('imidazole', 'hetero', 1178, 660, 'a ring holding N', tH);
+  const imi = leaf('pyrrolidine', 'imino', 1140, 800, 'the amino N is in the ring', tI);
+  pulse(imi.c, tI + 4.2, 1.2);
+  clockRun(t => {
+    card.focus(['structural'], 1);
+    card.aa.glow('r', mBump(t, tO, tO + 4));
+    het.r.nHi(mBump(t, tH + 2.4, tH + 5.6));
+    imi.r.nHi(mRamp(t, tI + 2.4, tI + 3));
+  }, D);
+}],
+
+/* ---------- simple and hydroxy ---------- */
+['simple', 'a. simple and b. hydroxy-containing', (m, D) => {
+  const p = panel(0), tG = m('gly'), tA = m('ala'), tS = m('ser'), tT = m('thr');
+  famChip(p, 'aliphatic', { x: 120, y: 56, size: 22 });
+  const X = [250, 610, 990, 1350], Y = 600, s = .78;
+  groupHead(p, 'a. simple', PC.simple, X[0] - 130, X[1] + 130, 170, tG + .2);
+  groupHead(p, 'b. hydroxy-containing', PC.hydroxy, X[2] - 130, X[3] + 130, 170, tS + .2);
+  const [gly, ala, ser, thr] = ['glycine', 'alanine', 'serine', 'threonine'].map((n, i) => acid(p, n, X[i], Y, { s }));
+  show(gly, tG + 1.5, .5); show(ala, tA, .5); show(ser, tS + 2.6, .5); show(thr, tT, .5);
+  say(p, 'R = H: the smallest', X[0], 775, tG + 6.6, { size: 24, fill: PC.simple });
+  say(p, 'R = CH_3, a methyl group', X[1], 775, tA + 2.2, { size: 24, fill: PC.simple });
+  say(p, 'CH_2 + OH', X[2], 775, tS + 3.6, { size: 24, fill: PC.hydroxy });
+  say(p, 'two carbons + OH', X[3], 775, tT + 2.4, { size: 24, fill: PC.hydroxy });
+  say(p, 'OH = hydroxy, as in an alcohol', (X[2] + X[3]) / 2, 236, tT + 4.4, { size: 24, fill: COL.dim, weight: 600 });
+  clockRun(t => {
+    gly.a.hi('H', mBump(t, tG + 3.9, tG + 8.6));
+    ala.a.hi('C', mBump(t, tA + .3, tA + 4));
+    ser.a.hi('OH', mRamp(t, tS + 3.4, tS + 3.9));
+    thr.a.hi('OH', mRamp(t, tT + .6, tT + 1.1));
+  }, D);
+}],
+
+/* ---------- sulfur ---------- */
+['sulfur', 'c. sulfur-containing, and cystine', (m, D) => {
+  const p = panel(0), tC = m('cys'), tM = m('met'), tP = m('pair'), tS = m('ss'), tN = m('note');
+  famChip(p, 'aliphatic', { x: 120, y: 56, size: 22 });
+  groupHead(p, 'c. sulfur-containing', PC.sulfur, 520, 1080, 110, tC + .2);
+  const s = .85;
+  const A = G(p, { o: 1 });
+  const cys = acid(A, 'cysteine', 450, 600, { s }), met = acid(A, 'methionine', 1150, 600, { s });
+  show(cys, tC + 1.6, .5); show(met, tM, .5);
+  const [shx, shy] = scPt(s, [.75, -2]), [msx, msy] = scPt(s, [.6, -2.6]);
+  say(A, 'sulfhydryl group', 450 + shx + 42, 600 + shy - 6, tC + 4.2, { size: 26, fill: PC.sulfur, anchor: 'start' });
+  say(A, 'SH: a sulfur with an H', 450 + shx + 42, 600 + shy + 24, tC + 5, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  say(A, 'S inside the chain', 1150 + msx + 40, 600 + msy - 4, tM + 2.6, { size: 26, fill: PC.sulfur, anchor: 'start' });
+  say(A, 'a methyl on the end, no H on S', 1150 + msx + 40, 600 + msy + 26, tM + 4, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  hide(A, tP - .4, .5);
+  // pair and ss: two cysteines, their SH hydrogens leave, the S–S bridge forms: cystine
+  const cpw = G(p, { x: 640, y: 480, s: .85, o: 0 }); show(cpw, tP + .3, .5);
+  const cp = cysPair(cpw, {});
+  const nm = stepText(p, [[tP + .6, 'cystine ?'], [tS + 9.2, 'cystine = two cysteines']], { x: 1230, y: 300, size: 36, fill: PC.sulfur });
+  const nm2 = stepText(p, [[tP + 1.2, 'spelled c-y-s-t-i-n-e'], [tS + 9.6, 'joined by a disulfide bridge']], { x: 1230, y: 345, size: 24, fill: COL.dim, weight: 600 });
+  italic(say(p, 'on the slide’s sulfur list', 1230, 590, tN + .2, { size: 22, fill: COL.dim, weight: 600 }));
+  say(p, 'S–S bridges hold proteins in shape (chapter 3)', 1230, 628, tN + 3.2, { size: 22, fill: PC.ss, weight: 600 });
+  clockRun(t => {
+    cys.a.hi('SH', mBump(t, tC + 2.6, tC + 8.4));
+    met.a.hi('S', mBump(t, tM + 2, tM + 6.2));
+    cp.near(mRamp(t, tP + .3, tP + 2.4)).bridge(mRamp(t, tS + 1.6, tS + 8.2));
+    cp.glow(mBump(t, tS, tS + 2)).name(mRamp(t, tS + 8.9, tS + 9.4));
+    nm.set(t); nm2.set(t);
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'c. sulfur-containing', { x: 320, y: 120, size: 32, weight: 800, fill: PC.sulfur, o: 1 });
+  const cpw = G(p, { x: 300, y: 470, s: .8 });
+  cysPair(cpw, {}).bridge(1).name(1);
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-cystine', prompt: ['What is cystine made of?'],
+  build: choice([['one cysteine and one methionine'], ['two cysteines joined by a disulfide (S–S) bridge'], ['two methionines'], ['one cysteine with an extra S']], 1,
+    'Right. Each cysteine loses the H of its SH group, and the two sulfurs join: an S–S (disulfide) bridge.',
+    ['Methionine’s sulfur sits inside its chain with no H on it, so it cannot form the bridge. Cystine is two cysteines.', null,
+      'Methionine has no SH group. The bridge forms between two SH groups, so both partners are cysteine.',
+      'Cystine is two whole amino acids joined, not one with an extra atom: two cysteines, S–S.']),
+}], done) }],
+
+/* ---------- branched ---------- */
+['branched', 'd. branched-chain', (m, D) => {
+  const p = panel(0), tV = m('val'), tL = m('leu'), tI = m('ile'), tT = m('three');
+  famChip(p, 'aliphatic', { x: 120, y: 56, size: 22 });
+  groupHead(p, 'd. branched-chain', PC.branched, 520, 1080, 110, tV + .2);
+  const X = [300, 800, 1300], Y = 640, s = .85;
+  const [val, leu, ile] = ['valine', 'leucine', 'isoleucine'].map((n, i) => acid(p, n, X[i], Y, { s }));
+  show(val, tV + 1.8, .5); show(leu, tV + 2.6, .5); show(ile, tV + 3.4, .5);
+  const c1 = scPt(s, [0, -1]), c2 = scPt(s, [.6, -1.8]);
+  const fV = forkMark(p, X[0] + c1[0], Y + c1[1]), fL = forkMark(p, X[1] + c2[0], Y + c2[1]), fI = forkMark(p, X[2] + c1[0], Y + c1[1]);
+  show(fV, tV + 5.2, .4); show(fL, tL + 3, .4); show(fI, tI + 3.4, .4);
+  // leucine's extra CH₂ before the fork
+  const ex = G(p, { x: X[1] + c1[0], y: Y + c1[1], o: 0 });
+  mk('circle', { r: 22, fill: 'none', stroke: COL.chalk, 'stroke-width': 4, 'stroke-dasharray': '6 5' }, ex);
+  wChem(ex, '+ CH_2', { x: -34, y: 8, size: 24, fill: COL.chalk, weight: 800, anchor: 'end', o: 1 });
+  say(p, 'one fork: a Y', X[0], 830, tV + 7.2, { size: 24, fill: PC.branched });
+  say(p, 'CH_2, then the fork', X[1], 830, tL + 1.4, { size: 24, fill: PC.branched });
+  say(p, 'the fork next to Cα', X[2], 830, tI + 3.6, { size: 24, fill: PC.branched });
+  const iso = G(p, { o: 0 });
+  path(iso, `M${X[1]} 300V280H${X[2]}V300`, { stroke: COL.dim, 'stroke-width': 3 });
+  wLabel(iso, 'same atoms, different arrangement', { x: (X[1] + X[2]) / 2, y: 262, size: 26, weight: 700, o: 1 });
+  const fin = G(p, { o: 0 }); show(fin, tT + 2.2, .5);
+  frameBox(fin, 560, 172, 480, 54, { stroke: PC.branched, sw: 3, rx: 27 });
+  wLabel(fin, 'carbon and hydrogen only', { x: 800, y: 208, size: 26, fill: PC.branched, weight: 800, o: 1 });
+  [fV, fL, fI].forEach((f, i) => pulse(f, tT + .4 + i * .3, 1.3));
+  clockRun(t => {
+    mO(ex, mBump(t, tL + .3, tL + 4.1) * (.6 + .4 * Math.cos(2 * Math.PI * (t - tL) / .9)));
+    mO(iso, mRamp(t, tI + .8, tI + 1.3) * (1 - .6 * mRamp(t, tT, tT + .5)));
+  }, D);
+}],
+
+/* ---------- charged ---------- */
+['charged', 'e. acidic and f. basic', (m, D) => {
+  const p = panel(0), tA = m('asp'), tG = m('glu'), tR = m('arg'), tS = m('six');
+  famChip(p, 'aliphatic', { x: 120, y: 56, size: 22 });
+  const P1 = G(p);
+  const X = [230, 610, 1000, 1380], Y = 640, s = .66;
+  groupHead(P1, 'e. acidic', PC.acidic, X[0] - 120, X[1] + 120, 130, tA + 2.7);
+  groupHead(P1, 'f. basic', PC.basic, X[2] - 120, X[3] + 120, 130, tR);
+  const [asp, glu, arg, lys] = ['aspartic acid', 'glutamic acid', 'arginine', 'lysine'].map((n, i) => acid(P1, n, X[i], Y, { s }));
+  show(asp, tA + 2.8, .5); show(glu, tG, .5); show(arg, tR + .4, .5); show(lys, tR + 4.4, .5);
+  const pA = scPt(s, [.75, -2.05]), pG = scPt(s, [0, -2.9]), pK = scPt(s, [0, -4.5]), pR = scPt(s, [1.2, -5]);
+  const bA = chargeBadge(P1, '−', X[0] + pA[0] + 40, Y + pA[1] - 18), bG = chargeBadge(P1, '−', X[1] + pG[0] + 40, Y + pG[1] - 18);
+  const bR = chargeBadge(P1, '+', X[2] + pR[0] + 32, Y + pR[1] - 20), bK = chargeBadge(P1, '+', X[3] + pK[0] + 40, Y + pK[1] - 18);
+  show(bA, tA + 6.6, .3); show(bG, tG + .6, .3); show(bR, tR + 4, .3); show(bK, tR + 7.6, .3);
+  say(P1, 'a short arm', X[0], 800, tA + 8.8, { size: 22, fill: PC.acidic });
+  say(P1, 'one carbon longer', X[1], 800, tG + .5, { size: 22, fill: PC.acidic });
+  say(P1, 'an N-rich end', X[2], 800, tR + 2.6, { size: 22, fill: PC.basic });
+  say(P1, 'four carbons, then NH_2', X[3], 800, tR + 6.2, { size: 22, fill: PC.basic });
+  hide(P1, tS - .2, .5);
+  // six: the six subgroups, a to f
+  const hd = G(p, { o: 0 }); show(hd, tS + .3, .5);
+  wLabel(hd, 'aliphatic: six subgroups', { x: 800, y: 170, size: 38, weight: 800, o: 1 });
+  SUBS.forEach((_, i) => { const d = subDot(p, i, { x: 800 + (i - 2.5) * 200, y: 420, r: 56, name: true, nameSize: 30, o: 0 }); show(d, tS + 1.6 + i * .82, .4); pulse(d, tS + 1.6 + i * .82, 1.15); });
+  say(p, 'six, from a to f', 800, 650, tS + 6.8, { size: 40, fill: PC.simple });
+  clockRun(t => {
+    asp.a.side.hi('COOH', mRamp(t, tA + 6.1, tA + 6.6));
+    glu.a.side.hi('COOH', mRamp(t, tG + .5, tG + 1));
+    arg.a.side.hi('NH2', mRamp(t, tR + 3.6, tR + 4.1));
+    arg.a.side.hi('N', mRamp(t, tR + 3.6, tR + 4.1));
+    lys.a.side.hi('NH2', mRamp(t, tR + 7.2, tR + 7.7));
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'a second carboxyl group', { x: 320, y: 150, size: 30, weight: 800, fill: PC.acidic, o: 1 });
+  wLabel(p, 'in the side chain', { x: 320, y: 190, size: 26, weight: 600, fill: COL.dim, o: 1 });
+  const g = G(p, { x: 320, y: 600 });
+  const a = aminoAcid(g, { aa: 'glutamic acid', shape: true, s: .8 });
+  a.side.hi('COOH', 1);
+  wLabel(p, '?', { x: 420, y: 400, size: 64, weight: 800, fill: PC.simple, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-acidic', prompt: ['A side chain ends in a second carboxyl group (COOH). Is the amino acid acidic or basic?'],
+  build: choice([['acidic'], ['basic']], 0,
+    'Right. A carboxyl group is an acid group: aspartic acid and glutamic acid are the acidic subgroup, e.',
+    ['Basic side chains end in nitrogen groups (an amino group in lysine, an N-rich group in arginine). A second COOH makes it acidic.']),
+}], done) }],
+
+/* ---------- rings ---------- */
+['rings', 'The rings: aromatic, heterocyclic, imino', (m, D) => {
+  const p = panel(0), tB = m('benz'), tY = m('tyr'), tI = m('indole'), tM = m('imid'), tN = m('note'), tP = m('pro');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const PX = [40, 550, 1060];
+  PX.forEach(x => frameBox(W, x, 70, 500, 810, { stroke: COL.faint, sw: 2.5 }));
+  const heads = ['aromatic', 'hetero', 'imino'].map((k, i) => famChip(W, k, { x: PX[i] + 250, y: 120, size: 28 }));
+  // panel 1: benzene; phenylalanine; tyrosine and the phenol group
+  const bz = benzeneBig(W, 290, 270);
+  draw(bz.hex, tB + .5, 1); show(bz.balls, tB + .9, .4); draw(bz.dbl, tB + 4, 1.2);
+  say(W, 'benzene ring', 290, 388, tB + 1.4, { size: 28, fill: PC.aromatic });
+  say(W, 'six C, alternating double bonds', 290, 420, tB + 4.6, { size: 20, fill: COL.dim, weight: 600 });
+  const phe = acid(W, 'phenylalanine', 170, 700, { s: .5, nameSize: 24 }); show(phe, tB + 7, .5);
+  const tyr = acid(W, 'tyrosine', 410, 700, { s: .5, nameSize: 24 }); show(tyr, tY + .2, .5);
+  say(W, 'CH_2 arm', 150, 646, tB + 7.6, { size: 20, fill: COL.dim, anchor: 'end' });
+  say(W, 'phenol group', 384, 498, tY + 4.5, { size: 24, fill: PC.aromatic, anchor: 'end' });
+  say(W, '= benzene ring + OH', 384, 524, tY + 5, { size: 18, fill: COL.dim, weight: 600, anchor: 'end' });
+  // panel 2: indole (tryptophan), imidazole (histidine)
+  const ind = ring(W, 'indole', { x: 690, y: 262, b: 36, o: 0 }); show(ind, tI + 1.2, .5);
+  say(W, 'indole ring', 690, 380, tI + 1.6, { size: 26, fill: PC.hetero });
+  say(W, 'two rings, one N–H', 690, 410, tI + 6, { size: 18, fill: COL.dim, weight: 600 });
+  const imd = ring(W, 'imidazole', { x: 925, y: 262, b: 36, o: 0 }); show(imd, tM + .2, .5);
+  say(W, 'imidazole ring', 925, 380, tM + .6, { size: 26, fill: PC.hetero });
+  say(W, 'five-sided, two N', 925, 410, tM + 2.6, { size: 18, fill: COL.dim, weight: 600 });
+  const trp = acid(W, 'tryptophan', 690, 700, { s: .5, nameSize: 24 }); show(trp, tI + 2.2, .5);
+  const his = acid(W, 'histidine', 925, 700, { s: .5, nameSize: 24 }); show(his, tM + .8, .5);
+  italic(say(W, 'some books: tryptophan is aromatic,', 800, 840, tN + .3, { size: 20, fill: COL.dim, weight: 600 }));
+  italic(say(W, 'and histidine is also basic', 800, 866, tN + 2.4, { size: 20, fill: COL.dim, weight: 600 }));
+  // panel 3: pyrrolidine; proline, whose amino N is in the ring
+  const pyr = ring(W, 'pyrrolidine', { x: 1310, y: 262, b: 44, o: 0 }); show(pyr, tP + 1.5, .5);
+  say(W, 'pyrrolidine ring', 1310, 380, tP + 2, { size: 26, fill: PC.imino });
+  say(W, 'five-sided, one N', 1310, 410, tP + 2.6, { size: 18, fill: COL.dim, weight: 600 });
+  const pro = acid(W, 'proline', 1310, 690, { s: .62, nameSize: 26 }); show(pro, tP + .4, .5);
+  const nIn = G(W, { o: 0 }); show(nIn, tP + 6.4, .4);
+  mArrow(nIn, [1222, 818], [1222, 724], { color: PC.imino, w: 4, head: 14 });
+  wLabel(nIn, 'N is in the ring', { x: 1222, y: 850, size: 24, fill: PC.imino, weight: 800, o: 1 });
+  pulse(heads[2], tP + 10.9, 1.25);
+  // camera: a gentle push onto each panel in turn
+  cam.to({ x: 696, y: 485, z: 1.15 }, tB + .2, 1.6);
+  cam.to({ x: 800, y: 480, z: 1.08 }, tI - .2, 1.6);
+  cam.to({ x: 800, y: 450, z: 1 }, tN + .2, 1.4);
+  cam.to({ x: 810, y: 480, z: 1.05 }, tP - .2, 1.6);   // panel 1's names stay inside the frame
+  cam.to({ x: 800, y: 450, z: 1 }, tP + 11, 1.6);
+  clockRun(t => {
+    tyr.a.side.hi('OH', mRamp(t, tY + .8, tY + 1.3));
+    ind.nHi(mBump(t, tI + 5.4, tI + 8.6));
+    imd.nHi(mBump(t, tM + 2.4, tM + 5));
+    pyr.nHi(mBump(t, tP + 2.4, tP + 5));
+    pro.a.glow('amino', mRamp(t, tP + 6.2, tP + 6.8));
+  }, D);
+}],
+
+/* ---------- sort ---------- */
+['sort', 'Spot the class: two questions', (m, D) => {
+  const p = panel(0), S5 = [m('s1'), m('s2'), m('s3'), m('s4'), m('s5')];
+  wLabel(p, 'Spot the class', { x: 800, y: 74, size: 38, weight: 800, o: 1 });
+  const Y = [250, 372, 494, 616, 738];
+  const COLX = { clue: 150, txt: 230, q1: 820, q2: 1100, aa: 1410 };
+  wLabel(p, 'clue', { x: 330, y: 166, size: 24, fill: COL.dim, weight: 700, o: 1 });
+  say(p, '1. a ring?', COLX.q1, 166, 2.5, { size: 28, fill: COL.chalk });
+  say(p, '2. what is in it?', COLX.q2, 166, 4.4, { size: 28, fill: COL.chalk });
+  say(p, 'amino acid', COLX.aa, 166, 5.4, { size: 24, fill: COL.dim });
+  const his = Y.map(y => { const r = frameBox(p, 70, y - 56, 1460, 112, { fill: PC.glow, fo: .07, stroke: PC.glow, sw: 2, rx: 16 }); put(r, { o: 0 }); return r; });
+  Y.slice(1).forEach(y => path(p, `M90 ${y - 61}H1510`, { stroke: COL.faint, 'stroke-width': 2, 'stroke-opacity': .6 }));
+  // the clues
+  const clue = [
+    g => sideChain(g, 'glycine', { x: COLX.clue, y: Y[0] + 26, b: 48 }),
+    g => sideChain(g, 'glutamic acid', { x: COLX.clue, y: Y[1] + 46, b: 28 }),
+    g => ring(g, 'benzene', { x: COLX.clue, y: Y[2], b: 32 }),
+    g => ring(g, 'imidazole', { x: COLX.clue, y: Y[3], b: 28 }),
+    g => ring(g, 'pyrrolidine', { x: COLX.clue, y: Y[4], b: 28 }),
+  ];
+  const CLUE = ['a single H', 'an open chain ending in COOH', 'a hexagon of carbons', 'five-sided, two N', 'five-sided, with the amino N'];
+  // [first answer, second answer chip, colour, amino acids, times: first, second, amino acids]
+  const ANS = [
+    ['no ring', 'simple', PC.simple, ['Gly'], 9.5, 10.3, 11],
+    ['no ring', 'acidic', PC.acidic, ['Asp', 'Glu'], 15, 15.6, 16.1],
+    ['ring', 'aromatic', PC.aromatic, ['Phe', 'Tyr'], 18.6, 19.6, 20.2],
+    ['ring', 'heterocyclic', PC.hetero, ['His'], 22.6, 24, 24.9],
+    ['ring', 'imino', PC.imino, ['Pro'], 28.2, 29.5, 30.2],
+  ];
+  Y.forEach((y, i) => {
+    const t0 = S5[i], cg = G(p, { o: 0 }); show(cg, t0 + .1, .4);
+    clue[i](cg);
+    wLabel(cg, CLUE[i], { x: COLX.txt, y: y + 9, size: 26, weight: 700, anchor: 'start', o: 1 });
+    const [a1, a2, col, aas, ta, tb, tc] = ANS[i];
+    const c1 = aaChip(p, a1, { x: COLX.q1, y, size: 24, color: a1 === 'ring' ? '#cfd3d8' : '#f2efe6', o: 0 }); show(c1, ta, .4);
+    const c2 = aaChip(p, (i < 2 ? 'aliphatic: ' : '') + a2, { x: COLX.q2, y, size: 24, color: col, o: 0 }); show(c2, tb, .4); pulse(c2, tb, 1.15);
+    aas.forEach((n, j) => { const c3 = aaChip(p, n, { x: COLX.aa + (j - (aas.length - 1) / 2) * 96, y, size: 24, o: 0 }); show(c3, tc + j * .2, .4); });
+  });
+  clockRun(t => his.forEach((r, i) => mO(r, mRamp(t, S5[i], S5[i] + .4) * (i < 4 ? 1 - mRamp(t, S5[i + 1] - .3, S5[i + 1]) : 1))), D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tS = [m('s1'), m('s2'), m('s3'), m('s4')], tE = m('end');
+  wLabel(p, 'Summary: structural classification', { x: 800, y: 58, size: 34, weight: 700, o: 1 });
+  const cwo = G(p, { x: 395, y: 470 }), cw = G(cwo, { s: .54 }), card = aminoCard(cw, { x: 0, y: 0 });
+  const RP = G(p, { x: 20 }), BX = 780, BW = 770;   // the summary rows, shifted right of the card
+  // s1
+  const r1 = G(RP, { o: 0 }); show(r1, tS[0] + .1, .5);
+  frameBox(r1, BX, 96, BW, 96);
+  const rb = G(r1, { x: 840, y: 144 }); mk('rect', { x: -32, y: -24, width: 64, height: 48, rx: 12, fill: PC.simple, stroke: PC.ink, 'stroke-width': 3 }, rb);
+  wLabel(rb, 'R', { y: 10, size: 28, fill: PC.ink, weight: 800, o: 1 });
+  wLabel(r1, 'sorted by the side chain R', { x: 900, y: 154, size: 30, weight: 700, anchor: 'start', o: 1 });
+  // s2
+  const r2 = G(RP, { o: 0 }); show(r2, tS[1] + .1, .5);
+  frameBox(r2, BX, 212, BW, 178);
+  famChip(r2, 'aliphatic', { x: 880, y: 250, size: 24 });
+  wLabel(r2, 'no ring: six subgroups', { x: 975, y: 258, size: 26, weight: 700, anchor: 'start', o: 1 });
+  SUBS.forEach((_, i) => { const d = subDot(r2, i, { x: 850 + i * 128, y: 318, r: 20, name: true, nameSize: 20, o: 0 }); show(d, tS[1] + 2.2 + i * .7, .3); });
+  // s3
+  const r3 = G(RP, { o: 0 }); show(r3, tS[2] - .1, .4);
+  frameBox(r3, BX, 410, BW, 196);
+  [['benzene', 'aromatic', 'benzene ring: phenylalanine, tyrosine', 0], ['imidazole', 'hetero', 'ring with N: tryptophan, histidine', 4], ['pyrrolidine', 'imino', 'amino N in the ring: proline', 8.5]].forEach(([rk, fam, str, dt], i) => {
+    const g = G(RP, { o: 0 }); show(g, tS[2] + .2 + dt, .4);
+    const y = 452 + i * 58;
+    ring(g, rk, { x: 830, y, b: 16 });
+    famChip(g, fam, { x: 950, y, size: 22 });
+    wLabel(g, str, { x: 1085, y: y + 8, size: 22, weight: 700, anchor: 'start', o: 1 });
+  });
+  // s4
+  const r4 = G(RP, { o: 0 }); show(r4, tS[3] + .1, .4);
+  frameBox(r4, BX, 626, BW, 200);
+  wLabel(r4, 'the slide lists 19 names', { x: 810, y: 668, size: 26, weight: 700, anchor: 'start', o: 1 });
+  const nn = G(RP, { o: 0 }); show(nn, tS[3] + 3.6, .5);
+  ['Asn', 'Gln'].forEach((n, j) => { const c = aaChip(nn, n, { x: 870 + j * 100, y: 730, size: 22, o: .6 }); c.dash(1); });
+  wLabel(nn, 'two more of the 20,', { x: 920, y: 782, size: 20, fill: COL.dim, weight: 600, o: 1 });
+  wLabel(nn, 'not on the slide', { x: 920, y: 806, size: 20, fill: COL.dim, weight: 600, o: 1 });
+  const cy = G(RP, { o: 0 }); show(cy, tS[3] + 7.6, .5);
+  aaChip(cy, 'cystine', { x: 1230, y: 730, size: 22 });
+  wLabel(cy, 'two cysteines joined,', { x: 1230, y: 782, size: 20, fill: COL.dim, weight: 600, o: 1 });
+  wLabel(cy, 'not one of the 20', { x: 1230, y: 806, size: 20, fill: COL.dim, weight: 600, o: 1 });
+  say(p, 'Now try the practice.', 800, 872, tE, { size: 30, fill: PC.hbond });
+  pulse(cwo, tE + .1, 1.03);
+  clockRun(t => {
+    card.focus(['structural'], 1);
+    card.glow('structural', mBump(t, tS[0] + .2, tS[0] + 3.6));
+    card.aa.glow('r', mBump(t, tS[0] + .2, tS[0] + 3.6));
+    card.fill('structural', mRamp(t, tS[1] + .2, tS[1] + 1.2), 'aliphatic · aromatic|heterocyclic · imino', null);
+  }, D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const frame = g => frameBox(g, 980, 90, 580, 720);
+  const ask = (g, str) => wLabel(g, str, { x: 1270, y: 770, size: 26, weight: 700, fill: PC.simple, o: 1 });
+  at('ser', g => {
+    frame(g);
+    acid(g, 'serine', 1270, 560, { s: 1, o: 1 }).a.side.hi('OH', 1);
+    ask(g, 'which subgroup?');
+  });
+  at('fork', g => {
+    frame(g);
+    ['valine', 'leucine', 'isoleucine'].forEach((n, i) => {
+      const x = 1110 + i * 160;
+      sideChain(g, n, { x, y: 520, b: 44 });
+      wLabel(g, n, { x, y: 570, size: 22, weight: 700, o: 1 });
+    });
+    ask(g, 'what do they share?');
+  });
+  at('rings', g => {
+    frame(g);
+    [['benzene', 'benzene ring'], ['imidazole', 'imidazole ring'], ['pyrrolidine', 'pyrrolidine ring']].forEach(([k, s], i) => {
+      ring(g, k, { x: 1120, y: 230 + i * 170, b: 34 });
+      wLabel(g, s, { x: 1210, y: 240 + i * 170, size: 26, weight: 700, anchor: 'start', o: 1 });
+    });
+    ask(g, 'which family?');
+  });
+  at('charge', g => {
+    frame(g);
+    [['aspartic acid', 'aspartic'], ['lysine', 'lysine'], ['glutamic acid', 'glutamic'], ['arginine', 'arginine']].forEach(([n, s], i) => {
+      const x = 1065 + i * 140;
+      sideChain(g, n, { x, y: 600, b: 30 });
+      wLabel(g, s, { x, y: 648, size: 20, weight: 700, o: 1 });
+    });
+    ask(g, 'acidic or basic?');
+  });
+  at('tyr', g => {
+    frame(g);
+    [['phenylalanine', 1150], ['tyrosine', 1390]].forEach(([n, x]) => {
+      sideChain(g, n, { x, y: 600, b: 48 });
+      wLabel(g, n, { x, y: 650, size: 24, weight: 700, o: 1 });
+    });
+    ask(g, 'what is the difference?');
+  });
+  at('six', g => {
+    frame(g);
+    famChip(g, 'aliphatic', { x: 1270, y: 260, size: 34 });
+    zigzag(g, 1270, 400);
+    wLabel(g, 'open chain, no ring', { x: 1270, y: 470, size: 24, fill: COL.dim, weight: 600, o: 1 });
+    wLabel(g, '? subgroups', { x: 1270, y: 600, size: 44, weight: 800, o: 1 });
+    ask(g, 'how many subgroups?');
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('ser');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-ser', prompt: ['Serine has an OH group on its side chain. Which aliphatic subgroup is it in?'],
+    build: withPic('ser', choice([['simple'], ['hydroxy-containing'], ['sulfur-containing'], ['branched-chain']], 1,
+      'Right. OH is a hydroxy group: serine and threonine are the hydroxy-containing subgroup, b.',
+      ['Simple is glycine and alanine, whose R is only H or CH₃. Serine’s R carries an OH.', null,
+        'Sulfur-containing side chains carry S (cysteine, methionine). Serine has an O, not an S.',
+        'Branched-chain means a fork of carbons (valine, leucine, isoleucine). Serine has no fork.'])) },
+  { id: 'p-fork', prompt: ['Valine, leucine and isoleucine share which aliphatic subgroup?'],
+    build: withPic('fork', choice([['simple'], ['acidic'], ['branched-chain'], ['basic']], 2,
+      'Right. Each side chain forks: they are the branched-chain amino acids, subgroup d.',
+      ['Simple is glycine and alanine: R is H or a single CH₃, with no fork.',
+        'Acidic side chains end in a second COOH. These are carbon and hydrogen only.', null,
+        'Basic side chains end in nitrogen groups (arginine, lysine). These have no N in R.'])) },
+  { id: 'p-rings', prompt: ['Which family does each ring belong to?'],
+    build: withPic('rings', grid([
+      { parts: ['benzene ring'], ans: ['ar'], why: 'Six carbons: aromatic.' },
+      { parts: ['imidazole ring'], ans: ['he'], why: 'Two N in it: heterocyclic.' },
+      { parts: ['pyrrolidine ring'], ans: ['im'], why: 'Amino N in it: imino.' },
+    ], [['ar', 'aromatic', null, 'A'], ['he', 'heterocyclic', null, 'H'], ['im', 'imino', null, 'I']], { multi: false, text: true })) },
+  { id: 'p-charge', prompt: ['Acidic or basic?'],
+    build: withPic('charge', grid([
+      { parts: ['aspartic acid'], ans: ['ac'], why: 'A second COOH.' },
+      { parts: ['lysine'], ans: ['ba'], why: 'Ends in NH₂.' },
+      { parts: ['glutamic acid'], ans: ['ac'], why: 'A second COOH.' },
+      { parts: ['arginine'], ans: ['ba'], why: 'An N-rich end.' },
+    ], [['ac', 'acidic', null, 'A'], ['ba', 'basic', null, 'B']], { multi: false, text: true })) },
+  { id: 'p-tyr', prompt: ['Tyrosine differs from phenylalanine by one group. Which?'],
+    build: withPic('tyr', choice([['an extra CH₂'], ['an OH on the ring (the phenol group)'], ['a sulfur atom'], ['a second ring']], 1,
+      'Right. Tyrosine is phenylalanine with an OH on the far side of the benzene ring: a phenol group.',
+      ['Both have the same CH₂ arm to the ring. Look at the far end of the ring instead.', null,
+        'Neither has sulfur; that is cysteine and methionine.',
+        'Both have one benzene ring. A second, fused ring is tryptophan’s indole.'])) },
+  { id: 'p-six', prompt: ['How many subgroups does the aliphatic family have?'],
+    build: withPic('six', blanks([
+      { parts: ['the aliphatic family has ', { box: '6' }, ' subgroups'], why: 'a to f: simple, hydroxy, sulfur, branched, acidic, basic.', hint: 'Count them, a to f: simple, hydroxy, sulfur…' },
+    ])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 1, Lesson 1: What Amino Acids Are: the General Structure — Biochemistry</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid.text .opts { gap: 4px; } .screen .grid.text .opt { padding: 2px 9px; font-size: 17px; min-height: 36px; } .screen .grid.text .opt kbd { display: none; }
+.screen .grid.text .row { padding: 4px 0 4px 12px; row-gap: 0; } .screen .grid.text .why { font-size: 18px; line-height: 1.25; }</style><!-- all rows wrong: four rows and their why lines fit above Check -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/cell.js"></script>
+<script src="../../lib/cyto.js"></script>
+<script src="../../lib/membrane.js"></script>
+<script src="../../lib/metab.js"></script>
+<script src="../../lib/protein.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biochemistry, Chapter 1 (Amino Acids), lesson 1: a dinner plate (egg, milk, beans) whose egg resolves into a bead
+// chain, the protein; bricks and a tower (building blocks); hydrolysis by acid, alkali and enzyme frees the units; a shelf
+// of 20 chips plus selenocysteine (21); the general structure built on the α-carbon (amino group, carboxyl group, H, R);
+// glycine, alanine and serine as twins under the R; the charged form (NH₃⁺, COO⁻) as an aside; the chapter's amino acid
+// card with its four classification tabs (the thread lessons two to four open on); a summary; practice.
+// Plan, errata and beats: books/biochemistry/chapters/chapter-01/lesson-01.md.
+const CHAPTER = { number: 101, label: '1, lesson 1', title: 'What Amino Acids Are: the General Structure', minutes: 7, language: 'en', lead: false, next: '../lesson-02/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, weight: 700, ...o, o: 0 }); show(e, t0, .4); return e; };
+const HI = '#ffd27a';   // the accent (highlights, counters)
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const box5 = (g, x, y, w, h, { fill = '#0b1626', stroke = COL.faint, sw = 3, rx = 22, fo = 1 } = {}) => mk('rect', { x, y, width: w, height: h, rx, fill, 'fill-opacity': fo, stroke, 'stroke-width': sw }, g);
+// keyframes [[t, a, b, …], …]: eased (soft) between keys, held before the first and after the last
+function keyAt(t, K) {
+  if (t <= K[0][0]) return K[0].slice(1);
+  for (let i = 1; i < K.length; i++) if (t < K[i][0]) { const a = K[i - 1], b = K[i], f = soft((t - a[0]) / (b[0] - a[0])); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * f); }
+  return K[K.length - 1].slice(1);
+}
+// one text whose words change at given times [[t, str], …]: it fades out before each change and back in after, so two
+// texts never share one spot; before the first time it is hidden
+function stepText(p, steps, { x = 0, y = 0, size = 28, fill = COL.chalk, anchor = 'middle', weight = 700 } = {}) {
+  const e = wChem(p, steps[0][1], { x, y, size, fill, anchor, weight, o: 0 });
+  return Object.assign(e, {
+    set(t) {
+      let i = -1; for (let j = 0; j < steps.length; j++) if (t >= steps[j][0]) i = j;
+      wChemSet(e, steps[Math.max(0, i)][1]);
+      const nx = steps[i + 1] ? steps[i + 1][0] : null;
+      mO(e, i < 0 ? 0 : mRamp(t, steps[i][0], steps[i][0] + .3) * (nx == null ? 1 : 1 - mRamp(t, nx - .3, nx)));
+      return e;
+    },
+  });
+}
+// a small round tag with a number (the "three named parts")
+function numTag(p, n, x, y, color = HI) {
+  const g = G(p, { x, y, o: 0 });
+  mk('circle', { r: 22, fill: color, stroke: '#0f1e33', 'stroke-width': 3 }, g);
+  wLabel(g, String(n), { y: 9, size: 26, fill: '#0f1e33', weight: 900, o: 1 });
+  return g;
+}
+// a rounded pill with a word (acid, alkali tags)
+function tagPill(p, str, color, { size = 26 } = {}) {
+  const g = G(p, { x: 1, y: 1, o: 0 }), w = Math.round(uiW(str, size) * 1.08 + 34), h = size + 18;
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: h / 2, fill: '#0b1626', stroke: color, 'stroke-width': 3 }, g);
+  wLabel(g, str, { y: size * .36, size, fill: color, weight: 800, o: 1 });
+  return g;
+}
+// a straight leader from a to b with a dot at b
+function leader(p, [ax, ay], [bx, by], color = COL.dim) {
+  const g = G(p);
+  path(g, `M${ax} ${ay}L${bx} ${by}`, { stroke: color, 'stroke-width': 2.5 });
+  mk('circle', { cx: bx, cy: by, r: 4.5, fill: color }, g);
+  return g;
+}
+// a bracket ⎵ from x1 to x2 at y (ticks point up)
+const bracket = (p, x1, x2, y, color = COL.dim) => path(p, `M${x1} ${y - 14}V${y}H${x2}V${y - 14}`, { stroke: color, 'stroke-width': 3, fill: 'none' });
+
+/* ---------- foods and bricks ---------- */
+function friedEgg(p, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  path(g, 'M-122 4C-126 -36 -52 -54 0 -46C62 -58 128 -34 120 4C114 42 44 52 -8 46C-70 54 -118 38 -122 4Z', { fill: '#fbfaf4', stroke: '#d8d4c4', 'stroke-width': 3 });
+  mk('ellipse', { cx: 10, cy: -4, rx: 42, ry: 26, fill: '#f7c531', stroke: '#d9a21a', 'stroke-width': 3 }, g);
+  mk('ellipse', { cx: -4, cy: -13, rx: 13, ry: 7, fill: '#fff', 'fill-opacity': .55 }, g);
+  return g;
+}
+function milkGlass(p, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  path(g, 'M-54 -96L54 -96L46 132Q44 142 34 142L-34 142Q-44 142 -46 132Z', { fill: '#f6f4ec' });
+  mk('ellipse', { cx: 0, cy: -96, rx: 54, ry: 10, fill: '#ffffff', stroke: '#e2dfd2', 'stroke-width': 2 }, g);
+  path(g, 'M-62 -150L62 -150L52 140Q50 150 38 150L-38 150Q-50 150 -52 140Z', { fill: '#cfe8f5', 'fill-opacity': .14, stroke: '#cfe8f5', 'stroke-width': 4 });
+  path(g, 'M-44 -130L-36 120', { stroke: '#ffffff', 'stroke-width': 6, 'stroke-opacity': .35 });
+  return g;
+}
+function beanPile(p, { x = 0, y = 0, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  [[-44, 8, 20], [-14, 12, -15], [16, 10, 30], [44, 6, -10], [-30, -8, -30], [0, -6, 12], [30, -10, -25], [-12, -22, 35], [16, -24, -5]].forEach(([bx, by, r], i) =>
+    mk('ellipse', { cx: bx, cy: by, rx: 17, ry: 10, fill: i % 2 ? '#8a3f25' : '#a4532f', stroke: '#5e2a17', 'stroke-width': 2, transform: `rotate(${r} ${bx} ${by})` }, g));
+  return g;
+}
+// the three foods side by side, small (bricks' scatter and the practice)
+function foodRow(p, x, y, s = .4, gap = 150) {
+  const g = G(p, { x, y });
+  friedEgg(g, { x: -gap, s });
+  milkGlass(g, { x: 0, y: -8, s: s * .75 });
+  beanPile(g, { x: gap, s: s * 1.6 });
+  return g;
+}
+// a toy brick with two studs, origin = its centre
+function brick(p, color, { w = 170, h = 60 } = {}) {
+  const g = G(p, { x: 1, y: 1 });
+  const edge = mix(color, '#000000', .45);
+  [-w / 4, w / 4].forEach(sx => mk('rect', { x: sx - 18, y: -h / 2 - 13, width: 36, height: 16, rx: 5, fill: color, stroke: edge, 'stroke-width': 2.5 }, g));
+  mk('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: 8, fill: color, stroke: edge, 'stroke-width': 3 }, g);
+  mk('rect', { x: -w / 2 + 8, y: -h / 2 + 6, width: w - 16, height: 8, rx: 4, fill: '#fff', 'fill-opacity': .3 }, g);
+  return g;
+}
+const CH_COLS = [PC.simple, PC.basic, PC.hydroxy, PC.acidic, PC.aromatic, PC.branched, PC.hetero];
+// a free amino acid bead (the same look as the kit's chain beads), origin = its centre
+function freeBead(p, color, r = 34) {
+  const g = G(p, { x: 1, y: 1, o: 0 });
+  mk('circle', { r, fill: color, stroke: PC.ink, 'stroke-width': 2.5 }, g);
+  mk('ellipse', { cx: -r * .35, cy: -r * .4, rx: r * .3, ry: r * .18, fill: '#fff', 'fill-opacity': .4 }, g);
+  return g;
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A plate of protein', (m, D) => {
+  const p = panel(0), tP = m('plate'), tZ = m('zoom'), tU = m('units');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W, { o: 0 }); show(back, .1, .6);
+  mk('rect', { x: -200, y: 700, width: 2000, height: 400, fill: '#4a3426' }, back);
+  mk('rect', { x: -200, y: 700, width: 2000, height: 16, fill: '#6b4a35' }, back);
+  mk('ellipse', { cx: 470, cy: 650, rx: 300, ry: 90, fill: '#eeece4', stroke: '#bdb8aa', 'stroke-width': 4 }, back);
+  mk('ellipse', { cx: 470, cy: 650, rx: 220, ry: 60, fill: 'none', stroke: '#d6d2c6', 'stroke-width': 3 }, back);
+  const eggG = G(back), milkG = G(back), beanG = G(back);
+  friedEgg(eggG, { x: 380, y: 640 });
+  milkGlass(milkG, { x: 870, y: 560 });
+  beanPile(beanG, { x: 610, y: 646 });
+  const names = [['egg', 380, 548], ['beans', 610, 548], ['milk', 870, 385]].map(([s, x, y], i) => say(back, s, x, y - 18, tP + .5 + .9 * i, { size: 28, fill: COL.chalk }));
+  names.forEach(e => hide(e, tZ - .2, .3));
+  const prot = say(back, 'all full of protein', 620, 300, tZ + .2, { size: 34, fill: HI });
+  hide(prot, tZ + 1.3, .3);
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOCHEMISTRY · CHAPTER 1 · LESSON 1', { x: 1270, y: 210, size: 24, fill: COL.dim, o: 1 });
+  ['What amino', 'acids are'].forEach((s, i) => wLabel(ttl, s, { x: 1270, y: 300 + i * 66, size: 56, o: 1 }));
+  wLabel(ttl, 'the one shape they all share', { x: 1270, y: 470, size: 28, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tZ - .4, .5);
+  // the push into the yolk, then the chain
+  cam.to({ x: 390, y: 636, z: 7 }, tZ + 1.2, 2.4);
+  hide(cam.el, tZ + 3, .6);
+  const chG = G(p, { o: 0 }); show(chG, tZ + 2.9, .7);
+  const ch = beadChain(chG, { x: 800, y: 470, n: 12, sp: 96, r: 32, chips: false, ends: false, endText: false, seed: 4 });
+  const pl = say(chG, 'protein: a long chain of small, repeating pieces', 800, 600, tZ + 4.6, { size: 30, fill: COL.chalk });
+  const aaL = say(chG, 'one amino acid', 752 + 50, 362, tU + .9, { size: 30, fill: HI, anchor: 'start' });
+  const today = G(p, { o: 0 }); show(today, tU + 2.7, .5);
+  wLabel(today, 'today: what they are · their general structure · the chapter’s map', { x: 800, y: 790, size: 28, fill: COL.dim, weight: 600, o: 1 });
+  void pl; void aaL;
+  clockRun(t => {
+    // the foods lift and settle in turn as the plate is named
+    [eggG, beanG, milkG].forEach((e, i) => mPose(e, 0, -18 * mBump(t, tP + .5 + .9 * i, tP + 1.5 + .9 * i), 1));
+    ch.tangle(1 - io(mRamp(t, tZ + 3.6, tZ + 6.6)));
+    ch.lift(5, mRamp(t, tU + .2, tU + 1.1)).glow(5, mRamp(t, tU + .2, tU + .8));
+    ch.glow('all', mBump(t, tZ + 7, tZ + 8.4) * .8);
+  }, D);
+}],
+
+/* ---------- bricks ---------- */
+['bricks', 'Building blocks and hydrolysis', (m, D) => {
+  const p = panel(0), tC = m('chain'), tA = m('acid'), tK = m('alkali'), tE = m('enzyme'), tF = m('free');
+  const head = stepText(p, [[.3, 'an amino acid: a structural unit of protein'], [tA + 1.5, 'hydrolysis: breaking bonds with water']], { x: 800, y: 90, size: 36 });
+  // the gut tube behind the enzyme's cut
+  const gut = G(p, { o: 0 }); show(gut, tE + .3, .6); hide(gut, tF + 1, .6);
+  mk('rect', { x: 60, y: 290, width: 1480, height: 300, rx: 150, fill: '#e48aa0', 'fill-opacity': .08, stroke: '#e48aa0', 'stroke-width': 5, 'stroke-opacity': .5 }, gut);
+  wLabel(gut, 'the gut, after a meal', { x: 120, y: 630, size: 24, fill: '#e48aa0', weight: 700, anchor: 'start', o: 1 });
+  // the tower: seven bricks; at "chain" they fly into a row and become the chain's beads
+  const X0 = 600, Y0 = 430, SP = 130, R = 34;
+  const bx = i => X0 + (i - 3) * SP;
+  const towerY = i => 700 - i * 68;
+  const bricks = CH_COLS.map(c => brick(p, c));
+  const tl = G(p, { o: 0 }); show(tl, 1, .5); hide(tl, tC - .4, .4);
+  wLabel(tl, 'protein = the tower', { x: 520, y: 236, size: 30, fill: COL.chalk, weight: 700, o: 1 });
+  const bt = G(p, { o: 0 }); show(bt, 6.6, .5); hide(bt, tC - .4, .4);
+  leader(bt, [760, 498], [612, 498]);
+  wLabel(bt, 'amino acid = one brick', { x: 774, y: 507, size: 30, fill: HI, weight: 700, anchor: 'start', o: 1 });
+  wLabel(bt, 'a building block', { x: 774, y: 545, size: 24, fill: COL.dim, weight: 600, anchor: 'start', o: 1 });
+  const ch = beadChain(p, { x: X0, y: Y0, n: 7, colors: CH_COLS, sp: SP, r: R, chips: false, ends: false, endText: false, o: 0 });
+  const chL = say(p, 'the protein: a chain of amino acids', 800, 560, tC + .9, { size: 28, fill: COL.chalk });
+  hide(chL, tA + 1.2, .4);
+  // the three cuts: acid (link 1), alkali (link 3), enzyme (link 5)
+  const CUTS = [[1, tA + 5.4, 'acid', PC.acid], [3, tK + .2, 'alkali', PC.basic], [5, tE + 1.4, 'enzyme', '#8fd17a']];
+  const tags = CUTS.map(([, , s, c]) => tagPill(p, s, c));
+  const enz = G(p, { x: 1, y: 1, o: 0 }); enzymeBlob(enz, { R: 52 });
+  const wtr = G(p, { o: 0 }); show(wtr, tA + 1.9, .4); hide(wtr, tA + 4.6, .4);
+  waterMolecule(wtr, { x: 1210, y: 150, s: .6 });
+  // free: the pieces drift apart into a small cloud; the three foods all end up as the same set
+  const endX = i => bx(i) + 1.2 * SP * [1, 3, 5].filter(j => j < i).length;
+  const CLOUD = [[560, 470], [700, 400], [840, 470], [980, 410], [1110, 480], [770, 540], [930, 560]];
+  const free = CH_COLS.map(c => freeBead(p, c, R));
+  const fl = say(p, 'free amino acids', 840, 660, tF + 1.4, { size: 30, fill: HI });
+  void fl;
+  const fr = G(p, { o: 0 }); show(fr, tF + 4, .6);
+  foodRow(fr, 840, 170, .42, 220);
+  [-220, 0, 220].forEach(dx => mArrow(fr, [840 + dx * .9, 220], [840 + dx * .3, 330], { color: COL.dim, w: 4, head: 14 }));
+  wLabel(fr, 'egg, milk, beans: the same small set', { x: 840, y: 720, size: 26, fill: COL.dim, weight: 600, o: 1 });
+  clockRun(t => {
+    bricks.forEach((b, i) => {
+      const k = io(mRamp(t, tC + .1 + .08 * i, tC + 1.3 + .08 * i));
+      mPose(b, mLerp(520, bx(i), k), mLerp(towerY(i), Y0, k), mRamp(t, .1 + .12 * i, .4 + .12 * i) * (1 - mRamp(t, tC + 1.3, tC + 1.7)));
+      cSet(b, { s: mLerp(1, .45, k) });
+    });
+    mO(ch, mRamp(t, tC + 1.2, tC + 1.7) * (1 - mRamp(t, tF, tF + .3)));
+    CUTS.forEach(([i, t0], j) => {
+      ch.cut(i, mRamp(t, t0, t0 + 2.1));
+      const tag = tags[j], [lx, ly] = ch.linkPt(i);
+      mPose(tag, lx, ly - (j === 2 ? 200 : 92), mRamp(t, t0 - .6, t0 - .2) * (1 - mRamp(t, tF, tF + .4)));
+    });
+    // the enzyme comes down onto link 5, cuts, and leaves
+    const [ex, ey] = ch.linkPt(5);
+    const [, dy, eo] = keyAt(t, [[tE + .2, 0, -190, 0], [tE + .5, 0, -190, 1], [tE + 1.3, 0, -96, 1], [tE + 3.6, 0, -96, 1], [tE + 4.2, 0, -160, 0]]);
+    mPose(enz, ex, ey + dy, eo);
+    // free beads take over from the chain where it left off
+    free.forEach((b, i) => {
+      const [x, y] = keyAt(t, [[tF + .1, endX(i), Y0], [tF + 2.6, ...CLOUD[i]]]);
+      const bob = 6 * Math.sin(2 * Math.PI * (t / 2.4 + i / 7)) * mRamp(t, tF + 2.6, tF + 3.4);
+      mPose(b, x, y + bob, mRamp(t, tF, tF + .3));
+    });
+    head.set(t);
+  }, D);
+}],
+
+/* ---------- count ---------- */
+['count', 'Twenty, and twenty-one', (m, D) => {
+  const p = panel(0), tS = m('sel'), tH = m('shelf');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const CX = i => 200 + (i % 10) * 124, CY = i => 380 + Math.floor(i / 10) * 100;
+  const chips = P_STANDARD.map((nm, i) => { const g = G(W, { x: CX(i), y: CY(i), o: 0 }); aaChip(g, nm, { size: 26 }); return g; });
+  const secG = G(W, { x: 1440, y: 480, o: 0 }); const sec = aaChip(secG, 'selenocysteine', { size: 26 }); sec.edge('#ffd27a');
+  const secL = say(W, 'selenocysteine', 1440, 548, tS + 1, { size: 24, fill: '#ffd27a' });
+  void secL;
+  const num = wLabel(W, '0', { x: 1440, y: 236, size: 96, fill: HI, weight: 800, o: 0 }); show(num, .2, .4);
+  wLabel(W, 'amino acids', { x: 1440, y: 274, size: 24, fill: COL.dim, weight: 600, o: 1 });
+  const br = G(W, { o: 0 }); show(br, tH + .3, .5);
+  path(br, 'M140 318V302H1376V318', { stroke: COL.dim, 'stroke-width': 3, fill: 'none' });
+  wLabel(br, 'twenty to remember · one plan', { x: 758, y: 282, size: 28, fill: COL.chalk, weight: 700, o: 1 });
+  const tiny = say(W, 'tiny', 128, 389, tH + 2.3, { size: 24, fill: HI, anchor: 'end' });
+  const rings = say(W, 'rings', 1068, 548, tH + 3.4, { size: 24, fill: HI });
+  hide(tiny, tH + 5.4, .3); hide(rings, tH + 5.4, .3);
+  const glow = (i, t0) => { const h = mk('rect', { x: CX(i) - 46, y: CY(i) - 30, width: 92, height: 60, rx: 30, fill: 'none', stroke: HI, 'stroke-width': 4 }, W); put(h, { o: 0 }); show(h, t0, .3); hide(h, tH + 5.4, .3); };
+  glow(0, tH + 2.1); [15, 16, 17, 18].forEach(i => glow(i, tH + 3.2));
+  clockRun(t => {
+    let n = 0;
+    chips.forEach((g, i) => { const t0 = .3 + .2 * i, k = mRamp(t, t0, t0 + .25); if (t >= t0 + .12) n++; cSet(g, { o: k, s: .6 + .4 * out(k) }); });
+    const [sy, so] = keyAt(t, [[tS + .2, 330, 0], [tS + .4, 340, 1], [tS + 1, 480, 1]]);
+    cSet(secG, { y: sy, o: so });
+    if (t >= tS + .9) n = 21;
+    wChemSet(num, String(n));
+  }, D);
+  // every one built to the same plan: push in on glycine, the chip that becomes the next beat's amino acid
+  cam.to({ x: 200, y: 380, z: 4 }, D - 3.2, 2.6);
+}],
+
+/* ---------- plan ---------- */
+['plan', 'The general structure', (m, D) => {
+  const p = panel(0), tN = m('amino'), tB = m('carboxyl'), tH = m('h'), tR = m('r'), t3 = m('three'), tC = m('char');
+  const AX = 800, AY = 500, AS = 1.6;
+  const wrap = G(p, { x: AX, y: AY });
+  const aa = aminoAcid(wrap, { r: 'R', rClass: 'simple', s: AS });
+  const P = n => [AX + AS * { ca: [0, 0], amino: [-142, 0], carboxyl: [150, 0], h: [0, 88], r: [0, -112] }[n][0], AY + AS * { ca: [0, 0], amino: [-142, 0], carboxyl: [150, 0], h: [0, 88], r: [0, -112] }[n][1]];
+  const head = stepText(p, [[4.4, 'an α-amino acid: everything hangs on the α-carbon'], [t3, 'three named parts'], [33.2, 'R is characteristic of each amino acid']], { x: 800, y: 96, size: 36 });
+  // labels beside each part as it arrives
+  const lab = (str, x, y, t0, anchor = 'middle', fill = COL.chalk) => say(p, str, x, y, t0, { size: 30, fill, anchor });
+  lab('α-carbon', 690, 404, 1.3, 'end');
+  const arc = G(p, { o: 0 }); show(arc, 1.5, .4);
+  path(arc, 'M700 396Q760 380 770 448', { stroke: COL.chalk, 'stroke-width': 3, fill: 'none' });
+  path(arc, 'M760 438L771 458L781 437Z', { fill: COL.chalk });
+  lab('amino group', P('amino')[0], 600, tN + .7, 'middle', PC.amino);
+  lab('carboxyl group', P('carboxyl')[0], 600, tB + .7, 'middle', PC.carboxyl);
+  lab('hydrogen', 850, 652, tH + .6, 'start');
+  lab('side chain (R)', 1000, 332, tR + .7, 'start', PC.simple);
+  // the three named parts
+  const tags = [numTag(p, 1, P('amino')[0] - 110, 448), numTag(p, 2, P('carboxyl')[0] + 128, 448), numTag(p, 3, 715, P('r')[1])];
+  tags.forEach((g, i) => { show(g, t3 + 1.6 + 1.2 * i, .3); pulse(g, t3 + 1.7 + 1.2 * i, 1.25); hide(g, 33, .4); });
+  // the same in all of them (with one bent exception), R characteristic
+  const same = G(p, { o: 0 }); show(same, tC + .4, .5);
+  bracket(same, 487, 1093, 712, COL.chalk);
+  wLabel(same, 'the same pattern in every amino acid', { x: 790, y: 752, size: 28, fill: COL.chalk, weight: 700, o: 1 });
+  const pro = G(p, { o: 0 }); show(pro, tC + 3.6, .5);
+  box5(pro, 1160, 800, 400, 64, { stroke: PC.imino, sw: 2.5, rx: 18 });
+  wLabel(pro, 'one exception, proline: lesson two', { x: 1360, y: 841, size: 22, fill: PC.imino, weight: 700, o: 1 });
+  // R cycles through other side chains (gold, mint, yellow, peach) while the groups stay put
+  const RS = [['R', 'simple'], ['CH_3', 'simple'], ['CH_2OH', 'hydroxy'], ['CH_2SH', 'sulfur'], ['CH(CH_3)_2', 'branched']];
+  const RT = [33.8, 35.2, 36.6, 38];
+  clockRun(t => {
+    aa.parts({ ca: mRamp(t, .1, .7), amino: mRamp(t, tN + .1, tN + .8), carboxyl: mRamp(t, tB + .1, tB + .8), h: mRamp(t, tH + .1, tH + .7), r: mRamp(t, tR + .1, tR + .8) });
+    aa.glow('ca', mBump(t, .6, 4.2));
+    aa.focus(['amino', 'carboxyl', 'r'], mRamp(t, t3 + .3, t3 + .9) * (1 - mRamp(t, tC, tC + .5)));
+    aa.glow('amino', mBump(t, tC + .3, tC + 3.6)); aa.glow('carboxyl', mBump(t, tC + .3, tC + 3.6));
+    let j = -1; for (let i = 0; i < RT.length; i++) if (t >= RT[i]) j = i;
+    if (j < 0) aa.rSwap('R', 'R', 0, 'simple', 'simple');
+    else aa.rSwap(RS[j][0], RS[j + 1][0], mRamp(t, RT[j], RT[j] + .9), RS[j][1], RS[j + 1][1]);
+    head.set(t);
+  }, D);
+}],
+
+/* ---------- rgroup ---------- */
+['rgroup', 'Glycine, alanine, serine', (m, D) => {
+  const p = panel(0), tA = m('ala'), tS = m('ser'), tC = m('cover'), tW = m('swap'), tM = m('more');
+  const XS = [300, 800, 1300], Y = 500;
+  const wr = XS.map(x => G(p, { x, y: Y, o: 0 }));
+  const aas = ['glycine', 'alanine', 'serine'].map((nm, i) => aminoAcid(wr[i], { aa: nm, name: true }));
+  const note = [['simplest: R is just H', .8], ['R = CH_3, a methyl group', tA + 1.5], ['R = CH_2OH: methyl + hydroxyl', tS + .6]];
+  const notes = note.map(([s, t0], i) => { const e = say(p, s, XS[i], 316, t0, { size: 26, fill: HI }); hide(e, tC - .4, .4); return e; });
+  void notes;
+  // covers over the three R badges
+  const covers = XS.map(x => { const g = G(p, { x, y: 1, o: 0 }); mk('rect', { x: -66, y: -40, width: 132, height: 80, rx: 18, fill: '#4a5568', stroke: '#8f9bb0', 'stroke-width': 3 }, g); wLabel(g, '?', { y: 13, size: 36, fill: '#c9d1dd', weight: 800, o: 1 }); return g; });
+  const same = G(p, { o: 0 }); show(same, tC + 1.6, .5); hide(same, tW - .2, .4);
+  bracket(same, 110, 1510, 704, COL.chalk);
+  wChem(same, 'twins: the same Cα, NH_2, COOH and H', { x: 800, y: 748, size: 30, fill: COL.chalk, weight: 700, o: 1 });
+  const diff = say(p, 'a different R: a different amino acid', 800, 250, tW + .9, { size: 32, fill: HI });
+  hide(diff, tM - .2, .4);
+  // what else R can be: rings, sulfur, charges (next lesson)
+  const more = G(p, { o: 0 }); show(more, tM + .2, .6);
+  const ghosts = [
+    g => { const r = ring(g, 'benzene', { s: .5 }); void r; },
+    g => { mk('circle', { r: 24, fill: PC.S, stroke: PC.SEdge, 'stroke-width': 3 }, g); wLabel(g, 'S', { y: 9, size: 26, fill: PC.ink, weight: 800, o: 1 }); },
+    g => classIcon(g, 'plus', { size: 56 }),
+    g => classIcon(g, 'minus', { size: 56 }),
+    g => { mk('rect', { x: -70, y: -26, width: 140, height: 52, rx: 16, fill: PC.branched, stroke: PC.ink, 'stroke-width': 3 }, g); wChem(g, 'CH(CH_3)_2', { y: 10, size: 24, fill: PC.ink, weight: 800, o: 1 }); },
+  ].map((f, i) => { const g = G(more, { x: 420 + i * 190, y: 160 }); f(g); return g; });
+  const nx = say(p, 'the next lesson sorts them', 800, 262, tM + 5, { size: 28, fill: COL.dim, weight: 600 });
+  void nx;
+  clockRun(t => {
+    // each lights in turn while the others wait dimmed; from "cover" on, all three are lit
+    const W0 = [[.1, tA], [tA, tS], [tS, tC]], all = mRamp(t, tC - .3, tC + .2);
+    wr.forEach((g, i) => { const [a, b] = W0[i], own = mRamp(t, a, a + .5) * (1 - mRamp(t, b - .3, b)); mO(g, mRamp(t, .1, .6) * (.3 + .7 * Math.max(own, all))); });
+    const ck = io(mRamp(t, tC + .2, tC + 1.1)), up = io(mRamp(t, tW, tW + .9));
+    covers.forEach((g, i) => cSet(g, { y: mLerp(mLerp(200, Y - 112, ck), 180, up), o: ck * (1 - up) }));
+    const twin = mRamp(t, tC + 1.2, tC + 1.8) * (1 - mRamp(t, tW - .3, tW + .2));
+    aas.forEach(a => ['ca', 'amino', 'carboxyl', 'h'].forEach(n => a.glow(n, twin)));
+    aas.forEach(a => a.glow('r', mBump(t, tW + .6, tM)));
+    ghosts.forEach((g, i) => cSet(g, { y: 160 + 8 * Math.sin(2 * Math.PI * (t / 2.6 + i / 5)) }));
+  }, D);
+}],
+
+/* ---------- ion ---------- */
+['ion', 'The charged form', (m, D) => {
+  const p = panel(0), tC = m('charged'), tS = m('same');
+  const drop = G(p, { o: 0 }); show(drop, tC + .2, .8);
+  mk('rect', { x: 120, y: 170, width: 1360, height: 560, rx: 120, fill: PC.water, 'fill-opacity': .1, stroke: PC.water, 'stroke-width': 3, 'stroke-opacity': .5 }, drop);
+  wLabel(drop, 'body fluid (water)', { x: 160, y: 214, size: 26, fill: '#9fd0f5', weight: 700, anchor: 'start', o: 1 });
+  const head = stepText(p, [[.3, 'an aside: the slides draw glycine and alanine both ways']], { x: 800, y: 100, size: 32 });
+  const GX = 520, AX = 1120, Y = 470, S = 1.15;
+  const gw = G(p, { x: GX, y: Y }), aw = G(p, { x: AX, y: Y });
+  const gly = aminoAcid(gw, { aa: 'glycine', name: true, s: S }), ala = aminoAcid(aw, { aa: 'alanine', name: true, s: S });
+  // the H⁺ that the amino group picks up, and the one the carboxyl group gives away
+  const hIon = () => { const g = G(p, { x: 1, y: 1, o: 0 }); mk('circle', { r: 20, fill: PC.h, stroke: PC.hEdge, 'stroke-width': 2.5 }, g); wChem(g, 'H^+', { y: 7, size: 20, fill: PC.ink, weight: 800, o: 1 }); return g; };
+  const h1 = hIon(), h2 = hIon();
+  const am = [GX - 142 * S, Y], cb = [GX + 150 * S, Y];
+  const l1 = say(p, 'picks up H^+ → NH_3^+', am[0] - 27, 560, tC + 6.2, { size: 26, fill: PC.amino });
+  const l2 = say(p, 'gives H^+ away → COO^−', cb[0] + 68, 560, tC + 8, { size: 26, fill: PC.carboxyl });
+  hide(l1, tS - .3, .4); hide(l2, tS - .3, .4);
+  const sm = G(p, { o: 0 }); show(sm, tS + .3, .5);
+  bracket(sm, 290, 1350, 690, COL.chalk);
+  wLabel(sm, 'same atoms, with the charges body fluid gives them', { x: 820, y: 712 + 20, size: 28, fill: COL.chalk, weight: 700, o: 1 });
+  const both = G(p, { o: 0 }); show(both, tS + 3.5, .5);
+  wChem(both, 'drawn neutral: NH_2, COOH', { x: 470, y: 820, size: 28, fill: COL.dim, weight: 700, o: 1 });
+  wChem(both, 'drawn charged: NH_3^+, COO^−', { x: 1130, y: 820, size: 28, fill: COL.dim, weight: 700, o: 1 });
+  clockRun(t => {
+    const [x1, y1, o1] = keyAt(t, [[tC + 1, 300, 240, 0], [tC + 1.4, 300, 250, 1], [tC + 4.8, am[0] - 10, Y - 52, 1], [tC + 5.6, am[0] - 10, Y - 52, 0]]);
+    mPose(h1, x1, y1, o1);
+    const [x2, y2, o2] = keyAt(t, [[tC + 5.5, cb[0] + 40, Y - 40, 0], [tC + 5.8, cb[0] + 40, Y - 46, 1], [tC + 9.6, cb[0] + 150, Y - 220, 1], [tC + 10.6, cb[0] + 170, Y - 240, 0]]);
+    mPose(h2, x2, y2, o2);
+    gly.ionise(mRamp(t, tC + 4.6, tC + 6));
+    gly.glow('amino', mBump(t, tC + 2.4, tC + 6.4)); gly.glow('carboxyl', mBump(t, tC + 5, tC + 9.6));
+    ala.ionise(mRamp(t, tS + .8, tS + 2.2));
+    mO(aw, .45 + .55 * mRamp(t, tS, tS + .5));
+    head.set(t);
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  [['glycine', 170], ['alanine', 420], ['serine', 670]].forEach(([nm, y]) => { const g = G(p, { x: 320, y }); aminoAcid(g, { aa: nm, name: true, s: .7 }); });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-r', prompt: ['Which part of an amino acid is different from one amino acid to another?'],
+  build: choice([['the amino group'], ['the carboxyl group'], ['the side chain R'], ['the α-carbon']], 2,
+    'Right. The side chain R is characteristic of each amino acid: cover it and glycine, alanine and serine look like twins.',
+    ['Every amino acid has the same amino group on its α-carbon (proline, met in lesson two, is the one bent exception). Cover the R and they look alike.',
+      'Every amino acid has the same carboxyl group. Cover the R and the three look like twins.', null,
+      'The α-carbon is the carbon they all share, the centre of the plan. Look at what sits on top of it.']),
+}], done) }],
+
+/* ---------- card ---------- */
+['card', 'The amino acid card', (m, D) => {
+  const p = panel(0), tT = m('tabs'), tN = m('next');
+  const TABS = [['structural', m('structural')], ['chemical', m('chemical')], ['nutritional', m('nutritional')], ['metabolic', m('metabolic')]];
+  const card = aminoCard(p, { x: 800, y: 440 });
+  const nx = G(p, { o: 0 }); show(nx, tN + .6, .5);
+  wLabel(nx, 'the next three lessons open this card, one tab at a time', { x: 800, y: 862, size: 26, fill: HI, weight: 700, o: 1 });
+  clockRun(t => {
+    card.build(keyAt(t, [[0, .08], [8.6, .5], [tT + .2, .5], [tT + 3.6, 1]])[0]);
+    // one tab lit at a time while it is named; all four at the end
+    // the lit tab cross-fades straight to the next (the kit's focus would pass through all-lit): the page writes each
+    // tab's opacity after the kit, every frame, from the same function of t
+    TABS.forEach(([nm, t0], i) => { const t1 = i < 3 ? TABS[i + 1][1] : tN; card.glow(nm, Math.max(mRamp(t, t0, t0 + .4) * (1 - mRamp(t, t1 - .35, t1)), mRamp(t, tN + .2, tN + .8))); });
+    card.focus(null);
+    const s0 = TABS[0][1], dimIn = mRamp(t, s0, s0 + .5), all = mRamp(t, tN, tN + .5);
+    if (t >= s0) TABS.forEach(([nm, t0], i) => {
+      const t1 = i < 3 ? TABS[i + 1][1] : tN, L = mRamp(t, t0 - .25, t0 + .25) * (i < 3 ? 1 - mRamp(t, t1 - .25, t1 + .25) : 1);
+      mO(card.tab(nm), 1 - .75 * dimIn * (1 - Math.max(L, all)));
+    });
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  aminoCard(p, { x: 320, y: 450, s: .42 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-class', prompt: ['Which classification sorts amino acids by whether the diet must supply them?'],
+  build: choice([['structural'], ['chemical'], ['metabolic'], ['nutritional']], 3,
+    'Right. The nutritional tab asks whether the body can make the amino acid or whether it must come from food.',
+    ['The structural tab sorts by the shape of the side chain R, not by diet. Think of the plate.',
+      'The chemical tab sorts by the amino and carboxyl groups, and so by the charge. Think of the plate.',
+      'The metabolic tab sorts by what the body does with the carbon skeleton. Think of the plate.', null]),
+}], done) }],
+
+/* ---------- wrap ---------- */
+['wrap', 'Summary', (m, D) => {
+  const p = panel(0), tE = m('end');
+  wLabel(p, 'Summary: what amino acids are', { x: 800, y: 62, size: 36, weight: 700, o: 1 });
+  const ROWS = [
+    ['s1', 'Amino acids: the building blocks of protein', 'released by hydrolysis: acid, alkali or enzymes', HI],
+    ['s2', '20 amino acids, 21 with selenocysteine', 'twenty is the number to remember', COL.chalk],
+    ['s3', 'The α-carbon carries NH_2, COOH, H and R', 'R differs; glycine (R = H) is the simplest', PC.simple],
+    ['s4', 'Four classifications', 'structural · chemical · nutritional · metabolic', PC.aromatic],
+  ];
+  const live = [];
+  ROWS.forEach(([k, a, b, col], i) => {
+    const y = 180 + i * 172, g = G(p, { o: 0 });
+    box5(g, 110, y - 74, 1380, 152);
+    wChem(g, a, { x: 580, y: y - 6, size: 32, weight: 700, fill: col, anchor: 'start', o: 1 });
+    wChem(g, b, { x: 580, y: y + 38, size: 25, weight: 500, fill: COL.dim, anchor: 'start', o: 1 });
+    if (i === 0) {
+      CH_COLS.slice(0, 3).forEach((c, j) => { const bk = brick(g, c, { w: 80, h: 26 }); put(bk, { x: 160, y: y + 38 - j * 36 }); });
+      mArrow(g, [222, y], [270, y], { color: COL.chalk, w: 4, head: 14 });
+      const ch = beadChain(g, { x: 350, y, n: 4, colors: CH_COLS.slice(0, 4), sp: 44, r: 16, chips: false, ends: false, endText: false });
+      live.push([0, (t, kk) => ch.cut(1, kk * mRamp(t, m('s1') + 2, m('s1') + 4))]);
+    }
+    if (i === 1) {
+      ['Gly', 'Ala', 'Ser'].forEach((nm, j) => aaChip(g, nm, { x: 170 + j * 74, y: y - 22, size: 20 }));
+      const sc = aaChip(g, 'Sec', { x: 330, y: y + 34, size: 20 }); sc.edge('#ffd27a');
+      wLabel(g, '20 +', { x: 230, y: y + 42, size: 26, weight: 800, fill: HI, o: 1 });
+    }
+    if (i === 2) { const a = aminoAcid(g, { aa: 'glycine', s: .42, x: 300, y: y + 6 }); live.push([2, (t, kk) => a.glow('r', kk)]); }
+    if (i === 3) ['ring', 'charge', 'plate', 'fork'].forEach((kd, j) => classIcon(g, kd, { x: 170 + j * 88, y, size: 52 }));
+    show(g, m(k) + .1, .5);
+  });
+  say(p, 'Now try the practice.', 800, 868, tE, { size: 30, fill: WC.bond });
+  const env = (t, i) => { const a = m(ROWS[i][0]) + .8, b = i < 3 ? m(ROWS[i + 1][0]) : D + 1; return mRamp(t, a, a + .6) * (1 - mRamp(t, b - .6, b)); };
+  clockRun(t => live.forEach(([i, f]) => f(t, env(t, i))), D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const frame = g => box5(g, 980, 90, 580, 720);
+  at('block', g => {
+    frame(g);
+    CH_COLS.slice(0, 5).forEach((c, j) => { const bk = brick(g, c, { w: 110, h: 40 }); put(bk, { x: 1130, y: 600 - j * 46 }); });
+    wLabel(g, 'protein', { x: 1130, y: 370, size: 26, weight: 700, o: 1 });
+    mArrow(g, [1210, 500], [1290, 500], { color: COL.chalk, w: 4, head: 14 });
+    [0, 1, 2, 3, 4].forEach(j => { const b = freeBead(g, CH_COLS[j], 20); put(b, { x: 1340 + (j % 2) * 60 + (j === 4 ? 30 : 0), y: 420 + Math.floor(j / 2) * 70, o: 1 }); });
+    wLabel(g, 'what is each piece?', { x: 1270, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('hydro', g => {
+    frame(g);
+    beadChain(g, { x: 1270, y: 430, n: 5, colors: CH_COLS.slice(0, 5), sp: 100, r: 28, chips: false, ends: false, endText: false }).cut(1, .3);
+    wLabel(g, 'protein', { x: 1270, y: 360, size: 26, weight: 700, o: 1 });
+    wLabel(g, '?', { x: 1270, y: 640, size: 64, weight: 800, fill: HI, o: 1 });
+    wLabel(g, 'what frees the amino acids?', { x: 1270, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('count', g => {
+    frame(g);
+    P_STANDARD.forEach((nm, i) => aaChip(g, nm, { x: 1080 + (i % 5) * 95, y: 250 + Math.floor(i / 5) * 64, size: 20 }));
+    const sc = aaChip(g, 'Sec', { x: 1270, y: 560, size: 20 }); sc.edge('#ffd27a');
+    wLabel(g, '+', { x: 1270, y: 522, size: 30, weight: 800, fill: HI, o: 1 });
+    wLabel(g, 'how many?', { x: 1270, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('parts', g => {
+    frame(g);
+    aminoAcid(g, { r: 'R', rClass: 'simple', x: 1260, y: 440, s: 1.05 }).labels(1);
+    wLabel(g, 'same in all, or different?', { x: 1270, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('gly', g => {
+    frame(g);
+    aminoAcid(g, { aa: 'glycine', x: 1270, y: 440, s: 1.1, name: true }).setR('?', 'generic').glow('r', 1);
+    wLabel(g, 'glycine: what is R?', { x: 1270, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('ion', g => {
+    frame(g);
+    aminoAcid(g, { aa: 'glycine', x: 1270, y: 330, s: .9, name: true });
+    mArrow(g, [1270, 490], [1270, 570], { color: COL.chalk, w: 4, head: 14 });
+    wLabel(g, 'in body fluid', { x: 1290, y: 540, size: 22, fill: '#9fd0f5', weight: 700, anchor: 'start', o: 1 });
+    wLabel(g, '?', { x: 1270, y: 660, size: 64, weight: 800, fill: HI, o: 1 });
+    wLabel(g, 'the charged form', { x: 1270, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  at('ways', g => {
+    frame(g);
+    aminoAcid(g, { r: 'R', rClass: 'simple', x: 1270, y: 450, s: .6 });
+    [[1270, 220], [1460, 450], [1270, 660], [1080, 450]].forEach(([x, y]) => {
+      box5(g, x - 80, y - 40, 160, 80, { stroke: COL.dim, sw: 3, rx: 16 });
+      wLabel(g, '?', { x, y: y + 14, size: 38, weight: 800, fill: HI, o: 1 });
+    });
+    wLabel(g, 'four ways to classify', { x: 1270, y: 760, size: 26, weight: 700, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('block');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-block', prompt: ['What is an amino acid?'],
+    build: withPic('block', choice([['a sugar that stores energy'], ['the structural unit, or building block, of protein'], ['a fat that insulates'], ['a protein itself, already folded']], 1,
+      'Right. Amino acids are the building blocks of proteins: the bricks of the tower, the beads of the chain.',
+      ['Sugars are carbohydrates. Amino acids are the units proteins are built from.', null,
+        'Fats are lipids. Amino acids are the units proteins are built from.',
+        'A protein is the whole chain. An amino acid is one of its units.'])) },
+  { id: 'p-hydro', prompt: ['Which of these releases amino acids from a protein?'],
+    build: withPic('hydro', choice([['freezing the protein'], ['drying it in air'], ['hydrolysis by acid, alkali or enzymes'], ['shining a lamp on it']], 2,
+      'Right. Hydrolysis breaks the bonds between the units with water; acid, alkali or enzymes (as in the gut) do it.',
+      ['Freezing breaks no bonds. The bonds must be broken with water: hydrolysis.',
+        'Drying removes water; it breaks no bonds. Hydrolysis breaks them with water.', null,
+        'Light does not free the units. Acid, alkali or enzymes do, by hydrolysis.'])) },
+  { id: 'p-count', prompt: ['Count the amino acids:'],
+    build: withPic('count', blanks([
+      { parts: ['the common set has ', { box: '20' }, ' amino acids'], why: 'Twenty known amino acids make up proteins.', hint: 'The number to remember.' },
+      { parts: ['with selenocysteine there are ', { box: '21' }], why: 'One more: selenocysteine.', hint: 'Add one.' },
+    ])) },
+  { id: 'p-parts', prompt: ['Which parts are the same in every amino acid, and which differ?'],
+    build: withPic('parts', grid([
+      { parts: ['amino group'], ans: ['s'], why: 'All have it.' },
+      { parts: ['carboxyl group'], ans: ['s'], why: 'All have it.' },
+      { parts: ['side chain R'], ans: ['d'], why: 'R is characteristic.' },
+      { parts: ['H on the α-carbon'], ans: ['s'], why: 'All have it.' },
+    ], [['s', 'same in all', null, 'S'], ['d', 'differs', null, 'D']], { multi: false, text: true })) },
+  { id: 'p-gly', prompt: ['Which side chain makes glycine the simplest amino acid?'],
+    build: withPic('gly', choice([['a methyl group, CH₃'], ['a single hydrogen, H'], ['a benzene ring'], ['a carboxyl group']], 1,
+      'Right. Glycine’s R is just one hydrogen atom, so there is almost nothing there.',
+      ['CH₃ is alanine’s side chain, one step bigger than glycine’s.', null,
+        'A benzene ring is a big side chain, far from simple (lesson two).',
+        'Every amino acid already has its carboxyl group on the α-carbon; that is not R.'])) },
+  { id: 'p-ion', prompt: ['In the charged form on the slides, how are the amino and carboxyl groups written?'],
+    build: withPic('ion', choice([['NH₂ and COOH'], ['NH₃⁻ and COO⁺'], ['NH₃⁺ and COO⁻'], ['NH₄ and CO₂']], 2,
+      'Right. The amino group picks up H⁺ (NH₃⁺) and the carboxyl group gives one away (COO⁻).',
+      ['That is the neutral drawing, as on slide 6. The question asks for the charged form.',
+        'The charges are the wrong way round: picking up H⁺ makes the amino group positive.', null,
+        'Those are not amino acid groups. The amino group becomes NH₃⁺, the carboxyl COO⁻.'])) },
+  { id: 'p-ways', prompt: ['Which of these is one of the four ways to classify amino acids?'],
+    build: withPic('ways', choice([['by weight'], ['by season'], ['by solubility in oil'], ['metabolic: by the fate of the carbon skeleton']], 3,
+      'Right. The four ways are structural, chemical, nutritional and metabolic.',
+      ['There is no class by weight. The four are structural, chemical, nutritional and metabolic.',
+        'There is no seasonal class. The four are structural, chemical, nutritional and metabolic.',
+        'Not one of the four. They are structural, chemical, nutritional and metabolic.', null])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>

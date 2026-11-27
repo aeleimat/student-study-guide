@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 3, Lesson 3: Tertiary and Quaternary Structure — Biochemistry</title>
+<link rel="stylesheet" href="../../lib/engine.css">
+<style>.screen .grid.text .opts { gap: 4px; } .screen .grid.text .opt { padding: 2px 9px; font-size: 17px; min-height: 36px; } .screen .grid.text .opt kbd { display: none; }
+.screen .grid.text .row { padding: 4px 0 4px 12px; row-gap: 0; } .screen .grid.text .why { font-size: 18px; line-height: 1.25; }</style><!-- all rows wrong: three rows and their why lines fit above Check -->
+<link rel="expect" href="#bar" blocking="render"><!-- hold the first frame until the player exists, so the page transition can run -->
+</head>
+<body>
+<script src="../../lib/engine.js"></script>
+<script src="../../lib/water.js"></script>
+<script src="../../lib/macro.js"></script>
+<script src="../../lib/protein.js"></script>
+<script src="audio/en/timings.js"></script>
+<script>
+'use strict';
+// Biochemistry, Chapter 3 (Protein structure), lesson 3: a ball of yarn (one thread, folded); the chapter's four-levels
+// strip with tertiary and quaternary lit; one chain of helices, sheets and loops folding into a globule (tertiary
+// structure; the slide's "domain" handled); shape = function; the four side-chain bonds in a lens (hydrophobic,
+// hydrogen, ionic, disulfide) and the core / surface rule; globular and fibrous proteins by axial ratio; quaternary
+// structure (subunits packing, their bonds); creatine kinase, lactate dehydrogenase and hemoglobin; which bond acts at
+// which level; the strip again with all four levels; practice.
+// Plan, errata and beats: books/biochemistry/chapters/chapter-03/lesson-03.md.
+const CHAPTER = { number: 303, label: '3, lesson 3', title: 'Tertiary and Quaternary Structure', minutes: 7, language: 'en', lead: false, next: '../lesson-04/' };
+
+/* ---------- small helpers ---------- */
+const say = (p, str, x, y, t0, o = {}) => { const e = wChem(p, str, { x, y, weight: 700, ...o, o: 0 }); show(e, t0, .4); return e; };
+const SIDE = { x: 650, y: 60, w: 900, cls: 'side' };
+const PRACTICE = { x: 0, y: 0, w: 940, cls: 'screen' };
+const FIB = '#e8a87c';   // fibrous proteins (the globular ones take the tertiary green)
+const COV = '#f08c7a';   // "shape lost"
+const box5 = (g, x, y, w, h, { fill = '#0b1626', stroke = COL.faint, sw = 3, rx = 22, fo = 1 } = {}) => mk('rect', { x, y, width: w, height: h, rx, fill, 'fill-opacity': fo, stroke, 'stroke-width': sw }, g);
+// scale a group only when the rounded value changes
+function setS(e, s) { const v = Math.round(s * 1000) / 1000; if (st(e).s !== v) put(e, { s: v }); return e; }
+// one text whose words change at given times [[t, str], …]: it fades fully out before each change and back in after
+function stepText(p, steps, { x = 0, y = 0, size = 28, fill = COL.chalk, anchor = 'middle', weight = 700 } = {}) {
+  const e = wChem(p, steps[0][1], { x, y, size, fill, anchor, weight, o: 0 });
+  return Object.assign(e, {
+    set(t) {
+      let i = -1; for (let j = 0; j < steps.length; j++) if (t >= steps[j][0]) i = j;
+      wChemSet(e, steps[Math.max(0, i)][1]);
+      const nx = steps[i + 1] ? steps[i + 1][0] : null;
+      mO(e, i < 0 ? 0 : mRamp(t, steps[i][0], steps[i][0] + .3) * (nx == null ? 1 : 1 - mRamp(t, nx - .3, nx)));
+      return e;
+    },
+  });
+}
+// a coloured pill with dark text (a side-chain group), origin = its centre
+function badge(p, str, { x = 0, y = 0, fill = PC.neutral, size = 24, w } = {}) {
+  const g = G(p, { x, y }), ww = w ?? Math.round(uiW(str.replace(/[_^]/g, ''), size) * 1.1 + 26), hh = size + 16;
+  mk('rect', { x: -ww / 2, y: -hh / 2, width: ww, height: hh, rx: hh / 2, fill, stroke: PC.ink, 'stroke-width': 2.5 }, g);
+  wChem(g, str, { y: size * .36, size, fill: PC.ink, weight: 800, o: 1 });
+  return g;
+}
+// a grey-gold non-polar bead
+const npBead = (g, cx, cy, r = 15) => { mk('circle', { cx, cy, r, fill: PC.hydrophobic, stroke: PC.hydrophobicEdge, 'stroke-width': 2.5 }, g); mk('circle', { cx: cx - r * .3, cy: cy - r * .35, r: r * .3, fill: '#fff', 'fill-opacity': .4 }, g); };
+// a measuring ruler: a line with end bars, drawn k of the way from its first end
+function ruler(p, { color = COL.chalk } = {}) {
+  const g = G(p, { o: 0 }), e = path(g, 'M0 0', { stroke: color, 'stroke-width': 3.5, fill: 'none' });
+  return Object.assign(g, {
+    set(x1, y1, x2, y2, k) {
+      const L = Math.hypot(x2 - x1, y2 - y1) || 1, nx = -(y2 - y1) / L * 12, ny = (x2 - x1) / L * 12;
+      const ex = x1 + (x2 - x1) * k, ey = y1 + (y2 - y1) * k, f = v => v.toFixed(1);
+      mD(e, `M${f(x1 + nx)} ${f(y1 + ny)}L${f(x1 - nx)} ${f(y1 - ny)}M${f(x1)} ${f(y1)}L${f(ex)} ${f(ey)}M${f(ex + nx)} ${f(ey + ny)}L${f(ex - nx)} ${f(ey - ny)}`);
+      mO(g, mRamp(k, .12, .25));
+      return g;
+    },
+  });
+}
+// a compact globular protein drawn as a slightly long ellipsoid (length 2rx, width 2ry) with a folded chain inside
+function globShape(p, { x = 0, y = 0, rx = 175, ry = 50, s = 1 } = {}) {
+  const g = G(p, { x, y, s });
+  mk('ellipse', { rx, ry, fill: PC.tertiary, 'fill-opacity': .16, stroke: PC.tertiary, 'stroke-width': 4 }, g);
+  const rows = 4; let d = '';
+  for (let j = 0; j < rows; j++) {
+    const yy = -ry * .6 + j * ry * 1.2 / (rows - 1), half = rx * Math.sqrt(1 - (yy / ry) ** 2) * .82, dir = j % 2 ? -1 : 1;
+    for (let i = 0; i <= 16; i++) {
+      const f = i / 16, xx = dir * (-half + 2 * half * f), wy = yy + ry * .09 * Math.sin(f * 14);
+      d += (d ? 'L' : 'M') + xx.toFixed(1) + ' ' + wy.toFixed(1);
+    }
+  }
+  path(g, d, { stroke: PC.ribbon, 'stroke-width': 5, fill: 'none', 'stroke-linejoin': 'round' });
+  return g;
+}
+
+/* ---------- intro backdrop: a ball of yarn on a cloth ---------- */
+const YB = { x: 430, y: 450, R: 150 };
+function yarnBall(p) {
+  const g = G(p);
+  mk('rect', { x: 90, y: 150, width: 820, height: 640, rx: 30, fill: '#e9dfc7', stroke: '#cdbb93', 'stroke-width': 4 }, g);
+  for (let i = 1; i < 10; i++) path(g, `M${90 + i * 82} 154V786`, { stroke: '#d6c59d', 'stroke-width': 10, 'stroke-opacity': .55 });
+  for (let i = 1; i < 8; i++) path(g, `M94 ${150 + i * 80}H906`, { stroke: '#d6c59d', 'stroke-width': 10, 'stroke-opacity': .55 });
+  mk('ellipse', { cx: YB.x + 10, cy: YB.y + YB.R - 4, rx: YB.R * .95, ry: 26, fill: '#000', 'fill-opacity': .16 }, g);
+  const ball = G(g, { x: YB.x, y: YB.y });
+  mk('circle', { r: YB.R, fill: '#d9735a', stroke: '#8f3f2c', 'stroke-width': 5 }, ball);
+  [[0, .32], [36, .5], [72, .26], [108, .44], [144, .3], [20, .7], [128, .62], [90, .82]].forEach(([a, k]) =>
+    mk('ellipse', { rx: YB.R * .93, ry: YB.R * k, transform: `rotate(${a})`, fill: 'none', stroke: '#f2a68c', 'stroke-width': 5, 'stroke-opacity': .75 }, ball));
+  mk('circle', { r: YB.R, fill: 'none', stroke: '#8f3f2c', 'stroke-width': 5 }, ball);
+  // the loose thread: from the ball's lower right across the cloth; .set(u) shows u of it
+  const P0 = [YB.x + YB.R * Math.cos(.45), YB.y + YB.R * Math.sin(.45)], N = 48, pts = [];
+  for (let i = 0; i <= N; i++) { const f = i / N; pts.push([P0[0] + f * 360, P0[1] + f * 110 + 22 * Math.sin(f * 9) * f]); }
+  const thread = path(g, 'M0 0', { stroke: '#d9735a', 'stroke-width': 7, fill: 'none', 'stroke-linecap': 'round' });
+  return Object.assign(g, {
+    ball,
+    set(u) {
+      const m = Math.max(1, u * N), n = Math.floor(m), fr = m - n; let d = '';
+      for (let i = 0; i <= Math.min(n, N); i++) d += (i ? 'L' : 'M') + pts[i][0].toFixed(1) + ' ' + pts[i][1].toFixed(1);
+      if (n < N && fr > 0) { const a = pts[n], b = pts[n + 1]; d += `L${(a[0] + (b[0] - a[0]) * fr).toFixed(1)} ${(a[1] + (b[1] - a[1]) * fr).toFixed(1)}`; }
+      mD(thread, d); return g;
+    },
+  });
+}
+
+/* ---------- beats ---------- */
+const BEATS = [
+/* ---------- intro ---------- */
+['intro', 'A ball of yarn and the four levels', (m, D) => {
+  const p = panel(0), tY = m('yarn'), tS = m('strip'), tL = m('lit');
+  const cam = camera(p, D, { x: 800, y: 450, z: 1 }), W = cam.world;
+  const back = G(W, { o: 0 }); show(back, .2, .6);
+  const yb = yarnBall(back);
+  const yl = G(back, { o: 0 }); show(yl, tY + .4, .4);
+  wLabel(yl, 'one long thread, folded into a shape', { x: 500, y: 850, size: 30, weight: 700, o: 1 });
+  const ttl = G(p, { o: 0, y: 24 });
+  wLabel(ttl, 'BIOCHEMISTRY · CHAPTER 3 · LESSON 3', { x: 1250, y: 270, size: 24, fill: COL.dim, o: 1 });
+  ['Tertiary and', 'quaternary', 'structure'].forEach((s, i) => wLabel(ttl, s, { x: 1250, y: 350 + i * 64, size: 52, o: 1 }));
+  wLabel(ttl, 'how a protein takes its final shape', { x: 1250, y: 560, size: 26, fill: COL.dim, weight: 500, o: 1 });
+  tw(ttl, { o: 1, y: 0 }, .2, 1.1, out); hide(ttl, tS - .5, .5);
+  cam.to({ x: YB.x, y: YB.y, z: 2.2 }, tS - .3, 1.3);
+  hide(cam.el, tS + .4, .6);
+  // the chapter strip, pushed in from the yarn; at the end the camera moves into the tertiary panel
+  const wrap = G(p, { x: 800, y: 450, s: .85, o: 0 }), I = G(wrap, { x: -800, y: -450 });
+  tw(wrap, { s: 1, o: 1 }, tS + .4, 1, out);
+  const strip = levelsStrip(I, { x: 800, y: 420 });
+  const recap = G(I, { o: 0 }); show(recap, tS + 2.4, .5); hide(recap, tL - .4, .4);
+  wLabel(recap, 'lesson two: the first two levels', { x: 800, y: 680, size: 28, fill: COL.dim, weight: 700, o: 1 });
+  const today = G(I, { o: 0 }); show(today, tL + 1.2, .5);
+  wLabel(today, 'today:', { x: 800, y: 660, size: 26, fill: COL.dim, weight: 600, o: 1 });
+  wLabel(today, 'tertiary', { x: 780, y: 706, size: 36, fill: PC.tertiary, weight: 800, anchor: 'end', o: 1 });
+  wLabel(today, '+', { x: 800, y: 706, size: 36, weight: 800, o: 1 });
+  wLabel(today, 'quaternary', { x: 820, y: 706, size: 36, fill: PC.quaternary, weight: 800, anchor: 'start', o: 1 });
+  hide(today, D - 2.6, .4);
+  tw(wrap, { x: 800 - 1.7 * 180, y: 450 - 1.7 * -64, s: 1.7 }, D - 2.4, 2.2, soft);
+  clockRun(t => {
+    // the thread end pulls out and winds back; the ball gives one small pulse as it winds in
+    yb.set(.35 + .65 * io(mRamp(t, tY + .2, tY + 1.4)) * (1 - io(mRamp(t, tY + 1.8, tY + 3))));
+    setS(yb.ball, 1 + .05 * mBump(t, tY + 2.6, tY + 3.4));
+    const rk = mRamp(t, tS + 2.6, tS + 3.4) * (1 - mRamp(t, tL - .5, tL));
+    strip.tick('primary', rk).tick('secondary', rk);
+    strip.focus(['tertiary', 'quaternary'], io(mRamp(t, tL, tL + .9)));
+    const gk = mRamp(t, tL + .3, tL + 1) * (1 - mRamp(t, D - 2.6, D - 2));
+    strip.glow('tertiary', gk).glow('quaternary', gk);
+  }, D);
+}],
+
+/* ---------- tert ---------- */
+['tert', 'Tertiary structure: one chain folded', (m, D) => {
+  const p = panel(0), tP = m('parts'), tF = m('fold'), tD = m('domain'), tN = m('fn');
+  say(p, 'one polypeptide chain', 800, 110, .3, { size: 32, fill: COL.dim });
+  const wrap = G(p, { x: 800, y: 420, s: .9, o: 0 }); tw(wrap, { s: 1, o: 1 }, .1, 1, out);
+  const gl = globule(wrap, { R: 150, s: 1.25, pocket: true, pa: -40, beads: 10 });
+  const tl = G(p, { o: 0 }); show(tl, tF + 5.1, .5); tw(tl, { o: .3 }, tN + 5.6, .5);
+  wLabel(tl, 'tertiary structure', { x: 800, y: 690, size: 44, fill: PC.tertiary, weight: 800, o: 1 });
+  wLabel(tl, 'the final 3D shape of one chain', { x: 800, y: 735, size: 28, fill: COL.chalk, weight: 600, o: 1 });
+  // domain: the slide's word, then what a domain strictly is
+  const sl = G(p, { o: 0 }); show(sl, tD + .4, .4); hide(sl, tN - .5, .5);
+  wLabel(sl, 'slide 15 calls it', { x: 1300, y: 300, size: 26, fill: COL.dim, weight: 600, o: 1 });
+  wLabel(sl, '“domain”', { x: 1300, y: 345, size: 36, fill: COL.chalk, weight: 800, o: 1 });
+  const q = wLabel(sl, '?', { x: 1300, y: 420, size: 60, fill: PC.glow, weight: 800, o: 0 });
+  show(q, tD + 2.8, .3); hide(q, tD + 6, .5);
+  const dm = G(p, { o: 0 }); show(dm, tD + 3.2, .4); hide(dm, tN - .5, .5);
+  wLabel(dm, 'a domain:', { x: 270, y: 300, size: 30, fill: COL.chalk, weight: 800, o: 1 });
+  wLabel(dm, 'a compact region', { x: 270, y: 340, size: 26, fill: COL.chalk, weight: 600, o: 1 });
+  wLabel(dm, 'inside the fold', { x: 270, y: 374, size: 26, fill: COL.chalk, weight: 600, o: 1 });
+  mArrow(dm, [380, 380], [600, 440], { color: COL.chalk, w: 4, head: 14 });
+  const sv = say(p, 'a long chain may fold into several', 270, 470, tD + 6.4, { size: 22, fill: COL.dim, weight: 600 }); hide(sv, tN - .5, .5);
+  // function: the pocket and its partner; then the shape loosens and the partner can no longer fit
+  const fn = say(p, 'shape = function', 1300, 380, tN + 2.4, { size: 36, fill: PC.glow });
+  const lost = G(p, { o: 0 }); show(lost, tN + 5.6, .4);
+  wLabel(lost, 'shape lost', { x: 1300, y: 470, size: 32, fill: COV, weight: 800, o: 1 });
+  wLabel(lost, 'activity lost', { x: 1300, y: 512, size: 32, fill: COV, weight: 800, o: 1 });
+  void fn;
+  clockRun(t => {
+    gl.fold(io(mRamp(t, tF + .2, tF + 3.6)));
+    gl.labels(mRamp(t, tP + .3, tP + 1) * (1 - mRamp(t, tF - .4, tF + .1)));
+    gl.lobe(0, mRamp(t, tD + 3, tD + 3.5) * (1 - mRamp(t, tN - .6, tN)));
+    gl.lobe(1, mRamp(t, tD + 6.4, tD + 6.9) * (1 - mRamp(t, tN - .6, tN)));
+    const loose = io(mRamp(t, tN + 5.4, tN + 7));
+    gl.pocket(mRamp(t, tN + 2.2, tN + 2.8) * (1 - loose));
+    gl.partner(io(mRamp(t, tN + 2.6, tN + 4.2)) * (1 - mRamp(t, tN + 5.2, tN + 5.8)));
+    gl.tangle(.55 * loose);
+  }, D);
+}],
+
+/* ---------- bonds ---------- */
+['bonds', 'The bonds that hold the fold', (m, D) => {
+  const p = panel(0), tSd = m('side'), tHy = m('hyd'), tHb = m('hb'), tIo = m('ion'), tSs = m('ss'), tA = m('all'), tO = m('out');
+  // the globule at left with a lens ring on it; the lens box at right
+  const gl = globule(p, { x: 270, y: 420, R: 110, seed: 3 });
+  const lens = G(p, { o: 0 }); show(lens, tSd - .2, .5);
+  mk('circle', { cx: 330, cy: 470, r: 42, fill: 'none', stroke: PC.glow, 'stroke-width': 4 }, lens);
+  path(lens, 'M360 440L540 150M360 500L540 730', { stroke: PC.glow, 'stroke-width': 2.5, 'stroke-dasharray': '8 8', 'stroke-opacity': .7 });
+  box5(lens, 540, 140, 1020, 590, { fill: '#0b1626', stroke: PC.glow, sw: 3 });
+  const inner = G(lens);
+  wLabel(inner, 'between side chains (R), not the backbone', { x: 1050, y: 190, size: 28, fill: COL.chalk, weight: 700, o: 1 });
+  const strand = y => { let d = ''; for (let i = 0; i <= 40; i++) { const f = i / 40; d += (i ? 'L' : 'M') + (570 + f * 960).toFixed(1) + ' ' + (y + 10 * Math.sin(f * 15)).toFixed(1); } return d; };
+  path(inner, strand(262), { stroke: PC.ribbon, 'stroke-width': 10, fill: 'none' });
+  path(inner, strand(598), { stroke: PC.ribbon, 'stroke-width': 10, fill: 'none' });
+  const PX = [690, 930, 1170, 1410], YT = 352, YB2 = 508;
+  // stalks from the backbones to the side chains
+  const yS = x => 262 + 10 * Math.sin((x - 570) / 960 * 15), yS2 = x => 598 + 10 * Math.sin((x - 570) / 960 * 15);
+  const st0 = path(inner, 'M0 0', { stroke: PC.stick, 'stroke-width': 5 });
+  PX.slice(1).forEach(x => path(inner, `M${x} ${262 + 10 * Math.sin((x - 570) / 960 * 15)}V${YT}M${x} ${598 + 10 * Math.sin((x - 570) / 960 * 15)}V${YB2}`, { stroke: PC.stick, 'stroke-width': 5 }));
+  // 1 hydrophobic: grey-gold clusters that close the gap; water leaves
+  const npT = G(inner, { x: PX[0], y: YT }), npB = G(inner, { x: PX[0], y: YB2 });
+  [[-15, 0], [15, 0], [0, 22]].forEach(([a, b]) => npBead(npT, a, b));
+  [[-15, 0], [15, 0], [0, -22]].forEach(([a, b]) => npBead(npB, a, b));
+  const wat = [[-40, 426, -120, 400], [38, 418, 115, 440], [0, 446, -105, 500]].map(([dx, y, ex, ey]) => ({ w: waterMolecule(inner, { s: .32, face: false, o: 0 }), a: [PX[0] + dx, y], b: [PX[0] + ex, ey] }));
+  // 2 hydrogen bond: hydroxy O–H above, amide C=O below
+  const hbT = badge(inner, 'O–H', { x: PX[1], y: YT + 18, fill: PC.hydroxy }); void hbT;
+  badge(inner, 'C=O', { x: PX[1], y: YB2 - 18, fill: PC.amide });
+  const hb = hBondMark(inner);
+  // 3 ionic: COO⁻ above, NH₃⁺ below
+  badge(inner, 'COO^−', { x: PX[2], y: YT + 18, fill: PC.acidic });
+  badge(inner, 'NH_3^+', { x: PX[2], y: YB2 - 18, fill: PC.basic });
+  const sb = saltBridge(inner, { r: 14, arrows: false });
+  // 4 disulfide: two SH; the H atoms leave and S–S forms
+  const ss = disulfideMark(inner, { w: 12, r: 18, labels: false });
+  const sT = G(inner, { x: PX[3], y: YT + 10 }), sB = G(inner, { x: PX[3], y: YB2 - 10 });
+  [sT, sB].forEach(g => { mk('circle', { r: 18, fill: PC.S, stroke: PC.SEdge, 'stroke-width': 3 }, g); wLabel(g, 'S', { y: 8, size: 20, fill: PC.ink, weight: 800, o: 1 }); });
+  const hs = [[PX[3] + 34, YT + 32], [PX[3] + 34, YB2 - 32]].map(([x, y]) => { const g = G(inner, { x, y }); mk('circle', { r: 12, fill: PC.h, stroke: PC.hEdge, 'stroke-width': 2 }, g); wLabel(g, 'H', { y: 5, size: 14, fill: PC.ink, weight: 800, o: 1 }); return { g, x, y }; });
+  const twoH = say(inner, '2 H leave', PX[3] - 36, 438, tSs + 2.4, { size: 20, fill: COL.dim, anchor: 'end' }); hide(twoH, tSs + 5, .4);
+  // labels under the pairs, as each bond is named
+  const LB = [['hydrophobic', 'interactions', PC.hydrophobic, tHy + .3], ['hydrogen', 'bond', PC.hbond, tHb + .3], ['ionic bond', '(salt bridge)', PC.acidic, tIo + .4], ['disulfide', 'bridge', PC.ss, tSs + .5]];
+  LB.forEach(([a, b, c, t0], i) => { const g = G(inner, { o: 0 }); show(g, t0, .4); wLabel(g, a, { x: PX[i], y: 650, size: 26, fill: c, weight: 800, o: 1 }); wLabel(g, b, { x: PX[i], y: 682, size: 26, fill: c, weight: 800, o: 1 }); });
+  const cov = G(inner, { o: 0 }); show(cov, tSs + 3.6, .4);
+  wLabel(cov, 'covalent: strong', { x: PX[3], y: 716, size: 20, fill: PC.ss, weight: 700, o: 1 });
+  const ic = G(p, { o: 0 }); show(ic, tIo + 6.6, .4); hide(ic, tSs - .2, .4);
+  const IX = 1000, w1 = uiW('slide 16: “', 24), w2 = uiW('iconic', 24);
+  wLabel(ic, 'slide 16: “iconic” bond', { x: IX, y: 790, size: 24, fill: COL.dim, weight: 600, anchor: 'start', o: 1 });
+  path(ic, `M${IX + w1 - 2} 782H${IX + w1 + w2 + 2}`, { stroke: COV, 'stroke-width': 3.5 });
+  wLabel(ic, '→ ionic bond', { x: IX + uiW('slide 16: “iconic” bond', 24) + 24, y: 790, size: 24, fill: PC.acidic, weight: 800, anchor: 'start', o: 1 });
+  // all: the four bonds on the globule at once
+  const al = G(p, { o: 0 }); show(al, tA + .4, .4);
+  wLabel(al, 'most are weak,', { x: 270, y: 640, size: 26, fill: COL.chalk, weight: 700, o: 1 });
+  wLabel(al, 'together they', { x: 270, y: 674, size: 26, fill: COL.chalk, weight: 700, o: 1 });
+  wLabel(al, 'lock the shape', { x: 270, y: 708, size: 26, fill: COL.chalk, weight: 700, o: 1 });
+  // out: a cut-away of the fold, core and surface
+  hide(inner, tO + .1, .5);
+  const cut = G(lens, { o: 0 }); show(cut, tO + .5, .5);
+  const hc = hydrophobicCore(cut, { x: 1000, y: 455, R: 200, labels: false });
+  wLabel(cut, 'a cut through the fold', { x: 1050, y: 190, size: 28, fill: COL.chalk, weight: 700, o: 1 });
+  const cl = G(cut, { o: 0 }); show(cl, tO + 3.2, .5);
+  wLabel(cl, 'non-polar:', { x: 1300, y: 360, size: 26, fill: PC.hydrophobic, weight: 800, anchor: 'start', o: 1 });
+  wLabel(cl, 'in the core', { x: 1300, y: 392, size: 26, fill: PC.hydrophobic, weight: 800, anchor: 'start', o: 1 });
+  wLabel(cl, 'charged, polar:', { x: 1300, y: 470, size: 26, fill: PC.hydroxy, weight: 800, anchor: 'start', o: 1 });
+  wLabel(cl, 'on the surface', { x: 1300, y: 502, size: 26, fill: PC.hydroxy, weight: 800, anchor: 'start', o: 1 });
+  wLabel(cl, 'water: outside', { x: 1300, y: 580, size: 26, fill: PC.water, weight: 800, anchor: 'start', o: 1 });
+  clockRun(t => {
+    // hydrophobic: the clusters close in, the water drifts out of the gap
+    const hk = io(mRamp(t, tHy + 2.6, tHy + 4.6));
+    mPose(npT, PX[0], YT + 34 * hk, 1); mPose(npB, PX[0], YB2 - 34 * hk, 1);
+    mD(st0, `M${PX[0]} ${yS(PX[0]).toFixed(1)}V${(YT + 34 * hk).toFixed(1)}M${PX[0]} ${yS2(PX[0]).toFixed(1)}V${(YB2 - 34 * hk).toFixed(1)}`);
+    wat.forEach(({ w, a, b }) => { const k = io(mRamp(t, tHy + 2.4, tHy + 4.8)); w.pose(mLerp(a[0], b[0], k), mLerp(a[1], b[1], k)); mO(w, mRamp(t, tSd + .4, tSd + .9) * (1 - mRamp(t, tHy + 4, tHy + 4.8))); });
+    hb.set(PX[1], YB2 - 40, PX[1], YT + 40, mRamp(t, tHb + .6, tHb + 1.8)); mO(hb, mRamp(t, tHb + .5, tHb + .7));
+    sb.set([PX[2], YT + 58], [PX[2], YB2 - 58], mRamp(t, tIo + 1.6, tIo + 3.2));
+    mO(sb, mRamp(t, tIo + .8, tIo + 1.3));
+    // disulfide: each S loses its H, then the bar grows
+    const hk2 = io(mRamp(t, tSs + 2.2, tSs + 3.4));
+    hs.forEach(({ g, x, y }) => mPose(g, x + 60 * hk2, y, 1 - mRamp(t, tSs + 2.8, tSs + 3.6)));
+    ss.set([PX[3], YT + 10], [PX[3], YB2 - 10], mRamp(t, tSs + 3.4, tSs + 4.4));
+    mO(ss, mRamp(t, tSs + 3.3, tSs + 3.5));
+    const ak = k => mRamp(t, tA + .3 + k * .5, tA + .8 + k * .5);
+    gl.bonds({ core: ak(0), h: ak(1), salt: ak(2), ss: ak(3) });
+    hc.fold(io(mRamp(t, tO + 1, tO + 4)));
+  }, D);
+}],
+
+/* ---------- q1 ---------- */
+['q1', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'the four side-chain bonds', { x: 320, y: 170, size: 32, weight: 800, fill: PC.tertiary, o: 1 });
+  [['hydrogen', 190, 320], ['salt', 450, 320], ['disulfide', 190, 520], ['hydrophobic', 450, 520]].forEach(([k, x, y]) => bondChip(p, k, { x, y, w: 220 }));
+  wLabel(p, 'which one is covalent?', { x: 320, y: 700, size: 28, weight: 700, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-cov', prompt: ['Which of these side-chain bonds is covalent?'],
+  build: choice([['a hydrogen bond'], ['an ionic bond (salt bridge)'], ['a disulfide bridge'], ['a hydrophobic interaction']], 2,
+    'Right. The disulfide bridge (S–S) joins the sulfur atoms of two cysteines with a covalent bond. The other three are weak attractions.',
+    ['A hydrogen bond is a weak attraction between an H and an O or N. No electrons are shared.',
+      'An ionic bond is the pull between a − and a + side chain: strong for a weak bond, but not covalent.', null,
+      'Hydrophobic interactions are not true bonds at all: non-polar side chains gather away from water.']),
+}], done) }],
+
+/* ---------- shape ---------- */
+['shape', 'Globular and fibrous proteins', (m, D) => {
+  const p = panel(0), tR = m('ratio'), tG = m('glob'), tF = m('fib'), tU = m('use');
+  const hd = G(p, { o: 0 }); show(hd, tR + .2, .5);
+  wLabel(hd, 'axial ratio = length ÷ width', { x: 800, y: 82, size: 36, fill: COL.chalk, weight: 800, o: 1 });
+  // row 1: globular. The drawn shape is 350 long and 100 wide (3.5); row 2: the rope is 660 long and 44 wide (15)
+  const GL = { x: 400, y: 280, rx: 175, ry: 50 }, FR = { x: 400, y: 590, len: 660, amp: 18, w: 8 };
+  const FW = 2 * FR.amp + FR.w;
+  const r1 = G(p, { o: 0 }); show(r1, .2, .5);
+  wLabel(r1, 'globular', { x: 70, y: 175, size: 34, fill: PC.tertiary, weight: 800, anchor: 'start', o: 1 });
+  globShape(r1, GL);
+  const r2 = G(p, { o: 0 }); show(r2, tF - .2, .5);
+  wLabel(r2, 'fibrous', { x: 70, y: 500, size: 34, fill: FIB, weight: 800, anchor: 'start', o: 1 });
+  const rope = collagenRope(r2, { x: FR.x, y: FR.y, len: FR.len, amp: FR.amp, w: FR.w });
+  const hbs = G(r2, { o: 0 }); show(hbs, tF + 3.4, .5);
+  for (let i = 0; i < 9; i++) { const x = FR.x - FR.len / 2 + 50 + i * 70; path(hbs, `M${x} ${FR.y - FW / 2 - 6}V${FR.y + FW / 2 + 6}`, { stroke: PC.hbond, 'stroke-width': 3.5, 'stroke-dasharray': '6 5' }); }
+  // rulers
+  const rL1 = ruler(p), rW1 = ruler(p), rL2 = ruler(p), rW2 = ruler(p);
+  const lt = (str, x, y, t0, o = {}) => say(p, str, x, y, t0, { size: 22, fill: COL.dim, weight: 600, ...o });
+  lt('length', GL.x, GL.y + GL.ry + 62, tR + 1.6);
+  lt('width', GL.x - GL.rx - 34, GL.y + 8, tR + 3.2, { anchor: 'end' });
+  lt('length', FR.x, FR.y + FW / 2 + 64, tF + 1.6);
+  lt('width', FR.x + FR.len / 2 + 32, FR.y - 34, tF + 2.6);
+  // the ratio readouts
+  const rb = (y, col, t0) => { const g = G(p, { o: 0 }); show(g, t0, .4); box5(g, 820, y - 80, 230, 160, { stroke: col, sw: 3 }); return g; };
+  const b1 = rb(GL.y, PC.tertiary, tG + .3), b2 = rb(FR.y, FIB, tF + 4.4);
+  const v1 = wLabel(b1, '', { x: 935, y: GL.y + 6, size: 52, fill: PC.tertiary, weight: 800, o: 1 });
+  const v2 = wLabel(b2, '', { x: 935, y: FR.y + 6, size: 52, fill: FIB, weight: 800, o: 1 });
+  say(p, 'under 10', 935, GL.y + 52, tG + 4.6, { size: 26, fill: COL.chalk });
+  say(p, 'over 10', 935, FR.y + 52, tF + 7.6, { size: 26, fill: COL.chalk });
+  // the slide's rows: chain and examples
+  const TX = 1100;
+  say(p, 'compact, close to a ball: ratio 3.5', TX, 205, tG + .5, { size: 26, anchor: 'start' });
+  say(p, 'chains tightly folded and coiled', TX, 240, tG + 3.6, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  say(p, 'long, like a rope', TX, 515, tF + .5, { size: 26, anchor: 'start' });
+  say(p, 'chains coiled in a spiral,', TX, 550, tF + 3.2, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  say(p, 'cross-linked by hydrogen bonds', TX, 578, tF + 3.2, { size: 22, fill: COL.dim, weight: 600, anchor: 'start' });
+  const chips = (names, col, y0, t0, dt) => names.forEach((n, i) => {
+    const c = aaChip(p, n, { color: col, size: 22, o: 0 }), w = c.w;
+    put(c, { x: TX + (i % 2) * 210 + w / 2, y: y0 + Math.floor(i / 2) * 50, o: 0 }); show(c, t0 + i * dt, .35);
+  });
+  chips(['insulin', 'albumins', 'globulins', 'enzymes'], PC.tertiary, 300, tG + 9.6, .55);
+  chips(['keratin', 'myosin', 'collagen', 'fibrin'], FIB, 625, tF + 9.5, .5);
+  // use: the shape fits the job
+  const us = G(p, { o: 0 }); show(us, tU + .3, .5);
+  path(us, 'M60 735H1540', { stroke: COL.faint, 'stroke-width': 2 });
+  wLabel(us, 'the shape fits the job', { x: 800, y: 780, size: 28, fill: COL.chalk, weight: 800, o: 1 });
+  const wk = G(p, { o: 0 }); show(wk, tU + 1.7, .5);
+  const eg = globule(wk, { x: 140, y: 820, R: 36, mini: true, pocket: true, pa: -40, seed: 4 });
+  wLabel(wk, 'globular: the workers (enzymes)', { x: 200, y: 830, size: 24, fill: PC.tertiary, weight: 700, anchor: 'start', o: 1 });
+  const hr = G(p, { o: 0 }); show(hr, tU + 5.3, .5);
+  [0, 1, 2].forEach(i => path(hr, `M${1000 + i * 14} 792c10 10 -10 20 0 30s-10 20 0 30`, { stroke: '#c58b5a', 'stroke-width': 5, fill: 'none' }));
+  wLabel(hr, 'fibrous: strength (hair, nails, tendon)', { x: 1060, y: 830, size: 24, fill: FIB, weight: 700, anchor: 'start', o: 1 });
+  clockRun(t => {
+    rL1.set(GL.x - GL.rx, GL.y + GL.ry + 26, GL.x + GL.rx, GL.y + GL.ry + 26, io(mRamp(t, tR + .8, tR + 2.2)));
+    rW1.set(GL.x - GL.rx - 14, GL.y - GL.ry, GL.x - GL.rx - 14, GL.y + GL.ry, io(mRamp(t, tR + 2.6, tR + 3.4)));
+    rL2.set(FR.x - FR.len / 2, FR.y + FW / 2 + 28, FR.x + FR.len / 2, FR.y + FW / 2 + 28, io(mRamp(t, tF + .9, tF + 2.6)));
+    rW2.set(FR.x + FR.len / 2 + 16, FR.y - FW / 2, FR.x + FR.len / 2 + 16, FR.y + FW / 2, io(mRamp(t, tF + 2.2, tF + 2.8)));
+    rope.draw(io(mRamp(t, tF - .1, tF + 1.4)));
+    // the readouts count up from the same two lengths the rulers show
+    const k1 = io(mRamp(t, tG + .6, tG + 2.4)), k2 = io(mRamp(t, tF + 4.8, tF + 7));
+    v1.textContent = (k1 * 2 * GL.rx / (2 * GL.ry)).toFixed(1);
+    v2.textContent = String(Math.round(k2 * FR.len / FW));
+    eg.pocket(mRamp(t, tU + 2.2, tU + 2.8)).partner(io(mRamp(t, tU + 2.4, tU + 3.6)));
+  }, D);
+}],
+
+/* ---------- q2 ---------- */
+['q2', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'globular or fibrous?', { x: 320, y: 150, size: 34, weight: 800, o: 1 });
+  globShape(p, { x: 320, y: 320, rx: 130, ry: 37 });
+  wLabel(p, 'globular: compact, ratio under 10', { x: 320, y: 410, size: 22, fill: PC.tertiary, weight: 700, o: 1 });
+  collagenRope(p, { x: 320, y: 560, len: 500, amp: 16, w: 7 });
+  wLabel(p, 'fibrous: a long rod, ratio over 10', { x: 320, y: 630, size: 22, fill: FIB, weight: 700, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-shape', prompt: ['Sort each protein by its shape.'],
+  build: grid([
+    { parts: ['insulin'], ans: ['g'], why: 'Compact: ratio under 10.' },
+    { parts: ['collagen'], ans: ['f'], why: 'A rope: ratio over 10.' },
+    { parts: ['plasma albumin'], ans: ['g'], why: 'Compact, like insulin.' },
+  ], [['g', 'globular', null, 'G'], ['f', 'fibrous', null, 'F']], { multi: false, text: true }),
+}], done) }],
+
+/* ---------- quat ---------- */
+['quat', 'Quaternary structure', (m, D) => {
+  const p = panel(0), tSb = m('subs'), tP = m('pack'), tB = m('bond'), tO = m('one');
+  say(p, 'more than one chain', 640, 90, .3, { size: 32, fill: COL.dim });
+  const cx = subunitComplex(p, { x: 640, y: 430, n: 4, R: 100 });
+  // subs: one subunit, with its own three levels
+  const sg = G(p, { o: 0 }); show(sg, tSb + .4, .4); hide(sg, tP - .3, .4);
+  wLabel(sg, 'subunit', { x: 70, y: 150, size: 36, fill: PC.quaternary, weight: 800, anchor: 'start', o: 1 });
+  mArrow(sg, [200, 160], [300, 190], { color: PC.quaternary, w: 4, head: 14 });
+  [['primary', PC.primary], ['secondary', PC.secondary], ['tertiary', PC.tertiary]].forEach(([s, c], i) => {
+    const g = G(sg, { o: 0 }); show(g, tSb + 2.6 + i * .9, .3);
+    mk('circle', { cx: 86, cy: 284 + i * 50, r: 13, fill: PC.good }, g);
+    path(g, `M80 ${284 + i * 50}l5 5l8 -10`, { stroke: PC.ink, 'stroke-width': 3, fill: 'none' });
+    wLabel(g, s, { x: 110, y: 293 + i * 50, size: 26, fill: c, weight: 800, anchor: 'start', o: 1 });
+  });
+  const ql = G(p, { o: 0 }); show(ql, tP + 2.4, .5);
+  wLabel(ql, 'quaternary structure', { x: 640, y: 720, size: 42, fill: PC.quaternary, weight: 800, o: 1 });
+  wLabel(ql, 'subunits packed into one complex', { x: 640, y: 764, size: 26, fill: COL.chalk, weight: 600, o: 1 });
+  // bond: the legend at right
+  const lg = G(p, { o: 0 }); show(lg, tB + .4, .4);
+  wLabel(lg, 'held by', { x: 1080, y: 230, size: 26, fill: COL.dim, weight: 700, anchor: 'start', o: 1 });
+  path(lg, 'M1080 280H1150', { stroke: PC.hbond, 'stroke-width': 4, 'stroke-dasharray': '8 6' });
+  wLabel(lg, 'hydrogen bonds', { x: 1170, y: 289, size: 26, fill: PC.hbond, weight: 800, anchor: 'start', o: 1 });
+  const hpG = G(lg, { o: 0 }); show(hpG, tB + 2.4, .4);
+  [[1096, 345], [1120, 335], [1132, 355]].forEach(([x, y]) => npBead(hpG, x, y, 12));
+  wLabel(hpG, 'hydrophobic interactions', { x: 1170, y: 352, size: 26, fill: PC.hydrophobic, weight: 800, anchor: 'start', o: 1 });
+  const io2 = G(p, { o: 0 }); show(io2, tB + 6.2, .4);
+  wLabel(io2, 'also: ionic bonds', { x: 1170, y: 410, size: 22, fill: PC.acidic, weight: 700, anchor: 'start', o: 1 });
+  // one: a single chain alone
+  const one = G(p, { o: 0 }); show(one, tO + .3, .5);
+  globule(one, { x: 1320, y: 580, R: 80, mini: true, seed: 5 });
+  wLabel(one, 'one chain only:', { x: 1320, y: 710, size: 26, fill: COL.chalk, weight: 700, o: 1 });
+  wLabel(one, 'no quaternary structure', { x: 1320, y: 744, size: 26, fill: COV, weight: 800, o: 1 });
+  clockRun(t => {
+    cx.pack(io(mRamp(t, tP + .2, tP + 2.6)));
+    cx.focus([0], mRamp(t, tSb + .2, tSb + .8) * (1 - mRamp(t, tP - .4, tP + .2)));
+    cx.contacts(mRamp(t, tB + .4, tB + 2.8));
+  }, D);
+}],
+
+/* ---------- ex ---------- */
+['ex', 'Three examples', (m, D) => {
+  const p = panel(0), tC = m('ck'), tL = m('ldh'), tH = m('hb'), tW = m('why'), tN = m('count');
+  const CX = [290, 800, 1310];
+  // the three frames and names from the start; each card's protein and count come in as it is named
+  const card = (i, name, t0) => { const f = G(p, { o: 0 }); show(f, .1, .5); box5(f, CX[i] - 235, 140, 470, 620); wLabel(f, name, { x: CX[i], y: 200, size: 30, weight: 800, o: 1 }); const g = G(p, { o: 0 }); show(g, t0, .5); return g; };
+  const c1 = card(0, 'creatine kinase', tC), c2 = card(1, 'lactate dehydrogenase', tL), c3 = card(2, 'hemoglobin', tH);
+  const ck = subunitComplex(c1, { x: CX[0], y: 420, n: 2, R: 85, tints: [PC.quaternary, PC.tertiary] });
+  const ld = subunitComplex(c2, { x: CX[1], y: 420, n: 4, R: 68 });
+  const hb = hemoglobin(c3, { x: CX[2], y: 420, R: 68 });
+  const count = (g, i, a, b) => { const w = G(g, { x: CX[i], y: 640 }); wLabel(w, a, { y: 0, size: 40, fill: PC.quaternary, weight: 800, o: 1 }); wLabel(w, b, { y: 44, size: 26, fill: COL.chalk, weight: 700, o: 1 }); return w; };
+  const n1 = count(c1, 0, 'dimer', '2 subunits'), n2 = count(c2, 1, 'tetramer', '4 subunits'), n3 = count(c3, 2, 'tetramer', '2 α + 2 β');
+  const fe = say(c3, 'heme with an iron ion (Fe^{2+})', CX[2], 738, tH + 1, { size: 20, fill: PC.heme });
+  void fe;
+  const wh = stepText(p, [[tW + .4, 'apart: no single chain does the whole job'], [tW + 4.2, 'together: the working protein']], { x: CX[2], y: 105, size: 24, fill: PC.glow });
+  [[n1, tN + .3], [n2, tN + 1.3], [n3, tN + 1.5]].forEach(([w, t0]) => pulse(w, t0, 1.2));
+  clockRun(t => {
+    ck.pack(io(mRamp(t, tC + .4, tC + 2)));
+    ld.pack(io(mRamp(t, tL + .4, tL + 2)));
+    const ap = io(mRamp(t, tW + .4, tW + 1.8)) * (1 - io(mRamp(t, tW + 3.8, tW + 5.2)));
+    hb.pack(io(mRamp(t, tH + .4, tH + 2)) * (1 - .4 * ap)).hemes(mRamp(t, tH + .4, tH + 1)).labels(mRamp(t, tH + 2, tH + 2.6));
+    wh.set(t);
+  }, D);
+}],
+
+/* ---------- q3 ---------- */
+['q3', 'Quick check', (m, D) => {
+  const p = panel(0);
+  wLabel(p, 'creatine kinase', { x: 320, y: 180, size: 34, weight: 800, o: 1 });
+  subunitComplex(p, { x: 320, y: 420, n: 2, R: 95, tints: [PC.quaternary, PC.tertiary] });
+  wLabel(p, '2 subunits', { x: 320, y: 620, size: 30, fill: PC.quaternary, weight: 800, o: 1 });
+}, { ask: done => quiz(SIDE, [{
+  id: 'c-sub', prompt: ['Creatine kinase has two subunits. What is it called?'],
+  build: choice([['a monomer'], ['a dimer'], ['a tetramer'], ['a domain']], 1,
+    'Right. Two subunits make a dimer ("di" = two).',
+    ['A monomer is a single unit. Creatine kinase has two.', null,
+      'A tetramer has four subunits, like lactate dehydrogenase and hemoglobin.',
+      'A domain is a region inside one folded chain, not a count of chains.']),
+}], done) }],
+
+/* ---------- levels ---------- */
+['levels', 'Which bond at which level', (m, D) => {
+  const p = panel(0), tS = m('sec'), tT = m('ter'), tQ = m('qua'), tM = m('same');
+  wLabel(p, 'what holds each level?', { x: 800, y: 80, size: 34, weight: 800, o: 1 });
+  const CX = [290, 800, 1310], TT = [tS, tT, tQ];
+  const LV = [['secondary', PC.secondary, 'backbone, one chain'], ['tertiary', PC.tertiary, 'side chains, one chain'], ['quaternary', PC.quaternary, 'between chains']];
+  const cols = LV.map(([name, col], i) => { const g = G(p, { o: 0 }); tw(g, { o: .35 }, .5, .5); show(g, TT[i] - .2, .5); box5(g, CX[i] - 235, 120, 470, 660, { stroke: col, sw: 3 }); wLabel(g, name, { x: CX[i], y: 172, size: 34, fill: col, weight: 800, o: 1 }); return g; });
+  const hx = alphaHelix(cols[0], { x: CX[0], y: 345, n: 10, r: 46, rise: 22, numbers: false });
+  const gb = globule(cols[1], { x: CX[1], y: 345, R: 100, seed: 3 });
+  const qc = subunitComplex(cols[2], { x: CX[2], y: 345, n: 2, R: 72, tints: [PC.quaternary, PC.tertiary] });
+  // bond rows: glyph + name; hydrogen and hydrophobic rows get a highlight for "same"
+  const ROWS = [[['hydrogen', 'hydrogen bonds']], [['hydrophobic', 'hydrophobic'], ['hydrogen', 'hydrogen bonds'], ['salt', 'ionic bonds'], ['disulfide', 'disulfide (covalent)']], [['hydrogen', 'hydrogen bonds'], ['hydrophobic', 'hydrophobic']]];
+  const his = [];
+  ROWS.forEach((rows, i) => rows.forEach(([k, name], j) => {
+    const y = 540 + j * 50, g = G(cols[i], { o: 0 }); show(g, TT[i] + .8 + j * (i === 1 ? .9 : .6), .3);
+    if (k === 'hydrogen' || k === 'hydrophobic') { const h = mk('rect', { x: CX[i] - 215, y: y - 22, width: 430, height: 44, rx: 12, fill: PC.glow, 'fill-opacity': .14, stroke: PC.glow, 'stroke-width': 2 }, g); put(h, { o: 0 }); his.push(h); }
+    bondChip(g, k, { x: CX[i] - 150, y, s: .5, card: false, label: false });
+    wLabel(g, name, { x: CX[i] - 90, y: y + 9, size: 24, fill: PC[{ hydrogen: 'hbond', hydrophobic: 'hydrophobic', salt: 'acidic', disulfide: 'ss' }[k]], weight: 700, anchor: 'start', o: 1 });
+  }));
+  const wh = LV.map(([, col, where], i) => { const w = G(cols[i], { x: CX[i], y: 750 }); const e = say(w, 'where: ' + where, 0, 0, TT[i] + 2.4, { size: 24, fill: COL.chalk }); void e; return w; });
+  say(p, 'same bonds, different places', 800, 850, tM + 1.4, { size: 30, fill: PC.glow });
+  [0, 1, 2].forEach(i => pulse(wh[i], tM + 4.6 + i * 1.1, 1.15));
+  clockRun(t => {
+    hx.bonds(mRamp(t, tS + .8, tS + 3));
+    const bk = j => mRamp(t, tT + 1 + j * .9, tT + 1.6 + j * .9);
+    gb.bonds({ core: bk(0), h: bk(1), salt: bk(2), ss: bk(3) });
+    qc.contacts(mRamp(t, tQ + .8, tQ + 2.6));
+    his.forEach(h => mO(h, mRamp(t, tM + .2, tM + .8)));
+  }, D);
+}],
+
+/* ---------- wrap ---------- */
+['wrap', 'The four levels together', (m, D) => {
+  const p = panel(0), TL = ['p', 's', 't', 'q'].map(k => m(k)), tE = m('end');
+  wLabel(p, 'the four levels of protein structure', { x: 800, y: 140, size: 36, weight: 800, o: 1 });
+  const strip = levelsStrip(p, { x: 800, y: 420 });
+  const LV = ['primary', 'secondary', 'tertiary', 'quaternary'];
+  const CAP = [['sequence of', 'amino acids'], ['helices and', 'sheets'], ['one chain', 'folded'], ['several chains', 'packed']];
+  LV.forEach((lv, i) => { const g = G(p, { o: 0 }); show(g, TL[i] + .4, .4); const x = 800 + (i - 1.5) * 360; CAP[i].forEach((s, j) => wLabel(g, s, { x, y: 650 + j * 32, size: 26, fill: PC[lv], weight: 700, o: 1 })); });
+  // end: an arrow back from quaternary to primary, "each level rests on the one below"
+  const ar = G(p, { o: 0 });
+  path(ar, 'M1340 730C1100 790 500 790 290 730', { stroke: PC.glow, 'stroke-width': 4, fill: 'none', 'stroke-dasharray': '10 8' });
+  path(ar, 'M306 716L284 728L308 744', { stroke: PC.glow, 'stroke-width': 4, fill: 'none' });
+  wLabel(ar, 'each level rests on the one below', { x: 800, y: 820, size: 28, fill: PC.glow, weight: 700, o: 1 });
+  say(p, 'Now try the practice.', 800, 870, tE + 2.1, { size: 30, fill: PC.hbond });
+  clockRun(t => {
+    let lit = []; TL.forEach((t0, i) => { if (t >= t0) lit.push(LV[i]); });
+    strip.focus(lit.length ? lit : ['primary'], mRamp(t, TL[0] - .4, TL[0]) * (1 - mRamp(t, tE, tE + .6)));
+    strip.tags(mRamp(t, TL[0], TL[0] + .5));
+    LV.forEach((lv, i) => strip.glow(lv, mBump(t, TL[i], TL[i] + 2.4)).tick(lv, mRamp(t, TL[i] + 1.6, TL[i] + 2)));
+    mO(ar, mRamp(t, tE + .2, tE + .6) * (.55 + .45 * Math.cos(Math.PI * Math.max(0, t - tE - .6) / 1.6) ** 2));
+  }, D);
+}],
+
+/* ---------- final1 ---------- */
+['final1', 'Chapter practice', (m, D) => {
+  const p = panel(0), pics = {}, at = (k, f) => { const g = G(p, { o: 0 }); f(g); pics[k] = g; };
+  const frame = g => box5(g, 980, 90, 580, 720);
+  const XC = 1270;
+  at('tert', g => {
+    frame(g);
+    globule(g, { x: XC, y: 400, R: 140, seed: 2 });
+    wLabel(g, '?', { x: XC + 190, y: 260, size: 60, fill: PC.glow, weight: 800, o: 1 });
+    wLabel(g, 'one chain, fully folded', { x: XC, y: 700, size: 26, weight: 700, o: 1 });
+  });
+  at('bondlevel', g => {
+    frame(g);
+    [['peptide', 220], ['hydrogen', 420], ['disulfide', 620]].forEach(([k, y]) => bondChip(g, k, { x: XC, y, w: 260 }));
+  });
+  at('ratio', g => {
+    frame(g);
+    globShape(g, { x: XC, y: 280, rx: 140, ry: 40 });
+    collagenRope(g, { x: XC, y: 560, len: 480, amp: 16, w: 7 });
+    const r1 = ruler(g), r2 = ruler(g);
+    r1.set(XC - 140, 345, XC + 140, 345, 1); r2.set(XC - 240, 610, XC + 240, 610, 1);
+    wLabel(g, 'length ÷ width = ?', { x: XC, y: 740, size: 26, weight: 700, o: 1 });
+  });
+  at('quat', g => {
+    frame(g);
+    subunitComplex(g, { x: XC, y: 420, n: 4, R: 90 }).pack(.75);
+    wLabel(g, '?', { x: XC, y: 440, size: 60, fill: PC.glow, weight: 800, o: 1 });
+  });
+  at('counts', g => {
+    frame(g);
+    [['creatine kinase', 230], ['lactate dehydrogenase', 440], ['hemoglobin', 650]].forEach(([n, y]) => {
+      box5(g, 1020, y - 80, 500, 160, { stroke: COL.faint, sw: 2.5 });
+      wLabel(g, n, { x: XC, y: y - 22, size: 28, weight: 800, o: 1 });
+      wLabel(g, '? subunits', { x: XC, y: y + 34, size: 26, fill: PC.quaternary, weight: 700, o: 1 });
+    });
+  });
+  at('hb', g => {
+    frame(g);
+    hemoglobin(g, { x: XC, y: 420, R: 100 }).labels(0);
+    wLabel(g, 'hemoglobin', { x: XC, y: 720, size: 28, weight: 800, o: 1 });
+  });
+  S.pics = key => Object.entries(pics).forEach(([k, g]) => put(g, { o: k === key ? 1 : 0 }));
+  S.pics('tert');
+}, { ask: done => quiz(PRACTICE, [
+  { id: 'p-tert', prompt: ['What is the tertiary structure of a protein?'],
+    build: withPic('tert', choice([['the order of amino acids in the chain'], ['the helices and sheets on their own'], ['the final 3D shape of one folded chain'], ['the way several chains pack together']], 2,
+      'Right. Tertiary structure is the whole chain folded into its final, working 3D shape.',
+      ['That is the primary structure: the sequence, held by peptide bonds.',
+        'Helices and sheets are the secondary structure. Tertiary structure packs them into one shape.', null,
+        'Several chains packing together is the quaternary structure.'])) },
+  { id: 'p-bondlevel', prompt: ['Which level does each bond belong to?'],
+    build: withPic('bondlevel', grid([
+      { parts: ['peptide bond'], ans: ['p'], why: 'Joins the amino acids.' },
+      { parts: ['H-bond, backbone to backbone'], ans: ['s'], why: 'Helix and sheet.' },
+      { parts: ['S–S, side chain to side chain'], ans: ['t'], why: 'Holds the fold.' },
+    ], [['p', 'primary', null, 'P'], ['s', 'secondary', null, 'S'], ['t', 'tertiary', null, 'T']], { multi: false, text: true })) },
+  { id: 'p-ratio', prompt: ['Globular or fibrous?'],
+    build: withPic('ratio', grid([
+      { parts: ['axial ratio about 3 to 4'], ans: ['g'], why: 'Under 10: compact.' },
+      { parts: ['axial ratio over 10'], ans: ['f'], why: 'A long rod.' },
+      { parts: ['keratin'], ans: ['f'], why: 'Hair and nail.' },
+    ], [['g', 'globular', null, 'G'], ['f', 'fibrous', null, 'F']], { multi: false, text: true })) },
+  { id: 'p-quat', prompt: ['What does quaternary structure describe?'],
+    build: withPic('quat', choice([['the shape of a single chain'], ['how several folded subunits pack together'], ['the helices and sheets in a chain'], ['the sequence of amino acids']], 1,
+      'Right. Quaternary structure is the packing of two or more subunits, each folded in its own right.',
+      ['The shape of a single chain is its tertiary structure.', null,
+        'Helices and sheets are secondary structure, inside one chain.',
+        'The sequence is the primary structure.'])) },
+  { id: 'p-blanks', prompt: ['How many subunits does each protein have?'],
+    build: withPic('counts', blanks([
+      { parts: ['creatine kinase: ', { box: '2' }, ' subunits'], why: 'A dimer.', hint: 'It is a dimer.' },
+      { parts: ['lactate dehydrogenase: ', { box: '4' }, ' subunits'], why: 'A tetramer.', hint: 'It is a tetramer.' },
+      { parts: ['hemoglobin: ', { box: '4' }, ' subunits'], why: 'Two alpha and two beta.', hint: 'Count the alpha and beta chains.' },
+    ])) },
+  { id: 'p-hb', prompt: ['Which describes hemoglobin?'],
+    build: withPic('hb', choice([['four identical alpha chains'], ['two alpha and two beta chains, each with a heme group'], ['one long chain with four hemes'], ['four beta chains']], 1,
+      'Right. Hemoglobin is a tetramer of two alpha and two beta chains, and each holds a heme with an iron ion.',
+      ['It has two kinds of chain, not one: two alpha and two beta.', null,
+        'One chain could have no quaternary structure. Hemoglobin has four separate chains.',
+        'Only two of the four are beta chains. The other two are alpha.'])) },
+], done, 'Chapter practice') }],
+
+['finish', 'Finished', () => { panel(0); }, { ask: finishCard }],
+].map(([id, title, run, extra]) => ({ id, title, run, ...extra }));
+
+// The practice screen: the card on the left, the question's picture on the right (final1 draws it).
+function withPic(key, build) { return (body, api) => { S.pics?.(key); return build(body, api); }; }
+
+boot();
+</script>
+</body>
+</html>
